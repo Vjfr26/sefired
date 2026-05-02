@@ -1,0 +1,155 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+}
+
+@layer base {
+  body { font-family: var(--font-sans); }
+  *, *::before, *::after { box-sizing: border-box; }
+  button, [role="button"] { cursor: pointer; }
+}
+
+@layer components {
+
+  .card {
+    @apply bg-white border border-slate-200/70 shadow-sm rounded-2xl;
+  }
+
+  /* Sidebar */
+  .group-btn {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400
+           hover:bg-white/10 hover:text-white transition-all duration-150 cursor-pointer
+           select-none w-full text-left;
+  }
+  .group-btn.open {
+    @apply text-slate-100;
+  }
+  .sub-items {
+    overflow: hidden;
+    max-height: 0;
+    transition: max-height 0.22s ease;
+  }
+  .sub-items.open {
+    max-height: 400px;
+  }
+  .sub-btn {
+    @apply flex items-center w-full text-left gap-2 pl-10 pr-3 py-2 rounded-lg
+           text-xs text-slate-500 hover:bg-white/10 hover:text-slate-200
+           transition-all cursor-pointer;
+  }
+  .sub-btn.active {
+    @apply text-blue-300 bg-white/10 font-semibold;
+  }
+  .group-btn-active {
+    @apply bg-blue-600 text-white font-semibold;
+    box-shadow: 0 4px 14px rgba(59, 130, 246, 0.35);
+  }
+
+  .chevron {
+    @apply transition-transform duration-200 shrink-0;
+  }
+
+  /* User dropdown */
+  #user-menu-dropdown {
+    animation: fadeDown 0.15s ease;
+  }
+  @keyframes fadeDown {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .chevron.open {
+    @apply rotate-180;
+  }
+
+  /* Buttons */
+  .btn-primary {
+    @apply inline-flex items-center gap-2 bg-blue-600 text-white text-sm font-semibold
+           px-4 py-2.5 rounded-xl hover:bg-blue-700 transition shadow-md shadow-blue-500/20
+           cursor-pointer;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center gap-2 bg-white text-slate-700 text-sm font-semibold
+           px-4 py-2.5 rounded-xl hover:bg-slate-50 transition border border-slate-200 cursor-pointer;
+  }
+  .btn-success {
+    @apply inline-flex items-center gap-2 bg-emerald-600 text-white text-sm font-semibold
+           px-4 py-2.5 rounded-xl hover:bg-emerald-700 transition shadow-md cursor-pointer;
+  }
+  .btn-danger {
+    @apply inline-flex items-center gap-2 bg-rose-600 text-white text-sm font-semibold
+           px-4 py-2.5 rounded-xl hover:bg-rose-700 transition shadow-md cursor-pointer;
+  }
+
+  /* Table */
+  .th-cell {
+    @apply px-5 py-3 text-slate-400 text-xs font-semibold uppercase tracking-wider;
+  }
+  .td-cell {
+    @apply px-5 py-3.5 text-slate-700 text-sm;
+  }
+
+  /* Form */
+  .input-field {
+    @apply w-full text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2
+           outline-none transition focus:ring-2 focus:ring-blue-500 focus:border-transparent
+           read-only:bg-slate-100 read-only:cursor-default;
+  }
+  .field-label {
+    @apply text-[11px] font-semibold text-slate-500 block mb-1.5 uppercase tracking-wide;
+  }
+  .select-field {
+    @apply w-full text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2
+           outline-none transition focus:ring-2 focus:ring-blue-500 text-slate-700 cursor-pointer;
+  }
+
+  /* Badges */
+  .badge {
+    @apply text-[11px] font-bold px-2.5 py-0.5 rounded-full whitespace-nowrap;
+  }
+  .badge-green  { @apply bg-emerald-100 text-emerald-700; }
+  .badge-amber  { @apply bg-amber-100 text-amber-700; }
+  .badge-blue   { @apply bg-blue-100 text-blue-700; }
+  .badge-red    { @apply bg-rose-100 text-rose-700; }
+  .badge-slate  { @apply bg-slate-100 text-slate-500; }
+  .badge-indigo { @apply bg-indigo-100 text-indigo-700; }
+
+  /* Notification panel */
+  #notif-panel {
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Toggle */
+  .toggle-wrap { @apply relative flex items-center; }
+  .toggle-input { @apply sr-only; }
+  .toggle-track {
+    @apply block w-10 h-5 rounded-full bg-slate-200 cursor-pointer transition-colors duration-200 relative;
+  }
+  .toggle-track::after {
+    content: '';
+    position: absolute;
+    left: 2px;
+    top: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 9999px;
+    background: white;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    transition: transform 0.2s;
+  }
+  .toggle-input:checked + .toggle-track { @apply bg-blue-500; }
+  .toggle-input:checked + .toggle-track::after { transform: translateX(20px); }
+
+  /* Step indicator */
+  .step-item {
+    @apply flex items-center gap-2;
+  }
+  .step-dot {
+    @apply w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0;
+  }
+  .step-dot.done    { @apply bg-emerald-500 text-white; }
+  .step-dot.active  { @apply bg-blue-600 text-white ring-4 ring-blue-100; }
+  .step-dot.pending { @apply bg-slate-200 text-slate-500; }
+  .step-line        { @apply flex-1 h-0.5 bg-slate-200 mx-1; }
+  .step-line.done   { @apply bg-emerald-400; }
+}
