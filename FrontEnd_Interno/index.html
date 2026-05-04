@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sefired — Panel Interno</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body class="min-h-screen flex">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar-container fixed inset-y-0 left-0 w-80 bg-sefired-blue/95 text-white flex flex-col z-50">
+        <div class="px-8 py-10 shrink-0">
+            <div class="flex flex-col items-start gap-0">
+                <div
+                    class="flex items-center justify-center w-full p-4 rounded-3xl bg-white/5 backdrop-blur-md border border-white/10 shadow-inner">
+                    <img src="public/logo2.png" alt="Logo"
+                        class="w-full h-auto object-contain brightness-120 contrast-140 drop-shadow-[0_0_20px_rgba(0,0,0,1)]">
+                </div>
+                <div class="mt-3 border-t border-white/10 pt-3 w-full">
+                    <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-tight">Cooperativa
+                        de Seguros<br>de Vehículos R.L.</p>
+                </div>
+            </div>
+        </div>
+
+        <nav id="sidebar-nav" class="flex-1 px-4 py-2 overflow-y-auto space-y-1"></nav>
+
+        <div class="px-6 py-8 border-t border-white/5 shrink-0">
+            <div class="flex items-center gap-4 px-2 py-2 rounded-2xl hover:bg-white/5 cursor-pointer transition">
+                <div
+                    class="w-10 h-10 rounded-full bg-sefired-green/20 flex items-center justify-center text-sm font-bold text-sefired-green shrink-0">
+                    CR</div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-bold truncate text-white">Carlos Ruiz</p>
+                    <p class="text-[11px] text-slate-400 truncate font-medium">Asesor de Ventas</p>
+                </div>
+                <i data-lucide="log-out" class="w-4 h-4 text-slate-500 hover:text-white shrink-0 transition-colors"></i>
+            </div>
+        </div>
+    </aside>
+
+    <!-- MAIN -->
+    <div class="flex-1 ml-80 flex flex-col min-h-screen relative">
+        <header
+            class="bg-sefired-light px-12 py-6 flex items-center justify-between shrink-0 border-b border-white/40 shadow-sm">
+            <div>
+                <h2 id="page-title" class="text-2xl font-black text-sefired-dark tracking-tight">—</h2>
+                <p id="page-subtitle" class="text-sm text-slate-500 font-medium mt-1">—</p>
+            </div>
+            <!-- User tools -->
+            <div class="flex items-center gap-6">
+                <div
+                    class="flex items-center gap-2 px-4 py-2 bg-white/50 backdrop-blur-sm rounded-full border border-white/50 cursor-pointer hover:bg-white transition-all shadow-sm">
+                    <div
+                        class="w-6 h-6 rounded-full bg-sefired-dark flex items-center justify-center text-[10px] font-bold text-white">
+                        CR</div>
+                    <span class="text-sm font-bold text-sefired-dark">Carlos Ruiz</span>
+                    <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400"></i>
+                </div>
+                <button id="menu-logout"
+                    class="text-sm font-bold text-sefired-dark hover:text-rose-600 transition-colors underline underline-offset-4">Cerrar
+                    Sesión</button>
+            </div>
+        </header>
+
+        <main class="flex-1 px-12 pb-12 mt-2">
+            <div id="content-area"></div>
+        </main>
+    </div>
+
+
+    <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <script type="module" src="/main.js"></script>
+</body>
+
+</html>

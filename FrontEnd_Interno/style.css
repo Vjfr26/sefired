@@ -1,0 +1,132 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --color-sefired-blue: #001463;
+  --color-sefired-dark: #000c3b;
+  --color-sefired-light: #F0F7FF;
+  --color-sefired-green: #146300;
+}
+
+@layer base {
+  body {
+    @apply font-sans min-h-screen relative overflow-x-hidden;
+    background-color: #f8faff;
+    background-image:
+      radial-gradient(at 0% 0%, rgba(144, 181, 255, 0.5) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, rgba(224, 242, 255, 0.5) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, rgba(101, 132, 255, 0.5) 0px, transparent 50%),
+      radial-gradient(at 0% 100%, rgba(240, 247, 255, 0.5) 0px, transparent 50%);
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  button,
+  [role="button"] {
+    cursor: pointer;
+  }
+}
+
+@layer components {
+
+  .card {
+    @apply bg-white/40 backdrop-blur-2xl border border-white/40 shadow-2xl rounded-[2rem];
+  }
+
+  /* Sidebar */
+  .sidebar-container {
+    @apply w-80 backdrop-blur-2xl text-white flex flex-col fixed inset-y-0 left-0 z-50 border-r border-white/20;
+    background-color: #000000;
+    background-image:
+      radial-gradient(at 0% 0%, rgba(0, 20, 20, 0.5) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, rgba(0, 20, 99, 0.5) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, rgba(0, 20, 255, 0.5) 0px, transparent 50%),
+      radial-gradient(at 0% 100%, rgba(0, 20, 99, 0.5) 0px, transparent 50%);
+  }
+
+  .group-btn {
+    @apply flex items-center gap-4 px-8 py-4 text-sm text-slate-300 hover:text-white transition-all duration-300 cursor-pointer select-none w-full text-left font-medium;
+  }
+
+  .group-btn-active {
+    @apply bg-sefired-blue/20 text-white font-bold border-none ml-0;
+    box-shadow: 0 4px 12px rgba(0, 20, 99, 0.1);
+  }
+
+  .subs-container {
+    @apply hidden flex-col pl-10;
+  }
+
+  .subs-container.show {
+    @apply flex animate-in slide-in-from-top-1 duration-200;
+  }
+
+  .sub-btn {
+    @apply flex items-center gap-3 px-4 py-2 text-[11px] font-semibold text-slate-400 hover:text-white transition-all duration-200 cursor-pointer w-full text-left rounded-lg;
+  }
+
+  .sub-btn-active {
+    @apply text-white bg-white/5;
+  }
+
+  .chevron {
+    @apply transition-transform duration-200 shrink-0;
+  }
+
+  /* Buttons */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 bg-sefired-green text-white text-sm font-bold px-6 py-3 rounded-2xl hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20 cursor-pointer;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 bg-white text-slate-600 text-sm font-bold px-6 py-3 rounded-2xl hover:bg-slate-50 transition border border-slate-100 cursor-pointer shadow-sm;
+  }
+
+  /* Dashboard Specific */
+  .type-btn {
+    @apply flex flex-col items-center justify-center p-4 rounded-2xl bg-white border border-slate-200 hover:border-sefired-green hover:bg-emerald-50 transition-all duration-300 cursor-pointer;
+  }
+
+  .type-btn.active {
+    @apply bg-sefired-green text-white border-sefired-green shadow-lg shadow-emerald-500/30;
+  }
+
+  .type-btn.active i {
+    @apply !text-white;
+  }
+
+  .input-group {
+    @apply flex flex-col gap-1;
+  }
+
+  .input-label {
+    @apply text-[10px] font-bold text-slate-600 uppercase tracking-tighter ml-1;
+  }
+
+  .input-control {
+    @apply w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-sefired-green focus:border-transparent outline-none transition-all;
+  }
+
+  /* Results Box */
+  .results-box {
+    @apply bg-white/80 backdrop-blur-lg border border-white/50 rounded-[2rem] p-8 shadow-2xl flex flex-col gap-6;
+  }
+
+  /* Toast */
+  .toast {
+    @apply pointer-events-auto flex items-center gap-3 px-5 py-4 rounded-2xl shadow-2xl text-sm font-bold text-white max-w-xs transition-all duration-300;
+  }
+
+  /* Range Slider Customization */
+  input[type="range"] {
+    @apply appearance-none w-full h-1.5 bg-slate-200 rounded-lg outline-none;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    @apply appearance-none w-5 h-5 bg-sefired-green rounded-full cursor-pointer shadow-md border-2 border-white;
+  }
+}

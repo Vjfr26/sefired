@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sefired — Iniciar Sesión</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="/style.css">
+</head>
+
+<body class="bg-sefired-light min-h-screen flex flex-col relative overflow-hidden">
+
+    <!-- DECORATIVE BACKGROUND BLOBS (Optional for extra wow) -->
+    <div class="absolute -top-24 -left-24 w-96 h-96 bg-sefired-blue/5 rounded-full blur-3xl"></div>
+    <div class="absolute -bottom-24 -right-24 w-96 h-96 bg-sefired-green/5 rounded-full blur-3xl"></div>
+
+    <!-- MAIN CONTENT -->
+    <main class="flex-1 flex flex-col items-center justify-center p-6 relative z-10">
+        
+        <div class="w-full max-w-md flex flex-col">
+            <!-- LOGO (Subido ligeramente) -->
+            <div class="flex flex-col items-center mb-6 transform -translate-y-4">
+                <div class="flex items-center gap-4">
+                    <img src="./public/logo1.png" alt="Logo" class="h-48 object-contain">
+                </div>
+                <p class="text-[10px] font-bold text-slate-600 uppercase tracking-[0.3em] text-center mt-[-1rem]">
+                    Cooperativa de Seguros de Vehículos R.L.
+                </p>
+            </div>
+
+            <!-- LOGIN CARD -->
+            <div class="card p-10 bg-white/40 backdrop-blur-2xl shadow-2xl shadow-sefired-blue/10 animate-in fade-in zoom-in duration-700">
+                <div class="mb-8">
+                    <h1 class="text-2xl font-black text-slate-800 tracking-tight">Bienvenido</h1>
+                    <p class="text-sm text-slate-500 font-medium">Ingresa tus credenciales para acceder al panel interno</p>
+                </div>
+
+                <form id="login-form" class="space-y-6">
+                    <div class="input-group">
+                        <label class="input-label">Correo Electrónico</label>
+                        <div class="relative">
+                            <input type="email" id="email" required
+                                class="input-control h-14 pl-12 bg-slate-50/50 border-slate-100 hover:border-sefired-blue/30 transition-all"
+                                placeholder="ejemplo@sefired.com">
+                            <div class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">
+                                <i data-lucide="mail" class="w-5 h-5"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="input-label">Contraseña</label>
+                            <a href="#"
+                                class="text-[10px] font-bold text-sefired-blue hover:underline uppercase tracking-tighter">¿Olvidaste tu contraseña?</a>
+                        </div>
+                        <div class="relative">
+                            <input type="password" id="password" required
+                                class="input-control h-14 pl-12 bg-slate-50/50 border-slate-100 hover:border-sefired-blue/30 transition-all"
+                                placeholder="••••••••">
+                            <div class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">
+                                <i data-lucide="key-round" class="w-5 h-5"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2 py-2">
+                        <input type="checkbox" id="remember"
+                            class="w-4 h-4 rounded border-slate-300 text-sefired-green focus:ring-sefired-green">
+                        <label for="remember" class="text-xs text-slate-500 font-medium cursor-pointer select-none">Recordar sesión</label>
+                    </div>
+
+                    <button type="submit"
+                        class="btn-primary w-full py-5 text-lg font-black rounded-2xl shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all duration-300">
+                        Iniciar Sesión
+                    </button>
+                </form>
+            </div>
+
+            <p class="mt-8 text-center text-xs text-slate-600 font-medium">
+                ¿Necesitas ayuda? <a href="#" class="text-sefired-blue font-bold hover:underline">Contactar a soporte técnico</a>
+            </p>
+        </div>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="w-full p-8 flex flex-col md:flex-row items-center justify-between gap-6 relative z-10 border-t border-slate-200/50 bg-white/10 backdrop-blur-sm">
+        <div class="flex items-center gap-6">
+            <a href="#" class="text-[10px] font-bold text-slate-600 uppercase tracking-widest hover:text-sefired-blue transition-colors">Términos y Condiciones</a>
+            <a href="#" class="text-[10px] font-bold text-slate-600 uppercase tracking-widest hover:text-sefired-blue transition-colors">Privacidad</a>
+            <a href="#" class="text-[10px] font-bold text-slate-600 uppercase tracking-widest hover:text-sefired-blue transition-colors">Seguridad</a>
+        </div>
+        
+        <div class="flex flex-col md:items-end gap-1">
+            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                © 2024 SEFIRED R.L. — Todos los derechos reservados
+            </p>
+            <p class="text-[8px] font-medium text-slate-400 uppercase tracking-[0.2em]">
+                V 2.4.0 — Internal System
+            </p>
+        </div>
+    </footer>
+
+    <!-- SCRIPTS -->
+    <script type="module">
+        import { createIcons, Mail, KeyRound } from 'lucide';
+
+        createIcons({
+            icons: { Mail, KeyRound }
+        });
+
+        document.getElementById('login-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const btn = e.target.querySelector('button');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = `
+                <div class="flex items-center justify-center gap-2">
+                    <div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    <span>Autenticando...</span>
+                </div>
+            `;
+            btn.disabled = true;
+            btn.classList.add('opacity-80', 'cursor-not-allowed');
+
+            setTimeout(() => {
+                window.location.href = '/index.html';
+            }, 1500);
+        });
+    </script>
+</body>
+
+</html>
