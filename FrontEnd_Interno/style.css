@@ -6,6 +6,19 @@
   --color-sefired-dark: #000c3b;
   --color-sefired-light: #F0F7FF;
   --color-sefired-green: #146300;
+
+  --animate-slide-in-top: slide-in-top 0.2s ease-out;
+
+  @keyframes slide-in-top {
+    from {
+      transform: translateY(-0.5rem);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
 }
 
 @layer base {
@@ -62,7 +75,7 @@
   }
 
   .subs-container.show {
-    @apply flex animate-in slide-in-from-top-1 duration-200;
+    @apply flex animate-slide-in-top;
   }
 
   .sub-btn {
