@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Users, ShieldCheck, UserCheck, UserX, Pencil, Shield, UserCog, Lock, LockOpen, Trash2, UserPlus } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
-import { badge, rsbadge } from '../utils/helpers.jsx'
+import { badge, rsbadge, UserAvatar } from '../utils/helpers.jsx'
 import SearchBar from '../components/SearchBar.jsx'
 import DataTable from '../components/DataTable.jsx'
 
@@ -9,16 +9,16 @@ const ROLES = ['Admin', 'Oficina', 'Vendedor Sucursal', 'Vendedor Calle']
 const ROLE_COLOR = { 'Admin': 'indigo', 'Oficina': 'blue', 'Vendedor Sucursal': 'green', 'Vendedor Calle': 'amber' }
 
 const USERS = [
-  { init: 'CR', nom: 'Carlos Ruiz',      email: 'c.ruiz@sefired.com',     rol: 'Admin',             oficina: 'Caracas Principal', est: 'Activo',    ultimo: '07/05/2026 08:12' },
-  { init: 'PS', nom: 'Pedro Salazar',    email: 'p.salazar@sefired.com',   rol: 'Oficina',           oficina: 'Caracas Principal', est: 'Activo',    ultimo: '07/05/2026 07:55' },
-  { init: 'AS', nom: 'Ana Suárez',       email: 'a.suarez@sefired.com',    rol: 'Vendedor Sucursal', oficina: 'Valencia',          est: 'Activo',    ultimo: '06/05/2026 16:30' },
-  { init: 'LR', nom: 'Luis Romero',      email: 'l.romero@sefired.com',    rol: 'Vendedor Calle',    oficina: 'Caracas Principal', est: 'Activo',    ultimo: '06/05/2026 14:15' },
-  { init: 'VM', nom: 'Valentina Mora',   email: 'v.mora@sefired.com',      rol: 'Vendedor Sucursal', oficina: 'Maracaibo',         est: 'Bloqueado', ultimo: '02/05/2026 11:00' },
-  { init: 'JG', nom: 'José González',    email: 'j.gonzalez@sefired.com',  rol: 'Vendedor Calle',    oficina: 'Valencia',          est: 'Activo',    ultimo: '05/05/2026 09:45' },
-  { init: 'MT', nom: 'María Torres',     email: 'm.torres@sefired.com',    rol: 'Oficina',           oficina: 'Maracaibo',         est: 'Activo',    ultimo: '07/05/2026 08:00' },
-  { init: 'RD', nom: 'Ricardo Díaz',     email: 'r.diaz@sefired.com',      rol: 'Vendedor Calle',    oficina: 'Caracas Principal', est: 'Bloqueado', ultimo: '28/04/2026 17:22' },
-  { init: 'GF', nom: 'Gabriela Flores',  email: 'g.flores@sefired.com',    rol: 'Vendedor Sucursal', oficina: 'Caracas Principal', est: 'Activo',    ultimo: '07/05/2026 09:30' },
-  { init: 'EM', nom: 'Eduardo Medina',   email: 'e.medina@sefired.com',    rol: 'Oficina',           oficina: 'Valencia',          est: 'Activo',    ultimo: '06/05/2026 15:50' },
+  { init: 'CR', nom: 'Carlos Ruiz',      email: 'c.ruiz@sefired.com',     rol: 'Admin',             genero: 'M', oficina: 'Caracas Principal', est: 'Activo',    ultimo: '07/05/2026 08:12' },
+  { init: 'PS', nom: 'Pedro Salazar',    email: 'p.salazar@sefired.com',   rol: 'Oficina',           genero: 'M', oficina: 'Caracas Principal', est: 'Activo',    ultimo: '07/05/2026 07:55' },
+  { init: 'AS', nom: 'Ana Suárez',       email: 'a.suarez@sefired.com',    rol: 'Vendedor Sucursal', genero: 'F', oficina: 'Valencia',          est: 'Activo',    ultimo: '06/05/2026 16:30' },
+  { init: 'LR', nom: 'Luis Romero',      email: 'l.romero@sefired.com',    rol: 'Vendedor Calle',    genero: 'M', oficina: 'Caracas Principal', est: 'Activo',    ultimo: '06/05/2026 14:15' },
+  { init: 'VM', nom: 'Valentina Mora',   email: 'v.mora@sefired.com',      rol: 'Vendedor Sucursal', genero: 'F', oficina: 'Maracaibo',         est: 'Bloqueado', ultimo: '02/05/2026 11:00' },
+  { init: 'JG', nom: 'José González',    email: 'j.gonzalez@sefired.com',  rol: 'Vendedor Calle',    genero: 'M', oficina: 'Valencia',          est: 'Activo',    ultimo: '05/05/2026 09:45' },
+  { init: 'MT', nom: 'María Torres',     email: 'm.torres@sefired.com',    rol: 'Oficina',           genero: 'F', oficina: 'Maracaibo',         est: 'Activo',    ultimo: '07/05/2026 08:00' },
+  { init: 'RD', nom: 'Ricardo Díaz',     email: 'r.diaz@sefired.com',      rol: 'Vendedor Calle',    genero: 'M', oficina: 'Caracas Principal', est: 'Bloqueado', ultimo: '28/04/2026 17:22' },
+  { init: 'GF', nom: 'Gabriela Flores',  email: 'g.flores@sefired.com',    rol: 'Vendedor Sucursal', genero: 'F', oficina: 'Caracas Principal', est: 'Activo',    ultimo: '07/05/2026 09:30' },
+  { init: 'EM', nom: 'Eduardo Medina',   email: 'e.medina@sefired.com',    rol: 'Oficina',           genero: 'M', oficina: 'Valencia',          est: 'Activo',    ultimo: '06/05/2026 15:50' },
 ]
 
 const COLS = [
@@ -83,9 +83,12 @@ export default function Usuarios() {
   const dataRows = filtered.map(u => ({
     usr: (
       <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
-        <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl ${u.est === 'Bloqueado' ? 'bg-slate-300' : 'bg-sefired-blue'} flex items-center justify-center text-[9px] sm:text-[10px] font-bold text-white shrink-0`}>
-          {u.init}
-        </div>
+        <UserAvatar
+          rol={u.rol}
+          genero={u.genero}
+          blocked={u.est === 'Bloqueado'}
+          className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl"
+        />
         <div className="min-w-0">
           <p className="font-semibold text-slate-800 text-xs sm:text-sm break-words">{u.nom}</p>
           <p className="text-[10px] sm:text-xs text-slate-400 truncate">{u.email}</p>

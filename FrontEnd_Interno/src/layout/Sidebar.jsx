@@ -26,7 +26,7 @@ export default function Sidebar({ onClose, sidebarOpen = false }) {
         {/* Mobile/tablet: horizontal */}
         <div className="flex lg:hidden items-center gap-3.5 px-1">
           <div className="w-14 h-14 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-center shrink-0 p-1">
-            <img src="/logo2.png" alt="Logo" className="w-full h-full object-contain brightness-0 invert" />
+            <img src="/logo2.png" alt="Logo" className="w-full h-full object-contain" />
           </div>
           <div className="min-w-0">
             <p className="text-base font-black text-white leading-tight tracking-tight">SEFIRED</p>
@@ -36,7 +36,7 @@ export default function Sidebar({ onClose, sidebarOpen = false }) {
         {/* Desktop: stacked */}
         <div className="hidden lg:flex flex-col items-center text-center gap-3">
           <div className="w-28 h-28 rounded-3xl bg-white/10 border border-white/15 flex items-center justify-center p-1.5 shadow-lg">
-            <img src="/logo2.png" alt="Logo" className="w-full h-full object-contain brightness-0 invert" />
+            <img src="/logo2.png" alt="Logo" className="w-full h-full object-contain" />
           </div>
           <div>
             <p className="text-xl font-black text-white tracking-tight">SEFIRED</p>

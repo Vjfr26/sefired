@@ -1,4 +1,26 @@
+import { useState } from 'react'
 import { CheckCircle, Clock, AlertCircle } from 'lucide-react'
+
+export function getUserIcon(rol, genero) {
+  if (rol === 'Admin') return '/iconos/admin.png'
+  const isVendedor = rol === 'Vendedor Sucursal' || rol === 'Vendedor Calle'
+  if (isVendedor) return genero === 'F' ? '/iconos/vendedora.png' : '/iconos/vendedor.png'
+  return genero === 'F' ? '/iconos/ejecutiva.png' : '/iconos/ejecutivo.png'
+}
+
+export function UserAvatar({ rol, genero, className = '', blocked = false }) {
+  const [src, setSrc] = useState(() => getUserIcon(rol, genero))
+  return (
+    <div className={`overflow-hidden shrink-0 ${blocked ? 'grayscale opacity-50' : ''} ${className}`}>
+      <img
+        src={src}
+        alt="Avatar"
+        onError={() => setSrc('/iconos/not-found.png')}
+        className="w-full h-full object-contain p-1"
+      />
+    </div>
+  )
+}
 
 export const usd = n => '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 export const bs  = (n, r = 38.54) => 'Bs. ' + (n * r).toLocaleString('es-VE', { minimumFractionDigits: 2 })

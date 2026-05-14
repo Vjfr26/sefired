@@ -1,5 +1,6 @@
 import { Users, Calculator, BarChart3 } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
+import { UserAvatar } from '../utils/helpers.jsx'
 
 export default function Home() {
   const { navigateTo } = useApp()
@@ -9,9 +10,7 @@ export default function Home() {
       <div className="card w-full max-w-xl mx-auto overflow-hidden">
         {/* User info */}
         <div className="flex flex-col items-center text-center px-8 sm:px-14 pt-8 sm:pt-10 pb-7 sm:pb-9 border-b border-slate-100">
-          <div className="w-20 h-20 rounded-3xl bg-sefired-blue flex items-center justify-center text-2xl font-extrabold text-white mb-5 shadow-xl shadow-blue-900/20">
-            CR
-          </div>
+          <UserAvatar rol="Admin" genero="M" className="w-20 h-20 rounded-3xl mb-5 shadow-xl shadow-blue-900/20" />
           <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.28em] mb-2">Bienvenido de vuelta</p>
           <h2 className="text-2xl sm:text-3xl font-black text-slate-800 mb-2 tracking-tight">Carlos Ruiz</h2>
           <p className="text-sm font-semibold text-slate-500">Asesor de Ventas · Sefired R.L.</p>

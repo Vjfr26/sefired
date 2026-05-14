@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Menu, ChevronDown, LogOut } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
-import { VIEW_META } from '../utils/helpers.jsx'
+import { VIEW_META, UserAvatar } from '../utils/helpers.jsx'
 
 export default function Header({ onSidebarOpen }) {
   const { currentView, showToast, onLogout } = useApp()
@@ -40,9 +40,7 @@ export default function Header({ onSidebarOpen }) {
             onClick={() => setMenuOpen(v => !v)}
             className="flex items-center gap-2 px-2 sm:px-4 py-2 bg-white/50 backdrop-blur-sm rounded-full border border-white/50 cursor-pointer hover:bg-white transition-all shadow-sm"
           >
-            <div className="w-6 h-6 rounded-full bg-sefired-dark flex items-center justify-center text-[10px] font-bold text-white">
-              CR
-            </div>
+            <UserAvatar rol="Admin" genero="M" className="w-6 h-6 rounded-full" />
             <span className="hidden sm:inline text-sm font-bold text-sefired-dark">Carlos Ruiz</span>
             <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${menuOpen ? 'rotate-180' : ''}`} />
           </button>

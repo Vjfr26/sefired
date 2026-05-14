@@ -120,7 +120,7 @@
 
   .group-btn {
     @apply flex items-center gap-2.5 px-3 py-2.5 text-[13px] text-white/80
-           hover:text-white hover:bg-white/10 rounded-xl
+           hover:text-white hover:bg-emerald-300/15 rounded-xl
            transition-all duration-150 cursor-pointer select-none w-full text-left font-medium;
     min-width: 0;
   }
@@ -130,8 +130,8 @@
   }
 
   .group-btn-active {
-    @apply bg-white/15 text-white font-semibold rounded-xl;
-    box-shadow: inset 3px 0 0 rgba(255, 255, 255, 0.6);
+    @apply bg-emerald-400/40 text-white font-semibold rounded-xl;
+    box-shadow: inset 3px 0 0 rgba(167, 243, 208, 0.9);
   }
 
   .subs-container {
