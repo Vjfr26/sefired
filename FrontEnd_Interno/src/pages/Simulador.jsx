@@ -45,8 +45,8 @@ function SimBar({ active }) {
 function SimShell({ step, wide, onClose, footer, children }) {
   return (
     <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4 sm:p-6 backdrop-blur-sm">
-      <div className={`bg-white rounded-3xl shadow-2xl w-full ${wide ? 'max-w-xl' : 'max-w-lg'} max-h-[90vh] overflow-y-auto animate-in zoom-in duration-200`}>
-        <div className="px-6 sm:px-8 pt-6 pb-5 border-b border-slate-100">
+      <div className={`bg-white rounded-3xl shadow-2xl w-full ${wide ? 'max-w-xl' : 'max-w-lg'} max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in duration-200`}>
+        <div className="px-6 sm:px-8 pt-6 pb-5 border-b border-slate-100 shrink-0">
           <div className="flex items-start justify-between gap-3 mb-5">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0" style={{ background: 'linear-gradient(135deg,#001463,#000c3b)' }}>
@@ -63,14 +63,14 @@ function SimShell({ step, wide, onClose, footer, children }) {
           </div>
           <SimBar active={step} />
         </div>
-        <div className="p-6 sm:p-8">
+        <div className="flex-1 overflow-y-auto p-6 sm:p-8">
           {children}
-          {footer && (
-            <div className="flex flex-wrap gap-3 justify-between items-center mt-6 pt-5 border-t border-slate-100">
-              {footer}
-            </div>
-          )}
         </div>
+        {footer && (
+          <div className="px-6 sm:px-8 py-4 sm:py-5 border-t border-slate-100 flex flex-wrap gap-3 justify-between items-center shrink-0">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   )
