@@ -50,6 +50,32 @@ let activeView  = 'home';
 const usd = n => '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const bs = (n, r = 38.54) => 'Bs. ' + (n * r).toLocaleString('es-VE', { minimumFractionDigits: 2 });
 
+const API_URL = 'http://localhost:8000/api';
+
+async function apiCall(endpoint, options = {}) {
+  const token = localStorage.getItem('auth_token');
+  const headers = {
+    'Accept': 'application/json',
+    'Content-Type': 'application/json',
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    ...(options.headers || {})
+  };
+
+  try {
+    const response = await fetch(`${API_URL}${endpoint}`, { ...options, headers });
+    if (response.status === 401) {
+      localStorage.removeItem('auth_token');
+      window.location.href = '/login.html';
+      return;
+    }
+    return await response.json();
+  } catch (error) {
+    console.error(`API Error (${endpoint}):`, error);
+    showToast('Error de conexión con el servidor', 'error');
+    throw error;
+  }
+}
+
 function badge(text, color = 'slate') {
   return `<span class="badge badge-${color}">${text}</span>`;
 }
@@ -2104,19 +2130,52 @@ function confEmpresa() {
 }
 
 function confAuditoria() {
-  return reportBase('Auditoría', [
-    { l: 'Fecha/Hora', k: 'dt', hide: 'sm' }, { l: 'Usuario', k: 'usr', m: true }, { l: 'Acción', k: 'acc' }, { l: 'Módulo', k: 'mod', hide: 'sm' }, { l: 'Detalle', k: 'det', hide: 'lg', tr: true }, { l: 'IP', k: 'ip', m: true, hide: 'lg' }
-  ], [
-    { dt: '03/05/2026 09:14', usr: 'vadmin', acc: badge('Acceso', 'blue'), mod: 'Sistema', det: 'Inicio de sesión exitoso', ip: '192.168.1.10' },
-    { dt: '03/05/2026 09:18', usr: 'vadmin', acc: badge('Creación', 'green'), mod: 'Cotización', det: 'SOL-2026-00312 creada', ip: '192.168.1.10' },
-    { dt: '03/05/2026 09:32', usr: 'vadmin', acc: badge('Aprobación', 'green'), mod: 'Revisión', det: 'SOL-2026-00312 aprobada', ip: '192.168.1.10' },
-    { dt: '03/05/2026 09:38', usr: 'vadmin', acc: badge('Creación', 'green'), mod: 'Emisión', det: 'SEF-2026-VEH-00848 emitida', ip: '192.168.1.10' },
-    { dt: '03/05/2026 09:45', usr: 'psalazar', acc: badge('Creación', 'green'), mod: 'Cotización', det: 'SOL-2026-00313 creada', ip: '192.168.1.22' },
-    { dt: '03/05/2026 10:02', usr: 'vadmin', acc: badge('Edición', 'amber'), mod: 'Configuración', det: 'Parámetro comisión agente actualizado', ip: '192.168.1.10' },
-    { dt: '02/05/2026 17:55', usr: 'asuarez', acc: badge('Cobro', 'indigo'), mod: 'Facturación', det: 'FAC-2026-00846 cobro registrado $487.00', ip: '192.168.1.15' },
-    { dt: '02/05/2026 17:30', usr: 'rcontrol', acc: badge('Consulta', 'slate'), mod: 'Reportes', det: 'Reporte de ventas exportado', ip: '192.168.1.18' },
-  ]);
+  return `
+    <div id="auditoria-container">
+      <div class="card p-12 text-center">
+        <div class="flex flex-col items-center gap-4">
+          <div class="w-12 h-12 border-4 border-slate-200 border-t-sefired-blue rounded-full animate-spin"></div>
+          <p class="text-slate-500 font-medium">Cargando registros de auditoría...</p>
+        </div>
+      </div>
+    </div>
+  `;
 }
+
+window.loadAuditoriaLogs = async function() {
+  const container = document.getElementById('auditoria-container');
+  if (!container) return;
+
+  try {
+    const data = await apiCall('/reports/logs');
+    if (!data || !data.data) {
+      container.innerHTML = `<div class="card p-8 text-center text-slate-400">No se pudieron cargar los logs</div>`;
+      return;
+    }
+
+    const logs = data.data.map(log => ({
+      dt: new Date(log.created_at).toLocaleString('es-VE'),
+      usr: log.usuario ? log.usuario.nick : 'Sistema',
+      acc: badge(log.accion, log.accion.includes('failed') ? 'red' : 'blue'),
+      mod: log.tabla || 'Sistema',
+      det: log.descripcion,
+      ip: log.ip || '—'
+    }));
+
+    container.innerHTML = reportBase('Auditoría', [
+      { l: 'Fecha/Hora', k: 'dt', hide: 'sm' }, 
+      { l: 'Usuario', k: 'usr', m: true }, 
+      { l: 'Acción', k: 'acc' }, 
+      { l: 'Módulo', k: 'mod', hide: 'sm' }, 
+      { l: 'Detalle', k: 'det', hide: 'lg', tr: true }, 
+      { l: 'IP', k: 'ip', m: true, hide: 'lg' }
+    ], logs);
+    
+    createIcons({ icons: ALL_ICONS });
+  } catch (error) {
+    container.innerHTML = `<div class="card p-8 text-center text-rose-500 font-medium">Error al cargar los logs de auditoría</div>`;
+  }
+};
 
 function confRespaldo() {
   return `<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -2787,6 +2846,8 @@ function navigateTo(viewId) {
     createIcons({ icons: ALL_ICONS });
     setupTabListeners();
     setupInteractivity();
+    
+    if (viewId === 'conf-auditoria') loadAuditoriaLogs();
   }
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }

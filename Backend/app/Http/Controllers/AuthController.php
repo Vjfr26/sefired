@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Usuario;
+use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
@@ -10,6 +11,8 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
+    use LogsActivity;
+
     public function login(Request $request)
     {
         $request->validate([
@@ -26,6 +29,7 @@ class AuthController extends Controller
         ]);
 
         if (!$response->successful() || !$response->json('success')) {
+            $this->logActivity('login_failed', "Falla de Turnstile para el usuario: {$request->nick}", 'usuarios');
             return response()->json([
                 'message' => 'La verificación de seguridad falló. Por favor, intenta de nuevo.',
                 'errors' => ['turnstile' => ['Captcha inválido']]
@@ -35,6 +39,7 @@ class AuthController extends Controller
         $usuario = Usuario::where('nick', $request->nick)->first();
 
         if (!$usuario || !Hash::check($request->password, $usuario->password)) {
+            $this->logActivity('login_failed', "Intento de inicio de sesión fallido para el nick: {$request->nick}", 'usuarios');
             throw ValidationException::withMessages([
                 'nick' => ['Las credenciales proporcionadas son incorrectas.'],
             ]);
@@ -47,6 +52,8 @@ class AuthController extends Controller
         // Manual token generation
         $token = bin2hex(random_bytes(40));
         $usuario->update(['api_token' => $token]);
+
+        $this->logActivity('login', "Usuario {$usuario->nick} ha iniciado sesión", 'usuarios', $usuario->id);
 
         return response()->json([
             'access_token' => $token,
@@ -62,7 +69,12 @@ class AuthController extends Controller
     public function logout(Request $request)
     {
         $token = str_replace('Bearer ', '', $request->header('Authorization'));
-        Usuario::where('api_token', $token)->update(['api_token' => null]);
+        $usuario = Usuario::where('api_token', $token)->first();
+
+        if ($usuario) {
+            $this->logActivity('logout', "Usuario {$usuario->nick} ha cerrado sesión", 'usuarios', $usuario->id);
+            $usuario->update(['api_token' => null]);
+        }
 
         return response()->json(['message' => 'Sesión cerrada correctamente.']);
     }
