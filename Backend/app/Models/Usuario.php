@@ -18,6 +18,7 @@ class Usuario extends Authenticatable
         'cargo',
         'nick',
         'password',
+        'api_token',
         'sede',
         'nro_sede',
         'tipo',
