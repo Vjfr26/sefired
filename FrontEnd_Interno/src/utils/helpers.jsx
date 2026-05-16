@@ -56,6 +56,42 @@ export function UserAvatar({ rol, genero, className = '', blocked = false }) {
 export const usd = n => '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 /**
+ * Formatea un monto con el símbolo de la moneda indicada.
+ *   USD → "$1,234.56"
+ *   BS  → "Bs. 1,234.56"
+ *   EUR → "€1,234.56"
+ */
+export const fmtMonto = (n, moneda) => {
+  const num = Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  if (moneda === 'BS')  return 'Bs. ' + num
+  if (moneda === 'EUR') return '€'    + num
+  return '$' + num
+}
+
+/**
+ * Abrevia magnitudes grandes para mostrar en espacios compactos (cards, tablas en móvil).
+ *   < 1 000          → "123.45"
+ *   1 000 – 999 999  → "1.23K"
+ *   1 M – 999 M      → "1.23M"
+ *   ≥ 1 000 M        → "1.23MM"
+ */
+export const abrevNum = (n) => {
+  const v = Number(n)
+  if (v >= 1_000_000_000) return (v / 1_000_000_000).toFixed(2) + 'MM'
+  if (v >= 1_000_000)     return (v / 1_000_000).toFixed(2)     + 'M'
+  if (v >= 1_000)         return (v / 1_000).toFixed(2)         + 'K'
+  return v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+/** Igual que fmtMonto pero con el número abreviado. Ideal para cards y columnas compactas. */
+export const fmtMontoAbrev = (n, moneda) => {
+  const num = abrevNum(n)
+  if (moneda === 'BS')  return 'Bs. ' + num
+  if (moneda === 'EUR') return '€'    + num
+  return '$' + num
+}
+
+/**
  * Convierte un monto en dólares a bolívares usando la tasa dada.
  * El parámetro `r` es la tasa BCV del día; se puede pasar desde el contexto.
  * La tasa por defecto es aproximada y solo se usa si no se pasa ninguna.

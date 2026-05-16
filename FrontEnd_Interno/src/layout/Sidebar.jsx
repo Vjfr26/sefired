@@ -97,18 +97,28 @@ export default function Sidebar({ onClose, sidebarOpen = false }) {
                 <span className="text-sm font-black text-emerald-400 w-4">$</span>
                 <span className="text-sm font-semibold text-white/85">Dólar</span>
               </div>
-              <span className="text-sm font-black text-emerald-300">
-                {tasas.usd ? Number(tasas.usd.valor).toFixed(4) : '—'}
-              </span>
+              <div className="text-right">
+                {tasas.usd ? (
+                  <>
+                    <span className="text-xs font-semibold text-emerald-400/70">Bs. </span>
+                    <span className="text-sm font-black text-emerald-300">{Number(tasas.usd.valor).toFixed(4)}</span>
+                  </>
+                ) : <span className="text-sm font-black text-emerald-300">—</span>}
+              </div>
             </div>
             <div className="flex items-center justify-between px-3 py-3 rounded-xl bg-amber-500/15 border border-amber-500/15">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-black text-amber-400 w-4">€</span>
                 <span className="text-sm font-semibold text-white/85">Euro</span>
               </div>
-              <span className="text-sm font-black text-amber-300">
-                {tasas.eur ? Number(tasas.eur.valor).toFixed(4) : '—'}
-              </span>
+              <div className="text-right">
+                {tasas.eur ? (
+                  <>
+                    <span className="text-xs font-semibold text-amber-400/70">Bs. </span>
+                    <span className="text-sm font-black text-amber-300">{Number(tasas.eur.valor).toFixed(4)}</span>
+                  </>
+                ) : <span className="text-sm font-black text-amber-300">—</span>}
+              </div>
             </div>
           </div>
         </div>

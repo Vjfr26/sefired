@@ -1,14 +1,14 @@
-import { useState, useEffect, useCallback } from 'react'
-import { Pencil, Plus, Trash2, Shield, ShieldCheck, Layers, DollarSign, Eye } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { Pencil, Plus, Trash2, Shield, ShieldCheck, TrendingUp, DollarSign, Eye, Euro, Banknote, ChevronDown } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
-import { usd } from '../utils/helpers.jsx'
+import { usd, fmtMonto, fmtMontoAbrev } from '../utils/helpers.jsx'
 import SearchBar from '../components/SearchBar.jsx'
 import DataTable from '../components/DataTable.jsx'
 import { fetchProductos, createProducto, updateProducto, deleteProducto } from '../api/productos.js'
 
 const fmtId = id => 'PRO-' + String(id).padStart(4, '0')
 
-const MONEDAS = ['USD', 'BS']
+const MONEDAS = ['USD', 'BS', 'EUR']
 
 // Todos los campos son obligatorios en Agregar y Editar
 const productoFields = (p = {}) => [
@@ -36,11 +36,27 @@ const parsePayload = data => ({
 })
 
 export default function Productos() {
-  const { showModal, showToast } = useApp()
+  const { showModal, showToast, tasas } = useApp()
   const [search, setSearch]         = useState('')
   const [productos, setProductos]   = useState([])
   const [loading, setLoading]       = useState(true)
   const [error, setError]           = useState(null)
+  const [monedaDisplay, setMonedaDisplay] = useState('USD')
+  const [monedaOpen,    setMonedaOpen]    = useState(false)
+  const monedaDropRef = useRef(null)
+
+  useEffect(() => {
+    if (!monedaOpen) return
+    const close = (e) => { if (monedaDropRef.current && !monedaDropRef.current.contains(e.target)) setMonedaOpen(false) }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [monedaOpen])
+
+  const CURRENCY_META = {
+    USD: { Icon: DollarSign, bg: 'bg-emerald-100', text: 'text-emerald-600', label: 'Dólares'   },
+    BS:  { Icon: Banknote,   bg: 'bg-blue-100',    text: 'text-blue-600',   label: 'Bolívares'  },
+    EUR: { Icon: Euro,       bg: 'bg-amber-100',   text: 'text-amber-600',  label: 'Euros'      },
+  }
 
   const loadProductos = useCallback(async () => {
     setLoading(true)
@@ -59,9 +75,30 @@ export default function Productos() {
   useEffect(() => { loadProductos() }, [loadProductos])
 
   // ── Stats ──────────────────────────────────────────────────────────────────
-  const enUSD     = productos.filter(p => p.moneda === 'USD').length
-  const promPrima = productos.length ? productos.reduce((s, p) => s + p.prima, 0) / productos.length : 0
-  const maxCob    = productos.length ? Math.max(...productos.map(p => p.cobertura)) : 0
+  const tasaUsd = tasas.usd ? Number(tasas.usd.valor) : null
+  const tasaEur = tasas.eur ? Number(tasas.eur.valor) : null
+
+  // Convierte un monto a la moneda destino pasando por Bs. como intermediario.
+  const convertir = (val, desde, hacia) => {
+    const inBs = desde === 'USD' ? (tasaUsd ? val * tasaUsd : null)
+               : desde === 'EUR' ? (tasaEur ? val * tasaEur : null)
+               : val
+    if (inBs === null) return 0
+    if (hacia === 'USD') return tasaUsd ? inBs / tasaUsd : 0
+    if (hacia === 'EUR') return tasaEur ? inBs / tasaEur : 0
+    return inBs
+  }
+
+  // Suma cualquier campo numérico del producto convertido a la moneda elegida
+  const sumaEnMoneda = (campo, cur) => productos.reduce((sum, p) => {
+    const val = p[campo] || 0
+    return sum + (p.moneda === cur ? val : convertir(val, p.moneda, cur))
+  }, 0)
+
+  const totalDenominados = productos.filter(p => p.moneda === monedaDisplay).length
+  const sumaPrimaActual  = sumaEnMoneda('prima',     monedaDisplay)
+  const sumaCobActual    = sumaEnMoneda('cobertura', monedaDisplay)
+  const tasasOk          = tasaUsd && tasaEur
 
   // ── Filtrado local ─────────────────────────────────────────────────────────
   const filtered = search
@@ -75,10 +112,10 @@ export default function Productos() {
     ...p,
     displayId: fmtId(p.id),
     desc:      p.descripcion,
-    primab:    usd(p.prima),
-    cob:       usd(p.cobertura),
+    primab:    fmtMontoAbrev(p.prima,     p.moneda),
+    cob:       fmtMontoAbrev(p.cobertura, p.moneda),
     mon:       (
-      <span className={`badge badge-${p.moneda === 'USD' ? 'blue' : 'amber'}`}>{p.moneda}</span>
+      <span className={`badge badge-${p.moneda === 'USD' ? 'green' : p.moneda === 'EUR' ? 'amber' : 'blue'}`}>{p.moneda}</span>
     ),
     acc: (
       <div className="flex gap-1 justify-center flex-nowrap">
@@ -122,46 +159,97 @@ export default function Productos() {
 
   return (
     <div className="animate-in fade-in duration-500">
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div className="card p-4 flex items-start gap-3">
-          <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
-            <Shield className="w-4 h-4 text-slate-600" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs text-slate-500 font-medium leading-tight">Total Productos</p>
-            <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{productos.length}</p>
-            <p className="text-xs text-slate-400 mt-1">Registrados en sistema</p>
+      {/* ── Selector global de moneda + Cards ── */}
+      <div className="mb-6">
+        {/* Selector: aparece encima del grid, alineado a la derecha */}
+        <div className="flex justify-end mb-2">
+          <div className="relative" ref={monedaDropRef}>
+            <button
+              onClick={() => setMonedaOpen(o => !o)}
+              className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl border transition ${
+                monedaOpen ? 'bg-white border-slate-300 shadow-md' : 'bg-white/70 border-slate-200 hover:bg-white hover:shadow-sm'
+              }`}
+            >
+              {(() => { const { Icon, text } = CURRENCY_META[monedaDisplay]; return <Icon className={`w-3.5 h-3.5 ${text}`} /> })()}
+              <span className="text-slate-600">Ver en:</span>
+              <span className={CURRENCY_META[monedaDisplay].text}>{monedaDisplay}</span>
+              <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${monedaOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {monedaOpen && (
+              <div className="absolute right-0 top-full mt-1.5 bg-white rounded-2xl shadow-2xl border border-slate-100 z-30 overflow-hidden w-40">
+                {MONEDAS.map(c => {
+                  const { Icon, text, label } = CURRENCY_META[c]
+                  return (
+                    <button
+                      key={c}
+                      onClick={() => { setMonedaDisplay(c); setMonedaOpen(false) }}
+                      className={`flex items-center gap-3 w-full px-4 py-3 text-xs font-bold transition-colors ${
+                        monedaDisplay === c ? 'bg-slate-50 text-slate-800' : 'text-slate-500 hover:bg-slate-50'
+                      }`}
+                    >
+                      <Icon className={`w-3.5 h-3.5 shrink-0 ${text}`} />
+                      <div className="text-left">
+                        <p className={`font-black ${monedaDisplay === c ? text : ''}`}>{c}</p>
+                        <p className="text-[10px] text-slate-400 font-medium">{label}</p>
+                      </div>
+                      {monedaDisplay === c && <span className={`ml-auto w-1.5 h-1.5 rounded-full ${text.replace('text-', 'bg-')}`} />}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
         </div>
-        <div className="card p-4 flex items-start gap-3">
-          <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
-            <DollarSign className="w-4 h-4 text-blue-600" />
+
+        {/* Cards — los tres últimos reaccionan al monedaDisplay seleccionado */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Card 1: Total fijo, no cambia con la moneda */}
+          <div className="card p-4 flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
+              <Shield className="w-4 h-4 text-slate-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs text-slate-500 font-medium leading-tight">Total Productos</p>
+              <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{productos.length}</p>
+              <p className="text-xs text-slate-400 mt-1">Registrados en sistema</p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <p className="text-xs text-slate-500 font-medium leading-tight">En USD</p>
-            <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{enUSD}</p>
-            <p className="text-xs text-slate-400 mt-1">Denominados en dólares</p>
+
+          {/* Card 2: Denominados en la moneda seleccionada */}
+          <div className="card p-4 flex items-start gap-3">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${CURRENCY_META[monedaDisplay].bg}`}>
+              {(() => { const { Icon, text } = CURRENCY_META[monedaDisplay]; return <Icon className={`w-4 h-4 ${text}`} /> })()}
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs text-slate-500 font-medium leading-tight">Denominados</p>
+              <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{totalDenominados}</p>
+              <p className="text-xs text-slate-400 mt-1">En {monedaDisplay} · {CURRENCY_META[monedaDisplay].label}</p>
+            </div>
           </div>
-        </div>
-        <div className="card p-4 flex items-start gap-3">
-          <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
-            <Layers className="w-4 h-4 text-emerald-600" />
+
+          {/* Card 3: Suma de primas convertida a la moneda seleccionada */}
+          <div className="card p-4 flex items-start gap-3">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${CURRENCY_META[monedaDisplay].bg}`}>
+              <TrendingUp className={`w-4 h-4 ${CURRENCY_META[monedaDisplay].text}`} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs text-slate-500 font-medium leading-tight">Suma Primas</p>
+              <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{fmtMontoAbrev(sumaPrimaActual, monedaDisplay)}</p>
+              <p className="text-xs text-slate-400 mt-1">{tasasOk ? 'Al tipo BCV' : 'Solo misma moneda'}</p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <p className="text-xs text-slate-500 font-medium leading-tight">Prima promedio</p>
-            <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{usd(promPrima)}</p>
-            <p className="text-xs text-slate-400 mt-1">Prima base promedio</p>
-          </div>
-        </div>
-        <div className="card p-4 flex items-start gap-3">
-          <div className="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
-            <ShieldCheck className="w-4 h-4 text-indigo-600" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs text-slate-500 font-medium leading-tight">Mayor Cobertura</p>
-            <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{usd(maxCob)}</p>
-            <p className="text-xs text-slate-400 mt-1">Suma asegurada máx.</p>
+
+          {/* Card 4: Suma de coberturas convertida a la moneda seleccionada */}
+          <div className="card p-4 flex items-start gap-3">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${CURRENCY_META[monedaDisplay].bg}`}>
+              <ShieldCheck className={`w-4 h-4 ${CURRENCY_META[monedaDisplay].text}`} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs text-slate-500 font-medium leading-tight">Suma Coberturas</p>
+              <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{fmtMontoAbrev(sumaCobActual, monedaDisplay)}</p>
+              <p className="text-xs text-slate-400 mt-1">{tasasOk ? 'Al tipo BCV' : 'Solo misma moneda'}</p>
+            </div>
           </div>
         </div>
       </div>

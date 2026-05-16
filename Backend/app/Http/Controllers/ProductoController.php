@@ -36,7 +36,7 @@ class ProductoController extends Controller
     /**
      * Crea un nuevo producto en el catálogo de coberturas.
      * Todos los campos son obligatorios al crear un producto.
-     * La moneda solo puede ser 'USD' o 'BS'.
+     * La moneda puede ser 'USD', 'BS' o 'EUR'.
      */
     public function store(Request $request)
     {
@@ -45,7 +45,7 @@ class ProductoController extends Controller
             'descripcion' => 'required|string',
             'prima'       => 'required|numeric|min:0',
             'cobertura'   => 'required|numeric|min:0',
-            'moneda'      => 'required|string|in:USD,BS',
+            'moneda'      => 'required|string|in:USD,BS,EUR',
         ]);
 
         $producto = Producto::create($data);
@@ -66,7 +66,7 @@ class ProductoController extends Controller
             'descripcion' => 'sometimes|required|string',
             'prima'       => 'sometimes|required|numeric|min:0',
             'cobertura'   => 'sometimes|required|numeric|min:0',
-            'moneda'      => 'sometimes|required|string|in:USD,BS',
+            'moneda'      => 'sometimes|required|string|in:USD,BS,EUR',
         ]);
 
         $producto->update($data);

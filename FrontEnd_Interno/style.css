@@ -224,7 +224,8 @@
   .badge-amber  { @apply bg-amber-100 text-amber-700; }
   .badge-red    { @apply bg-rose-100 text-rose-700; }
   .badge-blue   { @apply bg-blue-100 text-blue-700; }
-  .badge-indigo { @apply bg-indigo-100 text-indigo-700; }
+  .badge-indigo  { @apply bg-indigo-100 text-indigo-700; }
+  .badge-violet  { @apply bg-violet-100 text-violet-700; }
 
   /* Form fields */
   .field-label  { @apply text-sm font-semibold text-slate-600 mb-1 block; }

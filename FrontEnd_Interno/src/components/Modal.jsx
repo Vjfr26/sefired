@@ -35,6 +35,7 @@ import { useRef } from 'react'
 import { X, Trash2, Check, Lock, LockOpen, ShieldCheck, Building, UserCheck, Truck, UserCog, Car, Shield, DollarSign } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import FormGrid from './FormGrid.jsx'
+import { fmtMonto } from '../utils/helpers.jsx'
 
 // ── Estructura base de todos los modales ────────────────────────────────────
 function ModalShell({ title, children, footer, wide = false }) {
@@ -448,8 +449,7 @@ function ProductoDetailModal({ p }) {
   const { closeModal } = useApp()
   if (!p) return null
 
-  const fmtId  = id => 'PRO-' + String(id).padStart(4, '0')
-  const fmtUsd = n  => '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const fmtId = id => 'PRO-' + String(id).padStart(4, '0')
 
   return (
     <ModalShell title={`Producto — ${fmtId(p.id)}`} wide footer={
@@ -465,7 +465,9 @@ function ProductoDetailModal({ p }) {
           <p className="text-xs text-slate-400 font-mono">{fmtId(p.id)}</p>
         </div>
         <span className={`text-xs font-bold px-2.5 py-1 rounded-full shrink-0 ${
-          p.moneda === 'USD' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
+          p.moneda === 'USD' ? 'bg-emerald-100 text-emerald-700'
+        : p.moneda === 'EUR' ? 'bg-amber-100 text-amber-700'
+        :                      'bg-blue-100 text-blue-700'
         }`}>{p.moneda}</span>
       </div>
 
@@ -483,7 +485,7 @@ function ProductoDetailModal({ p }) {
             <DollarSign className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
             <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Prima Base</p>
           </div>
-          <p className="text-2xl font-black text-emerald-800">{fmtUsd(p.prima)}</p>
+          <p className="text-2xl font-black text-emerald-800">{fmtMonto(p.prima, p.moneda)}</p>
           <p className="text-xs text-emerald-600 mt-1">{p.moneda} · Anual</p>
         </div>
         <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-2xl">
@@ -491,7 +493,7 @@ function ProductoDetailModal({ p }) {
             <ShieldCheck className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
             <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">Cobertura Máx.</p>
           </div>
-          <p className="text-2xl font-black text-indigo-800">{fmtUsd(p.cobertura)}</p>
+          <p className="text-2xl font-black text-indigo-800">{fmtMonto(p.cobertura, p.moneda)}</p>
           <p className="text-xs text-indigo-600 mt-1">{p.moneda} · Suma asegurada</p>
         </div>
       </div>
