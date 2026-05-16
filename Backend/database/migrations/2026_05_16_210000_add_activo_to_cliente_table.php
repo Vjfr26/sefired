@@ -1,0 +1,24 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('cliente', function (Blueprint $table) {
+            // Permite al administrador activar/desactivar un cliente explícitamente,
+            // independientemente del estado de sus pólizas.
+            $table->boolean('activo')->default(true)->after('persona_id');
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('cliente', function (Blueprint $table) {
+            $table->dropColumn('activo');
+        });
+    }
+};

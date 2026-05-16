@@ -1,10 +1,31 @@
+/**
+ * Sidebar — Barra de navegación lateral de la aplicación.
+ *
+ * Muestra el logo de Sefired, los ítems de menú y un widget con las tasas
+ * BCV del día (dólar y euro). El diseño tiene dos versiones:
+ *
+ *   - Escritorio (lg+): el sidebar es fijo y siempre visible a la izquierda.
+ *     El logo se muestra en formato cuadrado centrado encima del menú.
+ *
+ *   - Móvil/tablet (< lg): el sidebar se muestra como panel deslizante.
+ *     Se abre desde el botón de hamburguesa del Header y se cierra al
+ *     seleccionar una opción o con el overlay de fondo.
+ *     El logo se muestra en formato horizontal (logo + texto en línea).
+ *
+ * La prop `sidebarOpen` es controlada por Layout.jsx (toggle del Header).
+ * `onClose` se llama cuando el usuario elige una vista para cerrar el panel en móvil.
+ *
+ * Las tasas BCV se obtienen automáticamente al iniciar la app (en AppContext)
+ * y se muestran directamente desde el estado global sin petición extra.
+ */
 import {
   Home, Calculator, Package, UserCog, Users, Car,
-  BarChart3, DollarSign, Settings, ChevronDown,
+  BarChart3, DollarSign, Settings,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { NAV } from '../utils/helpers.jsx'
 
+// Mapa de nombre de ícono (string en NAV) → componente de Lucide
 const ICON_MAP = {
   home: Home, calculator: Calculator, package: Package,
   'user-cog': UserCog, users: Users, car: Car,
@@ -12,8 +33,9 @@ const ICON_MAP = {
 }
 
 export default function Sidebar({ onClose, sidebarOpen = false }) {
-  const { activeNavId, navigateTo } = useApp()
+  const { activeNavId, navigateTo, tasas } = useApp()
 
+  // Al navegar en móvil/tablet se cierra el sidebar automáticamente
   const handleNav = (viewId) => {
     navigateTo(viewId)
     onClose?.()
@@ -21,9 +43,10 @@ export default function Sidebar({ onClose, sidebarOpen = false }) {
 
   return (
     <aside className={`sidebar-container${sidebarOpen ? ' sidebar-open' : ''}`}>
-      {/* Logo */}
+
+      {/* ── Logo ── */}
       <div className="px-4 lg:px-5 pt-6 pb-5 shrink-0 border-b border-white/10">
-        {/* Mobile/tablet: horizontal */}
+        {/* Versión horizontal para móvil y tablet */}
         <div className="flex lg:hidden items-center gap-3.5 px-1">
           <div className="w-14 h-14 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-center shrink-0 p-1">
             <img src="/logo2.png" alt="Logo" className="w-full h-full object-contain" />
@@ -33,7 +56,7 @@ export default function Sidebar({ onClose, sidebarOpen = false }) {
             <p className="text-xs font-semibold text-white/60 leading-tight mt-0.5">Cooperativa de Seguros<br />de Vehículos R.L.</p>
           </div>
         </div>
-        {/* Desktop: stacked */}
+        {/* Versión centrada vertical para escritorio */}
         <div className="hidden lg:flex flex-col items-center text-center gap-3">
           <div className="w-28 h-28 rounded-3xl bg-white/10 border border-white/15 flex items-center justify-center p-1.5 shadow-lg">
             <img src="/logo2.png" alt="Logo" className="w-full h-full object-contain" />
@@ -45,7 +68,7 @@ export default function Sidebar({ onClose, sidebarOpen = false }) {
         </div>
       </div>
 
-      {/* Nav */}
+      {/* ── Menú de navegación ── */}
       <nav className="flex-1 px-3 py-2 overflow-y-auto sidebar-scroll">
         {NAV.map(g => {
           const Icon = ICON_MAP[g.icon]
@@ -63,7 +86,9 @@ export default function Sidebar({ onClose, sidebarOpen = false }) {
           )
         })}
 
-        {/* BCV Rates widget */}
+        {/* ── Widget de tasas BCV ── */}
+        {/* Muestra la tasa del dólar y el euro del día actual.
+            Si el backend no respondió aún, muestra '—'. */}
         <div className="mt-8 pt-5 border-t border-white/15">
           <p className="text-xs font-bold text-white/45 uppercase tracking-widest px-3 mb-3">Tasas BCV · Hoy</p>
           <div className="space-y-2 px-1">
@@ -72,14 +97,18 @@ export default function Sidebar({ onClose, sidebarOpen = false }) {
                 <span className="text-sm font-black text-emerald-400 w-4">$</span>
                 <span className="text-sm font-semibold text-white/85">Dólar</span>
               </div>
-              <span className="text-sm font-black text-emerald-300">38.54</span>
+              <span className="text-sm font-black text-emerald-300">
+                {tasas.usd ? Number(tasas.usd.valor).toFixed(4) : '—'}
+              </span>
             </div>
             <div className="flex items-center justify-between px-3 py-3 rounded-xl bg-amber-500/15 border border-amber-500/15">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-black text-amber-400 w-4">€</span>
                 <span className="text-sm font-semibold text-white/85">Euro</span>
               </div>
-              <span className="text-sm font-black text-amber-300">42.18</span>
+              <span className="text-sm font-black text-amber-300">
+                {tasas.eur ? Number(tasas.eur.valor).toFixed(4) : '—'}
+              </span>
             </div>
           </div>
         </div>

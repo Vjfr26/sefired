@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ShieldCheck, Layers, DollarSign, Calculator, Check, ArrowRight, ArrowLeft,
-         Car, Truck, User, Shield, FileCheck, X, Info, CheckCircle, Pencil, Send, Download, Trash2, Plus } from 'lucide-react'
+         Car, Truck, User, Shield, FileCheck, X, Info, CheckCircle, Pencil, Send, Download, Trash2, Plus,
+         Clock, XCircle } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { usd, bs, sbadge, rsbadge, STATUS_COLOR, STATUS_ICONCLS, pdfPage, pdfHdr, pdfSec, pdfRow, pdfTotal, pdfFooter } from '../utils/helpers.jsx'
 
@@ -500,6 +501,10 @@ export default function Simulador() {
     slate: { icon: X, cls: 'text-slate-400' },
   }
 
+  const simEmitidas   = quotes.filter(q => q.est === 'Emitida').length
+  const simEnRevision = quotes.filter(q => q.est === 'En Revisión').length
+  const simRechazadas = quotes.filter(q => q.est === 'Rechazado').length
+
   return (
     <div className="animate-in fade-in duration-500 space-y-5">
       {/* Hero card */}
@@ -536,6 +541,50 @@ export default function Simulador() {
               </div>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="card p-4 flex items-start gap-3">
+          <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
+            <Calculator className="w-4 h-4 text-slate-600" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs text-slate-500 font-medium leading-tight">Total Simulaciones</p>
+            <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{quotes.length}</p>
+            <p className="text-xs text-slate-400 mt-1">Este mes</p>
+          </div>
+        </div>
+        <div className="card p-4 flex items-start gap-3">
+          <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+            <FileCheck className="w-4 h-4 text-emerald-600" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs text-slate-500 font-medium leading-tight">Emitidas</p>
+            <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{simEmitidas}</p>
+            <p className="text-xs text-slate-400 mt-1">Pólizas generadas</p>
+          </div>
+        </div>
+        <div className="card p-4 flex items-start gap-3">
+          <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+            <Clock className="w-4 h-4 text-amber-600" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs text-slate-500 font-medium leading-tight">En Revisión</p>
+            <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{simEnRevision}</p>
+            <p className="text-xs text-slate-400 mt-1">Pendientes de aprobación</p>
+          </div>
+        </div>
+        <div className="card p-4 flex items-start gap-3">
+          <div className="w-9 h-9 rounded-xl bg-rose-100 flex items-center justify-center shrink-0">
+            <XCircle className="w-4 h-4 text-rose-600" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs text-slate-500 font-medium leading-tight">Rechazadas</p>
+            <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{simRechazadas}</p>
+            <p className="text-xs text-slate-400 mt-1">Sin aprobación</p>
+          </div>
         </div>
       </div>
 

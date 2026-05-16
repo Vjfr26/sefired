@@ -1,3 +1,20 @@
+/**
+ * Header — Barra superior de la aplicación.
+ *
+ * Muestra dos cosas:
+ *   1. El título y subtítulo de la sección activa (izquierda).
+ *      Los textos se obtienen de VIEW_META según la vista actual.
+ *
+ *   2. El menú del usuario (derecha).
+ *      Muestra el avatar y nombre del usuario. Al hacer clic despliega
+ *      un menú con la opción de cerrar sesión.
+ *
+ * En móvil y tablet también aparece el botón de hamburguesa para abrir
+ * el sidebar (en escritorio el sidebar está siempre visible).
+ *
+ * NOTA: El usuario está hardcodeado por ahora ("Carlos Ruiz", rol "Admin").
+ * Cuando se implemente autenticación real, estos datos vendrán del backend.
+ */
 import { useState } from 'react'
 import { Menu, ChevronDown, LogOut } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
@@ -7,18 +24,22 @@ export default function Header({ onSidebarOpen }) {
   const { currentView, showToast, onLogout } = useApp()
   const [menuOpen, setMenuOpen] = useState(false)
 
-  const meta = VIEW_META[currentView]
+  // Obtiene el título y subtítulo de la vista activa
+  const meta     = VIEW_META[currentView]
   const title    = meta?.title ?? '—'
   const subtitle = meta?.sub   ?? '—'
 
   const handleLogout = () => {
     setMenuOpen(false)
     showToast('Sesión cerrada correctamente', 'info')
+    // Pequeño retraso para que el usuario vea el toast antes de que desaparezca la UI
     setTimeout(() => onLogout?.(), 1000)
   }
 
   return (
     <header className="bg-sefired-light px-4 sm:px-8 lg:px-12 py-5 flex items-center justify-between shrink-0 border-b border-white/40 shadow-sm">
+
+      {/* Sección izquierda: botón de menú (móvil) + título de la sección */}
       <div className="flex items-center gap-3 min-w-0">
         <button
           className="lg:hidden p-2 rounded-xl hover:bg-slate-100 transition-colors shrink-0"
@@ -33,7 +54,7 @@ export default function Header({ onSidebarOpen }) {
         </div>
       </div>
 
-      {/* User menu */}
+      {/* Sección derecha: avatar y menú desplegable del usuario */}
       <div className="flex items-center shrink-0">
         <div className="relative">
           <button
@@ -47,7 +68,7 @@ export default function Header({ onSidebarOpen }) {
 
           {menuOpen && (
             <>
-              {/* Click-outside backdrop */}
+              {/* Fondo invisible que cierra el menú al hacer clic fuera */}
               <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
               <div className="absolute right-0 top-full mt-2 w-48 sm:w-52 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden z-50">
                 <div className="px-4 py-3 border-b border-slate-100">

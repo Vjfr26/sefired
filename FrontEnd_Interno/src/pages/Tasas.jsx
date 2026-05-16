@@ -1,113 +1,242 @@
+import { useState, useEffect, useCallback } from 'react'
 import { Check, Pencil, Trash2 } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { badge } from '../utils/helpers.jsx'
 import DataTable from '../components/DataTable.jsx'
+import { fetchTasas, storeTasas, updateTasa, deleteTasa } from '../api/tasas.js'
 
-function TasaActions({ name }) {
-  const { showModal } = useApp()
-  return (
-    <div className="flex gap-1 justify-center flex-nowrap max-w-none">
-      <button onClick={() => showModal('editForm', { title: 'Editar', fields: [{ label: 'Valor', val: name }] })}
-        className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition" title="Editar">
-        <Pencil className="w-4 h-4" />
-      </button>
-      <button onClick={() => showModal('confirmDelete', { name })}
-        className="p-2 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition" title="Eliminar">
-        <Trash2 className="w-4 h-4" />
-      </button>
-    </div>
-  )
-}
+// Devuelve hoy en formato YYYY-MM-DD para el input type="date"
+const hoy = () => new Date().toISOString().slice(0, 10)
 
-const histRows = [
-  { f: '07/05/2026', mon: badge('USD','blue'),   t: '38.5400', v: badge('+0.14%','amber'), name: 'Tasa USD 07/05/2026' },
-  { f: '07/05/2026', mon: badge('EUR','indigo'), t: '42.1800', v: badge('+0.22%','amber'), name: 'Tasa EUR 07/05/2026' },
-  { f: '06/05/2026', mon: badge('USD','blue'),   t: '38.3900', v: badge('+0.21%','amber'), name: 'Tasa USD 06/05/2026' },
-  { f: '06/05/2026', mon: badge('EUR','indigo'), t: '41.9600', v: badge('+0.15%','amber'), name: 'Tasa EUR 06/05/2026' },
-  { f: '05/05/2026', mon: badge('USD','blue'),   t: '38.1800', v: badge('+0.08%','slate'), name: 'Tasa USD 05/05/2026' },
-  { f: '05/05/2026', mon: badge('EUR','indigo'), t: '41.8100', v: badge('+0.05%','slate'), name: 'Tasa EUR 05/05/2026' },
-]
+// Badge de moneda: USD = verde (emerald), EUR = ámbar
+const monedaBadge = m => badge(m, m === 'USD' ? 'green' : 'amber')
+
+// Variación como texto coloreado: verde si subió, rojo si bajó, gris sin dato
+const varText = (texto, color) => (
+  <span className={
+    color === 'green' ? 'font-bold text-emerald-600' :
+    color === 'red'   ? 'font-bold text-rose-500' :
+    'text-slate-400 text-xs'
+  }>
+    {texto}
+  </span>
+)
 
 export default function Tasas() {
-  const { showToast } = useApp()
+  const { showModal, showToast, refreshTasas } = useApp()
 
-  const dataRows = histRows.map(r => ({
+  const [data, setData]       = useState({ usd: null, eur: null, historial: [] })
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving]   = useState(false)
+  const [form, setForm]       = useState({ fecha: hoy(), usd: '', eur: '' })
+
+  // Convierte yyyy-mm-dd → dd/mm/yyyy para comparar con el historial
+  const fechaFormDDMMYYYY = form.fecha ? form.fecha.split('-').reverse().join('/') : ''
+  // true cuando la fecha del formulario ya tiene tasas registradas (indica upsert)
+  const fechaYaRegistrada = data.historial.some(r => r.fecha === fechaFormDDMMYYYY)
+
+  // ── Carga de datos ──────────────────────────────────────────────────────────
+  const loadTasas = useCallback(async () => {
+    setLoading(true)
+    try {
+      const json = await fetchTasas()
+      setData(json)
+    } catch (err) {
+      showToast(err.message, 'error')
+    } finally {
+      setLoading(false)
+    }
+  }, [showToast])
+
+  useEffect(() => { loadTasas() }, [loadTasas])
+
+  // ── Registrar tasas del día ─────────────────────────────────────────────────
+  const handleRegistrar = async (e) => {
+    e.preventDefault()
+    if (!form.usd || !form.eur) { showToast('Ingresa ambas tasas (USD y EUR)', 'error'); return }
+    setSaving(true)
+    try {
+      await storeTasas({ fecha: form.fecha, usd: parseFloat(form.usd), eur: parseFloat(form.eur) })
+      showToast(fechaYaRegistrada ? 'Tasas actualizadas correctamente' : 'Tasas del día registradas y aplicadas', 'success')
+      setForm({ fecha: hoy(), usd: '', eur: '' })
+      await loadTasas()
+      await refreshTasas()
+    } catch (err) {
+      showToast(err.message, 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // ── Filas del historial ─────────────────────────────────────────────────────
+  const dataRows = data.historial.map(r => ({
     ...r,
-    acc: <TasaActions name={r.name} />,
+    f:   r.fecha,
+    mon: monedaBadge(r.moneda),
+    t:   <span className="font-bold">{r.valor}</span>,
+    v:   varText(r.variacion, r.var_color),
+    acc: (
+      <div className="flex gap-1 justify-center flex-nowrap">
+        <button
+          onClick={() => showModal('editForm', {
+            title: `Editar Tasa ${r.moneda} — ${r.fecha}`,
+            fields: [
+              { label: `Valor Bs/${r.moneda}`, fname: 'valor', val: r.valor, type: 'number', req: true },
+            ],
+            onSave: async ({ valor }) => {
+              await updateTasa(r.id, parseFloat(valor))
+              await loadTasas()
+              await refreshTasas()
+            },
+          })}
+          className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition"
+          title="Editar"
+        >
+          <Pencil className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => showModal('confirmDelete', {
+            name: `Tasa ${r.moneda} del ${r.fecha}`,
+            onConfirm: async () => {
+              await deleteTasa(r.id)
+              await loadTasas()
+              await refreshTasas()
+            },
+          })}
+          className="p-2 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition"
+          title="Eliminar"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+    ),
   }))
+
+  // ── Card de tasa actual ─────────────────────────────────────────────────────
+  const CardTasa = ({ simbolo, label, color, dato }) => (
+    <div className={`card p-5 border-l-4 border-l-${color}-500`}>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <span className={`text-xl font-extrabold text-${color}-500`}>{simbolo}</span>
+          <p className="text-xs text-slate-600 uppercase tracking-wide font-bold">{label} · BCV</p>
+        </div>
+        <span className="text-xs text-slate-400">
+          {dato ? `${dato.fecha} · ${dato.hora}` : '—'}
+        </span>
+      </div>
+      {dato ? (
+        <>
+          <p className="text-2xl sm:text-3xl font-extrabold text-slate-800">
+            {Number(dato.valor).toFixed(4)}
+            <span className="text-base font-semibold text-slate-400 ml-1">Bs/{simbolo === '$' ? 'USD' : 'EUR'}</span>
+          </p>
+          {dato.variacion !== 0 ? (
+            <p className={`text-xs font-semibold mt-1 ${dato.variacion > 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+              {dato.variacion > 0 ? '↑' : '↓'} {dato.variacion > 0 ? '+' : ''}{dato.variacion}% vs día anterior
+            </p>
+          ) : (
+            <p className="text-xs text-slate-400 mt-1">Sin dato anterior para comparar</p>
+          )}
+        </>
+      ) : (
+        <p className="text-sm text-slate-400 mt-2">Sin registro aún</p>
+      )}
+    </div>
+  )
 
   return (
     <div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
-        {/* Rate display cards */}
-        <div className="space-y-4">
-          <div className="card p-5 border-l-4 border-l-emerald-500">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <span className="text-xl font-extrabold text-emerald-500">$</span>
-                <p className="text-xs text-slate-600 uppercase tracking-wide font-bold">Dólar · BCV</p>
-              </div>
-              <span className="text-xs text-slate-400">07/05/2026 · 07:45 AM</span>
-            </div>
-            <p className="text-2xl sm:text-3xl font-extrabold text-slate-800">38.54 <span className="text-base font-semibold text-slate-400">Bs/$</span></p>
-            <p className="text-xs text-emerald-600 font-semibold mt-1">↑ +0.14% vs ayer</p>
-          </div>
 
-          <div className="card p-5 border-l-4 border-l-amber-500">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <span className="text-xl font-extrabold text-amber-500">€</span>
-                <p className="text-xs text-slate-600 uppercase tracking-wide font-bold">Euro · BCV</p>
-              </div>
-              <span className="text-xs text-slate-400">07/05/2026 · 07:45 AM</span>
+        {/* ── Cards de tasas actuales ── */}
+        <div className="space-y-4">
+          {loading ? (
+            <div className="flex justify-center items-center py-16 text-slate-400 text-sm gap-2">
+              <div className="w-4 h-4 border-2 border-slate-300 border-t-sefired-blue rounded-full animate-spin" />
+              Cargando tasas…
             </div>
-            <p className="text-2xl sm:text-3xl font-extrabold text-slate-800">42.18 <span className="text-base font-semibold text-slate-400">Bs/€</span></p>
-            <p className="text-xs text-amber-600 font-semibold mt-1">↑ +0.22% vs ayer</p>
-          </div>
+          ) : (
+            <>
+              <CardTasa simbolo="$" label="Dólar USD" color="emerald" dato={data.usd} />
+              <CardTasa simbolo="€" label="Euro EUR"  color="amber"   dato={data.eur} />
+            </>
+          )}
         </div>
 
-        {/* Registration form */}
+        {/* ── Formulario de registro ── */}
         <div className="card p-6">
           <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Registrar Tasas del Día</p>
-          <div className="space-y-3">
+          <form onSubmit={handleRegistrar} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="field-label">Dólar USD (Bs) <span className="text-rose-500">*</span></label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-500 font-extrabold">$</span>
-                  <input type="number" step="0.00001" placeholder="0.00000" className="input-field pl-8" required />
+                  <input
+                    type="number" step="any" placeholder="0.00000"
+                    className="input-field pl-8"
+                    value={form.usd}
+                    onChange={e => setForm(f => ({ ...f, usd: e.target.value }))}
+                    required
+                  />
                 </div>
               </div>
               <div>
                 <label className="field-label">Euro EUR (Bs) <span className="text-rose-500">*</span></label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-500 font-extrabold">€</span>
-                  <input type="number" step="0.00001" placeholder="0.00000" className="input-field pl-8" required />
+                  <input
+                    type="number" step="any" placeholder="0.00000"
+                    className="input-field pl-8"
+                    value={form.eur}
+                    onChange={e => setForm(f => ({ ...f, eur: e.target.value }))}
+                    required
+                  />
                 </div>
               </div>
             </div>
             <div>
               <label className="field-label">Fecha <span className="text-rose-500">*</span></label>
-              <input type="date" defaultValue="2026-05-07" className="input-field" required />
+              <input
+                type="date"
+                className="input-field"
+                value={form.fecha}
+                max={hoy()}
+                onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))}
+                required
+              />
             </div>
-            <button onClick={() => showToast('Tasas del día registradas y aplicadas', 'success')} className="btn-primary w-full">
-              <Check className="w-4 h-4" />Registrar Tasas
+            <button type="submit" disabled={saving} className="btn-primary w-full disabled:opacity-70">
+              {saving ? (
+                <div className="flex items-center justify-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  {fechaYaRegistrada ? 'Actualizando…' : 'Registrando…'}
+                </div>
+              ) : (
+                <><Check className="w-4 h-4" />{fechaYaRegistrada ? 'Actualizar Tasas' : 'Registrar Tasas'}</>
+              )}
             </button>
-          </div>
+          </form>
         </div>
       </div>
 
+      {/* ── Historial ── */}
       <h4 className="font-semibold text-slate-700 mb-3">Historial de Tasas Registradas</h4>
-      <DataTable
-        cols={[
-          { k: 'f',   l: 'Fecha',     nw: true },
-          { k: 'mon', l: 'Moneda',    nw: true },
-          { k: 't',   l: 'Tasa Bs',   r: true, nw: true },
-          { k: 'v',   l: 'Variación', hide: 'sm', nw: true },
-          { k: 'acc', l: '',          acc: true },
-        ]}
-        rows={dataRows}
-      />
+      {!loading && data.historial.length === 0 && (
+        <p className="text-sm text-slate-400 text-center py-8">No hay tasas registradas aún.</p>
+      )}
+      {data.historial.length > 0 && (
+        <DataTable
+          cols={[
+            { k: 'f',   l: 'Fecha',     nw: true },
+            { k: 'mon', l: 'Moneda',    nw: true },
+            { k: 't',   l: 'Tasa Bs',   r: true, nw: true },
+            { k: 'v',   l: 'Variación', hide: 'sm', nw: true },
+            { k: 'acc', l: '',          acc: true },
+          ]}
+          rows={dataRows}
+        />
+      )}
     </div>
   )
 }
