@@ -14,9 +14,10 @@ use Illuminate\Http\Request;
  *   PUT    /api/vehiculos/{id}     → editar datos del vehículo
  *   DELETE /api/vehiculos/{id}     → eliminar (bloqueado si tiene conductores registrados)
  *
- * El estado de cobertura (Activo/Inactivo) se calcula dinámicamente:
- *   - "Activo"   → la placa tiene al menos una póliza con status='ACTIVA'
- *   - "Inactivo" → no tiene pólizas activas o nunca tuvo ninguna
+ * El estado de cobertura se calcula dinámicamente:
+ *   - "Cliente Bloqueado" → el propietario fue desactivado manualmente
+ *   - "Activo"            → la placa tiene al menos una póliza con status='ACTIVA'
+ *   - "Inactivo"          → no tiene pólizas activas o nunca tuvo ninguna
  *
  * Este cálculo no se almacena en la base de datos; se resuelve en cada consulta
  * recorriendo la cadena: vehiculo → solicitudes (por placa) → polizas.
@@ -152,6 +153,10 @@ class VehiculoController extends Controller
      */
     private function formatRow(Vehiculo $v): array
     {
+        // Si el propietario está desactivado el vehículo no puede operar,
+        // independientemente de si tiene pólizas activas o no.
+        $clienteBloqueado = $v->cliente && $v->cliente->activo === false;
+
         // Aplana todas las pólizas del vehículo a través de sus solicitudes
         $polizas  = $v->solicitudes?->flatMap->polizas ?? collect();
         $esActivo = $polizas->where('status', 'ACTIVA')->isNotEmpty();
@@ -178,7 +183,7 @@ class VehiculoController extends Controller
             'certificado_transito' => $v->certificado_transito ?? '',
             'certificado_origen'   => $v->certificado_origen   ?? '',
             'titulo'               => $v->titulo               ?? '',
-            'estado'               => $esActivo ? 'Activo' : 'Inactivo',
+            'estado'               => $clienteBloqueado ? 'Cliente Bloqueado' : ($esActivo ? 'Activo' : 'Inactivo'),
         ];
     }
 }
