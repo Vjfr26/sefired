@@ -22,6 +22,7 @@ class Usuario extends Authenticatable
         'sede',
         'nro_sede',
         'tipo',
+        'permisos',
         'activo',
         'temp',
         'temp_expira_en',
@@ -36,6 +37,7 @@ class Usuario extends Authenticatable
     {
         return [
             'activo' => 'boolean',
+            'permisos' => 'array',
             'temp' => 'boolean',
             'temp_expira_en' => 'datetime',
             'fecha_creacion' => 'datetime',

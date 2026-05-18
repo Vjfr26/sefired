@@ -45,6 +45,7 @@ const VIEW_META = {
 // ── STATE ────────────────────────────────────────────────────
 let activeNavId = 'home';
 let activeView  = 'home';
+let currentUser = null;
 
 // ── HELPERS ──────────────────────────────────────────────────
 const usd = n => '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -74,6 +75,35 @@ async function apiCall(endpoint, options = {}) {
     showToast('Error de conexión con el servidor', 'error');
     throw error;
   }
+}
+
+window.loadUserProfile = async function() {
+  try {
+    const res = await apiCall('/usuario');
+    if (res && res.status === 'success') {
+      currentUser = res.data;
+      setupUIWithUser(currentUser);
+    }
+  } catch (e) {
+    console.error('Error loading user profile:', e);
+  }
+};
+
+function setupUIWithUser(u) {
+  if (!u) return;
+  const initials = u.nombre.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+  
+  const hInitials = document.getElementById('user-header-initials');
+  if (hInitials) hInitials.textContent = initials;
+  
+  const hName = document.getElementById('user-header-name');
+  if (hName) hName.textContent = u.nombre;
+  
+  const mName = document.getElementById('user-menu-name');
+  if (mName) mName.textContent = u.nombre;
+  
+  const mRole = document.getElementById('user-menu-role');
+  if (mRole) mRole.textContent = u.cargo || u.tipo;
 }
 
 function badge(text, color = 'slate') {
@@ -1911,43 +1941,52 @@ function _viewHomeOld_unused() {
 
 // CONFIGURACIÓN
 function confPerfil() {
-  return `<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+  if (!currentUser) return `<div class="p-12 text-center text-slate-400">Cargando perfil...</div>`;
+  
+  const u = currentUser;
+  const initials = u.nombre.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+
+  return `<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in duration-500">
     <div class="card p-6 lg:col-span-2">
       <h4 class="font-semibold text-slate-800 mb-5">Información Personal</h4>
       <div class="flex items-center gap-5 pb-5 mb-5 border-b border-slate-100">
-        <div class="w-16 h-16 rounded-2xl bg-sefired-dark flex items-center justify-center text-xl font-extrabold text-white shrink-0">CR</div>
+        <div class="w-16 h-16 rounded-2xl bg-sefired-dark flex items-center justify-center text-xl font-extrabold text-white shrink-0">${initials}</div>
         <div>
-          <p class="font-bold text-slate-800">Carlos Ruiz</p>
-          <p class="text-sm text-slate-500">Asesor de Ventas · Sefired R.L.</p>
+          <p class="font-bold text-slate-800">${u.nombre}</p>
+          <p class="text-sm text-slate-500">${u.cargo} · Sefired R.L.</p>
           <button onclick="showToast('Función de cambio de foto próximamente','info')" class="text-xs text-blue-600 font-semibold hover:underline mt-1">Cambiar foto</button>
         </div>
       </div>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         ${formGrid([
-    { label: 'Nombre', val: 'Victor' },
-    { label: 'Apellido', val: 'Admin' },
-    { label: 'Email', val: 'contacto@victecnology.com' },
-    { label: 'Teléfono', val: '+58 414-000-0000' },
-    { label: 'Cargo', val: 'Gerente Regional' },
-    { label: 'Departamento', val: 'Operaciones' },
-    { label: 'Oficina', type: 'select', opts: ['Caracas Principal', 'Valencia', 'Maracaibo'] },
-    { label: 'Idioma', type: 'select', opts: ['Español', 'English'] },
-  ])}
+          { label: 'Nombre Completo', val: u.nombre, ro: true },
+          { label: 'Usuario (Nick)', val: u.nick, ro: true },
+          { label: 'Cargo', val: u.cargo, ro: true },
+          { label: 'Oficina', val: u.sede || '—', ro: true },
+          { label: 'Tipo de Rol', val: u.tipo, ro: true },
+          { label: 'Fecha de Registro', val: u.fecha_creacion ? new Date(u.fecha_creacion).toLocaleDateString() : '—', ro: true },
+        ])}
       </div>
-      <button onclick="showToast('Perfil actualizado correctamente','success')" class="btn-primary mt-5"><i data-lucide="check" class="w-4 h-4"></i>Guardar Cambios</button>
+      <p class="text-[10px] text-slate-400 mt-5 italic">* Para modificar tu información personal, contacta con un administrador del sistema.</p>
     </div>
     <div class="space-y-5">
       <div class="card p-5">
         <h4 class="font-semibold text-slate-700 text-sm mb-3">Información de Acceso</h4>
         <div class="space-y-2 text-sm">
-          <div class="flex flex-wrap justify-between gap-3"><span class="text-slate-500">Usuario</span><span class="font-mono font-semibold text-slate-700">vadmin</span></div>
-          <div class="flex flex-wrap justify-between gap-3"><span class="text-slate-500">Rol</span><span class="font-semibold text-blue-700">Gerente Regional</span></div>
-          <div class="flex flex-wrap justify-between gap-3"><span class="text-slate-500">Último acceso</span><span class="text-slate-600">03/05/2026 09:14</span></div>
-          <div class="flex flex-wrap justify-between gap-3"><span class="text-slate-500">Estado</span>${badge('Activo', 'green')}</div>
+          <div class="flex flex-wrap justify-between gap-3"><span class="text-slate-500">Usuario</span><span class="font-mono font-semibold text-slate-700">${u.nick}</span></div>
+          <div class="flex flex-wrap justify-between gap-3"><span class="text-slate-500">Rol</span><span class="font-semibold text-blue-700">${u.tipo}</span></div>
+          <div class="flex flex-wrap justify-between gap-3"><span class="text-slate-500">Estado</span>${badge(u.activo ? 'Activo' : 'Bloqueado', u.activo ? 'green' : 'red')}</div>
         </div>
       </div>
       <div class="card p-5">
         <h4 class="font-semibold text-slate-700 text-sm mb-3">Permisos Activos</h4>
+        <div class="flex flex-wrap gap-2">
+          ${Object.entries(u.permisos || {}).filter(([,v]) => v).map(([k]) => `<span class="px-2 py-1 bg-slate-100 text-slate-600 rounded-lg text-[10px] font-bold uppercase">${k}</span>`).join('') || '<span class="text-xs text-slate-400">Sin permisos específicos</span>'}
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
         <div class="space-y-1.5 text-xs text-slate-600">
           ${['Emitir pólizas', 'Aprobar solicitudes', 'Ver reportes', 'Gestionar clientes', 'Registrar cobros', 'Administrar tasas']
       .map(p => `<div class="flex items-center gap-2"><i data-lucide="check-circle" class="w-3.5 h-3.5 text-emerald-500 shrink-0"></i>${p}</div>`).join('')}
@@ -2271,137 +2310,142 @@ window.showEditForm = function(title, fieldsHtml) {
 
 // ── USUARIOS ─────────────────────────────────────────────────
 function usrLista() {
-  const ROLES = ['Admin', 'Oficina', 'Vendedor Sucursal', 'Vendedor Calle'];
-  const ROLE_COLOR = { 'Admin': 'indigo', 'Oficina': 'blue', 'Vendedor Sucursal': 'green', 'Vendedor Calle': 'amber' };
-  const roleBadge = r => badge(r, ROLE_COLOR[r] || 'slate');
-
-  const users = [
-    { init: 'CR', nom: 'Carlos Ruiz',      email: 'c.ruiz@sefired.com',     rol: 'Admin',             oficina: 'Caracas Principal', est: 'Activo',    ultimo: '07/05/2026 08:12' },
-    { init: 'PS', nom: 'Pedro Salazar',    email: 'p.salazar@sefired.com',   rol: 'Oficina',           oficina: 'Caracas Principal', est: 'Activo',    ultimo: '07/05/2026 07:55' },
-    { init: 'AS', nom: 'Ana Suárez',       email: 'a.suarez@sefired.com',    rol: 'Vendedor Sucursal', oficina: 'Valencia',          est: 'Activo',    ultimo: '06/05/2026 16:30' },
-    { init: 'LR', nom: 'Luis Romero',      email: 'l.romero@sefired.com',    rol: 'Vendedor Calle',    oficina: 'Caracas Principal', est: 'Activo',    ultimo: '06/05/2026 14:15' },
-    { init: 'VM', nom: 'Valentina Mora',   email: 'v.mora@sefired.com',      rol: 'Vendedor Sucursal', oficina: 'Maracaibo',         est: 'Bloqueado', ultimo: '02/05/2026 11:00' },
-    { init: 'JG', nom: 'José González',    email: 'j.gonzalez@sefired.com',  rol: 'Vendedor Calle',    oficina: 'Valencia',          est: 'Activo',    ultimo: '05/05/2026 09:45' },
-    { init: 'MT', nom: 'María Torres',     email: 'm.torres@sefired.com',    rol: 'Oficina',           oficina: 'Maracaibo',         est: 'Activo',    ultimo: '07/05/2026 08:00' },
-    { init: 'RD', nom: 'Ricardo Díaz',     email: 'r.diaz@sefired.com',      rol: 'Vendedor Calle',    oficina: 'Caracas Principal', est: 'Bloqueado', ultimo: '28/04/2026 17:22' },
-    { init: 'GF', nom: 'Gabriela Flores',  email: 'g.flores@sefired.com',    rol: 'Vendedor Sucursal', oficina: 'Caracas Principal', est: 'Activo',    ultimo: '07/05/2026 09:30' },
-    { init: 'EM', nom: 'Eduardo Medina',   email: 'e.medina@sefired.com',    rol: 'Oficina',           oficina: 'Valencia',          est: 'Activo',    ultimo: '06/05/2026 15:50' },
-  ];
-
-  const estBadge = est => est === 'Activo'
-    ? `<span class="badge badge-green">Activo</span>`
-    : `<span class="badge badge-red">Bloqueado</span>`;
-
-  const userAcc = u => `
-    <div class="grid grid-cols-3 sm:flex sm:flex-nowrap gap-1.5 sm:gap-1 items-center justify-center">
-      <button onclick="showEditUser('${u.nom}','${u.email}','${u.rol}','${u.oficina}')"
-        class="p-1.5 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 transition inline-flex items-center justify-center" title="Editar">
-        <i data-lucide="pencil" class="w-5 h-5"></i>
-      </button>
-      <button onclick="showUserPerms('${u.nom}','${u.rol}')"
-        class="p-1.5 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition inline-flex items-center justify-center" title="Permisos">
-        <i data-lucide="shield" class="w-5 h-5"></i>
-      </button>
-      <button onclick="showChangeRole('${u.nom}','${u.rol}')"
-        class="p-1.5 rounded-xl bg-amber-50 text-amber-600 hover:bg-amber-100 transition inline-flex items-center justify-center" title="Cambiar rol">
-        <i data-lucide="user-cog" class="w-5 h-5"></i>
-      </button>
-      <button onclick="showBlockUser('${u.nom}','${u.est}')"
-        class="p-1.5 rounded-xl bg-orange-50 text-orange-600 hover:bg-orange-100 transition inline-flex items-center justify-center" title="${u.est === 'Activo' ? 'Bloquear' : 'Desbloquear'}">
-        <i data-lucide="${u.est === 'Activo' ? 'lock' : 'lock-open'}" class="w-5 h-5"></i>
-      </button>
-      <button onclick="showConfirmDelete('${u.nom}')"
-        class="p-1.5 rounded-xl bg-rose-50 text-rose-500 hover:bg-rose-100 transition inline-flex items-center justify-center" title="Eliminar">
-        <i data-lucide="trash-2" class="w-5 h-5"></i>
-      </button>
-    </div>`;
-
-  const byRole = ROLES.reduce((a, r) => ({ ...a, [r]: users.filter(u => u.rol === r).length }), {});
-  const blocked = users.filter(u => u.est === 'Bloqueado').length;
-
-  return `<div class="animate-in fade-in duration-500">
-    <!-- Stats -->
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-      <div class="card p-4 flex items-start gap-3">
-        <div class="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
-          <i data-lucide="users" class="w-4 h-4 text-slate-600"></i>
-        </div>
-        <div class="min-w-0">
-          <p class="text-xs text-slate-500 font-medium leading-tight">Total Usuarios</p>
-          <p class="text-xl font-black text-slate-800 mt-0.5 leading-none">${users.length}</p>
-          <p class="text-xs text-slate-400 mt-1">${users.length - blocked} activos</p>
-        </div>
-      </div>
-      <div class="card p-4 flex items-start gap-3">
-        <div class="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
-          <i data-lucide="shield-check" class="w-4 h-4 text-indigo-600"></i>
-        </div>
-        <div class="min-w-0">
-          <p class="text-xs text-slate-500 font-medium leading-tight">Administradores</p>
-          <p class="text-xl font-black text-slate-800 mt-0.5 leading-none">${byRole['Admin']}</p>
-          <p class="text-xs text-slate-400 mt-1">Acceso total</p>
-        </div>
-      </div>
-      <div class="card p-4 flex items-start gap-3">
-        <div class="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
-          <i data-lucide="user-check" class="w-4 h-4 text-emerald-600"></i>
-        </div>
-        <div class="min-w-0">
-          <p class="text-xs text-slate-500 font-medium leading-tight">Vendedores</p>
-          <p class="text-xl font-black text-slate-800 mt-0.5 leading-none">${byRole['Vendedor Sucursal'] + byRole['Vendedor Calle']}</p>
-          <p class="text-xs text-slate-400 mt-1">Sucursal + Calle</p>
-        </div>
-      </div>
-      <div class="card p-4 flex items-start gap-3">
-        <div class="w-9 h-9 rounded-xl bg-rose-100 flex items-center justify-center shrink-0">
-          <i data-lucide="user-x" class="w-4 h-4 text-rose-600"></i>
-        </div>
-        <div class="min-w-0">
-          <p class="text-xs text-slate-500 font-medium leading-tight">Bloqueados</p>
-          <p class="text-xl font-black text-slate-800 mt-0.5 leading-none">${blocked}</p>
-          <p class="text-xs text-slate-400 mt-1">Sin acceso</p>
+  return `
+    <div id="usuarios-container">
+      <div class="card p-12 text-center">
+        <div class="flex flex-col items-center gap-4">
+          <div class="w-12 h-12 border-4 border-slate-200 border-t-sefired-blue rounded-full animate-spin"></div>
+          <p class="text-slate-500 font-medium">Cargando lista de usuarios...</p>
         </div>
       </div>
     </div>
-
-    <!-- Role filter chips -->
-    <div class="flex flex-wrap gap-2 mb-4">
-      ${['Todos', ...ROLES].map((r, i) => `
-      <button onclick="filterUsersRole('${r}',${i})"
-        id="usr-chip-${i}"
-        class="px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${i === 0 ? 'bg-sefired-blue text-white border-sefired-blue' : 'bg-white text-slate-600 border-slate-200 hover:border-sefired-blue hover:text-sefired-blue'}">
-        ${r}${i > 0 ? ` · ${byRole[r]}` : ''}
-      </button>`).join('')}
-    </div>
-
-    ${searchBar('s-usr', 'Buscar por nombre, email o rol…',
-      `<button onclick="showNewUserModal()" class="btn-primary"><i data-lucide="user-plus" class="w-4 h-4"></i>Nuevo Usuario</button>`,
-      'tbl-usuarios'
-    )}
-
-    ${tbl([
-      { l: 'Usuario',       k: 'usr' },
-      { l: 'Rol',           k: 'rolb',   hide: 'sm' },
-      { l: 'Oficina',       k: 'oficina', hide: 'md', tr: true },
-      { l: 'Último acceso', k: 'ultimo',  hide: 'lg', nw: true },
-      { l: 'Estado',        k: 'estb' },
-      { l: '',              k: 'acc', acc: true },
-    ], users.map(u => ({
-      usr: `<div class="flex items-center gap-2 sm:gap-2.5 min-w-0">
-        <div class="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl ${u.est === 'Bloqueado' ? 'bg-slate-300' : 'bg-sefired-blue'} flex items-center justify-center text-[9px] sm:text-[10px] font-bold text-white shrink-0">${u.init}</div>
-        <div class="min-w-0">
-          <p class="font-semibold text-slate-800 text-xs sm:text-sm break-words">${u.nom}</p>
-          <p class="text-[10px] sm:text-xs text-slate-400 truncate">${u.email}</p>
-        </div>
-      </div>`,
-      rolb: roleBadge(u.rol),
-      oficina: u.oficina,
-      ultimo: u.ultimo,
-      estb: rsbadge(u.est),
-      acc: userAcc(u),
-    })), '', 'tbl-usuarios')}
-  </div>`;
+  `;
 }
+
+window.loadUsuarios = async function() {
+  const container = document.getElementById('usuarios-container');
+  if (!container) return;
+
+  try {
+    const res = await apiCall('/usuarios');
+    if (!res || res.status !== 'success') {
+      container.innerHTML = `<div class="card p-8 text-center text-slate-400">No se pudieron cargar los usuarios</div>`;
+      return;
+    }
+
+    const users = res.data;
+    const ROLES = ['Admin', 'Oficina', 'Vendedor Sucursal', 'Vendedor Calle'];
+    const ROLE_COLOR = { 'Admin': 'indigo', 'Oficina': 'blue', 'Vendedor Sucursal': 'green', 'Vendedor Calle': 'amber' };
+    const roleBadge = r => badge(r, ROLE_COLOR[r] || 'slate');
+
+    const userAcc = u => `
+      <div class="grid grid-cols-3 sm:flex sm:flex-nowrap gap-1.5 sm:gap-1 items-center justify-center">
+        <button onclick="showEditUser(${u.id})"
+          class="p-1.5 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 transition inline-flex items-center justify-center" title="Editar">
+          <i data-lucide="pencil" class="w-5 h-5"></i>
+        </button>
+        <button onclick="showUserPerms(${u.id})"
+          class="p-1.5 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition inline-flex items-center justify-center" title="Permisos">
+          <i data-lucide="shield" class="w-5 h-5"></i>
+        </button>
+        <button onclick="confirmDeleteUser(${u.id}, '${u.nombre}')"
+          class="p-1.5 rounded-xl bg-rose-50 text-rose-500 hover:bg-rose-100 transition inline-flex items-center justify-center" title="Eliminar">
+          <i data-lucide="trash-2" class="w-5 h-5"></i>
+        </button>
+      </div>`;
+
+    const blocked = users.filter(u => !u.activo).length;
+    const byRole = ROLES.reduce((a, r) => ({ ...a, [r]: users.filter(u => u.tipo === r).length }), {});
+
+    container.innerHTML = `
+      <div class="animate-in fade-in duration-500">
+        <!-- Stats -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div class="card p-4 flex items-start gap-3">
+            <div class="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
+              <i data-lucide="users" class="w-4 h-4 text-slate-600"></i>
+            </div>
+            <div class="min-w-0">
+              <p class="text-xs text-slate-500 font-medium leading-tight">Total Usuarios</p>
+              <p class="text-xl font-black text-slate-800 mt-0.5 leading-none">${users.length}</p>
+              <p class="text-xs text-slate-400 mt-1">${users.length - blocked} activos</p>
+            </div>
+          </div>
+          <div class="card p-4 flex items-start gap-3">
+            <div class="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
+              <i data-lucide="shield-check" class="w-4 h-4 text-indigo-600"></i>
+            </div>
+            <div class="min-w-0">
+              <p class="text-xs text-slate-500 font-medium leading-tight">Administradores</p>
+              <p class="text-xl font-black text-slate-800 mt-0.5 leading-none">${byRole['Admin'] || 0}</p>
+              <p class="text-xs text-slate-400 mt-1">Acceso total</p>
+            </div>
+          </div>
+          <div class="card p-4 flex items-start gap-3">
+            <div class="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+              <i data-lucide="user-check" class="w-4 h-4 text-emerald-600"></i>
+            </div>
+            <div class="min-w-0">
+              <p class="text-xs text-slate-500 font-medium leading-tight">Vendedores</p>
+              <p class="text-xl font-black text-slate-800 mt-0.5 leading-none">${(byRole['Vendedor Sucursal'] || 0) + (byRole['Vendedor Calle'] || 0)}</p>
+              <p class="text-xs text-slate-400 mt-1">Sucursal + Calle</p>
+            </div>
+          </div>
+          <div class="card p-4 flex items-start gap-3">
+            <div class="w-9 h-9 rounded-xl bg-rose-100 flex items-center justify-center shrink-0">
+              <i data-lucide="user-x" class="w-4 h-4 text-rose-600"></i>
+            </div>
+            <div class="min-w-0">
+              <p class="text-xs text-slate-500 font-medium leading-tight">Bloqueados</p>
+              <p class="text-xl font-black text-slate-800 mt-0.5 leading-none">${blocked}</p>
+              <p class="text-xs text-slate-400 mt-1">Sin acceso</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap gap-2 mb-4">
+          ${['Todos', ...ROLES].map((r, i) => `
+          <button onclick="filterUsersRole('${r}',${i})"
+            id="usr-chip-${i}"
+            class="px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${i === 0 ? 'bg-sefired-blue text-white border-sefired-blue' : 'bg-white text-slate-600 border-slate-200 hover:border-sefired-blue hover:text-sefired-blue'}">
+            ${r}${i > 0 ? ` · ${byRole[r] || 0}` : ''}
+          </button>`).join('')}
+        </div>
+
+        ${searchBar('s-usr', 'Buscar por nombre, nick o cargo…',
+          `<button onclick="showNewUserModal()" class="btn-primary"><i data-lucide="user-plus" class="w-4 h-4"></i>Nuevo Usuario</button>`,
+          'tbl-usuarios'
+        )}
+
+        ${tbl([
+          { l: 'Usuario',       k: 'usr' },
+          { l: 'Rol',           k: 'rolb',   hide: 'sm' },
+          { l: 'Oficina',       k: 'oficina', hide: 'md', tr: true },
+          { l: 'Último acceso', k: 'ultimo',  hide: 'lg', nw: true },
+          { l: 'Estado',        k: 'estb' },
+          { l: '',              k: 'acc', acc: true },
+        ], users.map(u => ({
+          usr: `<div class="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <div class="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl ${!u.activo ? 'bg-slate-300' : 'bg-sefired-blue'} flex items-center justify-center text-[9px] sm:text-[10px] font-bold text-white shrink-0">${u.nombre.substring(0,2).toUpperCase()}</div>
+            <div class="min-w-0">
+              <p class="font-semibold text-slate-800 text-xs sm:text-sm break-words">${u.nombre}</p>
+              <p class="text-[10px] sm:text-xs text-slate-400 truncate">${u.nick} · ${u.cargo}</p>
+            </div>
+          </div>`,
+          rolb: roleBadge(u.tipo),
+          oficina: u.sede || '—',
+          ultimo: u.fecha_creacion ? new Date(u.fecha_creacion).toLocaleDateString() : '—',
+          estb: rsbadge(u.activo ? 'Activo' : 'Bloqueado'),
+          acc: userAcc(u),
+        })), '', 'tbl-usuarios')}
+      </div>`;
+
+    createIcons({ icons: ALL_ICONS });
+    setupInteractivity();
+  } catch (error) {
+    container.innerHTML = `<div class="card p-8 text-center text-rose-500 font-medium">Error al cargar los usuarios</div>`;
+  }
+};
 
 window.filterUsersRole = function(rol, idx) {
   document.querySelectorAll('[id^="usr-chip-"]').forEach((chip, i) => {
@@ -2419,26 +2463,26 @@ window.filterUsersRole = function(rol, idx) {
 
 window.showNewUserModal = function() {
   showModal('Nuevo Usuario', `
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <form id="form-new-user" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <div>
         <label class="field-label">Nombre completo <span class="text-rose-500">*</span></label>
-        <input class="input-field" placeholder="Nombre Apellido">
+        <input name="nombre" class="input-field" placeholder="Nombre Apellido" required>
       </div>
       <div>
-        <label class="field-label">Correo electrónico <span class="text-rose-500">*</span></label>
-        <input type="email" class="input-field" placeholder="usuario@sefired.com">
+        <label class="field-label">Usuario (Nick) <span class="text-rose-500">*</span></label>
+        <input name="nick" class="input-field" placeholder="usuario" required>
       </div>
       <div>
-        <label class="field-label">Contraseña temporal <span class="text-rose-500">*</span></label>
-        <input type="password" class="input-field" placeholder="••••••••">
+        <label class="field-label">Contraseña <span class="text-rose-500">*</span></label>
+        <input name="password" type="password" class="input-field" placeholder="••••••••" required>
       </div>
       <div>
-        <label class="field-label">Confirmar contraseña <span class="text-rose-500">*</span></label>
-        <input type="password" class="input-field" placeholder="••••••••">
+        <label class="field-label">Cargo <span class="text-rose-500">*</span></label>
+        <input name="cargo" class="input-field" placeholder="Ej. Gerente" required>
       </div>
       <div>
         <label class="field-label">Rol <span class="text-rose-500">*</span></label>
-        <select class="select-field">
+        <select name="tipo" class="select-field" required>
           <option value="" disabled selected>Seleccionar rol…</option>
           <option>Admin</option>
           <option>Oficina</option>
@@ -2448,20 +2492,198 @@ window.showNewUserModal = function() {
       </div>
       <div>
         <label class="field-label">Oficina <span class="text-rose-500">*</span></label>
-        <select class="select-field">
-          <option>Caracas Principal</option>
-          <option>Valencia</option>
-          <option>Maracaibo</option>
-        </select>
+        <input name="sede" class="input-field" placeholder="Ej. Caracas" required>
       </div>
-      <div class="sm:col-span-2">
-        <label class="field-label">Teléfono</label>
-        <input class="input-field" placeholder="+58 414-000-0000">
+      <div>
+        <label class="field-label">Nro. Sede <span class="text-rose-500">*</span></label>
+        <input name="nro_sede" type="number" class="input-field" value="1" required>
+      </div>
+    </form>`,
+    `<button onclick="closeModal()" class="btn-secondary">Cancelar</button>
+     <button onclick="saveNewUser()" class="btn-primary"><i data-lucide="check" class="w-4 h-4"></i>Crear Usuario</button>`
+  );
+};
+
+window.saveNewUser = async function() {
+  const form = document.getElementById('form-new-user');
+  const fd = new FormData(form);
+  const data = Object.fromEntries(fd.entries());
+
+  try {
+    const res = await apiCall('/usuarios', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+    if (res && res.status === 'success') {
+      showToast('Usuario creado correctamente', 'success');
+      closeModal();
+      loadUsuarios();
+    } else {
+      showToast(res.message || 'Error al crear usuario', 'error');
+    }
+  } catch (e) {
+    showToast('Error de conexión', 'error');
+  }
+};
+
+window.showEditUser = async function(id) {
+  try {
+    const res = await apiCall(`/usuarios/${id}`);
+    const u = res.data;
+    showModal(`Editar Usuario — ${u.nombre}`, `
+      <form id="form-edit-user" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <input type="hidden" name="id" value="${u.id}">
+        <div>
+          <label class="field-label">Nombre completo</label>
+          <input name="nombre" class="input-field" value="${u.nombre}">
+        </div>
+        <div>
+          <label class="field-label">Usuario (Nick)</label>
+          <input name="nick" class="input-field" value="${u.nick}">
+        </div>
+        <div>
+          <label class="field-label">Cargo</label>
+          <input name="cargo" class="input-field" value="${u.cargo}">
+        </div>
+        <div>
+          <label class="field-label">Rol</label>
+          <select name="tipo" class="select-field">
+            ${['Admin','Oficina','Vendedor Sucursal','Vendedor Calle'].map(r => `<option${r === u.tipo ? ' selected' : ''}>${r}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label class="field-label">Oficina</label>
+          <input name="sede" class="input-field" value="${u.sede}">
+        </div>
+        <div>
+          <label class="field-label">Nueva contraseña <span class="text-slate-400 font-normal text-[10px]">(dejar vacío para no cambiar)</span></label>
+          <input name="password" type="password" class="input-field" placeholder="••••••••">
+        </div>
+        <div>
+          <label class="field-label">Estado</label>
+          <select name="activo" class="select-field">
+            <option value="1"${u.activo ? ' selected' : ''}>Activo</option>
+            <option value="0"${!u.activo ? ' selected' : ''}>Bloqueado</option>
+          </select>
+        </div>
+      </form>`,
+      `<button onclick="closeModal()" class="btn-secondary">Cancelar</button>
+       <button onclick="updateUser(${u.id})" class="btn-primary"><i data-lucide="check" class="w-4 h-4"></i>Guardar Cambios</button>`
+    );
+  } catch (e) {
+    showToast('Error al cargar datos del usuario', 'error');
+  }
+};
+
+window.updateUser = async function(id) {
+  const form = document.getElementById('form-edit-user');
+  const fd = new FormData(form);
+  const data = Object.fromEntries(fd.entries());
+  data.activo = data.activo === "1";
+  if (!data.password) delete data.password;
+
+  try {
+    const res = await apiCall(`/usuarios/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+    if (res && res.status === 'success') {
+      showToast('Usuario actualizado correctamente', 'success');
+      closeModal();
+      loadUsuarios();
+    }
+  } catch (e) {
+    showToast('Error al actualizar usuario', 'error');
+  }
+};
+
+window.confirmDeleteUser = function(id, name) {
+  showModal(
+    'Confirmar eliminación',
+    `<div class="flex flex-col items-center text-center gap-4 py-2">
+      <div class="w-14 h-14 rounded-full bg-rose-100 flex items-center justify-center">
+        <i data-lucide="trash-2" class="w-7 h-7 text-rose-600"></i>
+      </div>
+      <div>
+        <p class="font-semibold text-slate-800 mb-1">¿Eliminar usuario <em>${name}</em>?</p>
+        <p class="text-sm text-slate-500">Esta acción no se puede deshacer.</p>
       </div>
     </div>`,
     `<button onclick="closeModal()" class="btn-secondary">Cancelar</button>
-     <button onclick="closeModal();showToast('Usuario creado correctamente','success')" class="btn-primary"><i data-lucide="check" class="w-4 h-4"></i>Crear Usuario</button>`
+     <button onclick="deleteUser(${id})" class="btn-danger"><i data-lucide="trash-2" class="w-4 h-4"></i>Eliminar</button>`
   );
+};
+
+window.deleteUser = async function(id) {
+  try {
+    const res = await apiCall(`/usuarios/${id}`, { method: 'DELETE' });
+    if (res && res.status === 'success') {
+      showToast('Usuario eliminado', 'success');
+      closeModal();
+      loadUsuarios();
+    }
+  } catch (e) {
+    showToast('Error al eliminar usuario', 'error');
+  }
+};
+
+window.showUserPerms = async function(id) {
+  try {
+    const res = await apiCall(`/usuarios/${id}`);
+    const u = res.data;
+    const permisos = u.permisos || {};
+    const modules = [
+      { id: 'home', label: 'Inicio' },
+      { id: 'cotizaciones', label: 'Simulador' },
+      { id: 'productos', label: 'Productos' },
+      { id: 'usuarios', label: 'Usuarios' },
+      { id: 'clientes', label: 'Clientes' },
+      { id: 'vehiculos', label: 'Vehículos' },
+      { id: 'reportes', label: 'Reportes' },
+      { id: 'tasas', label: 'Tasas' },
+      { id: 'config', label: 'Configuración' }
+    ];
+
+    showModal(`Permisos de Visibilidad — ${u.nombre}`, `
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" id="perms-grid">
+        ${modules.map(m => `
+          <label class="flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:bg-slate-50 cursor-pointer transition">
+            <span class="text-sm font-medium text-slate-700">${m.label}</span>
+            <div class="toggle-wrap">
+              <input type="checkbox" class="toggle-input" data-module="${m.id}" ${permisos[m.id] !== false ? 'checked' : ''}>
+              <span class="toggle-track"></span>
+            </div>
+          </label>
+        `).join('')}
+      </div>
+      <p class="text-[10px] text-slate-400 mt-4 italic">* Los administradores siempre tienen acceso total independientemente de estos ajustes.</p>
+    `,
+    `<button onclick="closeModal()" class="btn-secondary">Cancelar</button>
+     <button onclick="saveUserPerms(${id})" class="btn-primary"><i data-lucide="check" class="w-4 h-4"></i>Guardar Permisos</button>`);
+  } catch (e) {
+    showToast('Error al cargar permisos', 'error');
+  }
+};
+
+window.saveUserPerms = async function(id) {
+  const perms = {};
+  document.querySelectorAll('#perms-grid input[type="checkbox"]').forEach(chk => {
+    perms[chk.dataset.module] = chk.checked;
+  });
+
+  try {
+    const res = await apiCall(`/usuarios/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ permisos: perms })
+    });
+    if (res && res.status === 'success') {
+      showToast('Permisos actualizados correctamente', 'success');
+      closeModal();
+      loadUsuarios();
+    }
+  } catch (e) {
+    showToast('Error al guardar permisos', 'error');
+  }
 };
 
 window.showEditUser = function(nom, email, rol, oficina) {
@@ -2848,6 +3070,7 @@ function navigateTo(viewId) {
     setupInteractivity();
     
     if (viewId === 'conf-auditoria') loadAuditoriaLogs();
+    if (viewId === 'usr-lista') loadUsuarios();
   }
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -3221,6 +3444,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupSidebarToggle();
   setupTabListeners();
   navigateTo('home');
+  loadUserProfile();
 
   document.getElementById('modal-overlay')?.addEventListener('click', e => {
     if (e.target.id === 'modal-overlay') closeModal();
