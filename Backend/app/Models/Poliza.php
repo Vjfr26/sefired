@@ -57,4 +57,19 @@ class Poliza extends Model
     {
         return $this->belongsTo(Usuario::class, 'vendedor_id');
     }
+
+    public function polizaApov()
+    {
+        return $this->hasOne(PolizaApov::class, 'poliza_id', 'id');
+    }
+
+    public function polizaRcv()
+    {
+        return $this->hasOne(PolizaRcv::class, 'poliza_id', 'id');
+    }
+
+    public function polizaEcEp()
+    {
+        return $this->hasOne(PolizaEcEp::class, 'poliza_id', 'id');
+    }
 }

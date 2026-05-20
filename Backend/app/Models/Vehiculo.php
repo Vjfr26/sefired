@@ -17,12 +17,11 @@ class Vehiculo extends Model
         'fecha_adquisicion',
         'certificado_transito',
         'certificado_origen',
-        'marca',
-        'modelo',
-        'clase',
+        'modelo_vehiculo_id',
         'tipo',
-        'anio',
         'uso',
+        'clase',
+        'anio',
         'color',
         'peso',
         'puestos',
@@ -36,6 +35,7 @@ class Vehiculo extends Model
     {
         return [
             'cliente_id' => 'integer',
+            'modelo_vehiculo_id' => 'integer',
             'fecha_adquisicion' => 'date',
             'anio' => 'integer',
             'peso' => 'integer',
@@ -46,6 +46,11 @@ class Vehiculo extends Model
     public function cliente(): BelongsTo
     {
         return $this->belongsTo(Cliente::class, 'cliente_id');
+    }
+
+    public function modeloVehiculo(): BelongsTo
+    {
+        return $this->belongsTo(ModeloVehiculo::class, 'modelo_vehiculo_id');
     }
 
     public function conductores(): HasMany

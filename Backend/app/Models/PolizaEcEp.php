@@ -3,16 +3,18 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class EcEp extends Model
+class PolizaEcEp extends Model
 {
-    protected $table = 'ec_ep';
+    protected $table = 'poliza_ec_ep';
+    protected $primaryKey = 'poliza_id';
+    public $incrementing = false;
     public $timestamps = false;
 
     protected $fillable = [
-        'nombre_producto',
-        'tipo_carro',
-        'tasa',
+        'poliza_id',
+        'tarifario_ec_ep_id',
         'suma_cobertura',
         'prima_cobertura',
         'suma_total',
@@ -25,7 +27,8 @@ class EcEp extends Model
     protected function casts(): array
     {
         return [
-            'tasa' => 'decimal:4',
+            'poliza_id' => 'integer',
+            'tarifario_ec_ep_id' => 'integer',
             'suma_cobertura' => 'decimal:2',
             'prima_cobertura' => 'decimal:2',
             'suma_total' => 'decimal:2',
@@ -34,5 +37,15 @@ class EcEp extends Model
             'suma_oro' => 'decimal:2',
             'prima_oro' => 'decimal:2',
         ];
+    }
+
+    public function poliza(): BelongsTo
+    {
+        return $this->belongsTo(Poliza::class, 'poliza_id');
+    }
+
+    public function tarifario(): BelongsTo
+    {
+        return $this->belongsTo(TarifarioEcEp::class, 'tarifario_ec_ep_id');
     }
 }

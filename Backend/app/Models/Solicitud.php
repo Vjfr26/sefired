@@ -49,4 +49,9 @@ class Solicitud extends Model
     {
         return $this->hasMany(Poliza::class, 'solicitud_id');
     }
+
+    public function solicitudApov()
+    {
+        return $this->hasOne(SolicitudApov::class, 'solicitud_id', 'id');
+    }
 }

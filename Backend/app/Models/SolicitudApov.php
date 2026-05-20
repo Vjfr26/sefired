@@ -8,25 +8,24 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class SolicitudApov extends Model
 {
     protected $table = 'solicitud_apov';
+    protected $primaryKey = 'solicitud_id';
+    public $incrementing = false;
     public $timestamps = false;
 
     protected $fillable = [
-        'vehiculo_id',
-        'plan_muerte_accidental',
-        'plan_invalidez',
-        'plan_medicos',
-        'plan_funerarios',
+        'solicitud_id',
+        'plan_elegido',
     ];
 
     protected function casts(): array
     {
         return [
-            'vehiculo_id' => 'integer',
+            'solicitud_id' => 'integer',
         ];
     }
 
-    public function vehiculo(): BelongsTo
+    public function solicitud(): BelongsTo
     {
-        return $this->belongsTo(Vehiculo::class, 'vehiculo_id');
+        return $this->belongsTo(Solicitud::class, 'solicitud_id');
     }
 }

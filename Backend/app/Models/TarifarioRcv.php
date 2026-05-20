@@ -4,9 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class Rcv extends Model
+class TarifarioRcv extends Model
 {
-    protected $table = 'rcv';
+    protected $table = 'tarifario_rcv';
     protected $primaryKey = 'id';
     public $timestamps = false;
 
