@@ -45,12 +45,16 @@ const VIEW_META = {
 // ── STATE ────────────────────────────────────────────────────
 let activeNavId = 'home';
 let activeView  = 'home';
+<<<<<<< HEAD
 let currentUser = null;
+=======
+>>>>>>> origin/victor
 
 // ── HELPERS ──────────────────────────────────────────────────
 const usd = n => '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const bs = (n, r = 38.54) => 'Bs. ' + (n * r).toLocaleString('es-VE', { minimumFractionDigits: 2 });
 
+<<<<<<< HEAD
 const API_URL = 'http://localhost:8000/api';
 
 async function apiCall(endpoint, options = {}) {
@@ -106,6 +110,8 @@ function setupUIWithUser(u) {
   if (mRole) mRole.textContent = u.cargo || u.tipo;
 }
 
+=======
+>>>>>>> origin/victor
 function badge(text, color = 'slate') {
   return `<span class="badge badge-${color}">${text}</span>`;
 }
@@ -1941,6 +1947,7 @@ function _viewHomeOld_unused() {
 
 // CONFIGURACIÓN
 function confPerfil() {
+<<<<<<< HEAD
   if (!currentUser) return `<div class="p-12 text-center text-slate-400">Cargando perfil...</div>`;
   
   const u = currentUser;
@@ -1954,11 +1961,22 @@ function confPerfil() {
         <div>
           <p class="font-bold text-slate-800">${u.nombre}</p>
           <p class="text-sm text-slate-500">${u.cargo} · Sefired R.L.</p>
+=======
+  return `<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="card p-6 lg:col-span-2">
+      <h4 class="font-semibold text-slate-800 mb-5">Información Personal</h4>
+      <div class="flex items-center gap-5 pb-5 mb-5 border-b border-slate-100">
+        <div class="w-16 h-16 rounded-2xl bg-sefired-dark flex items-center justify-center text-xl font-extrabold text-white shrink-0">CR</div>
+        <div>
+          <p class="font-bold text-slate-800">Carlos Ruiz</p>
+          <p class="text-sm text-slate-500">Asesor de Ventas · Sefired R.L.</p>
+>>>>>>> origin/victor
           <button onclick="showToast('Función de cambio de foto próximamente','info')" class="text-xs text-blue-600 font-semibold hover:underline mt-1">Cambiar foto</button>
         </div>
       </div>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         ${formGrid([
+<<<<<<< HEAD
           { label: 'Nombre Completo', val: u.nombre, ro: true },
           { label: 'Usuario (Nick)', val: u.nick, ro: true },
           { label: 'Cargo', val: u.cargo, ro: true },
@@ -1968,18 +1986,39 @@ function confPerfil() {
         ])}
       </div>
       <p class="text-[10px] text-slate-400 mt-5 italic">* Para modificar tu información personal, contacta con un administrador del sistema.</p>
+=======
+    { label: 'Nombre', val: 'Victor' },
+    { label: 'Apellido', val: 'Admin' },
+    { label: 'Email', val: 'contacto@victecnology.com' },
+    { label: 'Teléfono', val: '+58 414-000-0000' },
+    { label: 'Cargo', val: 'Gerente Regional' },
+    { label: 'Departamento', val: 'Operaciones' },
+    { label: 'Oficina', type: 'select', opts: ['Caracas Principal', 'Valencia', 'Maracaibo'] },
+    { label: 'Idioma', type: 'select', opts: ['Español', 'English'] },
+  ])}
+      </div>
+      <button onclick="showToast('Perfil actualizado correctamente','success')" class="btn-primary mt-5"><i data-lucide="check" class="w-4 h-4"></i>Guardar Cambios</button>
+>>>>>>> origin/victor
     </div>
     <div class="space-y-5">
       <div class="card p-5">
         <h4 class="font-semibold text-slate-700 text-sm mb-3">Información de Acceso</h4>
         <div class="space-y-2 text-sm">
+<<<<<<< HEAD
           <div class="flex flex-wrap justify-between gap-3"><span class="text-slate-500">Usuario</span><span class="font-mono font-semibold text-slate-700">${u.nick}</span></div>
           <div class="flex flex-wrap justify-between gap-3"><span class="text-slate-500">Rol</span><span class="font-semibold text-blue-700">${u.tipo}</span></div>
           <div class="flex flex-wrap justify-between gap-3"><span class="text-slate-500">Estado</span>${badge(u.activo ? 'Activo' : 'Bloqueado', u.activo ? 'green' : 'red')}</div>
+=======
+          <div class="flex flex-wrap justify-between gap-3"><span class="text-slate-500">Usuario</span><span class="font-mono font-semibold text-slate-700">vadmin</span></div>
+          <div class="flex flex-wrap justify-between gap-3"><span class="text-slate-500">Rol</span><span class="font-semibold text-blue-700">Gerente Regional</span></div>
+          <div class="flex flex-wrap justify-between gap-3"><span class="text-slate-500">Último acceso</span><span class="text-slate-600">03/05/2026 09:14</span></div>
+          <div class="flex flex-wrap justify-between gap-3"><span class="text-slate-500">Estado</span>${badge('Activo', 'green')}</div>
+>>>>>>> origin/victor
         </div>
       </div>
       <div class="card p-5">
         <h4 class="font-semibold text-slate-700 text-sm mb-3">Permisos Activos</h4>
+<<<<<<< HEAD
         <div class="flex flex-wrap gap-2">
           ${Object.entries(u.permisos || {}).filter(([,v]) => v).map(([k]) => `<span class="px-2 py-1 bg-slate-100 text-slate-600 rounded-lg text-[10px] font-bold uppercase">${k}</span>`).join('') || '<span class="text-xs text-slate-400">Sin permisos específicos</span>'}
         </div>
@@ -1987,6 +2026,8 @@ function confPerfil() {
     </div>
   </div>`;
 }
+=======
+>>>>>>> origin/victor
         <div class="space-y-1.5 text-xs text-slate-600">
           ${['Emitir pólizas', 'Aprobar solicitudes', 'Ver reportes', 'Gestionar clientes', 'Registrar cobros', 'Administrar tasas']
       .map(p => `<div class="flex items-center gap-2"><i data-lucide="check-circle" class="w-3.5 h-3.5 text-emerald-500 shrink-0"></i>${p}</div>`).join('')}
@@ -2169,6 +2210,7 @@ function confEmpresa() {
 }
 
 function confAuditoria() {
+<<<<<<< HEAD
   return `
     <div id="auditoria-container">
       <div class="card p-12 text-center">
@@ -2216,6 +2258,22 @@ window.loadAuditoriaLogs = async function() {
   }
 };
 
+=======
+  return reportBase('Auditoría', [
+    { l: 'Fecha/Hora', k: 'dt', hide: 'sm' }, { l: 'Usuario', k: 'usr', m: true }, { l: 'Acción', k: 'acc' }, { l: 'Módulo', k: 'mod', hide: 'sm' }, { l: 'Detalle', k: 'det', hide: 'lg', tr: true }, { l: 'IP', k: 'ip', m: true, hide: 'lg' }
+  ], [
+    { dt: '03/05/2026 09:14', usr: 'vadmin', acc: badge('Acceso', 'blue'), mod: 'Sistema', det: 'Inicio de sesión exitoso', ip: '192.168.1.10' },
+    { dt: '03/05/2026 09:18', usr: 'vadmin', acc: badge('Creación', 'green'), mod: 'Cotización', det: 'SOL-2026-00312 creada', ip: '192.168.1.10' },
+    { dt: '03/05/2026 09:32', usr: 'vadmin', acc: badge('Aprobación', 'green'), mod: 'Revisión', det: 'SOL-2026-00312 aprobada', ip: '192.168.1.10' },
+    { dt: '03/05/2026 09:38', usr: 'vadmin', acc: badge('Creación', 'green'), mod: 'Emisión', det: 'SEF-2026-VEH-00848 emitida', ip: '192.168.1.10' },
+    { dt: '03/05/2026 09:45', usr: 'psalazar', acc: badge('Creación', 'green'), mod: 'Cotización', det: 'SOL-2026-00313 creada', ip: '192.168.1.22' },
+    { dt: '03/05/2026 10:02', usr: 'vadmin', acc: badge('Edición', 'amber'), mod: 'Configuración', det: 'Parámetro comisión agente actualizado', ip: '192.168.1.10' },
+    { dt: '02/05/2026 17:55', usr: 'asuarez', acc: badge('Cobro', 'indigo'), mod: 'Facturación', det: 'FAC-2026-00846 cobro registrado $487.00', ip: '192.168.1.15' },
+    { dt: '02/05/2026 17:30', usr: 'rcontrol', acc: badge('Consulta', 'slate'), mod: 'Reportes', det: 'Reporte de ventas exportado', ip: '192.168.1.18' },
+  ]);
+}
+
+>>>>>>> origin/victor
 function confRespaldo() {
   return `<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     <div class="card p-6">
@@ -2310,6 +2368,7 @@ window.showEditForm = function(title, fieldsHtml) {
 
 // ── USUARIOS ─────────────────────────────────────────────────
 function usrLista() {
+<<<<<<< HEAD
   return `
     <div id="usuarios-container">
       <div class="card p-12 text-center">
@@ -2447,6 +2506,140 @@ window.loadUsuarios = async function() {
   }
 };
 
+=======
+  const ROLES = ['Admin', 'Oficina', 'Vendedor Sucursal', 'Vendedor Calle'];
+  const ROLE_COLOR = { 'Admin': 'indigo', 'Oficina': 'blue', 'Vendedor Sucursal': 'green', 'Vendedor Calle': 'amber' };
+  const roleBadge = r => badge(r, ROLE_COLOR[r] || 'slate');
+
+  const users = [
+    { init: 'CR', nom: 'Carlos Ruiz',      email: 'c.ruiz@sefired.com',     rol: 'Admin',             oficina: 'Caracas Principal', est: 'Activo',    ultimo: '07/05/2026 08:12' },
+    { init: 'PS', nom: 'Pedro Salazar',    email: 'p.salazar@sefired.com',   rol: 'Oficina',           oficina: 'Caracas Principal', est: 'Activo',    ultimo: '07/05/2026 07:55' },
+    { init: 'AS', nom: 'Ana Suárez',       email: 'a.suarez@sefired.com',    rol: 'Vendedor Sucursal', oficina: 'Valencia',          est: 'Activo',    ultimo: '06/05/2026 16:30' },
+    { init: 'LR', nom: 'Luis Romero',      email: 'l.romero@sefired.com',    rol: 'Vendedor Calle',    oficina: 'Caracas Principal', est: 'Activo',    ultimo: '06/05/2026 14:15' },
+    { init: 'VM', nom: 'Valentina Mora',   email: 'v.mora@sefired.com',      rol: 'Vendedor Sucursal', oficina: 'Maracaibo',         est: 'Bloqueado', ultimo: '02/05/2026 11:00' },
+    { init: 'JG', nom: 'José González',    email: 'j.gonzalez@sefired.com',  rol: 'Vendedor Calle',    oficina: 'Valencia',          est: 'Activo',    ultimo: '05/05/2026 09:45' },
+    { init: 'MT', nom: 'María Torres',     email: 'm.torres@sefired.com',    rol: 'Oficina',           oficina: 'Maracaibo',         est: 'Activo',    ultimo: '07/05/2026 08:00' },
+    { init: 'RD', nom: 'Ricardo Díaz',     email: 'r.diaz@sefired.com',      rol: 'Vendedor Calle',    oficina: 'Caracas Principal', est: 'Bloqueado', ultimo: '28/04/2026 17:22' },
+    { init: 'GF', nom: 'Gabriela Flores',  email: 'g.flores@sefired.com',    rol: 'Vendedor Sucursal', oficina: 'Caracas Principal', est: 'Activo',    ultimo: '07/05/2026 09:30' },
+    { init: 'EM', nom: 'Eduardo Medina',   email: 'e.medina@sefired.com',    rol: 'Oficina',           oficina: 'Valencia',          est: 'Activo',    ultimo: '06/05/2026 15:50' },
+  ];
+
+  const estBadge = est => est === 'Activo'
+    ? `<span class="badge badge-green">Activo</span>`
+    : `<span class="badge badge-red">Bloqueado</span>`;
+
+  const userAcc = u => `
+    <div class="grid grid-cols-3 sm:flex sm:flex-nowrap gap-1.5 sm:gap-1 items-center justify-center">
+      <button onclick="showEditUser('${u.nom}','${u.email}','${u.rol}','${u.oficina}')"
+        class="p-1.5 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 transition inline-flex items-center justify-center" title="Editar">
+        <i data-lucide="pencil" class="w-5 h-5"></i>
+      </button>
+      <button onclick="showUserPerms('${u.nom}','${u.rol}')"
+        class="p-1.5 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition inline-flex items-center justify-center" title="Permisos">
+        <i data-lucide="shield" class="w-5 h-5"></i>
+      </button>
+      <button onclick="showChangeRole('${u.nom}','${u.rol}')"
+        class="p-1.5 rounded-xl bg-amber-50 text-amber-600 hover:bg-amber-100 transition inline-flex items-center justify-center" title="Cambiar rol">
+        <i data-lucide="user-cog" class="w-5 h-5"></i>
+      </button>
+      <button onclick="showBlockUser('${u.nom}','${u.est}')"
+        class="p-1.5 rounded-xl bg-orange-50 text-orange-600 hover:bg-orange-100 transition inline-flex items-center justify-center" title="${u.est === 'Activo' ? 'Bloquear' : 'Desbloquear'}">
+        <i data-lucide="${u.est === 'Activo' ? 'lock' : 'lock-open'}" class="w-5 h-5"></i>
+      </button>
+      <button onclick="showConfirmDelete('${u.nom}')"
+        class="p-1.5 rounded-xl bg-rose-50 text-rose-500 hover:bg-rose-100 transition inline-flex items-center justify-center" title="Eliminar">
+        <i data-lucide="trash-2" class="w-5 h-5"></i>
+      </button>
+    </div>`;
+
+  const byRole = ROLES.reduce((a, r) => ({ ...a, [r]: users.filter(u => u.rol === r).length }), {});
+  const blocked = users.filter(u => u.est === 'Bloqueado').length;
+
+  return `<div class="animate-in fade-in duration-500">
+    <!-- Stats -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div class="card p-4 flex items-start gap-3">
+        <div class="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
+          <i data-lucide="users" class="w-4 h-4 text-slate-600"></i>
+        </div>
+        <div class="min-w-0">
+          <p class="text-xs text-slate-500 font-medium leading-tight">Total Usuarios</p>
+          <p class="text-xl font-black text-slate-800 mt-0.5 leading-none">${users.length}</p>
+          <p class="text-xs text-slate-400 mt-1">${users.length - blocked} activos</p>
+        </div>
+      </div>
+      <div class="card p-4 flex items-start gap-3">
+        <div class="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
+          <i data-lucide="shield-check" class="w-4 h-4 text-indigo-600"></i>
+        </div>
+        <div class="min-w-0">
+          <p class="text-xs text-slate-500 font-medium leading-tight">Administradores</p>
+          <p class="text-xl font-black text-slate-800 mt-0.5 leading-none">${byRole['Admin']}</p>
+          <p class="text-xs text-slate-400 mt-1">Acceso total</p>
+        </div>
+      </div>
+      <div class="card p-4 flex items-start gap-3">
+        <div class="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+          <i data-lucide="user-check" class="w-4 h-4 text-emerald-600"></i>
+        </div>
+        <div class="min-w-0">
+          <p class="text-xs text-slate-500 font-medium leading-tight">Vendedores</p>
+          <p class="text-xl font-black text-slate-800 mt-0.5 leading-none">${byRole['Vendedor Sucursal'] + byRole['Vendedor Calle']}</p>
+          <p class="text-xs text-slate-400 mt-1">Sucursal + Calle</p>
+        </div>
+      </div>
+      <div class="card p-4 flex items-start gap-3">
+        <div class="w-9 h-9 rounded-xl bg-rose-100 flex items-center justify-center shrink-0">
+          <i data-lucide="user-x" class="w-4 h-4 text-rose-600"></i>
+        </div>
+        <div class="min-w-0">
+          <p class="text-xs text-slate-500 font-medium leading-tight">Bloqueados</p>
+          <p class="text-xl font-black text-slate-800 mt-0.5 leading-none">${blocked}</p>
+          <p class="text-xs text-slate-400 mt-1">Sin acceso</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Role filter chips -->
+    <div class="flex flex-wrap gap-2 mb-4">
+      ${['Todos', ...ROLES].map((r, i) => `
+      <button onclick="filterUsersRole('${r}',${i})"
+        id="usr-chip-${i}"
+        class="px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${i === 0 ? 'bg-sefired-blue text-white border-sefired-blue' : 'bg-white text-slate-600 border-slate-200 hover:border-sefired-blue hover:text-sefired-blue'}">
+        ${r}${i > 0 ? ` · ${byRole[r]}` : ''}
+      </button>`).join('')}
+    </div>
+
+    ${searchBar('s-usr', 'Buscar por nombre, email o rol…',
+      `<button onclick="showNewUserModal()" class="btn-primary"><i data-lucide="user-plus" class="w-4 h-4"></i>Nuevo Usuario</button>`,
+      'tbl-usuarios'
+    )}
+
+    ${tbl([
+      { l: 'Usuario',       k: 'usr' },
+      { l: 'Rol',           k: 'rolb',   hide: 'sm' },
+      { l: 'Oficina',       k: 'oficina', hide: 'md', tr: true },
+      { l: 'Último acceso', k: 'ultimo',  hide: 'lg', nw: true },
+      { l: 'Estado',        k: 'estb' },
+      { l: '',              k: 'acc', acc: true },
+    ], users.map(u => ({
+      usr: `<div class="flex items-center gap-2 sm:gap-2.5 min-w-0">
+        <div class="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl ${u.est === 'Bloqueado' ? 'bg-slate-300' : 'bg-sefired-blue'} flex items-center justify-center text-[9px] sm:text-[10px] font-bold text-white shrink-0">${u.init}</div>
+        <div class="min-w-0">
+          <p class="font-semibold text-slate-800 text-xs sm:text-sm break-words">${u.nom}</p>
+          <p class="text-[10px] sm:text-xs text-slate-400 truncate">${u.email}</p>
+        </div>
+      </div>`,
+      rolb: roleBadge(u.rol),
+      oficina: u.oficina,
+      ultimo: u.ultimo,
+      estb: rsbadge(u.est),
+      acc: userAcc(u),
+    })), '', 'tbl-usuarios')}
+  </div>`;
+}
+
+>>>>>>> origin/victor
 window.filterUsersRole = function(rol, idx) {
   document.querySelectorAll('[id^="usr-chip-"]').forEach((chip, i) => {
     const active = i === idx;
@@ -2463,6 +2656,7 @@ window.filterUsersRole = function(rol, idx) {
 
 window.showNewUserModal = function() {
   showModal('Nuevo Usuario', `
+<<<<<<< HEAD
     <form id="form-new-user" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <div>
         <label class="field-label">Nombre completo <span class="text-rose-500">*</span></label>
@@ -2483,6 +2677,28 @@ window.showNewUserModal = function() {
       <div>
         <label class="field-label">Rol <span class="text-rose-500">*</span></label>
         <select name="tipo" class="select-field" required>
+=======
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div>
+        <label class="field-label">Nombre completo <span class="text-rose-500">*</span></label>
+        <input class="input-field" placeholder="Nombre Apellido">
+      </div>
+      <div>
+        <label class="field-label">Correo electrónico <span class="text-rose-500">*</span></label>
+        <input type="email" class="input-field" placeholder="usuario@sefired.com">
+      </div>
+      <div>
+        <label class="field-label">Contraseña temporal <span class="text-rose-500">*</span></label>
+        <input type="password" class="input-field" placeholder="••••••••">
+      </div>
+      <div>
+        <label class="field-label">Confirmar contraseña <span class="text-rose-500">*</span></label>
+        <input type="password" class="input-field" placeholder="••••••••">
+      </div>
+      <div>
+        <label class="field-label">Rol <span class="text-rose-500">*</span></label>
+        <select class="select-field">
+>>>>>>> origin/victor
           <option value="" disabled selected>Seleccionar rol…</option>
           <option>Admin</option>
           <option>Oficina</option>
@@ -2492,6 +2708,7 @@ window.showNewUserModal = function() {
       </div>
       <div>
         <label class="field-label">Oficina <span class="text-rose-500">*</span></label>
+<<<<<<< HEAD
         <input name="sede" class="input-field" placeholder="Ej. Caracas" required>
       </div>
       <div>
@@ -2686,6 +2903,24 @@ window.saveUserPerms = async function(id) {
   }
 };
 
+=======
+        <select class="select-field">
+          <option>Caracas Principal</option>
+          <option>Valencia</option>
+          <option>Maracaibo</option>
+        </select>
+      </div>
+      <div class="sm:col-span-2">
+        <label class="field-label">Teléfono</label>
+        <input class="input-field" placeholder="+58 414-000-0000">
+      </div>
+    </div>`,
+    `<button onclick="closeModal()" class="btn-secondary">Cancelar</button>
+     <button onclick="closeModal();showToast('Usuario creado correctamente','success')" class="btn-primary"><i data-lucide="check" class="w-4 h-4"></i>Crear Usuario</button>`
+  );
+};
+
+>>>>>>> origin/victor
 window.showEditUser = function(nom, email, rol, oficina) {
   showModal(`Editar Usuario — ${nom}`, `
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -3068,9 +3303,12 @@ function navigateTo(viewId) {
     createIcons({ icons: ALL_ICONS });
     setupTabListeners();
     setupInteractivity();
+<<<<<<< HEAD
     
     if (viewId === 'conf-auditoria') loadAuditoriaLogs();
     if (viewId === 'usr-lista') loadUsuarios();
+=======
+>>>>>>> origin/victor
   }
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -3444,7 +3682,10 @@ document.addEventListener('DOMContentLoaded', () => {
   setupSidebarToggle();
   setupTabListeners();
   navigateTo('home');
+<<<<<<< HEAD
   loadUserProfile();
+=======
+>>>>>>> origin/victor
 
   document.getElementById('modal-overlay')?.addEventListener('click', e => {
     if (e.target.id === 'modal-overlay') closeModal();

@@ -9,6 +9,10 @@
     "preview": "vite preview"
   },
   "devDependencies": {
+<<<<<<< HEAD
+=======
+    "@vitejs/plugin-react": "^6.0.2",
+>>>>>>> origin/victor
     "autoprefixer": "^10.5.0",
     "postcss": "^8.5.13",
     "tailwindcss": "^4.2.4",
@@ -17,7 +21,13 @@
   "dependencies": {
     "@tailwindcss/vite": "^4.2.4",
     "chart.js": "^4.5.1",
+<<<<<<< HEAD
     "lucide": "^1.14.0",
+=======
+    "lucide-react": "^0.507.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+>>>>>>> origin/victor
     "tailwindcss-animate": "^1.0.7"
   }
 }

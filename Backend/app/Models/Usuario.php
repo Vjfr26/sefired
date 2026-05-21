@@ -18,11 +18,17 @@ class Usuario extends Authenticatable
         'cargo',
         'nick',
         'password',
+<<<<<<< HEAD
         'api_token',
         'sede',
         'nro_sede',
         'tipo',
         'permisos',
+=======
+        'sede',
+        'nro_sede',
+        'tipo',
+>>>>>>> origin/victor
         'activo',
         'temp',
         'temp_expira_en',
@@ -37,7 +43,10 @@ class Usuario extends Authenticatable
     {
         return [
             'activo' => 'boolean',
+<<<<<<< HEAD
             'permisos' => 'array',
+=======
+>>>>>>> origin/victor
             'temp' => 'boolean',
             'temp_expira_en' => 'datetime',
             'fecha_creacion' => 'datetime',

@@ -5,7 +5,26 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+<<<<<<< HEAD
 
+=======
+use App\Models\Solicitud;
+
+/**
+ * Representa un vehículo registrado en el sistema.
+ *
+ * Un vehículo siempre pertenece a un cliente (el propietario) y puede tener
+ * múltiples conductores autorizados y tomadores de seguro asociados.
+ *
+ * El estado del vehículo (Activo/Inactivo) no es un campo de la base de datos:
+ * se calcula en tiempo real mirando si existe alguna póliza con status='ACTIVA'
+ * vinculada a su placa a través de la cadena solicitud → poliza.
+ *
+ * Las solicitudes de seguro se relacionan por la placa (no por el ID del vehículo)
+ * porque históricamente los sistemas de seguros en Venezuela identifican los contratos
+ * por placa, no por el vehículo como entidad interna.
+ */
+>>>>>>> origin/victor
 class Vehiculo extends Model
 {
     protected $table = 'vehiculo';
@@ -17,11 +36,20 @@ class Vehiculo extends Model
         'fecha_adquisicion',
         'certificado_transito',
         'certificado_origen',
+<<<<<<< HEAD
         'modelo_vehiculo_id',
         'tipo',
         'uso',
         'clase',
         'anio',
+=======
+        'marca',
+        'modelo',
+        'clase',
+        'tipo',
+        'anio',
+        'uso',
+>>>>>>> origin/victor
         'color',
         'peso',
         'puestos',
@@ -34,6 +62,7 @@ class Vehiculo extends Model
     protected function casts(): array
     {
         return [
+<<<<<<< HEAD
             'cliente_id' => 'integer',
             'modelo_vehiculo_id' => 'integer',
             'fecha_adquisicion' => 'date',
@@ -43,21 +72,50 @@ class Vehiculo extends Model
         ];
     }
 
+=======
+            'cliente_id'       => 'integer',
+            'fecha_adquisicion' => 'date',
+            'anio'             => 'integer',
+            'peso'             => 'integer',
+            'puestos'          => 'integer',
+        ];
+    }
+
+    /** El cliente propietario del vehículo (dueño registrado) */
+>>>>>>> origin/victor
     public function cliente(): BelongsTo
     {
         return $this->belongsTo(Cliente::class, 'cliente_id');
     }
 
+<<<<<<< HEAD
     public function modeloVehiculo(): BelongsTo
     {
         return $this->belongsTo(ModeloVehiculo::class, 'modelo_vehiculo_id');
     }
 
+=======
+    /**
+     * Solicitudes de seguro asociadas a esta placa.
+     * La relación es por placa (string), no por ID, porque las pólizas
+     * se identifican por la placa en el sistema de seguros venezolano.
+     */
+    public function solicitudes(): HasMany
+    {
+        return $this->hasMany(Solicitud::class, 'placa', 'placa');
+    }
+
+    /** Conductores autorizados que pueden manejar este vehículo */
+>>>>>>> origin/victor
     public function conductores(): HasMany
     {
         return $this->hasMany(Conductor::class, 'vehiculo_id');
     }
 
+<<<<<<< HEAD
+=======
+    /** Tomadores del seguro (persona que paga la póliza, puede ser distinta al propietario) */
+>>>>>>> origin/victor
     public function tomadores(): HasMany
     {
         return $this->hasMany(Tomador::class, 'vehiculo_id');

@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class PolizaRcv extends Model
 {
     protected $table = 'poliza_rcv';
+<<<<<<< HEAD
     protected $primaryKey = 'poliza_id';
     public $incrementing = false;
     public $timestamps = false;
@@ -15,6 +16,12 @@ class PolizaRcv extends Model
     protected $fillable = [
         'poliza_id',
         'tarifario_rcv_id',
+=======
+    public $timestamps = false;
+
+    protected $fillable = [
+        'vehiculo_id',
+>>>>>>> origin/victor
         'suma_persona',
         'prima_persona',
         'suma_cosa',
@@ -24,8 +31,12 @@ class PolizaRcv extends Model
     protected function casts(): array
     {
         return [
+<<<<<<< HEAD
             'poliza_id' => 'integer',
             'tarifario_rcv_id' => 'integer',
+=======
+            'vehiculo_id' => 'integer',
+>>>>>>> origin/victor
             'suma_persona' => 'decimal:2',
             'prima_persona' => 'decimal:2',
             'suma_cosa' => 'decimal:2',
@@ -33,6 +44,7 @@ class PolizaRcv extends Model
         ];
     }
 
+<<<<<<< HEAD
     public function poliza(): BelongsTo
     {
         return $this->belongsTo(Poliza::class, 'poliza_id');
@@ -41,5 +53,10 @@ class PolizaRcv extends Model
     public function tarifario(): BelongsTo
     {
         return $this->belongsTo(TarifarioRcv::class, 'tarifario_rcv_id');
+=======
+    public function vehiculo(): BelongsTo
+    {
+        return $this->belongsTo(Vehiculo::class, 'vehiculo_id');
+>>>>>>> origin/victor
     }
 }
