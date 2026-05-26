@@ -1,0 +1,3265 @@
+/**
+ * Modal — Sistema centralizado de ventanas emergentes.
+ *
+ * Todas las ventanas modales de la aplicación viven aquí.
+ * El componente Modal() al final del archivo actúa como despachador:
+ * lee el tipo del modal activo desde AppContext y renderiza el componente correcto.
+ *
+ * Para abrir un modal desde cualquier página:
+ *   const { showModal } = useApp()
+ *   showModal('editForm', { title: '…', fields: […], onSave: async (data) => {…} })
+ *
+ * ── Tipos de modal disponibles ───────────────────────────────────────────────
+ *   confirmDelete  → Diálogo de confirmación antes de eliminar un registro
+ *   editForm       → Formulario genérico de crear/editar (usa FormGrid)
+ *   renovar        → Resumen de renovación de póliza de un cliente
+ *   vehiculoDetail → Ficha completa de un vehículo
+ *   productoDetail → Ficha completa de un producto/cobertura
+ *   clienteDetail  → Ficha completa de un cliente
+ *   blockCliente   → Confirmar activar o desactivar un cliente
+ *   newUser        → Formulario para crear un usuario del sistema
+ *   editUser       → Formulario para editar un usuario
+ *   changeRole     → Selector de rol para un usuario
+ *   userPerms      → Listado de permisos por módulo de un usuario
+ *   blockUser      → Confirmar bloquear o desbloquear un usuario
+ *
+ * ── Estructura de ModalShell ─────────────────────────────────────────────────
+ * Todos los modales usan ModalShell como base, que provee:
+ *   - Fondo oscuro semitransparente con blur
+ *   - Contenedor blanco redondeado centrado en pantalla
+ *   - Título y botón X de cierre
+ *   - Área de acciones al pie (botones Cancelar / Guardar / etc.)
+ *   - Cierre al hacer clic fuera del modal
+ */
+import { useRef, useState, useEffect, useMemo } from 'react'
+import { X, Trash2, Pencil, Check, Lock, LockOpen, ShieldCheck, Building, UserCheck, Truck, UserCog, Car, Shield, DollarSign, RotateCcw, FileText, SlidersHorizontal, Receipt, FileCheck, Eye, Upload, ClipboardList, Search, AlertTriangle, CheckCircle, Clock, User, Phone, MapPin, Briefcase } from 'lucide-react'
+import { useApp } from '../context/AppContext.jsx'
+import FormGrid from './FormGrid.jsx'
+import { fmtMonto, PERMISOS_POR_ROL, getEffectivePerms, getEffectivePermsObj, PERMS_CATALOG, PERMS_ORDER, LOCKED_PERMS, pdfPage, pdfHdr, pdfSec, pdfRow, pdfTotal, pdfFooterSimple } from '../utils/helpers.jsx'
+import { TIPOS_PRODUCTO, TIPOS_CALCULO, tipoBadge } from '../pages/Productos.jsx'
+import { storeUsuario, updateUsuario } from '../api/usuarios.js'
+import { uploadDocumentoProducto, deleteDocumentoProducto } from '../api/productos.js'
+import { fetchPolizasCliente, fetchFacturasCliente, fetchSolicitudesCliente } from '../api/clientes.js'
+import { fetchDocumentosCliente, uploadDocumentoCliente, deleteDocumentoCliente } from '../api/clienteDocumentos.js'
+import { fetchProductos } from '../api/productos.js'
+import { updatePoliza, renovarPoliza } from '../api/polizas.js'
+import { emitirCotizacion } from '../api/solicitudes.js'
+
+// ── Estructura base de todos los modales ────────────────────────────────────
+function ModalShell({ title, children, footer, wide = false, maxW }) {
+  const { closeModal } = useApp()
+  const sizeClass = maxW || (wide ? 'max-w-2xl' : 'max-w-xl')
+  return (
+    // Fondo oscuro; clic en él cierra el modal
+    <div
+      className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4 sm:p-6 backdrop-blur-sm"
+      onClick={e => { if (e.target === e.currentTarget) closeModal() }}
+    >
+      <div className={`bg-white rounded-3xl shadow-2xl w-full ${sizeClass} max-h-[90vh] overflow-y-auto animate-in zoom-in duration-200`}>
+        <div className="p-6 sm:p-8">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-lg font-bold text-slate-800">{title}</h3>
+            <button onClick={closeModal} className="p-1.5 hover:bg-slate-100 rounded-xl transition shrink-0">
+              <X className="w-5 h-5 text-slate-500" />
+            </button>
+          </div>
+          <div>{children}</div>
+          {footer && <div className="flex flex-wrap gap-3 justify-end mt-6">{footer}</div>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Confirmación de eliminación ──────────────────────────────────────────────
+/**
+ * Muestra una advertencia antes de eliminar un registro.
+ * Si el backend rechaza la eliminación (ej. tiene datos relacionados),
+ * muestra el mensaje de error como toast en lugar de cerrar el modal.
+ *
+ * @param {string}   name       Nombre del registro que se va a eliminar (para el mensaje)
+ * @param {Function} onConfirm  Función async que llama al backend; lanza Error si falla
+ */
+function ConfirmDeleteModal({ name, onConfirm }) {
+  const { closeModal, showToast } = useApp()
+
+  const handleDelete = async () => {
+    if (onConfirm) {
+      try {
+        await onConfirm()
+        closeModal()
+        showToast(`${name} eliminado`, 'error')
+      } catch (err) {
+        showToast(err.message || 'Error al eliminar', 'error')
+      }
+    } else {
+      closeModal()
+      showToast(`${name} eliminado`, 'error')
+    }
+  }
+
+  return (
+    <ModalShell title="Confirmar eliminación" footer={
+      <>
+        <button onClick={closeModal} className="btn-secondary">Cancelar</button>
+        <button onClick={handleDelete} className="btn-danger">
+          <Trash2 className="w-4 h-4" />Eliminar
+        </button>
+      </>
+    }>
+      <div className="flex flex-col items-center text-center gap-4 py-2">
+        <div className="w-14 h-14 rounded-full bg-rose-100 flex items-center justify-center">
+          <Trash2 className="w-7 h-7 text-rose-600" />
+        </div>
+        <div>
+          <p className="font-semibold text-slate-800 mb-1">¿Eliminar <em>{name}</em>?</p>
+          <p className="text-sm text-slate-500">Esta acción no se puede deshacer.</p>
+        </div>
+      </div>
+    </ModalShell>
+  )
+}
+
+// ── Formulario genérico de crear / editar ───────────────────────────────────
+/**
+ * Renderiza un formulario basado en el array de descriptores de campo.
+ * Antes de llamar a onSave valida los campos required del propio navegador
+ * (sin lógica extra, usa la validación nativa HTML5).
+ *
+ * @param {string}   title    Título del modal (ej. "Nuevo Cliente", "Editar Producto")
+ * @param {Array}    fields   Descriptores de campo para FormGrid
+ * @param {Function} onSave   Función async llamada con los datos del formulario
+ * @param {boolean}  wide     Si true, el modal usa un ancho mayor (para formularios con 2+ columnas)
+ */
+function EditFormModal({ title, fields, onSave, wide = false }) {
+  const { closeModal, showToast } = useApp()
+  const formRef = useRef(null)
+  const [saving, setSaving] = useState(false)
+
+  const handleSave = async () => {
+    if (!formRef.current.reportValidity()) return
+
+    if (!onSave) {
+      closeModal()
+      showToast('Cambios guardados', 'success')
+      return
+    }
+    const data = Object.fromEntries(new FormData(formRef.current))
+    setSaving(true)
+    try {
+      await onSave(data)
+      closeModal()
+      showToast('Cambios guardados', 'success')
+    } catch (err) {
+      showToast(err.message || 'Error al guardar', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <ModalShell title={title} wide={wide} footer={
+      <>
+        <button onClick={closeModal} disabled={saving} className="btn-secondary">Cancelar</button>
+        <button onClick={handleSave} disabled={saving} className="btn-primary disabled:opacity-60">
+          {saving
+            ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Guardando…</>
+            : <><Check className="w-4 h-4" />Guardar</>
+          }
+        </button>
+      </>
+    }>
+      <form ref={formRef}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <FormGrid fields={fields} />
+        </div>
+      </form>
+    </ModalShell>
+  )
+}
+
+// ── Renovar póliza ───────────────────────────────────────────────────────────
+/**
+ * Muestra un resumen de la póliza actual del cliente y un formulario
+ * de pago/sede para generar la renovación en el backend.
+ *
+ * @param {Object} client  Fila del cliente desde index() (nom, pol, vig, prima, poliza_id)
+ * @param {Function} onSaved  Callback para refrescar la tabla de clientes
+ */
+function RenovarModal({ client, onSaved }) {
+  const { closeModal, showToast } = useApp()
+  const [form, setForm] = useState({ pago: 'Transferencia', referencia: '', sede: 'Valencia' })
+  const [saving, setSaving] = useState(false)
+
+  const PAGOS = ['Transferencia', 'Zelle', 'Efectivo USD', 'Efectivo Bs.', 'Pago Móvil', 'Divisas']
+  const SEDES = ['Valencia', 'Caracas Principal', 'Maracaibo']
+
+  if (!client) return null
+
+  const handleRenovar = async () => {
+    if (!client.poliza_id) {
+      showToast('Este cliente no tiene pólizas para renovar', 'error')
+      return
+    }
+    setSaving(true)
+    try {
+      const result = await renovarPoliza(client.poliza_id, form)
+      showToast(`Póliza ${result.nro_contrato} renovada correctamente`, 'success')
+      onSaved?.()
+      closeModal()
+    } catch (err) {
+      showToast(err.message, 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <ModalShell title="Renovar Póliza" footer={
+      <>
+        <button onClick={closeModal} className="btn-secondary">Cancelar</button>
+        <button onClick={handleRenovar} disabled={saving} className="btn-success">
+          <Check className="w-4 h-4" />{saving ? 'Procesando…' : 'Confirmar Renovación'}
+        </button>
+      </>
+    }>
+      <div className="space-y-4">
+        {/* Resumen de la póliza actual */}
+        <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-2 text-sm">
+          <div className="flex justify-between"><span className="text-slate-500">Cliente</span><span className="font-semibold">{client.nom}</span></div>
+          <div className="flex justify-between"><span className="text-slate-500">Póliza actual</span><span className="font-mono font-semibold text-blue-700">{client.pol}</span></div>
+          <div className="flex justify-between"><span className="text-slate-500">Vigencia</span><span className="font-semibold">{client.vig}</span></div>
+          <div className="flex justify-between"><span className="text-slate-500">Prima</span><span className="font-bold text-emerald-700">{client.prima}</span></div>
+        </div>
+        <div className="p-3 bg-amber-50 rounded-xl border border-amber-100 text-xs text-amber-700">
+          Se creará una nueva póliza con las mismas coberturas por un año adicional. La póliza actual quedará como VENCIDA.
+        </div>
+        {/* Formulario de renovación */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="field-label">Forma de Pago <span className="text-rose-500">*</span></label>
+            <select className="select-field" value={form.pago} onChange={e => setForm(f => ({ ...f, pago: e.target.value }))}>
+              {PAGOS.map(p => <option key={p}>{p}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="field-label">Sede <span className="text-rose-500">*</span></label>
+            <select className="select-field" value={form.sede} onChange={e => setForm(f => ({ ...f, sede: e.target.value }))}>
+              {SEDES.map(s => <option key={s}>{s}</option>)}
+            </select>
+          </div>
+          <div className="col-span-2">
+            <label className="field-label">Referencia de Pago</label>
+            <input className="input-field" placeholder="N° de referencia o confirmación…" value={form.referencia}
+              onChange={e => setForm(f => ({ ...f, referencia: e.target.value }))} />
+          </div>
+        </div>
+      </div>
+    </ModalShell>
+  )
+}
+
+// ── Emitir cotización ────────────────────────────────────────────────────────
+/**
+ * Formulario para emitir una cotización aprobada como póliza oficial.
+ * Crea automáticamente la póliza y la factura en el backend.
+ *
+ * @param {Object}   cot      Fila de cotización (id, nro, nombre, placa, total)
+ * @param {Function} onSaved  Callback para refrescar la tabla
+ */
+function EmitirCotizacionModal({ cot, onSaved }) {
+  const { closeModal, showToast } = useApp()
+  const [form, setForm] = useState({ pago: 'Transferencia', referencia: '', sede: 'Valencia' })
+  const [saving, setSaving] = useState(false)
+  const [formErr, setFormErr] = useState('')
+
+  const PAGOS = ['Transferencia', 'Zelle', 'Efectivo USD', 'Efectivo Bs.', 'Pago Móvil', 'Divisas']
+  const SEDES = ['Valencia', 'Caracas Principal', 'Maracaibo']
+  const PAGOS_SIN_REF = ['Efectivo USD', 'Efectivo Bs.']
+  const refRequerida = !PAGOS_SIN_REF.includes(form.pago)
+
+  if (!cot) return null
+
+  const handleEmitir = async () => {
+    if (refRequerida && !form.referencia.trim()) {
+      setFormErr('El número de referencia es obligatorio para este método de pago.')
+      return
+    }
+    setFormErr('')
+    setSaving(true)
+    try {
+      const result = await emitirCotizacion(cot.id, form)
+      showToast(`Póliza ${result.nro_contrato} emitida correctamente`, 'success')
+      onSaved?.()
+      closeModal()
+    } catch (err) {
+      showToast(err.message, 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <ModalShell title="Emitir Póliza" footer={
+      <>
+        <button onClick={closeModal} className="btn-secondary">Cancelar</button>
+        <button onClick={handleEmitir} disabled={saving} className="btn-success">
+          <FileCheck className="w-4 h-4" />{saving ? 'Emitiendo…' : 'Emitir Póliza'}
+        </button>
+      </>
+    }>
+      <div className="space-y-4">
+        {/* Resumen de la cotización */}
+        <div className="p-3 bg-blue-50 rounded-xl border border-blue-100 space-y-1">
+          <p className="text-xs font-bold text-blue-700 font-mono">{cot.nro}</p>
+          <p className="text-xs text-blue-600">{cot.nombre}{cot.placa ? ` · Placa: ${cot.placa}` : ''}</p>
+          <p className="text-sm font-bold text-blue-800">${Number(cot.total).toFixed(2)} USD</p>
+        </div>
+        <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100 text-xs text-emerald-700">
+          Se generará la póliza y la factura automáticamente. La cotización quedará como Emitida.
+        </div>
+        {/* Formulario */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="field-label">Forma de Pago <span className="text-rose-500">*</span></label>
+            <select className="select-field" value={form.pago}
+              onChange={e => { setForm(f => ({ ...f, pago: e.target.value, referencia: '' })); setFormErr('') }}>
+              {PAGOS.map(p => <option key={p}>{p}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="field-label">Sede <span className="text-rose-500">*</span></label>
+            <select className="select-field" value={form.sede} onChange={e => setForm(f => ({ ...f, sede: e.target.value }))}>
+              {SEDES.map(s => <option key={s}>{s}</option>)}
+            </select>
+          </div>
+          <div className="col-span-2">
+            <label className="field-label">
+              Referencia de Pago {refRequerida && <span className="text-rose-500">*</span>}
+            </label>
+            <input
+              className={`input-field ${formErr ? 'border-rose-400 focus:ring-rose-300' : ''}`}
+              placeholder={refRequerida ? 'N° de referencia o confirmación…' : 'Opcional para pago en efectivo'}
+              value={form.referencia}
+              onChange={e => { setForm(f => ({ ...f, referencia: e.target.value })); setFormErr('') }}
+            />
+            {formErr && <p className="text-xs text-rose-600 mt-1">{formErr}</p>}
+          </div>
+        </div>
+      </div>
+    </ModalShell>
+  )
+}
+
+// ── Nuevo usuario ────────────────────────────────────────────────────────────
+const USER_ROLES = ['Admin', 'Oficina', 'Vendedor Sucursal', 'Vendedor Calle']
+const USER_SEDES = ['Caracas Principal', 'Valencia', 'Maracaibo']
+
+const SecHdr = ({ Icon, children }) => (
+  <div className="flex items-center gap-2 mb-4">
+    {Icon && (
+      <div className="w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
+        <Icon className="w-3.5 h-3.5 text-slate-500" />
+      </div>
+    )}
+    <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest leading-none">{children}</span>
+    <div className="flex-1 h-px bg-slate-100" />
+  </div>
+)
+
+function NewUserModal({ onSave }) {
+  const { closeModal, showToast } = useApp()
+  const [form, setForm] = useState({
+    nombre: '', nick: '', genero: 'M',
+    tipo: 'Vendedor Sucursal', sede: 'Valencia',
+    password: '', password_confirmation: '',
+  })
+  const [saving, setSaving] = useState(false)
+  const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }))
+
+  const handleSave = async () => {
+    if (!form.nombre.trim()) { showToast('El nombre es obligatorio', 'error'); return }
+    if (!form.nick.trim())   { showToast('El usuario (nick) es obligatorio', 'error'); return }
+    if (form.password.length < 8) { showToast('La contraseña debe tener al menos 8 caracteres', 'error'); return }
+    if (form.password !== form.password_confirmation) { showToast('Las contraseñas no coinciden', 'error'); return }
+    if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(form.password)) {
+      showToast('Debe contener al menos una mayúscula, una minúscula y un número', 'error'); return
+    }
+    setSaving(true)
+    try {
+      await storeUsuario({ ...form, cargo: form.tipo, nro_sede: 1 })
+      closeModal()
+      showToast('Usuario creado correctamente', 'success')
+      onSave?.()
+    } catch (err) { showToast(err.message || 'Error al crear usuario', 'error') }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <ModalShell title="Nuevo Usuario" wide footer={
+      <>
+        <button onClick={closeModal} disabled={saving} className="btn-secondary">Cancelar</button>
+        <button onClick={handleSave} disabled={saving} className="btn-primary disabled:opacity-60">
+          {saving ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Guardando…</> : <><Check className="w-4 h-4" />Crear Usuario</>}
+        </button>
+      </>
+    }>
+      <div className="grid grid-cols-2 gap-x-6">
+        {/* ── Izquierda: identidad ── */}
+        <div>
+          <SecHdr Icon={User}>Datos del usuario</SecHdr>
+          <div className="space-y-3">
+            <div>
+              <label className="field-label">Nombre completo <span className="text-rose-500">*</span></label>
+              <input className="input-field" value={form.nombre} onChange={f('nombre')} placeholder="Nombre y Apellido" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="field-label">Usuario / Nick <span className="text-rose-500">*</span></label>
+                <input className="input-field font-mono" value={form.nick} onChange={f('nick')} placeholder="jdoe" />
+              </div>
+              <div>
+                <label className="field-label">Género <span className="text-rose-500">*</span></label>
+                <select className="select-field" value={form.genero} onChange={f('genero')}>
+                  <option value="M">Masculino</option>
+                  <option value="F">Femenino</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Derecha: rol + contraseña ── */}
+        <div className="space-y-5 pl-6 border-l border-slate-100">
+          <div>
+            <SecHdr Icon={Shield}>Rol y acceso</SecHdr>
+            <div className="space-y-3">
+              <div>
+                <label className="field-label">Rol <span className="text-rose-500">*</span></label>
+                <select className="select-field" value={form.tipo} onChange={f('tipo')}>
+                  {USER_ROLES.map(r => <option key={r}>{r}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="field-label">Oficina / Sede <span className="text-rose-500">*</span></label>
+                <select className="select-field" value={form.sede} onChange={f('sede')}>
+                  {USER_SEDES.map(s => <option key={s}>{s}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <SecHdr Icon={Lock}>Contraseña de acceso</SecHdr>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="field-label">Contraseña <span className="text-rose-500">*</span></label>
+                <input type="password" className="input-field" value={form.password} onChange={f('password')} placeholder="••••••••" />
+              </div>
+              <div>
+                <label className="field-label">Confirmar <span className="text-rose-500">*</span></label>
+                <input type="password" className="input-field" value={form.password_confirmation} onChange={f('password_confirmation')} placeholder="••••••••" />
+              </div>
+            </div>
+            <p className="text-[10px] text-slate-400 mt-2">Mínimo 8 caracteres · mayúscula, minúscula y número.</p>
+          </div>
+        </div>
+      </div>
+    </ModalShell>
+  )
+}
+
+// ── Editar usuario ───────────────────────────────────────────────────────────
+function EditUserModal({ user, onSave }) {
+  const { closeModal, showToast } = useApp()
+  const [form, setForm] = useState({
+    nombre: user.nombre || '', nick: user.nick || '',
+    genero: user.genero || 'M', tipo: user.tipo || '',
+    sede: user.sede || '', password: '',
+  })
+  const [saving, setSaving] = useState(false)
+  const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }))
+
+  const handleSave = async () => {
+    if (!form.nombre.trim()) { showToast('El nombre es obligatorio', 'error'); return }
+    if (form.password) {
+      if (form.password.length < 8) { showToast('La contraseña debe tener al menos 8 caracteres', 'error'); return }
+      if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(form.password)) {
+        showToast('Debe contener al menos una mayúscula, minúscula y número', 'error'); return
+      }
+    }
+    setSaving(true)
+    const payload = { ...form, cargo: form.tipo, nro_sede: 1 }
+    if (!payload.password) delete payload.password
+    try {
+      await updateUsuario(user.id, payload)
+      closeModal()
+      showToast('Usuario actualizado', 'success')
+      onSave?.()
+    } catch (err) { showToast(err.message || 'Error al actualizar', 'error') }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <ModalShell title={`Editar Usuario — ${user.nombre}`} wide footer={
+      <>
+        <button onClick={closeModal} disabled={saving} className="btn-secondary">Cancelar</button>
+        <button onClick={handleSave} disabled={saving} className="btn-primary disabled:opacity-60">
+          {saving ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Guardando…</> : <><Check className="w-4 h-4" />Guardar</>}
+        </button>
+      </>
+    }>
+      <div className="grid grid-cols-2 gap-x-6">
+        {/* ── Izquierda: identidad ── */}
+        <div>
+          <SecHdr Icon={User}>Datos del usuario</SecHdr>
+          <div className="space-y-3">
+            <div>
+              <label className="field-label">Nombre completo <span className="text-rose-500">*</span></label>
+              <input className="input-field" value={form.nombre} onChange={f('nombre')} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="field-label">Usuario / Nick</label>
+                <input className="input-field font-mono" value={form.nick} onChange={f('nick')} />
+              </div>
+              <div>
+                <label className="field-label">Género</label>
+                <select className="select-field" value={form.genero} onChange={f('genero')}>
+                  <option value="M">Masculino</option>
+                  <option value="F">Femenino</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Derecha: rol + contraseña ── */}
+        <div className="space-y-5 pl-6 border-l border-slate-100">
+          <div>
+            <SecHdr Icon={Shield}>Rol y acceso</SecHdr>
+            <div className="space-y-3">
+              <div>
+                <label className="field-label">Rol</label>
+                <select className="select-field" value={form.tipo} onChange={f('tipo')}>
+                  {USER_ROLES.map(r => <option key={r}>{r}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="field-label">Oficina / Sede</label>
+                <select className="select-field" value={form.sede} onChange={f('sede')}>
+                  {USER_SEDES.map(s => <option key={s}>{s}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <SecHdr Icon={Lock}>Contraseña <span className="normal-case font-normal text-slate-400 ml-1">(opcional)</span></SecHdr>
+            <div>
+              <label className="field-label">Nueva contraseña</label>
+              <input type="password" className="input-field" value={form.password} onChange={f('password')} placeholder="Dejar vacío para no cambiar" />
+            </div>
+            <p className="text-[10px] text-slate-400 mt-2">Mínimo 8 caracteres · mayúscula, minúscula y número.</p>
+          </div>
+        </div>
+      </div>
+    </ModalShell>
+  )
+}
+
+// ── Cambiar rol de usuario ───────────────────────────────────────────────────
+// Los cuatro roles disponibles con su descripción de acceso
+const ROLE_OPTIONS = [
+  { key: 'Admin',             Icon: ShieldCheck, desc: 'Acceso total. Gestiona usuarios, configuración y todos los módulos del sistema.' },
+  { key: 'Oficina',           Icon: Building,    desc: 'Acceso a cotizaciones, clientes, pólizas y reportes. Sin gestión de usuarios.' },
+  { key: 'Vendedor Sucursal', Icon: UserCheck,   desc: 'Crea cotizaciones y gestiona clientes asignados a su sucursal.' },
+  { key: 'Vendedor Calle',    Icon: Truck,       desc: 'Cotizaciones básicas y consulta de clientes. Acceso limitado desde campo.' },
+]
+
+/** Selector de rol para un usuario. Muestra los 4 roles con descripción visual. */
+function ChangeRoleModal({ user, onSave }) {
+  const { closeModal, showToast } = useApp()
+  
+  const handleSave = async (e) => {
+    e.preventDefault()
+    const formData = new FormData(e.target)
+    const newRole = formData.get('rol-select')
+    
+    try {
+      await updateUsuario(user.id, { tipo: newRole, cargo: newRole, permisos: null })
+      closeModal()
+      showToast('Rol actualizado correctamente', 'success')
+      if (onSave) onSave()
+    } catch (err) {
+      showToast(err.message || 'Error al cambiar rol', 'error')
+    }
+  }
+
+  return (
+    <ModalShell title={`Cambiar Rol — ${user.nombre}`} footer={
+      <>
+        <button type="button" onClick={closeModal} className="btn-secondary">Cancelar</button>
+        <button type="submit" form="change-role-form" className="btn-primary">
+          <Check className="w-4 h-4" />Cambiar Rol
+        </button>
+      </>
+    }>
+      <p className="text-xs text-slate-500 mb-4">Rol actual: <strong>{user.tipo}</strong>. Selecciona el nuevo rol para este usuario.</p>
+      <form id="change-role-form" onSubmit={handleSave} className="space-y-2.5">
+        {ROLE_OPTIONS.map(r => (
+          <label key={r.key} className={`flex items-start gap-3 p-4 rounded-2xl border-2 cursor-pointer transition-all ${r.key === user.tipo ? 'border-sefired-blue bg-blue-50/40' : 'border-slate-200 hover:border-slate-300 bg-white'}`}>
+            <input type="radio" name="rol-select" defaultValue={r.key} defaultChecked={r.key === user.tipo} className="mt-0.5 accent-blue-700 shrink-0" />
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 mb-0.5">
+                <r.Icon className="w-4 h-4 text-sefired-blue shrink-0" />
+                <p className="font-bold text-slate-800 text-sm">{r.key}</p>
+              </div>
+              <p className="text-xs text-slate-500 leading-relaxed">{r.desc}</p>
+            </div>
+          </label>
+        ))}
+      </form>
+    </ModalShell>
+  )
+}
+
+// ── Permisos de usuario ───────────────────────────────────────────────────────
+function UserPermsModal({ user, onSave }) {
+  const { closeModal, showToast } = useApp()
+
+  const hasCustomPerms = !!(user.permisos && (
+    Array.isArray(user.permisos) ? user.permisos.length > 0 : Object.keys(user.permisos).length > 0
+  ))
+
+  const initialPermsObj = () => {
+    const obj = getEffectivePermsObj(user)
+    return Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, new Set(v)]))
+  }
+  const [permsObj, setPermsObj] = useState(initialPermsObj)
+  const [saving, setSaving]     = useState(false)
+
+  const toggleModuleView = (moduleId) => {
+    if (LOCKED_PERMS.has(moduleId)) return
+    setPermsObj(prev => {
+      if (prev[moduleId]?.has('view')) {
+        const { [moduleId]: _, ...rest } = prev
+        return rest
+      }
+      return { ...prev, [moduleId]: new Set(['view']) }
+    })
+  }
+
+  const toggleAction = (moduleId, actionId) => {
+    setPermsObj(prev => {
+      const cur = new Set(prev[moduleId] || [])
+      cur.has(actionId) ? cur.delete(actionId) : cur.add(actionId)
+      return { ...prev, [moduleId]: cur }
+    })
+  }
+
+  const resetToDefaults = () => {
+    const defaults = PERMISOS_POR_ROL[user.tipo] || { home: ['view'], config: ['view'] }
+    const obj = Object.fromEntries(Object.entries(defaults).map(([k, v]) => [k, new Set(v)]))
+    if (!obj.home)   obj.home   = new Set(['view'])
+    if (!obj.config) obj.config = new Set(['view'])
+    setPermsObj(obj)
+  }
+
+  const handleSave = async () => {
+    try {
+      setSaving(true)
+      const perms = Object.fromEntries(
+        Object.entries(permsObj)
+          .filter(([k, s]) => LOCKED_PERMS.has(k) || s.has('view'))
+          .map(([k, s]) => [k, [...s]])
+      )
+      if (!perms.home)   perms.home   = ['view']
+      if (!perms.config) perms.config = ['view']
+      await updateUsuario(user.id, { permisos: perms })
+      showToast('Permisos actualizados correctamente', 'success')
+      closeModal()
+      if (onSave) onSave()
+    } catch (err) {
+      showToast(err.message || 'Error al guardar permisos', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <ModalShell title={`Permisos — ${user.nombre}`} wide footer={
+      <>
+        <button type="button" onClick={closeModal} className="btn-secondary">Cancelar</button>
+        <button
+          type="button"
+          onClick={resetToDefaults}
+          className="btn-secondary flex items-center gap-1.5 text-amber-600 border-amber-200 hover:bg-amber-50"
+          title="Restablecer permisos por defecto del rol"
+        >
+          <RotateCcw className="w-3.5 h-3.5" />Restablecer
+        </button>
+        <button type="button" onClick={handleSave} disabled={saving} className="btn-primary">
+          <Check className="w-4 h-4" />
+          {saving ? 'Guardando…' : 'Guardar Permisos'}
+        </button>
+      </>
+    }>
+      {/* Info del rol */}
+      <div className="mb-4 flex items-center gap-3 p-3 rounded-xl bg-blue-50 border border-blue-200">
+        <UserCog className="w-4 h-4 text-blue-600 shrink-0" />
+        <div className="text-xs text-blue-700 leading-snug">
+          <span>Rol: <strong>{user.tipo}</strong>. </span>
+          {hasCustomPerms
+            ? <span className="text-amber-700 font-semibold">Este usuario tiene permisos personalizados.</span>
+            : <span>Usando permisos por defecto del rol.</span>
+          }
+        </div>
+        <span className="ml-auto text-[10px] text-slate-400 shrink-0 flex items-center gap-1">
+          <Lock className="w-3 h-3" /> siempre activo
+        </span>
+      </div>
+
+      {/* Lista completa de módulos */}
+      <div className="space-y-2 max-h-[55vh] overflow-y-auto pr-1">
+        {PERMS_ORDER.map(moduleId => {
+          const mod        = PERMS_CATALOG[moduleId]
+          if (!mod) return null
+          const isLocked   = LOCKED_PERMS.has(moduleId)
+          const actions    = permsObj[moduleId] || new Set()
+          const isOn       = isLocked || actions.has('view')
+          const subActions = mod.actions.filter(a => a.id !== 'view')
+
+          return (
+            <div
+              key={moduleId}
+              className={`rounded-xl border transition-all ${isOn ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-200'}`}
+            >
+              {/* Fila principal — toggle de acceso al módulo */}
+              <button
+                type="button"
+                onClick={() => toggleModuleView(moduleId)}
+                disabled={isLocked}
+                className="w-full flex items-center gap-3 px-4 py-3 text-left"
+              >
+                <span className="text-base shrink-0">{mod.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-semibold ${isOn ? 'text-blue-800' : 'text-slate-500'}`}>
+                    {mod.label}
+                  </p>
+                  {isLocked && (
+                    <p className="text-xs text-slate-400 mt-0.5">Siempre visible — no se puede quitar</p>
+                  )}
+                </div>
+                {isLocked
+                  ? <Lock className="w-4 h-4 text-slate-400 shrink-0" />
+                  : (
+                    <div className={`w-9 h-5 rounded-full transition-colors shrink-0 ${isOn ? 'bg-blue-600' : 'bg-slate-300'}`}>
+                      <div className={`w-3 h-3 bg-white rounded-full mt-1 transition-transform ${isOn ? 'translate-x-5' : 'translate-x-1'}`} />
+                    </div>
+                  )
+                }
+              </button>
+
+              {/* Sub-acciones: visibles solo cuando el módulo está activado */}
+              {isOn && subActions.length > 0 && (
+                <div className="px-4 pb-3 pt-2 border-t border-blue-100">
+                  <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-2">Acciones permitidas</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    {subActions.map(({ id: aid, label: alabel }) => {
+                      const checked = actions.has(aid)
+                      return (
+                        <label key={aid} className="flex items-center gap-2 cursor-pointer group select-none">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleAction(moduleId, aid)}
+                            className="w-3.5 h-3.5 rounded border-slate-300 accent-blue-600 cursor-pointer"
+                          />
+                          <span className={`text-xs transition-colors ${checked ? 'text-slate-700 font-medium' : 'text-slate-400'} group-hover:text-blue-700`}>
+                            {alabel}
+                          </span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </ModalShell>
+  )
+}
+
+// ── Ficha de vehículo ────────────────────────────────────────────────────────
+/**
+ * Muestra todos los datos de un vehículo en un diseño de dos columnas.
+ * Se abre al hacer clic en el botón de ojo (👁) en la tabla de Vehículos.
+ *
+ * @param {Object} v  Datos completos del vehículo (todos los campos del backend)
+ */
+function VehiculoDetailModal({ v }) {
+  const { closeModal } = useApp()
+  if (!v) return null
+
+  // Componente local de campo: etiqueta pequeña + valor en negrita
+  const Field = ({ label, value }) => (
+    <div className="min-w-0">
+      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">{label}</p>
+      <p className="text-sm text-slate-800 font-medium truncate">{value || <span className="text-slate-300 font-normal">—</span>}</p>
+    </div>
+  )
+
+  // Componente local de sección: título + grilla de campos
+  const Section = ({ title, children }) => (
+    <div>
+      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pb-1.5 border-b border-slate-100 mb-3">{title}</p>
+      <div className="grid grid-cols-2 gap-x-6 gap-y-4">{children}</div>
+    </div>
+  )
+
+  const estadoColor = v.estado === 'Activo'
+    ? 'bg-emerald-100 text-emerald-700'
+    : 'bg-slate-100 text-slate-500'
+
+  return (
+    <ModalShell title={`Vehículo — ${v.placa}`} wide footer={
+      <button onClick={closeModal} className="btn-secondary">Cerrar</button>
+    }>
+      {/* Cabecera con marca, modelo, año y estado */}
+      <div className="flex items-center gap-3 mb-5 p-3 bg-slate-50 rounded-2xl">
+        <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
+          <Car className="w-5 h-5 text-blue-600" />
+        </div>
+        <div className="min-w-0">
+          <p className="font-bold text-slate-800">{v.marca} {v.modelo} <span className="font-normal text-slate-500">({v.anio})</span></p>
+          <p className="text-xs text-slate-500">{v.propietario} · {v.cedula}</p>
+        </div>
+        <span className={`ml-auto text-xs font-bold px-2.5 py-1 rounded-full shrink-0 ${estadoColor}`}>{v.estado}</span>
+      </div>
+
+      <div className="space-y-5">
+        <Section title="Datos del Vehículo">
+          <Field label="Placa"         value={v.placa} />
+          <Field label="Color"         value={v.color} />
+          <Field label="Tipo"          value={v.tipo} />
+          <Field label="Clase"         value={v.clase} />
+          <Field label="Uso"           value={v.uso} />
+          <Field label="Puestos"       value={v.puestos} />
+          <Field label="Peso (kg)"     value={v.peso} />
+          <Field label="Aparcamiento"  value={v.aparcamiento} />
+        </Section>
+
+        <Section title="Documentos">
+          <Field label="Serial Carrocería"  value={v.serial_carroceria} />
+          <Field label="Serial Motor"       value={v.serial_motor} />
+          <Field label="Cert. Tránsito"     value={v.certificado_transito} />
+          <Field label="Cert. Origen"       value={v.certificado_origen} />
+          <Field label="F. Adquisición"     value={v.fecha_adquisicion} />
+          <div className="col-span-2">
+            <Field label="Título" value={v.titulo} />
+          </div>
+        </Section>
+      </div>
+    </ModalShell>
+  )
+}
+
+// ── Ficha de producto ────────────────────────────────────────────────────────
+/**
+ * Muestra los detalles de un producto/cobertura: nombre, descripción,
+ * prima base y cobertura máxima en tarjetas visuales con colores.
+ *
+ * @param {Object} p  Datos del producto (id, nombre, descripcion, prima, cobertura, moneda)
+ */
+function ProductoDetailModal({ p }) {
+  const { closeModal } = useApp()
+  if (!p) return null
+
+  const fmtId     = id => 'PRO-' + String(id).padStart(4, '0')
+  const monedaCls = p.moneda === 'USD' ? 'bg-emerald-100 text-emerald-700'
+                  : p.moneda === 'EUR' ? 'bg-amber-100 text-amber-700'
+                  :                      'bg-blue-100 text-blue-700'
+
+  const tipoMeta  = TIPOS_PRODUCTO.find(x => x.val === p.tipo)
+  const calcMeta  = TIPOS_CALCULO.find(x => x.val === p.tipo_calculo)
+
+  const CATEGORIA_LABEL = { vehicular: 'Vehicular', bienes: 'Bienes', personas: 'Personas' }
+  const CATEGORIA_CLS   = { vehicular: 'bg-sky-100 text-sky-700', bienes: 'bg-amber-100 text-amber-700', personas: 'bg-violet-100 text-violet-700' }
+
+  const SectionHeader = ({ label }) => (
+    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">{label}</p>
+  )
+
+  return (
+    <ModalShell title={`Producto — ${fmtId(p.id)}`} wide footer={
+      <button onClick={closeModal} className="btn-secondary">Cerrar</button>
+    }>
+      {/* Cabecera */}
+      <div className="flex items-start gap-3 mb-5 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+        <div className="w-11 h-11 rounded-2xl bg-indigo-100 flex items-center justify-center shrink-0">
+          <Shield className="w-5 h-5 text-indigo-600" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="font-black text-slate-800 text-base leading-tight">{p.nombre}</p>
+          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+            <span className="text-xs text-slate-400 font-mono bg-white border border-slate-200 px-2 py-0.5 rounded-lg">{fmtId(p.id)}</span>
+            {p.codigo && <span className="text-xs font-mono font-bold text-slate-500">{p.codigo}</span>}
+            {tipoMeta
+              ? <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${tipoMeta.bg} ${tipoMeta.text}`}>{tipoMeta.label}</span>
+              : p.tipo && <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600">{p.tipo}</span>
+            }
+          </div>
+        </div>
+        <span className={`text-xs font-bold px-2.5 py-1 rounded-full shrink-0 ${monedaCls}`}>{p.moneda}</span>
+      </div>
+
+      {/* Descripción */}
+      {p.descripcion && (
+        <div className="mb-4">
+          <SectionHeader label="Descripción" />
+          <p className="text-sm text-slate-700 leading-relaxed bg-slate-50 rounded-xl p-3 border border-slate-100">
+            {p.descripcion}
+          </p>
+        </div>
+      )}
+
+      {/* Configuración */}
+      <div className="mb-4">
+        <SectionHeader label="Configuración" />
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {calcMeta && (
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+              <p className="text-[10px] text-slate-400 font-medium mb-0.5">Tipo de cálculo</p>
+              <p className="text-sm font-bold text-slate-700">{calcMeta.label}</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">{calcMeta.desc}</p>
+            </div>
+          )}
+          {p.categoria && (
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+              <p className="text-[10px] text-slate-400 font-medium mb-0.5">Categoría</p>
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${CATEGORIA_CLS[p.categoria] ?? 'bg-slate-100 text-slate-600'}`}>
+                {CATEGORIA_LABEL[p.categoria] ?? p.categoria}
+              </span>
+            </div>
+          )}
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+            <p className="text-[10px] text-slate-400 font-medium mb-0.5">Requiere vehículo</p>
+            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${p.requiere_vehiculo ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-500'}`}>
+              {p.requiere_vehiculo ? 'Sí' : 'No'}
+            </span>
+          </div>
+          {p.derecho_poliza > 0 && (
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+              <p className="text-[10px] text-slate-400 font-medium mb-0.5">Derecho de póliza</p>
+              <p className="text-sm font-black text-slate-700">{fmtMonto(p.derecho_poliza, 'USD')}</p>
+            </div>
+          )}
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+            <p className="text-[10px] text-slate-400 font-medium mb-0.5">Estado</p>
+            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${p.activo !== false ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+              {p.activo !== false ? 'Activo' : 'Inactivo'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Prima base y Cobertura */}
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <DollarSign className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+            <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Prima Base Referencial</p>
+          </div>
+          <p className="text-2xl font-black text-emerald-800">{fmtMonto(p.prima, p.moneda)}</p>
+          <p className="text-xs text-emerald-600 mt-1">{p.moneda} · Anual</p>
+        </div>
+        <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-2xl">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <ShieldCheck className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+            <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">Cobertura / Suma Asegurada</p>
+          </div>
+          <p className="text-2xl font-black text-indigo-800">{fmtMonto(p.cobertura, p.moneda)}</p>
+          <p className="text-xs text-indigo-600 mt-1">{p.moneda} · Máxima</p>
+        </div>
+      </div>
+
+      {/* Documentos requeridos */}
+      {Array.isArray(p.documentos_requeridos) && p.documentos_requeridos.length > 0 && (
+        <div>
+          <SectionHeader label={`Documentos requeridos para la solicitud (${p.documentos_requeridos.length})`} />
+          <div className="flex flex-wrap gap-1.5">
+            {p.documentos_requeridos.map(d => (
+              <span key={d.nombre} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-medium border ${
+                d.obligatorio
+                  ? 'bg-blue-50 border-blue-100 text-blue-700'
+                  : 'bg-slate-50 border-slate-100 text-slate-500'
+              }`}>
+                {d.nombre}
+                {d.obligatorio && <span className="text-[9px] font-bold text-blue-400 ml-0.5">OBL</span>}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </ModalShell>
+  )
+}
+
+// ── Tabla de tasas de un producto ────────────────────────────────────────────
+/**
+ * Muestra la tabla de tasas importada desde CSV.
+ * Las columnas son dinámicas (provienen de la cabecera del CSV).
+ *
+ * @param {Object} p  Producto con campo `tasas` (array de objetos)
+ */
+function ProductoTasasModal({ p }) {
+  const { closeModal } = useApp()
+  if (!p || !p.tasas?.length) return null
+
+  const headers = Object.keys(p.tasas[0])
+
+  return (
+    <ModalShell title={`Tasas — ${p.nombre}`} wide footer={
+      <button onClick={closeModal} className="btn-secondary">Cerrar</button>
+    }>
+      <p className="text-xs text-slate-400 mb-3">
+        {p.tasas.length} fila{p.tasas.length !== 1 ? 's' : ''} · {headers.length} columnas
+      </p>
+      <div className="overflow-x-auto max-h-[65vh] overflow-y-auto rounded-xl border border-slate-100">
+        <table className="w-full text-xs border-collapse">
+          <thead className="sticky top-0 z-10">
+            <tr style={{ background: '#001463' }}>
+              {headers.map(h => (
+                <th key={h} className="px-3 py-2 text-left font-bold text-white whitespace-nowrap border-r border-white/10 last:border-0">
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {p.tasas.map((row, i) => (
+              <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                {headers.map(h => (
+                  <td key={h} className="px-3 py-2 text-slate-700 border-b border-slate-100 whitespace-nowrap">
+                    {row[h] ?? '—'}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </ModalShell>
+  )
+}
+
+// ── Documentos de un producto ────────────────────────────────────────────────
+/**
+ * Lista todos los documentos del producto con opciones de ver y eliminar.
+ * Los administradores también pueden subir nuevos documentos con nombre personalizado.
+ *
+ * @param {Object}   p        Producto con campo `documentos` (array de {nombre, url, path})
+ * @param {Function} onSaved  Callback para refrescar la tabla de productos
+ */
+function ProductoDocumentosModal({ p, onSaved }) {
+  const { closeModal, showToast, currentUser } = useApp()
+  const [docs, setDocs]             = useState(p?.documentos ?? [])
+  const [nombre, setNombre]         = useState('')
+  const [file, setFile]             = useState(null)
+  const [uploading, setUploading]   = useState(false)
+  const [deletingPath, setDeletingPath] = useState(null)
+  const fileRef = useRef(null)
+  const isAdmin = currentUser?.tipo === 'Admin'
+
+  if (!p) return null
+
+  const handleUpload = async () => {
+    if (!file || !nombre.trim()) {
+      showToast('Ingresa un nombre y selecciona un archivo PDF', 'error')
+      return
+    }
+    setUploading(true)
+    try {
+      const result = await uploadDocumentoProducto(p.id, file, nombre.trim())
+      setDocs(result.documentos)
+      setNombre('')
+      setFile(null)
+      if (fileRef.current) fileRef.current.value = ''
+      showToast('Documento subido correctamente', 'success')
+      onSaved?.()
+    } catch (err) {
+      showToast(err.message, 'error')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleDelete = async (path) => {
+    setDeletingPath(path)
+    try {
+      await deleteDocumentoProducto(p.id, path)
+      setDocs(prev => prev.filter(d => d.path !== path))
+      showToast('Documento eliminado', 'error')
+      onSaved?.()
+    } catch (err) {
+      showToast(err.message, 'error')
+    } finally {
+      setDeletingPath(null)
+    }
+  }
+
+  return (
+    <ModalShell title={`Documentos — ${p.nombre}`} wide footer={
+      <button onClick={closeModal} className="btn-secondary">Cerrar</button>
+    }>
+      <div className="space-y-4">
+        {docs.length === 0 ? (
+          <div className="py-8 text-center">
+            <FileText className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+            <p className="text-sm text-slate-400">Este producto no tiene documentos cargados.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {docs.map((d, i) => (
+              <div key={d.path || i} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <div className="w-9 h-9 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
+                  <FileText className="w-4 h-4 text-violet-600" />
+                </div>
+                <p className="flex-1 min-w-0 text-sm font-semibold text-slate-700 truncate">{d.nombre}</p>
+                <div className="flex gap-1.5 shrink-0">
+                  <a
+                    href={d.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition inline-flex items-center justify-center"
+                    title="Ver documento"
+                  >
+                    <Eye className="w-4 h-4" />
+                  </a>
+                  {isAdmin && (
+                    <button
+                      onClick={() => handleDelete(d.path)}
+                      disabled={deletingPath === d.path}
+                      className="p-2 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition inline-flex items-center justify-center disabled:opacity-50"
+                      title="Eliminar documento"
+                    >
+                      {deletingPath === d.path
+                        ? <div className="w-4 h-4 border-2 border-rose-300 border-t-rose-600 rounded-full animate-spin" />
+                        : <Trash2 className="w-4 h-4" />
+                      }
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {isAdmin && (
+          <div className="pt-3 border-t border-slate-100">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Agregar Documento</p>
+            <div className="space-y-3">
+              <div>
+                <label className="field-label">Nombre del documento <span className="text-rose-500">*</span></label>
+                <input
+                  className="input-field"
+                  placeholder="Ej. IPID, FIPC, Nota Informativa…"
+                  value={nombre}
+                  onChange={e => setNombre(e.target.value)}
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  className="flex-1 flex items-center gap-2 p-2.5 rounded-xl border-2 border-dashed border-slate-200 text-slate-500 hover:border-violet-300 hover:text-violet-600 hover:bg-violet-50 transition text-sm"
+                >
+                  <Upload className="w-4 h-4 shrink-0" />
+                  <span className="truncate">{file ? file.name : 'Seleccionar PDF…'}</span>
+                </button>
+                <button
+                  onClick={handleUpload}
+                  disabled={uploading || !file || !nombre.trim()}
+                  className="btn-primary disabled:opacity-50"
+                >
+                  {uploading
+                    ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    : <Check className="w-4 h-4" />
+                  }
+                  Subir
+                </button>
+              </div>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="application/pdf"
+                className="hidden"
+                onChange={e => setFile(e.target.files?.[0] ?? null)}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    </ModalShell>
+  )
+}
+
+// ── Activar / desactivar cliente ─────────────────────────────────────────────
+/**
+ * Pide confirmación antes de cambiar el estado activo/bloqueado de un cliente.
+ * El botón de acción cambia de color y texto según si se va a activar o desactivar.
+ *
+ * @param {string}   nom       Nombre del cliente
+ * @param {boolean}  activo    Estado actual: true = activo, false = bloqueado
+ * @param {Function} onConfirm Función async que llama al backend (PATCH toggle)
+ */
+function BlockClienteModal({ nom, activo, onConfirm }) {
+  const { closeModal, showToast } = useApp()
+  const isActive = activo !== false   // undefined y true se tratan igual: está activo
+
+  const handleConfirm = async () => {
+    if (onConfirm) {
+      try {
+        await onConfirm()
+        closeModal()
+        showToast(isActive ? 'Cliente desactivado' : 'Cliente activado', isActive ? 'error' : 'success')
+      } catch (err) {
+        showToast(err.message || 'Error al cambiar estado', 'error')
+      }
+    } else {
+      closeModal()
+    }
+  }
+
+  return (
+    <ModalShell title={isActive ? 'Desactivar cliente' : 'Activar cliente'} footer={
+      <>
+        <button onClick={closeModal} className="btn-secondary">Cancelar</button>
+        <button onClick={handleConfirm} className={isActive ? 'btn-danger' : 'btn-success'}>
+          {isActive ? <Lock className="w-4 h-4" /> : <LockOpen className="w-4 h-4" />}
+          {isActive ? 'Desactivar' : 'Activar'}
+        </button>
+      </>
+    }>
+      <div className="flex items-start gap-4">
+        <div className={`w-12 h-12 rounded-full ${isActive ? 'bg-orange-100' : 'bg-emerald-100'} flex items-center justify-center shrink-0`}>
+          {isActive ? <Lock className="w-6 h-6 text-orange-600" /> : <LockOpen className="w-6 h-6 text-emerald-600" />}
+        </div>
+        <div className="min-w-0">
+          <p className="font-bold text-slate-800 mb-1">{isActive ? 'Desactivar' : 'Activar'} a <em>{nom}</em></p>
+          <p className="text-sm text-slate-500 leading-relaxed">
+            {isActive
+              ? 'El cliente quedará como Bloqueado. Sus pólizas y datos se conservarán intactos.'
+              : 'El cliente recuperará el estado activo y podrá operar normalmente.'}
+          </p>
+        </div>
+      </div>
+    </ModalShell>
+  )
+}
+
+// ── Ficha completa de cliente ────────────────────────────────────────────────
+/**
+ * Muestra todos los datos de un cliente organizados en secciones:
+ * Datos Personales, Contacto, Dirección, Actividad Económica y Póliza Actual.
+ * Se abre al hacer clic en el botón de ojo (👁) en la tabla de Clientes.
+ *
+ * @param {Object} c  Datos completos del cliente (todos los campos del backend)
+ */
+function ClienteDetailModal({ c }) {
+  const { closeModal } = useApp()
+
+  if (!c) return null
+
+  const fmtId = id => 'CLI-' + String(id).padStart(4, '0')
+
+  const Field = ({ label, value }) => (
+    <div className="min-w-0">
+      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">{label}</p>
+      <p className="text-sm text-slate-800 font-medium truncate">{value || <span className="text-slate-300 font-normal">—</span>}</p>
+    </div>
+  )
+
+  const Section = ({ title, children }) => (
+    <div>
+      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pb-1.5 border-b border-slate-100 mb-3">{title}</p>
+      <div className="grid grid-cols-2 gap-x-6 gap-y-4">{children}</div>
+    </div>
+  )
+
+  const estColor = c.est === 'Activo'
+    ? 'bg-emerald-100 text-emerald-700'
+    : c.est === 'Bloqueado'
+      ? 'bg-rose-100 text-rose-700'
+      : 'bg-slate-100 text-slate-500'
+
+  return (
+    <ModalShell title={`Cliente — ${fmtId(c.id)}`} wide footer={
+      <button onClick={closeModal} className="btn-secondary">Cerrar</button>
+    }>
+      {/* Cabecera: nombre, cédula y estado */}
+      <div className="flex items-center gap-3 mb-5 p-3 bg-slate-50 rounded-2xl">
+        <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
+          <UserCheck className="w-5 h-5 text-blue-600" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="font-bold text-slate-800 truncate">{c.nombre || c.nom}</p>
+          <p className="text-xs text-slate-500 font-mono">{c.ci}</p>
+        </div>
+        <span className={`text-xs font-bold px-2.5 py-1 rounded-full shrink-0 ${estColor}`}>{c.est}</span>
+      </div>
+
+      <div className="space-y-5 max-h-[55vh] overflow-y-auto pr-1">
+        <Section title="Datos Personales">
+          <Field label="Sexo"          value={c.sexo} />
+          <Field label="Condición"     value={c.condicion} />
+          <Field label="Nacimiento"    value={c.nacimiento} />
+          <Field label="Nacionalidad"  value={c.nacionalidad} />
+        </Section>
+
+        <Section title="Contacto">
+          <Field label="Teléfono"      value={c.telefono} />
+          <Field label="Celular"       value={c.celular} />
+          <div className="col-span-2">
+            <Field label="Correo"      value={c.correo || c.email} />
+          </div>
+        </Section>
+
+        <Section title="Dirección">
+          <Field label="Estado"        value={c.estado} />
+          <Field label="Ciudad"        value={c.ciudad} />
+          <Field label="Código Postal" value={c.codigo_postal} />
+          <div className="col-span-2">
+            <Field label="Dirección"   value={c.direccion} />
+          </div>
+        </Section>
+
+        <Section title="Actividad Económica">
+          <Field label="Profesión"     value={c.profesion} />
+          <Field label="Actividad"     value={c.actividad} />
+        </Section>
+      </div>
+    </ModalShell>
+  )
+}
+
+// ── Bloquear / desbloquear usuario ───────────────────────────────────────────
+/**
+ * Confirma el bloqueo o desbloqueo de un usuario del sistema.
+ * Un usuario bloqueado no puede iniciar sesión pero sus datos se conservan.
+ * Solo aplica a usuarios (login), no a clientes. Para clientes usar BlockClienteModal.
+ *
+ * @param {string} nom  Nombre del usuario
+ * @param {string} est  Estado actual: 'Bloqueado' o cualquier otro valor
+ */
+function BlockUserModal({ nom, est, onConfirm }) {
+  const { closeModal, showToast } = useApp()
+  const isBlocked = est === 'Bloqueado'
+  
+  const handleConfirm = async () => {
+    if (onConfirm) {
+      try {
+        let motivo = null
+        if (!isBlocked) {
+          const textarea = document.getElementById('motivo-bloqueo')
+          if (!textarea.value.trim()) {
+            showToast('Debe ingresar un motivo para bloquear al usuario', 'error')
+            return
+          }
+          motivo = textarea.value.trim()
+        }
+        
+        await onConfirm(motivo)
+        closeModal()
+        showToast(isBlocked ? 'Usuario desbloqueado' : 'Usuario bloqueado', isBlocked ? 'success' : 'error')
+      } catch (err) {
+        showToast(err.message || 'Error al cambiar estado', 'error')
+      }
+    } else {
+      closeModal()
+    }
+  }
+
+  return (
+    <ModalShell title={isBlocked ? 'Desbloquear usuario' : 'Bloquear usuario'} footer={
+      <>
+        <button onClick={closeModal} className="btn-secondary">Cancelar</button>
+        <button
+          onClick={handleConfirm}
+          className={isBlocked ? 'btn-success' : 'btn-danger'}
+        >
+          {isBlocked ? <LockOpen className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+          {isBlocked ? 'Desbloquear' : 'Bloquear'}
+        </button>
+      </>
+    }>
+      <div className="flex items-start gap-4">
+        <div className={`w-12 h-12 rounded-full ${isBlocked ? 'bg-emerald-100' : 'bg-orange-100'} flex items-center justify-center shrink-0`}>
+          {isBlocked ? <LockOpen className="w-6 h-6 text-emerald-600" /> : <Lock className="w-6 h-6 text-orange-600" />}
+        </div>
+        <div className="min-w-0">
+          <p className="font-bold text-slate-800 mb-1">{isBlocked ? 'Desbloquear' : 'Bloquear'} a <em>{nom}</em></p>
+          <p className="text-sm text-slate-500 leading-relaxed">
+            {isBlocked
+              ? 'El usuario recuperará el acceso al sistema con su rol y permisos actuales.'
+              : 'El usuario no podrá iniciar sesión. Sus datos, cotizaciones y pólizas se conservarán intactos.'}
+          </p>
+          {!isBlocked && (
+            <div className="mt-4">
+              <label className="field-label">Motivo del bloqueo <span className="text-rose-500">*</span></label>
+              <textarea id="motivo-bloqueo" rows={2} maxLength={255} className="input-field resize-none" placeholder="Describe el motivo del bloqueo…" />
+            </div>
+          )}
+        </div>
+      </div>
+    </ModalShell>
+  )
+}
+
+// ── Documentos de un cliente (lista de pólizas + generar PDF) ────────────────
+/**
+ * Lista todas las pólizas del cliente como documentos.
+ * Cada fila tiene un botón "Ver PDF" que genera la carátula oficial
+ * y la abre en el PdfViewer sin cerrar el modal.
+ */
+function ClienteDocsModal({ c }) {
+  const { closeModal, showPdfViewer, currentUser } = useApp()
+  const [polizas, setPolizas]   = useState([])
+  const [loading, setLoading]   = useState(true)
+
+  useEffect(() => {
+    if (!c) return
+    fetchPolizasCliente(c.id)
+      .then(setPolizas)
+      .catch(() => setPolizas([]))
+      .finally(() => setLoading(false))
+  }, [c?.id])
+
+  if (!c) return null
+
+  const logoUrl = window.location.origin + '/Logo_sin_fondo.png'
+
+  const generatePdf = (pol) => {
+    const clienteNombre = c.nombre || c.nom
+    const tel  = c.celular || c.telefono || c.tel || '—'
+    const mail = c.correo  || c.email    || '—'
+    const dir  = c.direccion || '—'
+
+    // Banda de póliza (encabezado secundario prominente)
+    const polBanner = `
+      <div style="background:#001463;color:white;padding:14px 22px;border-radius:10px;margin-bottom:26px;display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <p style="font-size:9px;font-weight:700;letter-spacing:2px;opacity:0.65;text-transform:uppercase;margin-bottom:4px">N° de Póliza / Contrato</p>
+          <p style="font-size:20px;font-weight:900;font-family:monospace;letter-spacing:2px">${pol.nro_contrato}</p>
+        </div>
+        <div style="text-align:right">
+          <p style="font-size:9px;font-weight:700;letter-spacing:2px;opacity:0.65;text-transform:uppercase;margin-bottom:4px">Estado</p>
+          <p style="font-size:15px;font-weight:900;${pol.status === 'ACTIVA' ? 'color:#6ee7b7' : pol.status === 'VENCIDA' ? 'color:#fcd34d' : 'color:#fca5a5'}">${pol.status}</p>
+        </div>
+      </div>`
+
+    // Tabla de coberturas contratadas
+    const cobTable = `
+      <table style="width:100%;border-collapse:collapse;margin-top:10px;font-size:12px">
+        <thead>
+          <tr style="background:#001463;color:white">
+            <th style="padding:9px 12px;text-align:left;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase">Cobertura / Producto</th>
+            <th style="padding:9px 12px;text-align:right;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase">Suma Asegurada</th>
+            <th style="padding:9px 12px;text-align:right;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase">Prima (USD)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0">
+            <td style="padding:11px 12px;font-weight:600;color:#1e293b">${pol.producto}</td>
+            <td style="padding:11px 12px;text-align:right;font-weight:700;color:#1e293b;font-family:monospace">$${Number(pol.cobertura_dolares).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+            <td style="padding:11px 12px;text-align:right;font-weight:700;color:#059669;font-family:monospace">$${Number(pol.total).toFixed(2)}</td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr style="background:#f1f5f9">
+            <td style="padding:9px 12px;font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px">Total</td>
+            <td style="padding:9px 12px;text-align:right;font-weight:900;color:#001463;font-family:monospace">$${Number(pol.cobertura_dolares).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+            <td style="padding:9px 12px;text-align:right;font-size:15px;font-weight:900;color:#059669;font-family:monospace">$${Number(pol.total).toFixed(2)}</td>
+          </tr>
+        </tfoot>
+      </table>`
+
+    // Vigencia visual
+    const vigencia = `
+      <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:16px;align-items:center;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-top:10px">
+        <div>
+          <p style="font-size:9px;font-weight:700;color:#64748b;letter-spacing:1px;text-transform:uppercase;margin-bottom:5px">Inicio de Vigencia</p>
+          <p style="font-size:16px;font-weight:900;color:#1e293b">${pol.fecha_emision}</p>
+        </div>
+        <div style="text-align:center">
+          <p style="font-size:9px;font-weight:600;color:#94a3b8;letter-spacing:1px;margin-bottom:5px">DURACIÓN</p>
+          <div style="border-top:2px dashed #cbd5e1;width:80px;margin:0 auto 5px"></div>
+          <p style="font-size:11px;font-weight:700;color:#64748b">12 meses</p>
+          <div style="border-top:2px dashed #cbd5e1;width:80px;margin:5px auto 0"></div>
+        </div>
+        <div style="text-align:right">
+          <p style="font-size:9px;font-weight:700;color:#64748b;letter-spacing:1px;text-transform:uppercase;margin-bottom:5px">Fin de Vigencia</p>
+          <p style="font-size:16px;font-weight:900;color:#1e293b">${pol.fecha_vencimiento}</p>
+        </div>
+      </div>`
+
+    const html = pdfPage(
+      pdfHdr(pol.placa ? 'PÓLIZA DE SEGURO VEHICULAR' : 'PÓLIZA DE SEGURO', 'Documento oficial de cobertura', '', new Date().toLocaleDateString('es-VE'), logoUrl) +
+      polBanner +
+
+      pdfSec('I. DATOS DEL TOMADOR Y ASEGURADO') +
+      pdfRow('Nombre completo',      clienteNombre) +
+      pdfRow('Cédula / RIF',         c.ci,  true) +
+      pdfRow('Teléfono',             tel) +
+      pdfRow('Correo electrónico',   mail) +
+      pdfRow('Dirección',            dir) +
+
+      (pol.placa
+        ? pdfSec('II. DATOS DEL VEHÍCULO ASEGURADO') +
+          pdfRow('Placa',                pol.placa, true) +
+          pdfRow('Marca / Modelo',       `${pol.veh_marca ?? ''} ${pol.veh_modelo ?? ''}`.trim() || '—') +
+          pdfRow('Año de fabricación',   String(pol.veh_anio ?? '—')) +
+          pdfRow('Tipo / Clase',         pol.veh_tipo  || '—') +
+          pdfRow('Color',                pol.veh_color || '—') +
+          (pol.veh_serial_carroceria && pol.veh_serial_carroceria !== '—' ? pdfRow('Serial de Carrocería', pol.veh_serial_carroceria, true) : '') +
+          (pol.veh_serial_motor      && pol.veh_serial_motor      !== '—' ? pdfRow('Serial de Motor',      pol.veh_serial_motor,      true) : '')
+        : '') +
+
+      pdfSec(pol.placa ? 'III. COBERTURAS CONTRATADAS' : 'II. COBERTURAS CONTRATADAS') +
+      cobTable +
+
+      pdfSec(pol.placa ? 'IV. CONDICIONES PARTICULARES' : 'III. CONDICIONES PARTICULARES') +
+      pdfRow('Tipo de Póliza',       pol.tipo  || '—') +
+      pdfRow('Forma de Pago',        pol.pago  || '—') +
+      pdfRow('Sede / Oficina',       pol.sede  || '—') +
+      pdfRow('Prima en Bolívares',   `Bs. ${Number(pol.total_bs).toFixed(2)}`) +
+      pdfRow('Cobertura en Bs.',     `Bs. ${Number(pol.cobertura_bs).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`) +
+      pdfTotal('Prima Anual Total', `$${Number(pol.total).toFixed(2)}`, `Equivalente a Bs. ${Number(pol.total_bs).toFixed(2)} al cambio del día de emisión`) +
+
+      pdfSec(pol.placa ? 'V. PERÍODO DE VIGENCIA' : 'IV. PERÍODO DE VIGENCIA') +
+      vigencia +
+
+      pdfFooterSimple()
+    )
+
+    closeModal()
+    showPdfViewer(`Póliza — ${pol.nro_contrato}`, html)
+  }
+
+  const STATUS_STYLE = {
+    'ACTIVA':    'bg-emerald-100 text-emerald-700',
+    'VENCIDA':   'bg-amber-100 text-amber-700',
+    'ANULADA':   'bg-rose-100 text-rose-700',
+    'RECHAZADA': 'bg-slate-200 text-slate-500',
+  }
+
+  const emitidas   = polizas.filter(p => p.status !== 'RECHAZADA')
+  const rechazadas = polizas.filter(p => p.status === 'RECHAZADA')
+
+  return (
+    <ModalShell title={`Documentos — ${c.nombre || c.nom}`} wide footer={
+      <button onClick={closeModal} className="btn-secondary">Cerrar</button>
+    }>
+      {loading ? (
+        <div className="flex items-center gap-2 py-8 text-slate-400 text-sm">
+          <div className="w-4 h-4 border-2 border-slate-300 border-t-blue-500 rounded-full animate-spin shrink-0" />
+          Cargando documentos…
+        </div>
+      ) : polizas.length === 0 ? (
+        <div className="py-10 text-center">
+          <Shield className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+          <p className="text-sm text-slate-400">Este cliente no tiene pólizas registradas.</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {/* ── Pólizas emitidas ── */}
+          {emitidas.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs text-slate-400">
+                {emitidas.length} póliza{emitidas.length !== 1 ? 's' : ''} — <strong>Ver póliza</strong> abre el documento oficial.
+              </p>
+              {emitidas.map(pol => (
+                <div key={pol.id} className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                  <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center shrink-0 mt-0.5">
+                    <FileText className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                      <span className="text-xs font-bold text-blue-700 font-mono">{pol.nro_contrato}</span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${STATUS_STYLE[pol.status] ?? 'bg-slate-100 text-slate-500'}`}>
+                        {pol.status}
+                      </span>
+                    </div>
+                    <p className="text-xs font-semibold text-slate-700 truncate">{pol.producto}</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
+                      {pol.placa && <><Car className="w-3 h-3 shrink-0" />{pol.placa} · </>}
+                      {pol.fecha_emision} → {pol.fecha_vencimiento}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0 flex flex-col items-end gap-1">
+                    <p className="text-sm font-bold text-slate-800">${Number(pol.total).toFixed(2)}</p>
+                    <button
+                      onClick={() => generatePdf(pol)}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 hover:underline"
+                    >
+                      <FileText className="w-3.5 h-3.5 shrink-0" />
+                      Ver póliza
+                    </button>
+                    {pol.producto_documentos?.map((d, i) => (
+                      <a
+                        key={i}
+                        href={d.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-violet-600 hover:text-violet-800 hover:underline"
+                      >
+                        <FileText className="w-3.5 h-3.5 shrink-0" />
+                        {d.nombre}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* ── Solicitudes rechazadas ── */}
+          {rechazadas.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest">
+                Cotizaciones rechazadas ({rechazadas.length})
+              </p>
+              {rechazadas.map((pol, i) => (
+                <div key={`rej-${pol.solicitud_id ?? i}`} className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200 opacity-70">
+                  <div className="w-9 h-9 rounded-xl bg-slate-200 flex items-center justify-center shrink-0 mt-0.5">
+                    <FileText className="w-4 h-4 text-slate-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                      <span className="text-xs font-bold text-slate-500 font-mono">{pol.nro_contrato}</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-500">
+                        RECHAZADA
+                      </span>
+                    </div>
+                    <p className="text-xs font-semibold text-slate-500 truncate">{pol.producto}</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
+                      {pol.placa && <><Car className="w-3 h-3 shrink-0" />{pol.placa} · </>}
+                      {pol.fecha_emision}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-bold text-slate-500">${Number(pol.total).toFixed(2)}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Sin póliza emitida</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </ModalShell>
+  )
+}
+
+// ── Facturas de un cliente ───────────────────────────────────────────────────
+/**
+ * Lista todas las facturas del cliente, ordenadas de más reciente a más antigua.
+ * Al hacer clic en una factura se genera el PDF de la misma.
+ */
+function ClienteFacturasModal({ c }) {
+  const { closeModal, showPdfViewer, currentUser } = useApp()
+  const [facturas, setFacturas] = useState([])
+  const [loading, setLoading]   = useState(true)
+  const [search, setSearch]     = useState('')
+  const logoUrl = window.location.origin + '/Logo_sin_fondo.png'
+
+  useEffect(() => {
+    if (!c) return
+    fetchFacturasCliente(c.id)
+      .then(setFacturas)
+      .catch(() => setFacturas([]))
+      .finally(() => setLoading(false))
+  }, [c?.id])
+
+  if (!c) return null
+
+  const clienteNombre = c.nombre || c.nom
+
+  const fmtNum = (n) => Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+  const generateFacturaPdf = (f) => {
+    const fmtBs = (n) => Number(n).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    const serie = f.numero.split('-')[0]
+    const tel   = c.telefono || ''
+    const cel   = c.celular  || ''
+    const dir   = c.direccion || ''
+    const ref   = (f.referencia && f.referencia !== '—') ? f.referencia : ''
+
+    const copy = `
+      <div style="border:1px solid #555;padding:14px 18px;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#000;background:#fff;page-break-inside:avoid">
+
+        <div style="display:flex;align-items:center;margin-bottom:10px;gap:12px;border-bottom:2px solid #001463;padding-bottom:10px">
+          <img src="${logoUrl}" alt="Logo" style="height:48px;object-fit:contain" onerror="this.style.display='none'" />
+          <div style="flex:1;text-align:center">
+            <p style="font-size:13px;font-weight:900;color:#001463;margin:0;line-height:1.2">COOPERATIVA DE SEGUROS SEFIRED R.L.</p>
+            <p style="font-size:9px;color:#555;margin:2px 0 0">Sistema de Emisión y Registro de Pólizas</p>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+          <div>
+            <strong>ASESOR:</strong> ${f.cajero}
+            &nbsp;&nbsp;&nbsp;
+            <strong>SERIE:</strong> ${serie}
+          </div>
+          <table style="border-collapse:collapse;font-size:11px">
+            <tr>
+              <td style="border:1px solid #444;padding:3px 10px;font-weight:bold;background:#f0f0f0;white-space:nowrap">FACTURA Nº:</td>
+              <td style="border:1px solid #444;padding:3px 14px;font-weight:bold">${f.numero}</td>
+            </tr>
+            <tr>
+              <td style="border:1px solid #444;padding:3px 10px;font-weight:bold;background:#f0f0f0">RECIBO Nº:</td>
+              <td style="border:1px solid #444;padding:3px 14px">${f.numero}</td>
+            </tr>
+            <tr>
+              <td style="border:1px solid #444;padding:3px 10px;font-weight:bold;background:#f0f0f0">FECHA:</td>
+              <td style="border:1px solid #444;padding:3px 14px">${f.fecha_factura}</td>
+            </tr>
+          </table>
+        </div>
+
+        <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:8px">
+          <tr>
+            <td style="border:1px solid #aaa;padding:4px 8px;font-weight:bold;width:130px;white-space:nowrap">RAZON SOCIAL:</td>
+            <td style="border:1px solid #aaa;padding:4px 8px" colspan="3">${clienteNombre}</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #aaa;padding:4px 8px;font-weight:bold">Cedula/RIF:</td>
+            <td style="border:1px solid #aaa;padding:4px 8px" colspan="3">${c.ci}</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #aaa;padding:4px 8px;font-weight:bold">DIRECCIÓN:</td>
+            <td style="border:1px solid #aaa;padding:4px 8px" colspan="3">${dir}</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #aaa;padding:4px 8px;font-weight:bold">TELÉFONO:</td>
+            <td style="border:1px solid #aaa;padding:4px 8px">${tel}</td>
+            <td style="border:1px solid #aaa;padding:4px 8px"><strong>CELULAR:</strong> ${cel}</td>
+            <td style="border:1px solid #aaa;padding:4px 8px;white-space:nowrap"><strong>CONDICION DE PAGO:</strong> ${f.fecha_factura}</td>
+          </tr>
+        </table>
+
+        <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:8px">
+          <thead>
+            <tr style="background:#222;color:#fff">
+              <th style="padding:5px 8px;border:1px solid #333;text-align:center;width:70px">CANTIDAD</th>
+              <th style="padding:5px 8px;border:1px solid #333;text-align:left">DESCRIPCIÓN</th>
+              <th style="padding:5px 8px;border:1px solid #333;text-align:right;width:200px">PAGO UNITARIO</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding:14px 8px;border:1px solid #ccc;text-align:center;vertical-align:top">1</td>
+              <td style="padding:14px 8px;border:1px solid #ccc;vertical-align:top">POLIZA NRO: ${f.poliza_nro}</td>
+              <td style="padding:14px 8px;border:1px solid #ccc;text-align:right;vertical-align:top">Subtotal BsS: ${fmtBs(f.valor_bs)}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <table style="width:100%;border-collapse:collapse;font-size:11px">
+          <tr>
+            <td style="padding:4px 8px;font-weight:bold;border-top:1px solid #555">ESTA FACTURA VA SIN TACHADURAS NI ENMENDADURAS</td>
+            <td style="padding:4px 8px;text-align:right;border-top:1px solid #555;white-space:nowrap">Impuesto sobre el 0% (IVA): 0 BSD</td>
+          </tr>
+          <tr>
+            <td style="padding:4px 8px">
+              <strong>FORMA DE PAGO:</strong> ${f.forma_pago}
+              &nbsp;&nbsp;&nbsp;
+              <strong>REFERENCIA:</strong> ${ref}
+            </td>
+            <td style="padding:4px 8px;text-align:right;font-weight:bold;white-space:nowrap">Total BSD: ${fmtBs(f.valor_bs)}</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 8px;border-top:1px solid #aaa"><strong>RECIBI CONFORME:</strong></td>
+            <td style="padding:6px 8px;border-top:1px solid #aaa;text-align:right"><strong>FECHA:</strong> ${f.fecha_factura}</td>
+          </tr>
+        </table>
+
+        <p style="font-size:9px;color:#444;margin:8px 0 0;line-height:1.5">
+          APROBADO POR LA SUPERINTENDENCIA DE LA ACTIVIDAD ASEGURADORA MEDIANTE LA PROVIDENCIA 000512 DE FECHA 14 DE FEBRERO
+          2014, PUBLICADA EN GACETA OFICIAL DE LA REPÚBLICA BOLIVARIANA DE VENEZUELA N° 40.368, DE FECHA 10 DE MARZO DE 2014
+        </p>
+      </div>`
+
+    const fullHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+      <style>
+        body { margin: 16px; background: #fff; font-family: Arial, Helvetica, sans-serif; color: #000; }
+        * { box-sizing: border-box; }
+        @media print { body { margin: 0; } }
+      </style>
+    </head><body>${copy}</body></html>`
+
+    closeModal()
+    showPdfViewer(`Factura — ${f.numero}`, fullHtml)
+  }
+
+  const STATUS_POLIZA = {
+    'ACTIVA':  'bg-emerald-100 text-emerald-700',
+    'VENCIDA': 'bg-amber-100 text-amber-700',
+    'ANULADA': 'bg-rose-100 text-rose-700',
+  }
+
+  return (
+    <ModalShell title={`Facturas — ${clienteNombre}`} wide footer={
+      <button onClick={closeModal} className="btn-secondary">Cerrar</button>
+    }>
+      {loading ? (
+        <div className="flex items-center gap-2 py-8 text-slate-400 text-sm">
+          <div className="w-4 h-4 border-2 border-slate-300 border-t-blue-500 rounded-full animate-spin shrink-0" />
+          Cargando facturas…
+        </div>
+      ) : facturas.length === 0 ? (
+        <div className="py-10 text-center">
+          <Receipt className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+          <p className="text-sm text-slate-400">Este cliente no tiene facturas registradas.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Buscar por número de factura…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg bg-white outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <p className="text-xs text-slate-400 whitespace-nowrap shrink-0">
+              {facturas.filter(f => !search.trim() || f.numero.toLowerCase().includes(search.trim().toLowerCase())).length} / {facturas.length}
+            </p>
+          </div>
+          {facturas.filter(f => !search.trim() || f.numero.toLowerCase().includes(search.trim().toLowerCase())).map(f => (
+            <div key={f.id} className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
+              <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center shrink-0 mt-0.5">
+                <Receipt className="w-4 h-4 text-amber-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                  <span className="text-xs font-bold text-slate-800 font-mono">{f.numero}</span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${STATUS_POLIZA[f.poliza_status] ?? 'bg-slate-100 text-slate-500'}`}>
+                    {f.poliza_status}
+                  </span>
+                </div>
+                <p className="text-xs font-semibold text-slate-700 truncate">{f.poliza_producto}</p>
+                <div className="flex items-center gap-3 text-[11px] text-slate-500 flex-wrap mt-0.5">
+                  {f.poliza_placa && (
+                    <span className="flex items-center gap-1">
+                      <Car className="w-3 h-3 shrink-0" />{f.poliza_placa}
+                    </span>
+                  )}
+                  <span>{f.fecha_factura} · {f.sede}</span>
+                  <span>{f.forma_pago}</span>
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                <p className="text-sm font-bold text-slate-800">${fmtNum(f.valor)}</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Bs. {fmtNum(f.valor_bs)}</p>
+                <button
+                  onClick={() => generateFacturaPdf(f)}
+                  className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600 hover:text-amber-800 hover:underline"
+                >
+                  <Receipt className="w-3.5 h-3.5 shrink-0" />
+                  Ver PDF
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </ModalShell>
+  )
+}
+
+// ── Ajustar póliza de un cliente ─────────────────────────────────────────────
+/**
+ * Muestra la lista de pólizas del cliente. Al seleccionar una, aparece un
+ * formulario para editar: status, fecha de vencimiento, prima y forma de pago.
+ */
+function AjustarPolizaModal({ c, onSave }) {
+  const { closeModal, showToast } = useApp()
+  const [polizas, setPolizas]   = useState([])
+  const [loading, setLoading]   = useState(true)
+  const [selected, setSelected] = useState(null)
+  const [form, setForm]         = useState({})
+  const [saving, setSaving]     = useState(false)
+  const [searchPol, setSearchPol] = useState('')
+
+  useEffect(() => {
+    if (!c) return
+    fetchPolizasCliente(c.id)
+      .then(data => {
+        setPolizas(data)
+        if (data.length === 1) selectPoliza(data[0])
+      })
+      .catch(() => setPolizas([]))
+      .finally(() => setLoading(false))
+  }, [c?.id])
+
+  const selectPoliza = (pol) => {
+    setSelected(pol)
+    setForm({
+      status:            pol.status,
+      fecha_vencimiento: pol.fecha_vencimiento_iso,
+      pago:              pol.pago,
+      total:             pol.total,
+    })
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await updatePoliza(selected.id, form)
+      showToast('Póliza actualizada correctamente', 'success')
+      onSave?.()
+      closeModal()
+    } catch (err) {
+      showToast(err.message, 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!c) return null
+
+  const STATUS_STYLE = {
+    'ACTIVA':    'bg-emerald-100 text-emerald-700',
+    'VENCIDA':   'bg-amber-100 text-amber-700',
+    'ANULADA':   'bg-rose-100 text-rose-700',
+    'RECHAZADA': 'bg-slate-200 text-slate-500',
+  }
+
+  return (
+    <ModalShell title={`Ajustar Póliza — ${c.nombre || c.nom}`} wide footer={
+      <>
+        {selected && polizas.length > 1 && (
+          <button onClick={() => setSelected(null)} className="btn-secondary">
+            ← Volver
+          </button>
+        )}
+        <button onClick={closeModal} className="btn-secondary ml-auto">Cancelar</button>
+        {selected && (
+          <button onClick={handleSave} disabled={saving} className="btn-primary">
+            <Check className="w-4 h-4" />
+            {saving ? 'Guardando…' : 'Guardar'}
+          </button>
+        )}
+      </>
+    }>
+      {loading ? (
+        <div className="flex items-center gap-2 py-8 text-slate-400 text-sm">
+          <div className="w-4 h-4 border-2 border-slate-300 border-t-blue-500 rounded-full animate-spin shrink-0" />
+          Cargando pólizas…
+        </div>
+      ) : polizas.length === 0 ? (
+        <div className="py-10 text-center">
+          <Shield className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+          <p className="text-sm text-slate-400">Este cliente no tiene pólizas para ajustar.</p>
+        </div>
+      ) : !selected ? (
+        /* ── Paso 1: Seleccionar póliza ── */
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Buscar por N° de póliza…"
+                value={searchPol}
+                onChange={e => setSearchPol(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg bg-white outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+          {polizas.filter(p => p.status !== 'RECHAZADA' && (!searchPol.trim() || p.nro_contrato?.toLowerCase().includes(searchPol.trim().toLowerCase()))).map(pol => (
+            <button
+              key={pol.id}
+              onClick={() => selectPoliza(pol)}
+              className="w-full flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100 hover:border-blue-300 hover:bg-blue-50 transition-colors text-left"
+            >
+              <div className="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0 mt-0.5">
+                <SlidersHorizontal className="w-4 h-4 text-indigo-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                  <span className="text-xs font-bold text-blue-700 font-mono">{pol.nro_contrato}</span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${STATUS_STYLE[pol.status] ?? 'bg-slate-100 text-slate-500'}`}>
+                    {pol.status}
+                  </span>
+                </div>
+                <p className="text-xs font-semibold text-slate-700 truncate">{pol.producto}</p>
+                <p className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
+                  {pol.placa && <><Car className="w-3 h-3 shrink-0" />{pol.placa} · </>}
+                  {pol.fecha_emision} → {pol.fecha_vencimiento}
+                </p>
+              </div>
+              <p className="text-sm font-bold text-slate-700 shrink-0">${Number(pol.total).toFixed(2)}</p>
+            </button>
+          ))}
+        </div>
+      ) : (
+        /* ── Paso 2: Formulario de ajuste ── */
+        <div className="space-y-4">
+          {/* Resumen de la póliza seleccionada */}
+          <div className="p-3 bg-indigo-50 rounded-xl border border-indigo-100">
+            <p className="text-xs font-bold text-indigo-700 font-mono">{selected.nro_contrato}</p>
+            <p className="text-xs text-indigo-500 mt-0.5 flex items-center gap-1">
+              {selected.placa && <><Car className="w-3 h-3 shrink-0" />{selected.placa} · </>}
+              {selected.producto}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            {/* Estatus */}
+            <div className="col-span-2 input-group">
+              <label className="input-label">Estatus</label>
+              <select
+                className="select-field"
+                value={form.status ?? ''}
+                onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
+              >
+                <option value="ACTIVA">ACTIVA</option>
+                <option value="VENCIDA">VENCIDA</option>
+                <option value="ANULADA">ANULADA</option>
+              </select>
+            </div>
+
+            {/* Fecha vencimiento */}
+            <div className="input-group">
+              <label className="input-label">Vencimiento</label>
+              <input
+                type="date"
+                className="input-field"
+                value={form.fecha_vencimiento ?? ''}
+                onChange={e => setForm(f => ({ ...f, fecha_vencimiento: e.target.value }))}
+              />
+            </div>
+
+            {/* Prima */}
+            <div className="input-group">
+              <label className="input-label">Prima (USD)</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className="input-field"
+                value={form.total ?? ''}
+                onChange={e => setForm(f => ({ ...f, total: e.target.value }))}
+              />
+            </div>
+
+            {/* Forma de pago */}
+            <div className="col-span-2 input-group">
+              <label className="input-label">Forma de Pago</label>
+              <input
+                type="text"
+                className="input-field"
+                value={form.pago ?? ''}
+                placeholder="Ej. Transferencia, Zelle, Efectivo USD…"
+                onChange={e => setForm(f => ({ ...f, pago: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          {/* Comparación de prima: original vs nuevo */}
+          {(() => {
+            const orig  = Number(selected.total)
+            const nuevo = Number(form.total)
+            if (!orig || !nuevo || isNaN(nuevo) || nuevo === orig) return null
+            const pct    = ((nuevo - orig) / orig) * 100
+            const isPos  = pct > 0
+            return (
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Comparación de Prima</p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] text-slate-400 mb-0.5">Original</p>
+                    <p className="text-sm font-bold text-slate-500">${orig.toFixed(2)}</p>
+                  </div>
+                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${isPos ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-600'}`}>
+                    {isPos ? '+' : ''}{pct.toFixed(1)}%
+                  </span>
+                  <div className="text-right">
+                    <p className="text-[10px] text-slate-400 mb-0.5">Nuevo</p>
+                    <p className="text-sm font-bold text-slate-800">${nuevo.toFixed(2)}</p>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
+        </div>
+      )}
+    </ModalShell>
+  )
+}
+
+// ── Cotizaciones del cliente ─────────────────────────────────────────────────
+const SOL_STATUS_STYLE = {
+  'En Revisión': { bg: 'bg-amber-100',  text: 'text-amber-700',  dot: 'bg-amber-500'  },
+  'Aprobado':    { bg: 'bg-blue-100',   text: 'text-blue-700',   dot: 'bg-blue-500'   },
+  'Emitida':     { bg: 'bg-emerald-100',text: 'text-emerald-700',dot: 'bg-emerald-500'},
+  'Rechazado':   { bg: 'bg-rose-100',   text: 'text-rose-700',   dot: 'bg-rose-500'   },
+}
+
+function ClienteSolicitudesModal({ c }) {
+  const { closeModal, showPdfViewer } = useApp()
+  const [solicitudes, setSolicitudes] = useState([])
+  const [loading, setLoading]         = useState(true)
+  const [error, setError]             = useState(null)
+  const [filter, setFilter]           = useState('all')
+
+  useEffect(() => {
+    fetchSolicitudesCliente(c.id)
+      .then(data => { setSolicitudes(data); setLoading(false) })
+      .catch(err => { setError(err.message); setLoading(false) })
+  }, [c.id])
+
+  const counts = solicitudes.reduce((acc, s) => {
+    acc[s.status] = (acc[s.status] ?? 0) + 1
+    return acc
+  }, {})
+
+  const visible = filter === 'all' ? solicitudes : solicitudes.filter(s => s.status === filter)
+
+  const FILTERS = [
+    { id: 'all',         label: 'Todas',       count: solicitudes.length },
+    { id: 'En Revisión', label: 'En Revisión', count: counts['En Revisión'] ?? 0 },
+    { id: 'Aprobado',    label: 'Aprobadas',   count: counts['Aprobado']    ?? 0 },
+    { id: 'Emitida',     label: 'Emitidas',    count: counts['Emitida']     ?? 0 },
+    { id: 'Rechazado',   label: 'Rechazadas',  count: counts['Rechazado']   ?? 0 },
+  ].filter(f => f.id === 'all' || f.count > 0)
+
+  const generateCotPdf = (s) => {
+    const logoUrl = window.location.origin + '/Logo_sin_fondo.png'
+    const cobs    = s.coberturas || {}
+    const items   = cobs.items   || []
+    const nombre  = s.nombre_tomador || c.nombre || c.nom || '—'
+    const ci      = s.ci_tomador     || c.ci      || '—'
+    const st      = SOL_STATUS_STYLE[s.status] ?? {}
+    const stColor = s.status === 'Rechazado' ? '#f43f5e' : s.status === 'Emitida' ? '#059669' : s.status === 'Aprobado' ? '#3b82f6' : '#f59e0b'
+
+    const banner = `
+      <div style="background:#001463;color:white;padding:14px 22px;border-radius:10px;margin-bottom:22px;display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <p style="font-size:9px;font-weight:700;letter-spacing:2px;opacity:0.65;text-transform:uppercase;margin-bottom:4px">N° de Cotización</p>
+          <p style="font-size:20px;font-weight:900;font-family:monospace;letter-spacing:2px">${s.nro}</p>
+        </div>
+        <div style="text-align:right">
+          <p style="font-size:9px;font-weight:700;letter-spacing:2px;opacity:0.65;text-transform:uppercase;margin-bottom:4px">Estado</p>
+          <p style="font-size:15px;font-weight:900;color:${stColor}">${s.status}</p>
+        </div>
+      </div>`
+
+    const cobRows = items.map(it =>
+      `<tr style="border-bottom:1px solid #f1f5f9">
+        <td style="padding:8px 12px;font-size:12px;color:#1e293b">${it.nom}</td>
+        <td style="padding:8px 12px;text-align:right;font-size:12px;font-weight:700;color:#059669;font-family:monospace">$${Number(it.prima).toFixed(2)}</td>
+      </tr>`
+    ).join('')
+
+    const cobTable = items.length ? `
+      <table style="width:100%;border-collapse:collapse;margin-top:10px">
+        <thead>
+          <tr style="background:#001463;color:white">
+            <th style="padding:9px 12px;text-align:left;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase">Cobertura</th>
+            <th style="padding:9px 12px;text-align:right;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase">Prima (USD)</th>
+          </tr>
+        </thead>
+        <tbody>${cobRows}</tbody>
+        <tfoot>
+          <tr style="background:#f1f5f9">
+            <td style="padding:9px 12px;font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px">TOTAL</td>
+            <td style="padding:9px 12px;text-align:right;font-size:16px;font-weight:900;color:#059669;font-family:monospace">$${Number(s.total).toFixed(2)}</td>
+          </tr>
+        </tfoot>
+      </table>` : ''
+
+    const content =
+      banner +
+      pdfSec('DATOS DEL TOMADOR') +
+      pdfRow('Nombre completo', nombre) +
+      pdfRow('Cédula / RIF',    ci,  true) +
+      (s.placa
+        ? pdfSec('DATOS DEL VEHÍCULO') +
+          pdfRow('Placa',           s.placa, true) +
+          (cobs.marca  ? pdfRow('Marca',   cobs.marca)  : '') +
+          (cobs.modelo ? pdfRow('Modelo',  cobs.modelo) : '') +
+          (cobs.año    ? pdfRow('Año',     String(cobs.año), true) : '') +
+          (cobs.color  ? pdfRow('Color',   cobs.color)  : '') +
+          (cobs.uso    ? pdfRow('Uso',     cobs.uso)    : '') +
+          (cobs.valor_mercado ? pdfRow('Valor de Mercado', `$${Number(cobs.valor_mercado).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, true) : '')
+        : (cobs.asegurado_nombre
+            ? pdfSec('DATOS DEL ASEGURADO') +
+              pdfRow('Nombre', cobs.asegurado_nombre) +
+              (cobs.asegurado_ci ? pdfRow('Cédula', cobs.asegurado_ci, true) : '')
+            : '')
+      ) +
+      pdfSec('COBERTURAS CONTRATADAS') +
+      cobTable +
+      (cobs.tasaBCV ? pdfSec('RESUMEN FINANCIERO') +
+        pdfRow('Tasa BCV', `Bs. ${Number(cobs.tasaBCV).toFixed(2)} / USD`) +
+        pdfRow('Prima en Bolívares', `Bs. ${Number(s.total_bs).toFixed(2)}`, true)
+      : '') +
+      pdfFooterSimple()
+
+    closeModal()
+    showPdfViewer(`Cotización ${s.nro}`, pdfPage(
+      pdfHdr(s.placa ? 'COTIZACIÓN DE SEGURO VEHICULAR' : 'COTIZACIÓN DE SEGURO', `Fecha: ${s.fecha}`, '', new Date().toLocaleDateString('es-VE'), logoUrl) + content
+    ))
+  }
+
+  return (
+    <ModalShell title={`Cotizaciones — ${c.nom}`} maxW="max-w-3xl">
+      {/* Filtros por estado */}
+      <div className="flex items-center gap-1.5 mb-5 flex-wrap">
+        <ClipboardList className="w-4 h-4 text-slate-400 shrink-0 mr-0.5" />
+        {FILTERS.map(f => (
+          <button
+            key={f.id}
+            onClick={() => setFilter(f.id)}
+            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition ${
+              filter === f.id ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+            }`}
+          >
+            {f.label}
+            <span className={`inline-flex items-center justify-center min-w-[1.1rem] h-4 rounded-full px-1 text-[10px] font-bold ${
+              filter === f.id ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'
+            }`}>{f.count}</span>
+          </button>
+        ))}
+      </div>
+
+      {loading && (
+        <div className="flex justify-center items-center py-10 gap-2 text-slate-400 text-sm">
+          <div className="w-4 h-4 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
+          Cargando cotizaciones…
+        </div>
+      )}
+      {error && !loading && (
+        <p className="text-center py-8 text-rose-500 text-sm">{error}</p>
+      )}
+
+      {!loading && !error && visible.length === 0 && (
+        <div className="text-center py-10">
+          <ClipboardList className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+          <p className="text-sm text-slate-400">No hay cotizaciones{filter !== 'all' ? ' con este estado' : ''}</p>
+        </div>
+      )}
+
+      {!loading && !error && visible.length > 0 && (
+        <div className="overflow-x-auto rounded-xl border border-slate-100">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-100 text-left">
+                <th className="px-3 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Nro</th>
+                <th className="px-3 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Fecha</th>
+                <th className="px-3 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Bien / Ref.</th>
+                <th className="px-3 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Producto</th>
+                <th className="px-3 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wide text-right whitespace-nowrap">Total</th>
+                <th className="px-3 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Estado</th>
+                <th className="px-3 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wide text-center whitespace-nowrap">Doc.</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {visible.map(s => {
+                const st = SOL_STATUS_STYLE[s.status] ?? { bg: 'bg-slate-100', text: 'text-slate-600', dot: 'bg-slate-400' }
+                return (
+                  <tr key={s.id} className="hover:bg-slate-50/60 transition">
+                    <td className="px-3 py-2.5 font-mono font-bold text-[11px] text-slate-700 whitespace-nowrap">{s.nro}</td>
+                    <td className="px-3 py-2.5 text-slate-500 text-xs whitespace-nowrap">{s.fecha}</td>
+                    <td className="px-3 py-2.5 font-mono font-semibold text-slate-700 text-xs whitespace-nowrap">
+                      {s.placa || s.coberturas?.asegurado_nombre || '—'}
+                    </td>
+                    <td className="px-3 py-2.5 text-slate-600 text-xs">{s.producto}</td>
+                    <td className="px-3 py-2.5 text-right font-semibold text-slate-700 text-xs whitespace-nowrap">
+                      ${Number(s.total).toFixed(2)}
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${st.bg} ${st.text}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${st.dot}`} />
+                        {s.status}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-center">
+                      <button
+                        onClick={() => generateCotPdf(s)}
+                        className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition inline-flex items-center justify-center"
+                        title="Ver documento"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </ModalShell>
+  )
+}
+
+// ── Pólizas del cliente ───────────────────────────────────────────────────────
+function ClienteHistorialModal({ c }) {
+  const { closeModal, showPdfViewer } = useApp()
+  const [polizas, setPolizas]         = useState([])
+  const [loading, setLoading]         = useState(true)
+  const [search, setSearch]           = useState('')
+  const [showRechazadas, setShowRechazadas] = useState(false)
+
+  useEffect(() => {
+    if (!c) return
+    fetchPolizasCliente(c.id)
+      .then(setPolizas)
+      .catch(() => setPolizas([]))
+      .finally(() => setLoading(false))
+  }, [c?.id])
+
+  if (!c) return null
+
+  const logoUrl = window.location.origin + '/Logo_sin_fondo.png'
+
+  // ── PDF póliza ──────────────────────────────────────────────────────────────
+  const generatePolPdf = (pol) => {
+    const clienteNombre = c.nombre || c.nom
+    const tel  = c.celular || c.telefono || c.tel || '—'
+    const mail = c.correo  || c.email    || '—'
+    const dir  = c.direccion || '—'
+
+    const polBanner = `<div style="background:#001463;color:white;padding:14px 22px;border-radius:10px;margin-bottom:26px;display:flex;justify-content:space-between;align-items:center">
+      <div><p style="font-size:9px;font-weight:700;letter-spacing:2px;opacity:0.65;text-transform:uppercase;margin-bottom:4px">N° de Póliza / Contrato</p>
+        <p style="font-size:20px;font-weight:900;font-family:monospace;letter-spacing:2px">${pol.nro_contrato}</p></div>
+      <div style="text-align:right"><p style="font-size:9px;font-weight:700;letter-spacing:2px;opacity:0.65;text-transform:uppercase;margin-bottom:4px">Estado</p>
+        <p style="font-size:15px;font-weight:900;${pol.status === 'ACTIVA' ? 'color:#6ee7b7' : pol.status === 'VENCIDA' ? 'color:#fcd34d' : 'color:#fca5a5'}">${pol.status}</p></div>
+    </div>`
+
+    const cobTable = `<table style="width:100%;border-collapse:collapse;margin-top:10px;font-size:12px">
+      <thead><tr style="background:#001463;color:white">
+        <th style="padding:9px 12px;text-align:left;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase">Cobertura / Producto</th>
+        <th style="padding:9px 12px;text-align:right;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase">Suma Asegurada</th>
+        <th style="padding:9px 12px;text-align:right;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase">Prima (USD)</th>
+      </tr></thead>
+      <tbody><tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0">
+        <td style="padding:11px 12px;font-weight:600;color:#1e293b">${pol.producto}</td>
+        <td style="padding:11px 12px;text-align:right;font-weight:700;color:#1e293b;font-family:monospace">$${Number(pol.cobertura_dolares).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+        <td style="padding:11px 12px;text-align:right;font-weight:700;color:#059669;font-family:monospace">$${Number(pol.total).toFixed(2)}</td>
+      </tr></tbody>
+      <tfoot><tr style="background:#f1f5f9">
+        <td style="padding:9px 12px;font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px">Total</td>
+        <td style="padding:9px 12px;text-align:right;font-weight:900;color:#001463;font-family:monospace">$${Number(pol.cobertura_dolares).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+        <td style="padding:9px 12px;text-align:right;font-size:15px;font-weight:900;color:#059669;font-family:monospace">$${Number(pol.total).toFixed(2)}</td>
+      </tr></tfoot>
+    </table>`
+
+    const vigencia = `<div style="display:grid;grid-template-columns:1fr auto 1fr;gap:16px;align-items:center;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-top:10px">
+      <div><p style="font-size:9px;font-weight:700;color:#64748b;letter-spacing:1px;text-transform:uppercase;margin-bottom:5px">Inicio de Vigencia</p>
+        <p style="font-size:16px;font-weight:900;color:#1e293b">${pol.fecha_emision}</p></div>
+      <div style="text-align:center"><p style="font-size:9px;font-weight:600;color:#94a3b8;letter-spacing:1px;margin-bottom:5px">DURACIÓN</p>
+        <div style="border-top:2px dashed #cbd5e1;width:80px;margin:0 auto 5px"></div>
+        <p style="font-size:11px;font-weight:700;color:#64748b">12 meses</p>
+        <div style="border-top:2px dashed #cbd5e1;width:80px;margin:5px auto 0"></div></div>
+      <div style="text-align:right"><p style="font-size:9px;font-weight:700;color:#64748b;letter-spacing:1px;text-transform:uppercase;margin-bottom:5px">Fin de Vigencia</p>
+        <p style="font-size:16px;font-weight:900;color:#1e293b">${pol.fecha_vencimiento}</p></div>
+    </div>`
+
+    closeModal()
+    showPdfViewer(`Póliza — ${pol.nro_contrato}`, pdfPage(
+      pdfHdr(pol.placa ? 'PÓLIZA DE SEGURO VEHICULAR' : 'PÓLIZA DE SEGURO', 'Documento oficial de cobertura', '', new Date().toLocaleDateString('es-VE'), logoUrl) +
+      polBanner +
+      pdfSec('I. DATOS DEL TOMADOR Y ASEGURADO') +
+      pdfRow('Nombre completo', clienteNombre) + pdfRow('Cédula / RIF', c.ci, true) +
+      pdfRow('Teléfono', tel) + pdfRow('Correo electrónico', mail) + pdfRow('Dirección', dir) +
+      (pol.placa
+        ? pdfSec('II. DATOS DEL VEHÍCULO ASEGURADO') +
+          pdfRow('Placa', pol.placa, true) +
+          pdfRow('Marca / Modelo', `${pol.veh_marca ?? ''} ${pol.veh_modelo ?? ''}`.trim() || '—') +
+          pdfRow('Año de fabricación', String(pol.veh_anio ?? '—')) +
+          pdfRow('Tipo / Clase', pol.veh_tipo || '—') + pdfRow('Color', pol.veh_color || '—') +
+          (pol.veh_serial_carroceria && pol.veh_serial_carroceria !== '—' ? pdfRow('Serial de Carrocería', pol.veh_serial_carroceria, true) : '') +
+          (pol.veh_serial_motor      && pol.veh_serial_motor      !== '—' ? pdfRow('Serial de Motor', pol.veh_serial_motor, true) : '')
+        : '') +
+      pdfSec(pol.placa ? 'III. COBERTURAS CONTRATADAS' : 'II. COBERTURAS CONTRATADAS') + cobTable +
+      pdfSec(pol.placa ? 'IV. CONDICIONES PARTICULARES' : 'III. CONDICIONES PARTICULARES') +
+      pdfRow('Tipo de Póliza', pol.tipo || '—') + pdfRow('Forma de Pago', pol.pago || '—') +
+      pdfRow('Sede / Oficina', pol.sede || '—') +
+      pdfRow('Prima en Bolívares', `Bs. ${Number(pol.total_bs).toFixed(2)}`) +
+      pdfRow('Cobertura en Bs.', `Bs. ${Number(pol.cobertura_bs).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`) +
+      pdfTotal('Prima Anual Total', `$${Number(pol.total).toFixed(2)}`, `Equivalente a Bs. ${Number(pol.total_bs).toFixed(2)} al cambio del día de emisión`) +
+      pdfSec(pol.placa ? 'V. PERÍODO DE VIGENCIA' : 'IV. PERÍODO DE VIGENCIA') + vigencia +
+      pdfFooterSimple()
+    ))
+  }
+
+  const POL_STATUS_STYLE = {
+    'ACTIVA':    'bg-emerald-100 text-emerald-700',
+    'VENCIDA':   'bg-amber-100 text-amber-700',
+    'ANULADA':   'bg-rose-100 text-rose-700',
+    'RECHAZADA': 'bg-slate-200 text-slate-500',
+  }
+
+  const q            = search.trim().toLowerCase()
+  const polEmitidas  = polizas.filter(p => p.status !== 'RECHAZADA')
+  const polRechazadas = polizas.filter(p => p.status === 'RECHAZADA')
+
+  const filtrarPol = (lista) =>
+    q ? lista.filter(p => p.nro_contrato?.toLowerCase().includes(q)) : lista
+
+  const emitFiltered = filtrarPol(polEmitidas)
+  const rejFiltered  = filtrarPol(polRechazadas)
+
+  return (
+    <ModalShell title={`Pólizas — ${c.nombre || c.nom}`} maxW="max-w-2xl" footer={
+      <button onClick={closeModal} className="btn-secondary">Cerrar</button>
+    }>
+      {/* Buscador + toggle rechazadas */}
+      <div className="flex items-center gap-2 mb-4">
+        <div className="relative flex-1">
+          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            className="input-field pl-8 py-1.5 text-sm"
+            placeholder="Buscar por N° de póliza…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+        {polRechazadas.length > 0 && (
+          <button
+            onClick={() => setShowRechazadas(v => !v)}
+            className={`shrink-0 text-xs font-semibold px-3 py-1.5 rounded-xl border transition ${
+              showRechazadas
+                ? 'bg-rose-50 text-rose-600 border-rose-200'
+                : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'
+            }`}
+          >
+            Rechazadas ({polRechazadas.length})
+          </button>
+        )}
+      </div>
+
+      {loading && (
+        <div className="flex justify-center items-center py-10 gap-2 text-slate-400 text-sm">
+          <div className="w-4 h-4 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
+          Cargando pólizas…
+        </div>
+      )}
+
+      {!loading && polizas.length === 0 && (
+        <div className="py-10 text-center">
+          <Shield className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+          <p className="text-sm text-slate-400">Este cliente no tiene pólizas registradas.</p>
+        </div>
+      )}
+
+      {!loading && polizas.length > 0 && (
+        <div className="space-y-4">
+          {/* Pólizas activas / vencidas */}
+          {emitFiltered.length > 0 && (
+            <div className="space-y-2">
+              {emitFiltered.map(pol => (
+                <div key={pol.id} className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                  <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center shrink-0 mt-0.5">
+                    <FileText className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                      <span className="text-xs font-bold text-blue-700 font-mono">{pol.nro_contrato}</span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${POL_STATUS_STYLE[pol.status] ?? 'bg-slate-100 text-slate-500'}`}>
+                        {pol.status}
+                      </span>
+                    </div>
+                    <p className="text-xs font-semibold text-slate-700 truncate">{pol.producto}</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
+                      {pol.placa && <><Car className="w-3 h-3 shrink-0" />{pol.placa} · </>}
+                      {pol.fecha_emision} → {pol.fecha_vencimiento}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0 flex flex-col items-end gap-1.5">
+                    <p className="text-sm font-bold text-slate-800">${Number(pol.total).toFixed(2)}</p>
+                    <button onClick={() => generatePolPdf(pol)}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 hover:underline"
+                    >
+                      <FileText className="w-3.5 h-3.5 shrink-0" /> Ver póliza
+                    </button>
+                    {pol.producto_documentos?.map((d, i) => (
+                      <a key={i} href={d.url} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-violet-600 hover:text-violet-800 hover:underline"
+                      >
+                        <FileText className="w-3.5 h-3.5 shrink-0" /> {d.nombre}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {emitFiltered.length === 0 && q && (
+            <p className="text-sm text-slate-400 text-center py-6">No se encontró ninguna póliza con ese número.</p>
+          )}
+
+          {/* Pólizas rechazadas — solo visibles si el toggle está activo */}
+          {showRechazadas && rejFiltered.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest">Rechazadas ({rejFiltered.length})</p>
+              {rejFiltered.map((pol, i) => (
+                <div key={`rej-${pol.solicitud_id ?? i}`} className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200 opacity-70">
+                  <div className="w-9 h-9 rounded-xl bg-slate-200 flex items-center justify-center shrink-0 mt-0.5">
+                    <FileText className="w-4 h-4 text-slate-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                      <span className="text-xs font-bold text-slate-500 font-mono">{pol.nro_contrato}</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-500">RECHAZADA</span>
+                    </div>
+                    <p className="text-xs font-semibold text-slate-500 truncate">{pol.producto}</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
+                      {pol.placa && <><Car className="w-3 h-3 shrink-0" />{pol.placa} · </>}
+                      {pol.fecha_emision}
+                    </p>
+                  </div>
+                  <p className="text-sm font-bold text-slate-500 shrink-0">${Number(pol.total).toFixed(2)}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </ModalShell>
+  )
+}
+
+// ── Formulario de vehículo (crear / editar) ──────────────────────────────────
+const VEH_MARCAS = ['Toyota','Chevrolet','Ford','Hyundai','Kia','Jeep','Nissan','Honda','Renault','Mazda','Volkswagen','Mitsubishi','Otro']
+const VEH_TIPOS  = ['Sedán','SUV / Rústico','Camioneta','Motocicleta','Comercial','Particular','Otro']
+const VEH_CLASES = ['Automóvil','Camioneta','Camión','Moto','Autobús','Otro']
+const VEH_USOS   = ['Particular','Carga','Transporte Público','Oficial','Otro']
+const VEH_AÑOS   = Array.from({ length: new Date().getFullYear() - 1989 }, (_, i) => String(new Date().getFullYear() - i))
+
+function VehiculoFormModal({ v = {}, clienteOpts = [], onSave }) {
+  const { closeModal, showToast } = useApp()
+  const isNew = !v.id
+  const [form, setForm] = useState({
+    cliente_id:           v.cliente_id     ? String(v.cliente_id) : '',
+    placa:                v.placa          || '',
+    marca:                v.marca          || '',
+    modelo:               v.modelo         || '',
+    anio:                 v.anio           ? String(v.anio) : '',
+    color:                v.color          || '',
+    tipo:                 v.tipo           || '',
+    clase:                v.clase          || '',
+    uso:                  v.uso            || '',
+    puestos:              v.puestos        ?? '',
+    peso:                 v.peso           ?? '',
+    aparcamiento:         v.aparcamiento   || '',
+    serial_carroceria:    v.serial_carroceria    || '',
+    serial_motor:         v.serial_motor         || '',
+    certificado_transito: v.certificado_transito || '',
+    certificado_origen:   v.certificado_origen   || '',
+    fecha_adquisicion:    v.fecha_adquisicion    || '',
+    titulo:               v.titulo               || '',
+  })
+  const [saving, setSaving] = useState(false)
+
+  const set = (k, val) => setForm(f => ({ ...f, [k]: val }))
+
+  const handleSave = async () => {
+    if (!form.cliente_id) { showToast('Selecciona el cliente propietario', 'error'); return }
+    if (!form.placa.trim()) { showToast('La placa es obligatoria', 'error'); return }
+    if (!form.marca) { showToast('Selecciona la marca', 'error'); return }
+    if (!form.modelo.trim()) { showToast('El modelo es obligatorio', 'error'); return }
+    if (!form.anio) { showToast('Selecciona el año', 'error'); return }
+    setSaving(true)
+    try {
+      const payload = {
+        ...form,
+        cliente_id: parseInt(form.cliente_id),
+        anio: parseInt(form.anio),
+        puestos: form.puestos ? parseInt(form.puestos) || null : null,
+        peso:    form.peso    ? parseInt(form.peso)    || null : null,
+        fecha_adquisicion: form.fecha_adquisicion || null,
+      }
+      await onSave(payload)
+      closeModal()
+      showToast(isNew ? 'Vehículo registrado' : 'Vehículo actualizado', 'success')
+    } catch (err) {
+      showToast(err.message || 'Error al guardar', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const Label = ({ children, req }) => (
+    <label className="input-label">{children}{req && <span className="text-rose-500 ml-0.5">*</span>}</label>
+  )
+
+  const SecTitle = ({ children }) => (
+    <p className="col-span-full text-[10px] font-bold text-slate-400 uppercase tracking-widest pb-1.5 border-b border-slate-100 mb-1 mt-2 first:mt-0">
+      {children}
+    </p>
+  )
+
+  return (
+    <ModalShell title={isNew ? 'Registrar Vehículo' : `Editar Vehículo — ${v.placa}`} wide footer={
+      <>
+        <button onClick={closeModal} disabled={saving} className="btn-secondary">Cancelar</button>
+        <button onClick={handleSave} disabled={saving} className="btn-primary disabled:opacity-60">
+          {saving
+            ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Guardando…</>
+            : <><Check className="w-4 h-4" />Guardar</>
+          }
+        </button>
+      </>
+    }>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        {/* Propietario */}
+        <SecTitle>Propietario</SecTitle>
+        <div className="col-span-full input-group">
+          <Label req>Cliente propietario</Label>
+          <select className="select-field" value={form.cliente_id} onChange={e => set('cliente_id', e.target.value)}>
+            <option value="" disabled>Seleccionar…</option>
+            {clienteOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
+
+        {/* Datos del vehículo */}
+        <SecTitle>Datos del Vehículo</SecTitle>
+        <div className="input-group">
+          <Label req>Placa</Label>
+          <input type="text" className="input-field uppercase" placeholder="ABC-123" value={form.placa} onChange={e => set('placa', e.target.value.toUpperCase())} />
+        </div>
+        <div className="input-group">
+          <Label req>Marca</Label>
+          <select className="select-field" value={form.marca} onChange={e => set('marca', e.target.value)}>
+            <option value="" disabled>Seleccionar…</option>
+            {VEH_MARCAS.map(m => <option key={m}>{m}</option>)}
+          </select>
+        </div>
+        <div className="input-group">
+          <Label req>Modelo</Label>
+          <input type="text" className="input-field" placeholder="Corolla, Spark…" value={form.modelo} onChange={e => set('modelo', e.target.value)} />
+        </div>
+        <div className="input-group">
+          <Label req>Año</Label>
+          <select className="select-field" value={form.anio} onChange={e => set('anio', e.target.value)}>
+            <option value="" disabled>Año…</option>
+            {VEH_AÑOS.map(a => <option key={a}>{a}</option>)}
+          </select>
+        </div>
+        <div className="input-group">
+          <Label>Color</Label>
+          <input type="text" className="input-field" placeholder="Blanco, Negro…" value={form.color} onChange={e => set('color', e.target.value)} />
+        </div>
+        <div className="input-group">
+          <Label>Tipo</Label>
+          <select className="select-field" value={form.tipo} onChange={e => set('tipo', e.target.value)}>
+            <option value="">— Sin especificar —</option>
+            {VEH_TIPOS.map(t => <option key={t}>{t}</option>)}
+          </select>
+        </div>
+        <div className="input-group">
+          <Label>Clase</Label>
+          <select className="select-field" value={form.clase} onChange={e => set('clase', e.target.value)}>
+            <option value="">— Sin especificar —</option>
+            {VEH_CLASES.map(c => <option key={c}>{c}</option>)}
+          </select>
+        </div>
+        <div className="input-group">
+          <Label>Uso</Label>
+          <select className="select-field" value={form.uso} onChange={e => set('uso', e.target.value)}>
+            <option value="">— Sin especificar —</option>
+            {VEH_USOS.map(u => <option key={u}>{u}</option>)}
+          </select>
+        </div>
+        <div className="input-group">
+          <Label>Puestos</Label>
+          <input type="number" min="1" max="60" className="input-field" placeholder="5" value={form.puestos} onChange={e => set('puestos', e.target.value)} />
+        </div>
+        <div className="input-group">
+          <Label>Peso (kg)</Label>
+          <input type="number" min="0" className="input-field" placeholder="1500" value={form.peso} onChange={e => set('peso', e.target.value)} />
+        </div>
+        <div className="input-group">
+          <Label>Aparcamiento</Label>
+          <input type="text" className="input-field" placeholder="Garaje, Calle…" value={form.aparcamiento} onChange={e => set('aparcamiento', e.target.value)} />
+        </div>
+
+        {/* Documentos */}
+        <SecTitle>Documentos</SecTitle>
+        <div className="input-group">
+          <Label>Serial Carrocería</Label>
+          <input type="text" className="input-field" value={form.serial_carroceria} onChange={e => set('serial_carroceria', e.target.value)} />
+        </div>
+        <div className="input-group">
+          <Label>Serial Motor</Label>
+          <input type="text" className="input-field" value={form.serial_motor} onChange={e => set('serial_motor', e.target.value)} />
+        </div>
+        <div className="input-group">
+          <Label>Cert. Tránsito</Label>
+          <input type="text" className="input-field" value={form.certificado_transito} onChange={e => set('certificado_transito', e.target.value)} />
+        </div>
+        <div className="input-group">
+          <Label>Cert. Origen</Label>
+          <input type="text" className="input-field" value={form.certificado_origen} onChange={e => set('certificado_origen', e.target.value)} />
+        </div>
+        <div className="input-group">
+          <Label>Fecha Adquisición</Label>
+          <input type="date" className="input-field" value={form.fecha_adquisicion} onChange={e => set('fecha_adquisicion', e.target.value)} />
+        </div>
+        <div className="col-span-full input-group">
+          <Label>Título</Label>
+          <input type="text" className="input-field" value={form.titulo} onChange={e => set('titulo', e.target.value)} />
+        </div>
+      </div>
+    </ModalShell>
+  )
+}
+
+// ── Panel de documentos del cliente ─────────────────────────────────────────
+/**
+ * Muestra y gestiona los documentos del perfil del cliente.
+ * Carga en paralelo: documentos subidos, solicitudes del cliente y catálogo de
+ * productos. Cruza los datos para mostrar qué documentos obligatorios faltan.
+ *
+ * @param {Object}   c        Fila del cliente (id, nombre/nom, ci, est…)
+ * @param {Function} onSaved  Callback para notificar al padre tras subir/eliminar
+ */
+function ClienteDocumentosPanel({ c, onSaved }) {
+  const { closeModal, showToast } = useApp()
+  const [docs, setDocs]             = useState([])
+  const [solicitudes, setSolicitudes] = useState([])
+  const [productos, setProductos]   = useState([])
+  const [loading, setLoading]       = useState(true)
+  const [tipoDoc, setTipoDoc]       = useState('')
+  const [customNombre, setCustomNombre] = useState('')
+  const [file, setFile]             = useState(null)
+  const [uploading, setUploading]   = useState(false)
+  const [deletingId, setDeletingId] = useState(null)
+  const fileRef = useRef(null)
+
+  useEffect(() => {
+    if (!c) return
+    Promise.all([
+      fetchDocumentosCliente(c.id).catch(() => []),
+      fetchSolicitudesCliente(c.id).catch(() => []),
+      fetchProductos().catch(() => []),
+    ]).then(([d, s, p]) => {
+      setDocs(d)
+      setSolicitudes(s)
+      setProductos(p)
+      setLoading(false)
+    })
+  }, [c?.id])
+
+  // Mapa de productos por id para join rápido
+  const prodMap = useMemo(() => {
+    const m = {}
+    for (const p of productos) m[p.id] = p
+    return m
+  }, [productos])
+
+  // Requerimientos únicos: union de documentos_requeridos de todas las solicitudes.
+  // Usa el snapshot en coberturas si existe, sino el catálogo de productos.
+  const allRequired = useMemo(() => {
+    const seen = new Map()
+    for (const s of solicitudes) {
+      const fromSnap = s.coberturas?.documentos_requeridos
+      const fromProd = prodMap[s.producto_id]?.documentos_requeridos
+      const reqs = (fromSnap?.length ? fromSnap : fromProd) || []
+      for (const r of reqs) {
+        if (!seen.has(r.nombre)) seen.set(r.nombre, r)
+      }
+    }
+    return [...seen.values()]
+  }, [solicitudes, prodMap])
+
+  const uploadedNames = useMemo(
+    () => new Set(docs.map(d => d.nombre.toLowerCase())),
+    [docs]
+  )
+
+  const missingObligatory = allRequired.filter(
+    r => r.obligatorio && !uploadedNames.has(r.nombre.toLowerCase())
+  )
+
+  const handleUpload = async () => {
+    const docNombre = (tipoDoc && tipoDoc !== '__custom__') ? tipoDoc : customNombre.trim()
+    if (!file || !docNombre) {
+      showToast('Selecciona el tipo de documento y el archivo', 'error')
+      return
+    }
+    setUploading(true)
+    try {
+      const result = await uploadDocumentoCliente(c.id, docNombre, file)
+      setDocs(prev => [...prev, result])
+      setTipoDoc('')
+      setCustomNombre('')
+      setFile(null)
+      if (fileRef.current) fileRef.current.value = ''
+      onSaved?.()
+    } catch (err) {
+      showToast(err.message, 'error')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleDelete = async (id) => {
+    setDeletingId(id)
+    try {
+      await deleteDocumentoCliente(c.id, id)
+      setDocs(prev => prev.filter(d => d.id !== id))
+      onSaved?.()
+    } catch (err) {
+      showToast(err.message, 'error')
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  if (!c) return null
+
+  const docNombreActual = (tipoDoc && tipoDoc !== '__custom__') ? tipoDoc : customNombre.trim()
+
+  return (
+    <ModalShell title={`Documentos — ${c.nombre || c.nom}`} wide footer={
+      <button onClick={closeModal} className="btn-secondary">Cerrar</button>
+    }>
+      {loading ? (
+        <div className="flex items-center gap-2 py-8 text-slate-400 text-sm">
+          <div className="w-4 h-4 border-2 border-slate-300 border-t-blue-500 rounded-full animate-spin shrink-0" />
+          Cargando documentos…
+        </div>
+      ) : (
+        <div className="space-y-5">
+
+          {/* Alerta de documentos obligatorios faltantes */}
+          {missingObligatory.length > 0 && (
+            <div className="flex items-start gap-2.5 p-3 bg-rose-50 border border-rose-200 rounded-xl">
+              <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-rose-700 mb-1">
+                  {missingObligatory.length} documento{missingObligatory.length !== 1 ? 's' : ''} obligatorio{missingObligatory.length !== 1 ? 's' : ''} pendiente{missingObligatory.length !== 1 ? 's' : ''}
+                </p>
+                <p className="text-xs text-rose-600 leading-relaxed">
+                  {missingObligatory.map(d => d.nombre).join(' · ')}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {allRequired.length > 0 && missingObligatory.length === 0 && (
+            <div className="flex items-center gap-2.5 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+              <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+              <p className="text-xs font-semibold text-emerald-700">
+                Todos los documentos obligatorios están cargados.
+              </p>
+            </div>
+          )}
+
+          {/* Lista de documentos cargados */}
+          <div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
+              Documentos cargados ({docs.length})
+            </p>
+            {docs.length === 0 ? (
+              <div className="py-6 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                <FileText className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+                <p className="text-sm text-slate-400">Sin documentos cargados</p>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {docs.map(d => (
+                  <div key={d.id} className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0">
+                      <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-slate-700 truncate">{d.nombre}</p>
+                      {d.mime && <p className="text-[10px] text-slate-400 mt-0.5">{d.mime}</p>}
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      <a
+                        href={d.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition inline-flex items-center justify-center"
+                        title="Ver documento"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </a>
+                      <button
+                        onClick={() => handleDelete(d.id)}
+                        disabled={deletingId === d.id}
+                        className="p-1.5 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition inline-flex items-center justify-center disabled:opacity-50"
+                        title="Eliminar"
+                      >
+                        {deletingId === d.id
+                          ? <div className="w-3.5 h-3.5 border-2 border-rose-300 border-t-rose-600 rounded-full animate-spin" />
+                          : <Trash2 className="w-3.5 h-3.5" />
+                        }
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Formulario de subida */}
+          <div className="pt-3 border-t border-slate-100">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Agregar Documento</p>
+            <div className="space-y-2.5">
+              {allRequired.length > 0 ? (
+                <div>
+                  <label className="field-label">Tipo de documento <span className="text-rose-500">*</span></label>
+                  <select
+                    className="select-field"
+                    value={tipoDoc}
+                    onChange={e => { setTipoDoc(e.target.value); setCustomNombre('') }}
+                  >
+                    <option value="">— Seleccionar —</option>
+                    {allRequired.map(r => (
+                      <option key={r.nombre} value={r.nombre}>
+                        {r.nombre}{r.obligatorio ? ' *' : ''}
+                        {uploadedNames.has(r.nombre.toLowerCase()) ? ' ✓' : ''}
+                      </option>
+                    ))}
+                    <option value="__custom__">Otro (escribir)…</option>
+                  </select>
+                  {tipoDoc === '__custom__' && (
+                    <input
+                      className="input-field mt-2"
+                      placeholder="Nombre del documento…"
+                      value={customNombre}
+                      onChange={e => setCustomNombre(e.target.value)}
+                    />
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <label className="field-label">Nombre del documento <span className="text-rose-500">*</span></label>
+                  <input
+                    className="input-field"
+                    placeholder="Ej. Cédula de Identidad, RIF, Carnet de Conducir…"
+                    value={customNombre}
+                    onChange={e => setCustomNombre(e.target.value)}
+                  />
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  className="flex-1 flex items-center gap-2 p-2.5 rounded-xl border-2 border-dashed border-slate-200 text-slate-500 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition text-sm"
+                >
+                  <Upload className="w-4 h-4 shrink-0" />
+                  <span className="truncate">{file ? file.name : 'Seleccionar archivo…'}</span>
+                </button>
+                <button
+                  onClick={handleUpload}
+                  disabled={uploading || !file || !docNombreActual}
+                  className="btn-primary disabled:opacity-50"
+                >
+                  {uploading
+                    ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    : <Check className="w-4 h-4" />
+                  }
+                  Subir
+                </button>
+              </div>
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                className="hidden"
+                onChange={e => setFile(e.target.files?.[0] ?? null)}
+              />
+              <p className="text-[10px] text-slate-400">PDF, JPG, PNG, DOC · Máx. 10 MB</p>
+            </div>
+          </div>
+
+          {/* Estado de requerimientos */}
+          {allRequired.length > 0 && (
+            <div className="pt-3 border-t border-slate-100">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
+                Estado de requerimientos
+              </p>
+              <div className="space-y-1.5">
+                {allRequired.map(r => {
+                  const present = uploadedNames.has(r.nombre.toLowerCase())
+                  return (
+                    <div
+                      key={r.nombre}
+                      className={`flex items-center gap-2.5 px-3 py-2 rounded-xl ${
+                        present
+                          ? 'bg-emerald-50 border border-emerald-100'
+                          : r.obligatorio
+                            ? 'bg-rose-50 border border-rose-100'
+                            : 'bg-slate-50 border border-slate-100'
+                      }`}
+                    >
+                      {present
+                        ? <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                        : r.obligatorio
+                          ? <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
+                          : <Clock className="w-4 h-4 text-slate-400 shrink-0" />
+                      }
+                      <p className={`flex-1 text-xs font-medium truncate ${
+                        present ? 'text-emerald-700' : r.obligatorio ? 'text-rose-700' : 'text-slate-500'
+                      }`}>{r.nombre}</p>
+                      {r.obligatorio && !present && (
+                        <span className="text-[10px] font-bold text-rose-500 bg-rose-100 px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap">
+                          Pendiente
+                        </span>
+                      )}
+                      {present && (
+                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap">
+                          Presente
+                        </span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+              <p className="text-[10px] text-slate-400 mt-2.5 leading-relaxed">
+                * Requerimientos basados en las solicitudes registradas del cliente.
+                Los campos marcados con * son obligatorios.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+    </ModalShell>
+  )
+}
+
+// ── Constantes del formulario de cliente ─────────────────────────────────────
+const ESTADOS_VE_OPT = [
+  'Amazonas','Anzoátegui','Apure','Aragua','Barinas','Bolívar','Carabobo',
+  'Cojedes','Delta Amacuro','Distrito Capital','Falcón','Guárico','Lara',
+  'Mérida','Miranda','Monagas','Nueva Esparta','Portuguesa','Sucre',
+  'Táchira','Trujillo','La Guaira','Yaracuy','Zulia',
+]
+const CL_CONDICION    = ['Soltero/a', 'Casado/a', 'Viudo/a', 'Divorciado/a', 'Concubino/a']
+const CL_SEXO         = ['Masculino', 'Femenino']
+const CL_NACIONALIDAD = ['Venezolano/a', 'Extranjero/a']
+
+// ── Formulario de cliente (crear / editar) ────────────────────────────────────
+function ClienteFormModal({ cliente, onSave }) {
+  const { closeModal, showToast } = useApp()
+  const isNew = !cliente?.id
+  const [form, setForm] = useState({
+    nombre:        cliente?.nombre || '',
+    cedula:        cliente?.cedula || cliente?.ci || '',
+    condicion:     cliente?.condicion || '',
+    sexo:          cliente?.sexo || '',
+    nacimiento:    cliente?.nacimiento || '',
+    nacionalidad:  cliente?.nacionalidad || '',
+    telefono:      cliente?.telefono || '',
+    celular:       cliente?.celular || '',
+    correo:        cliente?.correo || cliente?.email || '',
+    estado:        cliente?.estado || '',
+    ciudad:        cliente?.ciudad || '',
+    codigo_postal: cliente?.codigo_postal || '',
+    direccion:     cliente?.direccion || '',
+    profesion:     cliente?.profesion || '',
+    actividad:     cliente?.actividad || '',
+  })
+  const [saving, setSaving] = useState(false)
+  const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }))
+
+  const handleSave = async () => {
+    if (!form.nombre.trim())    { showToast('El nombre es obligatorio', 'error'); return }
+    if (!form.cedula.trim())    { showToast('La cédula / RIF es obligatoria', 'error'); return }
+    if (!form.correo.trim())    { showToast('El correo electrónico es obligatorio', 'error'); return }
+    if (!form.estado)           { showToast('Selecciona el estado', 'error'); return }
+    if (!form.ciudad.trim())    { showToast('La ciudad es obligatoria', 'error'); return }
+    if (!form.direccion.trim()) { showToast('La dirección es obligatoria', 'error'); return }
+    setSaving(true)
+    try {
+      await onSave(form)
+      closeModal()
+      showToast(isNew ? 'Cliente creado correctamente' : 'Cliente actualizado', 'success')
+    } catch (err) {
+      showToast(err.message || 'Error al guardar', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const Lbl = ({ children, req }) => (
+    <label className="field-label">{children}{req && <span className="text-rose-500 ml-0.5">*</span>}</label>
+  )
+
+  return (
+    <ModalShell
+      title={isNew ? 'Nuevo Cliente' : `Editar — ${cliente.nombre || cliente.nom}`}
+      maxW="max-w-3xl"
+      footer={
+        <>
+          <button onClick={closeModal} disabled={saving} className="btn-secondary">Cancelar</button>
+          <button onClick={handleSave} disabled={saving} className="btn-primary disabled:opacity-60">
+            {saving
+              ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Guardando…</>
+              : <><Check className="w-4 h-4" />{isNew ? 'Crear Cliente' : 'Guardar'}</>}
+          </button>
+        </>
+      }
+    >
+      <div className="grid grid-cols-2 gap-x-6">
+        {/* ── Columna izquierda: Datos Personales ── */}
+        <div>
+          <SecHdr Icon={UserCheck}>Datos Personales</SecHdr>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <Lbl req>Nombre completo</Lbl>
+              <input className="input-field" value={form.nombre} onChange={f('nombre')} placeholder="Nombre y Apellido" />
+            </div>
+            <div>
+              <Lbl req>CI / RIF</Lbl>
+              <input className="input-field" value={form.cedula} onChange={f('cedula')} placeholder="V-00.000.000" />
+            </div>
+            <div>
+              <Lbl req>Condición civil</Lbl>
+              <select className="select-field" value={form.condicion} onChange={f('condicion')}>
+                <option value="">— Seleccionar —</option>
+                {CL_CONDICION.map(o => <option key={o}>{o}</option>)}
+              </select>
+            </div>
+            <div>
+              <Lbl req>Sexo</Lbl>
+              <select className="select-field" value={form.sexo} onChange={f('sexo')}>
+                <option value="">— Seleccionar —</option>
+                {CL_SEXO.map(o => <option key={o}>{o}</option>)}
+              </select>
+            </div>
+            <div>
+              <Lbl req>Fecha de nacimiento</Lbl>
+              <input type="date" className="input-field" value={form.nacimiento} onChange={f('nacimiento')} />
+            </div>
+            <div className="col-span-2">
+              <Lbl req>Nacionalidad</Lbl>
+              <select className="select-field" value={form.nacionalidad} onChange={f('nacionalidad')}>
+                <option value="">— Seleccionar —</option>
+                {CL_NACIONALIDAD.map(o => <option key={o}>{o}</option>)}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Columna derecha: Contacto + Dirección + Actividad ── */}
+        <div className="space-y-5 pl-6 border-l border-slate-100">
+          <div>
+            <SecHdr Icon={Phone}>Contacto</SecHdr>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Lbl>Teléfono fijo</Lbl>
+                <input className="input-field" value={form.telefono} onChange={f('telefono')} placeholder="0212-000-0000" />
+              </div>
+              <div>
+                <Lbl>Celular</Lbl>
+                <input className="input-field" value={form.celular} onChange={f('celular')} placeholder="+58 414-000-0000" />
+              </div>
+              <div className="col-span-2">
+                <Lbl req>Correo electrónico</Lbl>
+                <input type="email" className="input-field" value={form.correo} onChange={f('correo')} placeholder="correo@ejemplo.com" />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <SecHdr Icon={MapPin}>Dirección</SecHdr>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Lbl req>Estado</Lbl>
+                <select className="select-field" value={form.estado} onChange={f('estado')}>
+                  <option value="">— Seleccionar —</option>
+                  {ESTADOS_VE_OPT.map(o => <option key={o}>{o}</option>)}
+                </select>
+              </div>
+              <div>
+                <Lbl req>Ciudad</Lbl>
+                <input className="input-field" value={form.ciudad} onChange={f('ciudad')} placeholder="Ciudad o municipio" />
+              </div>
+              <div>
+                <Lbl>Código postal</Lbl>
+                <input className="input-field" value={form.codigo_postal} onChange={f('codigo_postal')} placeholder="1010" />
+              </div>
+              <div className="col-span-2">
+                <Lbl req>Dirección</Lbl>
+                <textarea rows={2} className="input-field resize-none" value={form.direccion} onChange={f('direccion')} placeholder="Av. Principal, Edif. …" />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <SecHdr Icon={Briefcase}>Actividad Económica</SecHdr>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Lbl>Profesión</Lbl>
+                <input className="input-field" value={form.profesion} onChange={f('profesion')} placeholder="Ej. Ingeniero, Médico…" />
+              </div>
+              <div>
+                <Lbl>Actividad económica</Lbl>
+                <input className="input-field" value={form.actividad} onChange={f('actividad')} placeholder="Ej. Comercio, Servicios…" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </ModalShell>
+  )
+}
+
+// ── Despachador principal ────────────────────────────────────────────────────
+/**
+ * Lee el modal activo del contexto global y renderiza el componente correspondiente.
+ * Si no hay modal abierto (modal === null) no renderiza nada.
+ */
+export default function Modal() {
+  const { modal } = useApp()
+  if (!modal) return null
+
+  const { type, props } = modal
+  switch (type) {
+    case 'confirmDelete':   return <ConfirmDeleteModal {...props} />
+    case 'editForm':        return <EditFormModal {...props} />
+    case 'renovar':              return <RenovarModal {...props} />
+    case 'emitirCotizacion':     return <EmitirCotizacionModal {...props} />
+    case 'vehiculoForm':    return <VehiculoFormModal {...props} />
+    case 'vehiculoDetail':  return <VehiculoDetailModal {...props} />
+    case 'productoDetail':  return <ProductoDetailModal {...props} />
+    case 'productoTasas':        return <ProductoTasasModal {...props} />
+    case 'productoDocumentos':   return <ProductoDocumentosModal {...props} />
+    case 'newUser':         return <NewUserModal {...props} />
+    case 'editUser':        return <EditUserModal {...props} />
+    case 'changeRole':      return <ChangeRoleModal {...props} />
+    case 'userPerms':       return <UserPermsModal {...props} />
+    case 'blockUser':       return <BlockUserModal {...props} />
+    case 'blockCliente':    return <BlockClienteModal {...props} />
+    case 'clienteForm':     return <ClienteFormModal {...props} />
+    case 'clienteDetail':   return <ClienteDetailModal {...props} />
+    case 'clienteDocs':     return <ClienteDocsModal {...props} />
+    case 'clienteFacturas': return <ClienteFacturasModal {...props} />
+    case 'ajustarPoliza':        return <AjustarPolizaModal {...props} />
+    case 'clienteSolicitudes':  return <ClienteSolicitudesModal {...props} />
+    case 'clienteHistorial':      return <ClienteHistorialModal {...props} />
+    case 'clienteDocumentos':     return <ClienteDocumentosPanel {...props} />
+    default:                      return null
+  }
+}

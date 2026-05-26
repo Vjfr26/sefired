@@ -1,0 +1,86 @@
+services:
+
+  db:
+    image: mysql:8.0
+    container_name: sefired-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+    ports:
+      - "${DB_PORT}:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+      - "./BD/sefired (1).sql:/docker-entrypoint-initdb.d/init.sql:ro"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-p${DB_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./Backend
+      dockerfile: Dockerfile
+    container_name: sefired-backend
+    restart: unless-stopped
+    environment:
+      APP_NAME: Sefired
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_KEY: ${APP_KEY}
+      APP_URL: ${APP_URL}
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_DATABASE: ${DB_NAME}
+      DB_USERNAME: root
+      DB_PASSWORD: ${DB_ROOT_PASSWORD}
+      SESSION_DRIVER: database
+      CACHE_STORE: database
+      QUEUE_CONNECTION: database
+      FILESYSTEM_DISK: local
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+    ports:
+      - "${BACKEND_PORT}:8000"
+    volumes:
+      - ./Backend:/var/www
+      - /var/www/vendor
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend-interno:
+    build:
+      context: ./FrontEnd_Interno
+      dockerfile: Dockerfile
+    container_name: sefired-frontend-interno
+    restart: unless-stopped
+    environment:
+      # En Docker el proxy de Vite apunta al servicio "backend" por nombre de red.
+      # BACKEND_URL es para el proxy de Vite (server-side); VITE_API_URL es para el build.
+      BACKEND_URL: http://backend:8000
+      VITE_API_URL: ${VITE_API_URL_INTERNO}
+    ports:
+      - "${FRONTEND_INTERNO_PORT}:5173"
+    volumes:
+      - ./FrontEnd_Interno:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+
+  frontend-clientes:
+    build:
+      context: ./FrontEnd_Clientes
+      dockerfile: Dockerfile
+    container_name: sefired-frontend-clientes
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: ${VITE_API_URL_CLIENTES}
+    ports:
+      - "${FRONTEND_CLIENTES_PORT}:5174"
+    volumes:
+      - ./FrontEnd_Clientes:/app
+      - /app/node_modules
+
+volumes:
+  db_data:

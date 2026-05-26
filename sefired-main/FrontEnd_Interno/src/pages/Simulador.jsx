@@ -1,0 +1,1510 @@
+/**
+ * Simulador de Cotizaciones — Wizard dinámico de 5 pasos.
+ *
+ * Paso 1: Seleccionar producto (carga tipo_calculo y documentos_requeridos)
+ * Paso 2: Cliente (nuevo o existente)
+ * Paso 3: Bien asegurado (vehículo si requiere_vehiculo, sino datos del asegurado)
+ * Paso 4: Tarifario / Plan (driven by producto.tipo_calculo)
+ * Paso 5: Documentos + Resumen + Enviar
+ */
+import { useState, useEffect, useCallback, useRef } from 'react'
+import {
+  ShieldCheck, Calculator, Check, ArrowRight, ArrowLeft,
+  Car, User, Shield, FileCheck, X, Info, CheckCircle, Pencil,
+  Download, Trash2, Clock, XCircle, Search, UserCheck, Plus,
+  DollarSign, Package, Users, FileText, Upload, AlertTriangle,
+  Layers, ClipboardList, ChevronDown, Star,
+} from 'lucide-react'
+import { useApp } from '../context/AppContext.jsx'
+import { usd, fmtTasa, pdfPage, pdfHdr, pdfSec, pdfRow, pdfTotal, pdfFooterSimple } from '../utils/helpers.jsx'
+import { fetchClientes, createCliente } from '../api/clientes.js'
+import { fetchTasas } from '../api/tasas.js'
+import { fetchProductos } from '../api/productos.js'
+import { fetchTarifario } from '../api/tarifario.js'
+import { fetchCotizaciones, createCotizacion, updateCotizacion, deleteCotizacion } from '../api/solicitudes.js'
+import { fetchUnderwriting, createUnderwriting } from '../api/underwriting.js'
+import { fetchDocumentosCliente, uploadDocumentoCliente, deleteDocumentoCliente } from '../api/clienteDocumentos.js'
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const STATUS_BADGE = {
+  'En Revisión': 'bg-amber-100 text-amber-700',
+  'Aprobado':    'bg-blue-100 text-blue-700',
+  'Emitida':     'bg-emerald-100 text-emerald-700',
+  'Rechazado':   'bg-rose-100 text-rose-700',
+}
+
+function StatusBadge({ status }) {
+  return (
+    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${STATUS_BADGE[status] ?? 'bg-slate-100 text-slate-500'}`}>
+      {status}
+    </span>
+  )
+}
+
+function freshState() {
+  return {
+    // Paso 1
+    producto_id:   null,
+    producto:      null,   // objeto completo del producto
+    // Paso 2
+    cliente_id:    null,
+    cliente_nuevo: false,
+    nombre:        '', ci: '', tel: '', email: '',
+    direccion:     '', nacimiento: '', sexo: 'M',
+    // Paso 3 — vehículo
+    placa: '', marca: 'Toyota', modelo: '', año: String(new Date().getFullYear()),
+    color: '', uso: 'Particular', valor: 15000,
+    // Paso 3 — asegurado (no vehículo)
+    asegurado_nombre: '', asegurado_ci: '',
+    // Paso 4 — tarifario
+    tarifario_id: null,
+    tarifa:       null,   // fila seleccionada
+    // Paso 4 — por_valor
+    valor_declarado: 0,
+    // Coberturas calculadas (snapshot)
+    coberturas: {},
+  }
+}
+
+function simFromCot(q) {
+  const cobs = q.coberturas || {}
+  return {
+    producto_id:      q.producto_id ?? null,
+    producto:         null,
+    cliente_id:       q.cliente_id,
+    cliente_nuevo:    false,
+    nombre:           q.nombre  || '',
+    ci:               q.ci      || '',
+    tel: '', email: '', direccion: '', nacimiento: '', sexo: 'M',
+    placa:            q.placa   || '',
+    marca:            cobs.marca  || 'Toyota',
+    modelo:           cobs.modelo || '',
+    año:              String(cobs.año || new Date().getFullYear()),
+    color:            cobs.color  || '',
+    uso:              cobs.uso    || 'Particular',
+    valor:            parseFloat(cobs.valor_mercado) || 15000,
+    asegurado_nombre: q.asegurado_nombre || '',
+    asegurado_ci:     q.asegurado_ci     || '',
+    tarifario_id:     q.tarifario_id ?? null,
+    tarifa:           null,
+    valor_declarado:  parseFloat(cobs.valor_declarado) || 0,
+    coberturas:       cobs,
+  }
+}
+
+// ── Barra de pasos ────────────────────────────────────────────────────────────
+const STEPS = [
+  { label: 'Producto',  Icon: Shield    },
+  { label: 'Cliente',   Icon: User      },
+  { label: 'Bien',      Icon: Car       },
+  { label: 'Tarifa',    Icon: Calculator },
+  { label: 'Confirmar', Icon: FileCheck },
+]
+
+function SimBar({ active }) {
+  return (
+    <div className="flex items-center select-none">
+      {STEPS.map((s, i) => {
+        const n = i + 1, done = n < active, cur = n === active
+        return (
+          <div key={i} className="flex items-center" style={{ flex: i < STEPS.length - 1 ? '1' : '0 0 auto' }}>
+            <div className="flex flex-col items-center" style={{ flexShrink: 0, width: '4.5rem' }}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all ${
+                done ? 'bg-emerald-500 text-white'
+                     : cur ? 'bg-sefired-blue text-white shadow-[0_0_0_4px_rgba(0,20,99,0.15)]'
+                           : 'bg-slate-100 text-slate-400'
+              }`}>
+                {done ? <Check className="w-3.5 h-3.5" /> : n}
+              </div>
+              <p className={`text-[9px] font-bold mt-1 text-center leading-tight ${
+                done ? 'text-emerald-500' : cur ? 'text-sefired-blue' : 'text-slate-400'
+              }`}>{s.label}</p>
+            </div>
+            {i < STEPS.length - 1 && (
+              <div className={`flex-1 h-0.5 mb-5 mx-1 transition-colors ${done ? 'bg-emerald-400' : 'bg-slate-200'}`} />
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── Shell del wizard ──────────────────────────────────────────────────────────
+function SimShell({ step, size = 'md', onClose, footer, children }) {
+  const maxW = { sm: 'max-w-xl', md: 'max-w-2xl', lg: 'max-w-3xl', xl: 'max-w-4xl', xxl: 'max-w-5xl' }[size] || 'max-w-2xl'
+  return (
+    <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-2 sm:p-4 backdrop-blur-sm">
+      <div className={`bg-white rounded-3xl shadow-2xl w-full ${maxW} max-h-[95vh] flex flex-col overflow-hidden animate-in zoom-in duration-200`}>
+        <div className="px-5 sm:px-7 pt-5 pb-4 border-b border-slate-100 shrink-0">
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0" style={{ background: 'linear-gradient(135deg,#001463,#000c3b)' }}>
+                <Calculator className="w-5 h-5 text-white" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sefired · Simulador de Seguros</p>
+                <h3 className="text-base font-black text-slate-800">Cotización</h3>
+              </div>
+            </div>
+            <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-xl transition shrink-0">
+              <X className="w-4 h-4 text-slate-500" />
+            </button>
+          </div>
+          <SimBar active={step} />
+        </div>
+        <div className="flex-1 overflow-y-auto p-5 sm:p-7">{children}</div>
+        {footer && (
+          <div className="px-5 sm:px-7 py-4 border-t border-slate-100 flex flex-wrap gap-2 justify-between items-center shrink-0">
+            {footer}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function SecLabel({ icon: Icon, label }) {
+  return (
+    <div className="flex items-center gap-2 mb-3 mt-4 first:mt-0">
+      <div className="w-4 h-4 rounded-md bg-slate-100 flex items-center justify-center shrink-0">
+        <Icon className="w-2.5 h-2.5 text-slate-500" />
+      </div>
+      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{label}</span>
+    </div>
+  )
+}
+
+// ── PASO 1: Seleccionar Producto ──────────────────────────────────────────────
+const CAT_ICON = { vehicular: Car, bienes: Package, personas: Users }
+
+function Step1({ sim, setSim, onNext, onClose, productos }) {
+  const [err, setErr] = useState('')
+
+  const handleNext = () => {
+    if (!sim.producto_id) { setErr('Selecciona un producto para continuar.'); return }
+    setErr('')
+    onNext()
+  }
+
+  return (
+    <SimShell step={1} size="xl" onClose={onClose} footer={
+      <>
+        <button onClick={onClose} className="btn-secondary">Cancelar</button>
+        {sim.producto_id && (
+          <button onClick={handleNext} className="btn-primary">Continuar <ArrowRight className="w-4 h-4" /></button>
+        )}
+      </>
+    }>
+      {err && <p className="mb-3 text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2">{err}</p>}
+      <SecLabel icon={Shield} label="Tipo de póliza" />
+
+      {productos.length === 0 ? (
+        <div className="text-center py-12 text-slate-400 text-sm">
+          <AlertTriangle className="w-8 h-8 mx-auto mb-2 opacity-30" />
+          No hay productos configurados. Un administrador debe crear productos primero.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {productos.map(p => {
+            const CatIcon = CAT_ICON[p.categoria] ?? Shield
+            const on = sim.producto_id === p.id
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setSim(prev => ({ ...prev, producto_id: p.id, producto: p }))}
+                className={`flex items-start gap-3 p-4 rounded-2xl border-2 text-left transition-all ${on ? 'border-sefired-blue bg-blue-50/50' : 'border-slate-200 hover:border-slate-300'}`}
+              >
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${on ? 'bg-sefired-blue' : 'bg-slate-100'}`}>
+                  <CatIcon className={`w-4.5 h-4.5 ${on ? 'text-white' : 'text-slate-500'}`} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className={`text-sm font-bold ${on ? 'text-sefired-blue' : 'text-slate-800'}`}>{p.nombre}</p>
+                  {p.codigo && <p className="text-[10px] font-mono text-slate-400">{p.codigo}</p>}
+                  <p className="text-xs text-slate-400 mt-0.5 line-clamp-2">{p.descripcion}</p>
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-semibold">{p.tipo_calculo}</span>
+                    {p.requiere_vehiculo && <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-600 font-semibold">Vehículo</span>}
+                    {p.derecho_poliza > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">+ {usd(p.derecho_poliza)}</span>}
+                  </div>
+                </div>
+                {on && <Check className="w-4 h-4 text-sefired-blue shrink-0 mt-0.5" />}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Documentos requeridos del producto seleccionado */}
+      {sim.producto?.documentos_requeridos?.length > 0 && (
+        <div className="mt-4 p-3.5 rounded-2xl bg-amber-50 border border-amber-100">
+          <p className="text-xs font-bold text-amber-700 mb-2 flex items-center gap-1.5">
+            <FileText className="w-3.5 h-3.5" /> Documentos requeridos para este producto
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {sim.producto.documentos_requeridos.map(d => (
+              <span key={d.nombre} className={`text-[11px] px-2 py-1 rounded-lg font-medium ${d.obligatorio ? 'bg-amber-100 text-amber-800' : 'bg-white text-slate-500 border border-slate-200'}`}>
+                {d.obligatorio ? '* ' : ''}{d.nombre}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </SimShell>
+  )
+}
+
+// ── PASO 2: Cliente ───────────────────────────────────────────────────────────
+function Step2({ sim, setSim, onNext, onBack, onClose }) {
+  const [query,    setQuery]    = useState('')
+  const [clientes, setClientes] = useState([])
+  const [results,  setResults]  = useState([])
+  const [selected, setSelected] = useState(!!sim.cliente_id)
+  const [modo,     setModo]     = useState('buscar') // 'buscar' | 'nuevo'
+  const [err,      setErr]      = useState('')
+  const [saving,   setSaving]   = useState(false)
+
+  const [nuevoForm, setNuevoForm] = useState({
+    nombre: sim.nombre || '', ci: sim.ci || '',
+    tel: sim.tel || '', email: sim.email || '',
+    direccion: sim.direccion || '', nacimiento: sim.nacimiento || '',
+    sexo: sim.sexo || 'M',
+    condicion: '', nacionalidad: 'Venezolano/a',
+    estado: 'Distrito Capital', ciudad: '',
+  })
+  const setNf = (k, v) => setNuevoForm(prev => ({ ...prev, [k]: v }))
+
+  useEffect(() => {
+    fetchClientes().then(setClientes).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (!query.trim()) { setResults([]); return }
+    const q = query.toLowerCase()
+    setResults(clientes.filter(c => c.nom.toLowerCase().includes(q) || c.ci.toLowerCase().includes(q)).slice(0, 6))
+  }, [query, clientes])
+
+  const selectClient = (c) => {
+    setSim(prev => ({ ...prev, cliente_id: c.id, cliente_nuevo: false, nombre: c.nom || c.nombre, ci: c.ci || c.cedula, tel: c.tel || c.celular || '', email: c.email || c.correo || '' }))
+    setSelected(true); setQuery(''); setResults([])
+  }
+
+  const clearClient = () => {
+    setSim(prev => ({ ...prev, cliente_id: null, cliente_nuevo: false, nombre: '', ci: '', tel: '', email: '' }))
+    setSelected(false)
+  }
+
+  const crearCliente = async () => {
+    if (!nuevoForm.nombre.trim()) { setErr('El nombre es obligatorio.'); return }
+    if (!nuevoForm.ci.trim())     { setErr('La cédula / RIF es obligatoria.'); return }
+    if (!nuevoForm.condicion)     { setErr('La condición civil es obligatoria.'); return }
+    if (!nuevoForm.email.trim())  { setErr('El correo electrónico es obligatorio.'); return }
+    if (!nuevoForm.ciudad.trim()) { setErr('La ciudad es obligatoria.'); return }
+    if (!nuevoForm.nacimiento)    { setErr('La fecha de nacimiento es obligatoria.'); return }
+    setSaving(true); setErr('')
+    try {
+      const res = await createCliente({
+        nombre: nuevoForm.nombre, cedula: nuevoForm.ci,
+        telefono: nuevoForm.tel, correo: nuevoForm.email,
+        direccion: nuevoForm.direccion, nacimiento: nuevoForm.nacimiento,
+        sexo: nuevoForm.sexo === 'M' ? 'Masculino' : 'Femenino',
+        condicion: nuevoForm.condicion,
+        nacionalidad: nuevoForm.nacionalidad,
+        estado: nuevoForm.estado,
+        ciudad: nuevoForm.ciudad,
+      })
+      setSim(prev => ({ ...prev, cliente_id: res.id, cliente_nuevo: true, ...nuevoForm }))
+      setSelected(true); setModo('buscar')
+    } catch (e) {
+      setErr(e.message || 'Error al crear cliente')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleNext = () => {
+    if (!sim.cliente_id) { setErr('Debes seleccionar o crear un cliente.'); return }
+    setErr(''); onNext()
+  }
+
+  const inp = 'input-field text-sm'
+  const lbl = 'field-label'
+
+  return (
+    <SimShell step={2} size="xl" onClose={onClose} footer={
+      <>
+        <button onClick={onBack} className="btn-secondary"><ArrowLeft className="w-4 h-4" /> Anterior</button>
+        {sim.cliente_id && (
+          <button onClick={handleNext} className="btn-primary">Continuar <ArrowRight className="w-4 h-4" /></button>
+        )}
+      </>
+    }>
+      {/* Producto seleccionado — resumen */}
+      {sim.producto && (
+        <div className="mb-4 p-3 rounded-2xl border border-slate-200 bg-slate-50/70 flex items-center gap-3">
+          <Shield className="w-4 h-4 text-sefired-blue shrink-0" />
+          <p className="text-sm font-bold text-slate-700 truncate">{sim.producto.nombre}</p>
+        </div>
+      )}
+
+      {err && <p className="mb-3 text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2">{err}</p>}
+
+      {/* Tabs: buscar | nuevo */}
+      {!selected && (
+        <div className="flex gap-1 mb-4 bg-slate-100 p-1 rounded-2xl w-fit">
+          {[['buscar', 'Cliente existente'], ['nuevo', 'Nuevo cliente']].map(([m, label]) => (
+            <button
+              key={m}
+              onClick={() => { setModo(m); setErr('') }}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${modo === m ? 'bg-white text-sefired-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {selected ? (
+        <div className="p-4 rounded-2xl border-2 border-emerald-200 bg-emerald-50/40">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+              <UserCheck className="w-4 h-4 text-emerald-600" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-slate-800 truncate">{sim.nombre}</p>
+              <p className="text-xs font-mono text-slate-500">{sim.ci}</p>
+              {sim.cliente_nuevo && <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">Nuevo</span>}
+            </div>
+            <button onClick={clearClient} className="p-1.5 hover:bg-emerald-100 rounded-xl transition shrink-0">
+              <X className="w-4 h-4 text-emerald-600" />
+            </button>
+          </div>
+        </div>
+      ) : modo === 'buscar' ? (
+        <div>
+          <SecLabel icon={Search} label="Buscar cliente existente" />
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input className="input-field pl-9" placeholder="Buscar por nombre o CI…" value={query} onChange={e => setQuery(e.target.value)} autoFocus />
+          </div>
+          {results.length > 0 && (
+            <div className="mt-1 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden">
+              {results.map(c => (
+                <button key={c.id} onClick={() => selectClient(c)}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition text-left border-b border-slate-50 last:border-0">
+                  <div className="w-8 h-8 rounded-full bg-sefired-blue/10 flex items-center justify-center shrink-0">
+                    <User className="w-4 h-4 text-sefired-blue" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-slate-800 truncate">{c.nom}</p>
+                    <p className="text-xs font-mono text-slate-400">{c.ci}</p>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${c.est === 'Activo' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>{c.est}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {query && results.length === 0 && (
+            <p className="mt-2 text-xs text-slate-400 text-center">No se encontró ningún cliente con ese criterio.</p>
+          )}
+        </div>
+      ) : (
+        <div>
+          <SecLabel icon={Users} label="Datos del nuevo cliente" />
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="col-span-2 sm:col-span-3">
+              <label className={lbl}>Nombre completo <span className="text-rose-500">*</span></label>
+              <input className={inp} value={nuevoForm.nombre} onChange={e => setNf('nombre', e.target.value)} placeholder="Juan Pérez" />
+            </div>
+            <div>
+              <label className={lbl}>Cédula / RIF <span className="text-rose-500">*</span></label>
+              <input className={`${inp} font-mono`} value={nuevoForm.ci} onChange={e => setNf('ci', e.target.value)} placeholder="V-12345678" />
+            </div>
+            <div>
+              <label className={lbl}>Sexo</label>
+              <select className="select-field text-sm" value={nuevoForm.sexo} onChange={e => setNf('sexo', e.target.value)}>
+                <option value="M">Masculino</option>
+                <option value="F">Femenino</option>
+              </select>
+            </div>
+            <div>
+              <label className={lbl}>Condición civil <span className="text-rose-500">*</span></label>
+              <select className="select-field text-sm" value={nuevoForm.condicion} onChange={e => setNf('condicion', e.target.value)}>
+                <option value="">— Seleccionar —</option>
+                {['Soltero/a','Casado/a','Viudo/a','Divorciado/a','Concubino/a'].map(o => <option key={o}>{o}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={lbl}>Nacimiento <span className="text-rose-500">*</span></label>
+              <input className={inp} type="date" value={nuevoForm.nacimiento} onChange={e => setNf('nacimiento', e.target.value)} />
+            </div>
+            <div>
+              <label className={lbl}>Nacionalidad</label>
+              <select className="select-field text-sm" value={nuevoForm.nacionalidad} onChange={e => setNf('nacionalidad', e.target.value)}>
+                {['Venezolano/a','Extranjero/a'].map(o => <option key={o}>{o}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={lbl}>Teléfono</label>
+              <input className={inp} value={nuevoForm.tel} onChange={e => setNf('tel', e.target.value)} placeholder="0414-1234567" />
+            </div>
+            <div className="col-span-2">
+              <label className={lbl}>Correo <span className="text-rose-500">*</span></label>
+              <input className={inp} type="email" value={nuevoForm.email} onChange={e => setNf('email', e.target.value)} placeholder="correo@email.com" />
+            </div>
+            <div>
+              <label className={lbl}>Estado <span className="text-rose-500">*</span></label>
+              <select className="select-field text-sm" value={nuevoForm.estado} onChange={e => setNf('estado', e.target.value)}>
+                {['Amazonas','Anzoátegui','Apure','Aragua','Barinas','Bolívar','Carabobo','Cojedes','Delta Amacuro','Distrito Capital','Falcón','Guárico','Lara','Mérida','Miranda','Monagas','Nueva Esparta','Portuguesa','Sucre','Táchira','Trujillo','La Guaira','Yaracuy','Zulia'].map(o => <option key={o}>{o}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={lbl}>Ciudad <span className="text-rose-500">*</span></label>
+              <input className={inp} value={nuevoForm.ciudad} onChange={e => setNf('ciudad', e.target.value)} placeholder="Caracas" />
+            </div>
+            <div className="col-span-2 sm:col-span-3">
+              <label className={lbl}>Dirección</label>
+              <input className={inp} value={nuevoForm.direccion} onChange={e => setNf('direccion', e.target.value)} placeholder="Av. Libertador, Edif. Centro…" />
+            </div>
+          </div>
+          <button onClick={crearCliente} disabled={saving} className="btn-primary w-full justify-center mt-4 disabled:opacity-50">
+            {saving ? 'Creando…' : <><Plus className="w-4 h-4" /> Crear cliente</>}
+          </button>
+        </div>
+      )}
+    </SimShell>
+  )
+}
+
+// ── PASO 3: Bien asegurado ────────────────────────────────────────────────────
+const MARCAS = ['Toyota','Chevrolet','Ford','Hyundai','Kia','Jeep','Nissan','Honda','Renault','Mazda','Volkswagen','Mitsubishi','Chery','BYD','Fiat','Mercedes-Benz','BMW','Dodge','Otro']
+const USOS   = ['Particular','Ejecutivo / Transporte de personal','Carga liviana','Carga pesada','Colectivo / Minibús','Rústico / Pickup','Oficial']
+
+function Step3({ sim, setSim, onNext, onBack, onClose }) {
+  const requiereVehiculo = sim.producto?.requiere_vehiculo ?? true
+  const [err, setErr] = useState('')
+  const curYear = new Date().getFullYear()
+  const years   = Array.from({ length: 35 }, (_, i) => curYear + 1 - i)
+
+  const canContinue = !requiereVehiculo || (sim.placa.trim().length >= 4 && sim.modelo.trim().length >= 1)
+
+  const handleNext = () => { setErr(''); onNext() }
+
+  return (
+    <SimShell step={3} size="xl" onClose={onClose} footer={
+      <>
+        <button onClick={onBack} className="btn-secondary"><ArrowLeft className="w-4 h-4" /> Anterior</button>
+        {canContinue && (
+          <button onClick={handleNext} className="btn-primary">Continuar <ArrowRight className="w-4 h-4" /></button>
+        )}
+      </>
+    }>
+      {err && <p className="mb-3 text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2">{err}</p>}
+
+      {requiereVehiculo ? (
+        <>
+          <SecLabel icon={Car} label="Datos del vehículo" />
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="field-label">Placa <span className="text-rose-500">*</span></label>
+              <input className="input-field font-mono uppercase" placeholder="ABC-123" value={sim.placa} maxLength={8}
+                onChange={e => setSim(p => ({ ...p, placa: e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '') }))} />
+            </div>
+            <div>
+              <label className="field-label">Año <span className="text-rose-500">*</span></label>
+              <select className="select-field" value={sim.año} onChange={e => setSim(p => ({ ...p, año: e.target.value }))}>
+                {years.map(y => <option key={y}>{y}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="field-label">Marca</label>
+              <select className="select-field" value={sim.marca} onChange={e => setSim(p => ({ ...p, marca: e.target.value }))}>
+                {MARCAS.map(m => <option key={m}>{m}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="field-label">Modelo <span className="text-rose-500">*</span></label>
+              <input className="input-field" placeholder="Corolla XLi" value={sim.modelo}
+                onChange={e => setSim(p => ({ ...p, modelo: e.target.value }))} />
+            </div>
+            <div>
+              <label className="field-label">Color</label>
+              <input className="input-field" placeholder="Blanco perla" value={sim.color}
+                onChange={e => setSim(p => ({ ...p, color: e.target.value }))} />
+            </div>
+            <div>
+              <label className="field-label">Uso</label>
+              <select className="select-field" value={sim.uso} onChange={e => setSim(p => ({ ...p, uso: e.target.value }))}>
+                {USOS.map(u => <option key={u}>{u}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="mt-3">
+            <label className="field-label">Valor de mercado (USD) <span className="text-rose-500">*</span></label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm pointer-events-none">$</span>
+              <input type="number" min="500" step="500" className="input-field pl-7" placeholder="15000"
+                value={sim.valor} onChange={e => setSim(p => ({ ...p, valor: parseFloat(e.target.value) || 0 }))} />
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          <SecLabel icon={User} label="Datos del asegurado" />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <label className="field-label">Nombre del asegurado</label>
+              <input className="input-field" placeholder="Nombre completo" value={sim.asegurado_nombre}
+                onChange={e => setSim(p => ({ ...p, asegurado_nombre: e.target.value }))} />
+            </div>
+            <div>
+              <label className="field-label">Cédula del asegurado</label>
+              <input className="input-field font-mono" placeholder="V-12345678" value={sim.asegurado_ci}
+                onChange={e => setSim(p => ({ ...p, asegurado_ci: e.target.value }))} />
+            </div>
+          </div>
+          <div className="mt-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+            <p className="text-xs text-slate-500 flex items-center gap-1.5">
+              <Info className="w-3.5 h-3.5" />
+              Si el asegurado es el mismo tomador, deja estos campos en blanco.
+            </p>
+          </div>
+        </>
+      )}
+    </SimShell>
+  )
+}
+
+// ── PASO 4: Tarifario / Plan ──────────────────────────────────────────────────
+function calcTotal(tarifa, tipoCalculo, valorDeclarado, derecho) {
+  if (!tarifa) return { prima: 0, total: 0 }
+  const d = tarifa.datos || {}
+  let prima = 0
+
+  if (tipoCalculo === 'fijo') {
+    prima = parseFloat(d.prima_anual) || 0
+  } else if (tipoCalculo === 'por_plan') {
+    prima = Object.values(d).reduce((s, v) => {
+      if (v && typeof v === 'object' && v.prima) return s + parseFloat(v.prima)
+      return s
+    }, 0)
+  } else if (tipoCalculo === 'por_nivel') {
+    prima = parseFloat(d.prima) || 0
+  } else if (tipoCalculo === 'por_valor') {
+    prima = Math.round(valorDeclarado * (parseFloat(d.tasa_pct) || 0) / 100 * 100) / 100
+  }
+
+  const iva   = prima * 0.16
+  const total = prima + iva + (parseFloat(derecho) || 0)
+  return { prima, iva, total }
+}
+
+function Step4({ sim, setSim, tasaBcv, onNext, onBack, onClose }) {
+  const producto     = sim.producto
+  const tipoCalculo  = producto?.tipo_calculo || 'fijo'
+  const [tarifas,    setTarifas]    = useState([])
+  const [loading,    setLoading]    = useState(true)
+
+  useEffect(() => {
+    if (!producto?.id) return
+    fetchTarifario(producto.id)
+      .then(res => setTarifas(res.tarifario.filter(t => t.activo)))
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [producto?.id])
+
+  // Para tipo fijo: auto-seleccionar la única tarifa disponible
+  useEffect(() => {
+    if (tipoCalculo === 'fijo' && tarifas.length >= 1 && !sim.tarifario_id) {
+      setSim(p => ({ ...p, tarifario_id: tarifas[0].id, tarifa: tarifas[0] }))
+    }
+  }, [tarifas, tipoCalculo, sim.tarifario_id, setSim])
+
+  const { prima, iva, total } = calcTotal(sim.tarifa, tipoCalculo, sim.valor_declarado, producto?.derecho_poliza)
+  const totBs = tasaBcv ? total * tasaBcv : 0
+
+  const canNext = tipoCalculo === 'por_valor'
+    ? (sim.valor_declarado > 0)
+    : !!sim.tarifario_id
+
+  const renderDatos = (d) => {
+    if (tipoCalculo === 'fijo') {
+      const filas = [
+        d.suma_persona  && ['Suma asegurada personas', usd(d.suma_persona)],
+        d.suma_cosa     && ['Suma asegurada cosas',    usd(d.suma_cosa)],
+        d.prima_persona && ['Prima personas',          usd(d.prima_persona)],
+        d.prima_cosa    && ['Prima cosas',             usd(d.prima_cosa)],
+      ].filter(Boolean)
+      return filas.length > 0 ? (
+        <div className="grid grid-cols-2 gap-x-6 gap-y-1 mt-2 text-xs text-slate-500">
+          {filas.map(([k, v]) => <><span key={k}>{k}</span><span className="font-semibold text-slate-700">{v}</span></>)}
+        </div>
+      ) : null
+    }
+    if (tipoCalculo === 'por_plan') {
+      const coberturas = Object.entries(d).filter(([, v]) => v && typeof v === 'object' && v.prima)
+      return (
+        <div className="mt-2 space-y-1">
+          {coberturas.map(([k, v]) => (
+            <div key={k} className="flex justify-between text-xs text-slate-500">
+              <span className="capitalize">{k.replace(/_/g, ' ')}</span>
+              <span className="font-semibold text-slate-700">{usd(v.prima)}{v.suma ? <span className="text-slate-400 font-normal"> · suma {usd(v.suma)}</span> : ''}</span>
+            </div>
+          ))}
+        </div>
+      )
+    }
+    if (tipoCalculo === 'por_nivel') {
+      return (
+        <div className="flex justify-between text-xs text-slate-500 mt-2">
+          {d.suma && <span>Suma: <strong className="text-slate-700">{usd(d.suma)}</strong></span>}
+          {d.prima && <span>Prima: <strong className="text-slate-700">{usd(d.prima)}</strong></span>}
+        </div>
+      )
+    }
+    return null
+  }
+
+  const sinTarifas = !loading && tarifas.length === 0 && tipoCalculo !== 'por_valor'
+
+  // Panel de resumen financiero (reutilizado en ambas columnas según layout)
+  const ResumenFinanciero = () => (
+    <div className="rounded-2xl overflow-hidden shrink-0" style={{ background: 'linear-gradient(135deg,#001463,#000c3b)' }}>
+      <div className="px-4 py-3 space-y-2 border-b border-white/10">
+        <div className="flex justify-between text-xs"><span className="text-white/50">Prima Neta</span><span className="text-white/80 font-semibold">{usd(prima)}</span></div>
+        <div className="flex justify-between text-xs"><span className="text-white/50">IVA (16%)</span><span className="text-white/80 font-semibold">{usd(iva || 0)}</span></div>
+        <div className="flex justify-between text-xs"><span className="text-white/50">Derecho de Póliza</span><span className="text-white/80 font-semibold">{usd(producto?.derecho_poliza || 0)}</span></div>
+      </div>
+      <div className="px-4 py-4">
+        <p className="text-xs font-bold text-white/60 mb-0.5">Total Anual (USD)</p>
+        <p className="text-2xl font-black text-white">{usd(total)}</p>
+        {tasaBcv && <p className="text-[10px] text-white/40 mt-1.5">Bs. {totBs.toLocaleString('es-VE', { minimumFractionDigits: 2 })} · BCV {fmtTasa(tasaBcv)}</p>}
+      </div>
+    </div>
+  )
+
+  return (
+    <SimShell step={4} size="xxl" onClose={onClose} footer={
+      <>
+        <button onClick={onBack} className="btn-secondary"><ArrowLeft className="w-4 h-4" /> Anterior</button>
+        {canNext && (
+          <button onClick={onNext} className="btn-primary">Ver Resumen <ArrowRight className="w-4 h-4" /></button>
+        )}
+      </>
+    }>
+
+      {sinTarifas ? (
+        <div className="flex flex-col items-center justify-center py-10 text-center gap-3">
+          <AlertTriangle className="w-10 h-10 text-amber-400" />
+          <p className="font-semibold text-slate-700">Tarifario no configurado</p>
+          <p className="text-sm text-slate-400 max-w-sm">
+            Este producto aún no tiene tarifas activas. Un administrador debe configurar el tarifario antes de poder cotizar.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_240px] gap-5">
+
+          {/* Izquierda: selector de tarifa / valor */}
+          <div>
+            {tipoCalculo === 'por_valor' ? (
+              <>
+                <SecLabel icon={DollarSign} label="Valor declarado del bien" />
+                <div className="relative max-w-xs">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold pointer-events-none">$</span>
+                  <input type="number" min="1" step="100" className="input-field pl-7"
+                    placeholder="0.00"
+                    value={sim.valor_declarado || ''} onChange={e => setSim(p => ({ ...p, valor_declarado: parseFloat(e.target.value) || 0 }))} />
+                </div>
+                {tarifas[0]?.datos?.tasa_pct && (
+                  <p className="text-xs text-slate-400 mt-2">Tasa aplicada: {tarifas[0].datos.tasa_pct}% sobre el valor declarado</p>
+                )}
+              </>
+            ) : loading ? (
+              <div className="flex justify-center py-12 text-slate-400 text-sm gap-2">
+                <div className="w-4 h-4 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
+                Cargando planes…
+              </div>
+            ) : tipoCalculo === 'fijo' ? (
+              /* Precio fijo: mostrar info sin picker */
+              <>
+                <SecLabel icon={Shield} label="Precio fijo del producto" />
+                <div className="p-4 rounded-2xl border-2 border-emerald-200 bg-emerald-50/40 flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+                    <Check className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-slate-800">{tarifas[0]?.nombre}</p>
+                    {renderDatos(tarifas[0]?.datos || {})}
+                  </div>
+                </div>
+              </>
+            ) : (
+              /* Por plan o por nivel: mostrar selector */
+              <>
+                <SecLabel icon={Layers} label={tipoCalculo === 'por_plan' ? 'Selecciona el plan' : 'Selecciona el nivel de cobertura'} />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {tarifas.map(t => {
+                    const on = sim.tarifario_id === t.id
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setSim(p => ({ ...p, tarifario_id: t.id, tarifa: t }))}
+                        className={`w-full text-left p-4 rounded-2xl border-2 transition-all ${on ? 'border-sefired-blue bg-blue-50/50' : 'border-slate-200 hover:border-slate-300'}`}
+                      >
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <p className={`text-sm font-bold ${on ? 'text-sefired-blue' : 'text-slate-800'}`}>{t.nombre}</p>
+                          {on && <Check className="w-4 h-4 text-sefired-blue shrink-0" />}
+                        </div>
+                        {renderDatos(t.datos || {})}
+                      </button>
+                    )
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Derecha: resumen financiero */}
+          <ResumenFinanciero />
+        </div>
+      )}
+    </SimShell>
+  )
+}
+
+// ── PASO 5: Documentos + Confirmar ────────────────────────────────────────────
+function Step5({ sim, tasaBcv, editId, onBack, onClose, onSaved, showToast, currentUser }) {
+  const isEdit  = !!editId
+  const prod    = sim.producto
+  const { prima, iva, total } = calcTotal(sim.tarifa, prod?.tipo_calculo, sim.valor_declarado, prod?.derecho_poliza)
+  const totBs   = tasaBcv ? total * tasaBcv : 0
+  const hoy     = new Date()
+  const fechaISO = hoy.toISOString().slice(0, 10)
+  const fecha   = `${String(hoy.getDate()).padStart(2,'0')}/${String(hoy.getMonth()+1).padStart(2,'0')}/${hoy.getFullYear()}`
+  const nroPreview = isEdit
+    ? 'COT-' + hoy.getFullYear() + '-' + String(editId).padStart(5,'0')
+    : 'COT-' + hoy.getFullYear() + '-XXXXX'
+
+  const [docs,    setDocs]    = useState([])
+  const [saving,  setSaving]  = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [uploadNombre, setUploadNombre] = useState('')
+  const [uploadFile,   setUploadFile]   = useState(null)
+  const [showUpload, setShowUpload]     = useState(false)
+  const fileRef = useRef(null)
+
+  const loadDocs = useCallback(async () => {
+    if (!sim.cliente_id) return
+    try { setDocs(await fetchDocumentosCliente(sim.cliente_id)) } catch {}
+  }, [sim.cliente_id])
+
+  useEffect(() => { loadDocs() }, [loadDocs])
+
+  const docsRequeridos = prod?.documentos_requeridos || []
+  const docsFaltantes  = docsRequeridos.filter(dr => dr.obligatorio && !docs.find(d => d.nombre === dr.nombre))
+
+  const handleUpload = async () => {
+    if (!uploadFile || !uploadNombre.trim()) return
+    setUploading(true)
+    try {
+      await uploadDocumentoCliente(sim.cliente_id, uploadNombre.trim(), uploadFile)
+      setUploadFile(null); setUploadNombre(''); setShowUpload(false)
+      fileRef.current && (fileRef.current.value = '')
+      await loadDocs()
+    } catch (e) {
+      showToast(e.message, 'error')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleDeleteDoc = async (doc) => {
+    try { await deleteDocumentoCliente(sim.cliente_id, doc.id); await loadDocs() }
+    catch (e) { showToast(e.message, 'error') }
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      const coberturas = {
+        tasaBCV: tasaBcv,
+        subtotal: prima, iva: iva || 0,
+        derecho_poliza: prod?.derecho_poliza || 0,
+        total, total_bs: totBs,
+        tipo_calculo: prod?.tipo_calculo,
+        documentos_requeridos: prod?.documentos_requeridos || [],
+        marca: sim.marca, modelo: sim.modelo, año: sim.año,
+        color: sim.color, uso: sim.uso, valor_mercado: sim.valor,
+        valor_declarado: sim.valor_declarado,
+        tarifa: sim.tarifa ? { id: sim.tarifa.id, nombre: sim.tarifa.nombre, datos: sim.tarifa.datos } : null,
+      }
+      const payload = {
+        cliente_id:      sim.cliente_id,
+        placa:           sim.placa || null,
+        producto_id:     sim.producto_id,
+        tarifario_id:    sim.tarifario_id || null,
+        total,           total_bs: totBs,
+        fecha_solicitud: fechaISO,
+        coberturas,
+        nombre_tomador:   sim.nombre,
+        ci_tomador:       sim.ci,
+        asegurado_nombre: sim.asegurado_nombre || null,
+        asegurado_ci:     sim.asegurado_ci     || null,
+      }
+      if (isEdit) await updateCotizacion(editId, payload)
+      else        await createCotizacion(payload)
+      showToast(isEdit ? 'Cotización actualizada' : 'Cotización guardada', 'success')
+      onSaved(); onClose()
+    } catch (e) {
+      showToast(e.message || 'Error al guardar', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <SimShell step={5} size="xxl" onClose={onClose} footer={
+      <>
+        <button onClick={onBack} className="btn-secondary"><ArrowLeft className="w-4 h-4" /> Anterior</button>
+        <button onClick={handleSave} disabled={saving} className="btn-primary disabled:opacity-50">
+          <FileCheck className="w-4 h-4" />
+          {saving ? 'Enviando…' : isEdit ? 'Actualizar Cotización' : 'Enviar Cotización'}
+        </button>
+      </>
+    }>
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_240px] gap-5">
+        {/* Izquierda */}
+        <div className="space-y-3">
+          {/* Banner */}
+          <div className={`flex items-center gap-3 p-3 rounded-2xl border ${isEdit ? 'border-blue-200 bg-blue-50' : 'border-emerald-200 bg-emerald-50'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isEdit ? 'bg-blue-500' : 'bg-emerald-500'}`}>
+              {isEdit ? <Pencil className="w-3.5 h-3.5 text-white" /> : <Check className="w-3.5 h-3.5 text-white" />}
+            </div>
+            <div>
+              <p className={`text-sm font-black ${isEdit ? 'text-blue-800' : 'text-emerald-800'}`}>
+                {isEdit ? `Editando ${nroPreview}` : 'Revisión final'}
+              </p>
+              <p className={`text-xs ${isEdit ? 'text-blue-500' : 'text-emerald-600'}`}>
+                {isEdit ? 'Los cambios reemplazarán la cotización existente.' : 'Se guardará con estado "En Revisión".'}
+              </p>
+            </div>
+          </div>
+
+          {/* Datos resumen */}
+          <div className="rounded-xl border border-slate-100 overflow-hidden">
+            <div className="px-3 py-2 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
+              <Shield className="w-3.5 h-3.5 text-slate-400" />
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Producto / Tarifa</p>
+            </div>
+            <div className="px-3 py-2.5 space-y-1 text-sm">
+              <div className="flex justify-between"><span className="text-slate-400">Producto</span><span className="font-semibold text-slate-700">{prod?.nombre || '—'}</span></div>
+              {sim.tarifa && <div className="flex justify-between"><span className="text-slate-400">Plan / Tarifa</span><span className="font-semibold text-slate-700">{sim.tarifa.nombre}</span></div>}
+              <div className="flex justify-between"><span className="text-slate-400">Tomador</span><span className="font-semibold text-slate-700">{sim.nombre || '—'} · {sim.ci || '—'}</span></div>
+              {sim.placa && <div className="flex justify-between"><span className="text-slate-400">Placa</span><span className="font-mono font-bold text-slate-700">{sim.placa}</span></div>}
+              {sim.modelo && <div className="flex justify-between"><span className="text-slate-400">Vehículo</span><span className="text-slate-700">{sim.marca} {sim.modelo} {sim.año}</span></div>}
+              {sim.asegurado_nombre && <div className="flex justify-between"><span className="text-slate-400">Asegurado</span><span className="text-slate-700">{sim.asegurado_nombre}</span></div>}
+            </div>
+          </div>
+
+          {/* Documentos */}
+          <div className="rounded-xl border border-slate-100 overflow-hidden">
+            <div className="px-3 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <FileText className="w-3.5 h-3.5 text-slate-400" />
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Documentos del cliente</p>
+              </div>
+              <button onClick={() => setShowUpload(v => !v)} className="text-xs font-bold text-sefired-blue hover:underline flex items-center gap-1">
+                <Upload className="w-3 h-3" /> Subir
+              </button>
+            </div>
+
+            {/* Alertas faltantes */}
+            {docsFaltantes.length > 0 && (
+              <div className="px-3 py-2 bg-amber-50 border-b border-amber-100">
+                <p className="text-xs font-bold text-amber-700 flex items-center gap-1.5 mb-1">
+                  <AlertTriangle className="w-3.5 h-3.5" /> Documentos obligatorios faltantes
+                </p>
+                <div className="flex flex-wrap gap-1">
+                  {docsFaltantes.map(d => (
+                    <span key={d.nombre} className="text-[10px] px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full font-medium">{d.nombre}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {showUpload && (
+              <div className="px-3 py-3 bg-slate-50 border-b border-slate-100 space-y-2">
+                <select
+                  className="select-field text-sm"
+                  value={uploadNombre}
+                  onChange={e => setUploadNombre(e.target.value)}
+                >
+                  <option value="">— Tipo de documento —</option>
+                  {docsRequeridos.map(d => <option key={d.nombre} value={d.nombre}>{d.nombre}</option>)}
+                  <option value="__custom__">Otro…</option>
+                </select>
+                {uploadNombre === '__custom__' && (
+                  <input className="input-field text-sm" placeholder="Nombre del documento" onChange={e => setUploadNombre(e.target.value)} />
+                )}
+                <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" className="text-xs text-slate-600"
+                  onChange={e => setUploadFile(e.target.files[0] || null)} />
+                <button onClick={handleUpload} disabled={uploading || !uploadFile || !uploadNombre || uploadNombre === '__custom__'} className="btn-primary w-full justify-center text-xs disabled:opacity-50">
+                  {uploading ? 'Subiendo…' : <><Upload className="w-3.5 h-3.5" /> Subir documento</>}
+                </button>
+              </div>
+            )}
+
+            <div className="px-3 py-2.5 space-y-1.5">
+              {docs.length === 0 ? (
+                <p className="text-xs text-slate-400 py-2 text-center">Sin documentos subidos aún.</p>
+              ) : docs.map(d => (
+                <div key={d.id} className="flex items-center gap-2">
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                  <a href={d.url} target="_blank" rel="noreferrer" className="text-xs text-sefired-blue hover:underline truncate flex-1">{d.nombre}</a>
+                  <button onClick={() => handleDeleteDoc(d)} className="p-1 hover:bg-rose-50 rounded-lg transition">
+                    <X className="w-3 h-3 text-rose-400" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Derecha: financiero */}
+        <div>
+          <div className="rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(135deg,#001463,#000c3b)' }}>
+            <div className="px-4 py-3.5 space-y-2 border-b border-white/10">
+              <p className="text-xs font-bold text-white/40 uppercase tracking-widest mb-2">Resumen financiero</p>
+              <div className="flex justify-between text-sm"><span className="text-white/50">Prima Neta</span><span className="text-white/80 font-semibold">{usd(prima)}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-white/50">IVA (16%)</span><span className="text-white/80 font-semibold">{usd(iva || 0)}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-white/50">Derecho de Póliza</span><span className="text-white/80 font-semibold">{usd(prod?.derecho_poliza || 0)}</span></div>
+            </div>
+            <div className="px-4 py-4">
+              <p className="text-sm font-bold text-white/60 mb-1">Total Prima Anual</p>
+              <p className="text-3xl font-black text-white">{usd(total)}</p>
+              {tasaBcv && (
+                <p className="text-xs text-white/35 mt-1.5">
+                  Bs. {totBs.toLocaleString('es-VE', { minimumFractionDigits: 2 })}<br />
+                  Tasa BCV {fmtTasa(tasaBcv)}
+                </p>
+              )}
+            </div>
+            {currentUser && (
+              <div className="px-4 pb-4 border-t border-white/10 pt-3">
+                <p className="text-xs text-white/30">Agente: <span className="text-white/50 font-semibold">{currentUser.nombre}</span></p>
+                <p className="text-xs text-white/30 font-mono mt-0.5">{fecha}</p>
+              </div>
+            )}
+          </div>
+          {docsFaltantes.length > 0 && (
+            <div className="mt-3 p-3 bg-amber-50 rounded-xl border border-amber-200 flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-700">
+                La cotización puede enviarse aunque falten documentos. El operador verá la alerta al revisarla.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </SimShell>
+  )
+}
+
+// ── Modal: Evaluación de Underwriting ────────────────────────────────────────
+const UW_RESULTADO_META = {
+  pendiente:  { label: 'Pendiente',  bg: 'bg-slate-100',   text: 'text-slate-600'  },
+  aprobado:   { label: 'Aprobado',   bg: 'bg-emerald-100', text: 'text-emerald-700' },
+  rechazado:  { label: 'Rechazado',  bg: 'bg-rose-100',    text: 'text-rose-700'   },
+  observado:  { label: 'Observado',  bg: 'bg-amber-100',   text: 'text-amber-700'  },
+}
+
+function UwBadge({ resultado }) {
+  const m = UW_RESULTADO_META[resultado] ?? UW_RESULTADO_META.pendiente
+  return (
+    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${m.bg} ${m.text}`}>
+      {m.label}
+    </span>
+  )
+}
+
+function freshUwForm() {
+  return { resultado: 'pendiente', score: '', observaciones: '', motivo_rechazo: '', requiere_inspeccion: false }
+}
+
+function UnderwritingModal({ cot, onClose, onStatusChanged, showToast }) {
+  const [evaluaciones, setEvaluaciones] = useState([])
+  const [loading,   setLoading]   = useState(true)
+  const [form,      setForm]      = useState(freshUwForm())
+  const [saving,    setSaving]    = useState(false)
+  const [err,       setErr]       = useState('')
+  const setF = (k, v) => setForm(p => ({ ...p, [k]: v }))
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try { setEvaluaciones(await fetchUnderwriting(cot.id)) }
+    catch {}
+    finally { setLoading(false) }
+  }, [cot.id])
+
+  useEffect(() => { load() }, [load])
+
+  const handleSubmit = async () => {
+    if (!form.resultado || form.resultado === 'pendiente') {
+      setErr('Selecciona un resultado distinto de "Pendiente" para registrar la evaluación.')
+      return
+    }
+    setSaving(true); setErr('')
+    try {
+      const payload = {
+        resultado:           form.resultado,
+        observaciones:       form.observaciones.trim() || undefined,
+        motivo_rechazo:      form.resultado === 'rechazado' ? (form.motivo_rechazo.trim() || undefined) : undefined,
+        requiere_inspeccion: form.requiere_inspeccion,
+        score:               form.score !== '' ? parseFloat(form.score) : undefined,
+      }
+      await createUnderwriting(cot.id, payload)
+      showToast('Evaluación registrada correctamente', 'success')
+      setForm(freshUwForm())
+      await load()
+      if (form.resultado === 'aprobado' || form.resultado === 'rechazado') onStatusChanged()
+    } catch (e) {
+      setErr(e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in duration-200">
+
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-2xl flex items-center justify-center shrink-0" style={{ background: 'linear-gradient(135deg,#001463,#000c3b)' }}>
+              <ClipboardList className="w-4.5 h-4.5 text-white" />
+            </div>
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Underwriting</p>
+              <h3 className="text-sm font-black text-slate-800">{cot.nro} — {cot.nombre}</h3>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <StatusBadge status={cot.status} />
+            <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-xl transition">
+              <X className="w-4 h-4 text-slate-500" />
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-[1fr_320px] divide-y md:divide-y-0 md:divide-x divide-slate-100">
+
+          {/* Izquierda: formulario nueva evaluación */}
+          <div className="p-6 space-y-4">
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nueva evaluación</p>
+
+            {err && <p className="text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2">{err}</p>}
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <label className="field-label">Resultado <span className="text-rose-500">*</span></label>
+                <select className="select-field" value={form.resultado} onChange={e => setF('resultado', e.target.value)}>
+                  <option value="pendiente">— Pendiente (sin resultado) —</option>
+                  <option value="observado">Observado — requiere más info</option>
+                  <option value="aprobado">Aprobado — cotización queda aprobada</option>
+                  <option value="rechazado">Rechazado — cotización queda rechazada</option>
+                </select>
+              </div>
+              <div>
+                <label className="field-label">Score de riesgo (0–100)</label>
+                <input type="number" min="0" max="100" step="1" className="input-field"
+                  placeholder="—" value={form.score}
+                  onChange={e => setF('score', e.target.value)} />
+              </div>
+              <div className="flex items-center gap-2 self-end pb-1">
+                <input type="checkbox" id="uw_insp" checked={form.requiere_inspeccion}
+                  onChange={e => setF('requiere_inspeccion', e.target.checked)} className="w-4 h-4 accent-sefired-blue" />
+                <label htmlFor="uw_insp" className="text-sm text-slate-700 cursor-pointer">Requiere inspección</label>
+              </div>
+              <div className="col-span-2">
+                <label className="field-label">Observaciones</label>
+                <textarea className="input-field resize-none text-sm" rows={3}
+                  placeholder="Notas del evaluador…"
+                  value={form.observaciones} onChange={e => setF('observaciones', e.target.value)} />
+              </div>
+              {form.resultado === 'rechazado' && (
+                <div className="col-span-2">
+                  <label className="field-label">Motivo de rechazo <span className="text-rose-500">*</span></label>
+                  <textarea className="input-field resize-none text-sm border-rose-200 focus:ring-rose-300" rows={2}
+                    placeholder="Motivo formal del rechazo…"
+                    value={form.motivo_rechazo} onChange={e => setF('motivo_rechazo', e.target.value)} />
+                </div>
+              )}
+            </div>
+
+            {(form.resultado === 'aprobado' || form.resultado === 'rechazado') && (
+              <div className={`flex items-start gap-2 p-3 rounded-xl text-xs border ${form.resultado === 'aprobado' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'}`}>
+                <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                {form.resultado === 'aprobado'
+                  ? 'La cotización pasará automáticamente a estado "Aprobado".'
+                  : 'La cotización pasará automáticamente a estado "Rechazado".'}
+              </div>
+            )}
+
+            <button onClick={handleSubmit} disabled={saving} className="btn-primary w-full justify-center disabled:opacity-50">
+              {saving ? 'Guardando…' : <><ClipboardList className="w-4 h-4" /> Registrar evaluación</>}
+            </button>
+          </div>
+
+          {/* Derecha: historial */}
+          <div className="p-6">
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">
+              Historial ({evaluaciones.length})
+            </p>
+            {loading ? (
+              <div className="flex justify-center py-8">
+                <div className="w-5 h-5 border-2 border-slate-300 border-t-sefired-blue rounded-full animate-spin" />
+              </div>
+            ) : evaluaciones.length === 0 ? (
+              <div className="text-center py-10 text-slate-400">
+                <ClipboardList className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                <p className="text-sm">Sin evaluaciones aún.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {evaluaciones.map(ev => (
+                  <div key={ev.id} className="p-3.5 rounded-2xl border border-slate-200 bg-white">
+                    <div className="flex items-start justify-between gap-2 mb-1.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <UwBadge resultado={ev.resultado} />
+                        {ev.score != null && (
+                          <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
+                            <Star className="w-3 h-3" />{ev.score}/100
+                          </span>
+                        )}
+                        {ev.requiere_inspeccion && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">Inspección</span>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-mono shrink-0">{ev.fecha_evaluacion?.slice(0,10)}</span>
+                    </div>
+                    {ev.evaluador && <p className="text-[10px] text-slate-400">Evaluador: <span className="font-semibold text-slate-600">{ev.evaluador}</span></p>}
+                    {ev.observaciones && <p className="text-xs text-slate-600 mt-1.5 leading-relaxed line-clamp-3">{ev.observaciones}</p>}
+                    {ev.motivo_rechazo && (
+                      <div className="mt-1.5 p-2 bg-rose-50 rounded-lg border border-rose-100">
+                        <p className="text-[10px] font-bold text-rose-600 mb-0.5">Motivo rechazo</p>
+                        <p className="text-xs text-rose-700 line-clamp-2">{ev.motivo_rechazo}</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Página principal ──────────────────────────────────────────────────────────
+export default function Simulador() {
+  const { showToast, showModal, currentUser, canAct } = useApp()
+  const canCreate = canAct('cotizaciones', 'create')
+  const canEdit   = canAct('cotizaciones', 'edit')
+  const canDelete = canAct('cotizaciones', 'delete')
+  const canEmit   = canAct('cotizaciones', 'emit')
+
+  const [sim,     setSim]     = useState(freshState())
+  const [step,    setStep]    = useState(0)
+  const [editId,  setEditId]  = useState(null)
+  const [tasaBcv, setTasaBcv] = useState(null)
+  const [productos, setProductos] = useState([])
+
+  const [cotizaciones, setCotizaciones] = useState([])
+  const [loadingCot,   setLoadingCot]   = useState(true)
+  const [chipActive,   setChipActive]   = useState(0)
+  const [search,       setSearch]       = useState('')
+  const [uwModal,      setUwModal]      = useState(null) // cotización para underwriting
+
+  const loadData = useCallback(async () => {
+    setLoadingCot(true)
+    try {
+      const [tasas, cots, prods] = await Promise.all([fetchTasas(), fetchCotizaciones(), fetchProductos()])
+      if (tasas?.usd?.valor) setTasaBcv(parseFloat(tasas.usd.valor))
+      setCotizaciones(cots)
+      setProductos(prods)
+    } catch {
+      showToast('Error al cargar datos del simulador', 'error')
+    } finally {
+      setLoadingCot(false)
+    }
+  }, [showToast])
+
+  useEffect(() => { loadData() }, [loadData])
+
+  const openSim = () => {
+    setSim(freshState()); setEditId(null); setStep(1)
+  }
+
+  const openEditSim = (q) => {
+    const state = simFromCot(q)
+    // Reinyectar el objeto producto completo
+    const prod = productos.find(p => p.id === q.producto_id) || null
+    setSim({ ...state, producto: prod }); setEditId(q.id); setStep(1)
+  }
+
+  const closeStep = () => { setStep(0); setEditId(null) }
+
+  const statuses = ['Todos', 'En Revisión', 'Aprobado', 'Emitida', 'Rechazado']
+
+  const byChip = chipActive === 0 ? cotizaciones : cotizaciones.filter(q => q.status === statuses[chipActive])
+  const visibleCots = search.trim()
+    ? byChip.filter(q => {
+        const sq = search.toLowerCase()
+        return q.nombre.toLowerCase().includes(sq) || q.ci.toLowerCase().includes(sq)
+          || (q.placa || '').toLowerCase().includes(sq) || q.nro.toLowerCase().includes(sq)
+      })
+    : byChip
+
+  const simEmitidas   = cotizaciones.filter(q => q.status === 'Emitida').length
+  const simEnRevision = cotizaciones.filter(q => q.status === 'En Revisión').length
+  const simRechazadas = cotizaciones.filter(q => q.status === 'Rechazado').length
+
+  const handleChangeStatus = async (id, status) => {
+    try { await updateCotizacion(id, { status }); showToast(`Estado → "${status}"`, 'success'); loadData() }
+    catch (e) { showToast(e.message, 'error') }
+  }
+
+  const handleDelete = (id, nro) =>
+    showModal('confirmDelete', {
+      name: `Cotización ${nro}`,
+      onConfirm: async () => {
+        await deleteCotizacion(id)
+        loadData()
+      },
+    })
+
+  if (!canAct('cotizaciones', 'view')) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
+        <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center">
+          <Calculator className="w-6 h-6 text-slate-400" />
+        </div>
+        <p className="font-semibold text-slate-600">Sin acceso</p>
+        <p className="text-xs text-slate-400">No tienes permiso para acceder a este módulo.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="animate-in fade-in duration-500 space-y-5">
+
+      {/* Hero */}
+      <div className="relative rounded-[2rem] overflow-hidden" style={{ background: 'linear-gradient(135deg,#001463 0%,#000c3b 55%,#001a6e 100%)' }}>
+        <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at 75% 40%,rgba(99,140,255,0.2) 0%,transparent 60%)' }} />
+        <div className="relative flex flex-col sm:flex-row sm:items-center gap-6 p-6 sm:p-9">
+          <div className="flex-1 min-w-0">
+            <div className="inline-flex items-center gap-2 bg-white/10 border border-white/15 rounded-full px-3 py-1.5 mb-3">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="text-xs font-bold text-white/70 uppercase tracking-wider">Sefired · Simulador</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-black text-white leading-snug mb-1.5">
+              Cotiza cualquier<br /><span className="text-emerald-400">tipo de póliza</span>
+            </h2>
+            <p className="text-sm text-white/50 max-w-xs">Wizard dinámico de 5 pasos. El simulador se adapta al producto seleccionado.</p>
+            {tasaBcv && (
+              <p className="text-xs text-white/40 mt-2">
+                <DollarSign className="w-3 h-3 inline mr-1" />
+                Tasa BCV hoy: <strong className="text-white/60">Bs. {tasaBcv.toFixed(2)}</strong>
+              </p>
+            )}
+          </div>
+          {canCreate && (
+            <div className="shrink-0">
+              <button onClick={openSim} className="flex items-center gap-2.5 bg-white text-sefired-blue text-sm font-black px-7 py-4 rounded-2xl hover:bg-blue-50 transition-all shadow-xl shadow-black/25 group">
+                <Calculator className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                Iniciar Simulación
+              </button>
+            </div>
+          )}
+        </div>
+        <div className="grid grid-cols-3 border-t border-white/10">
+          {[
+            [`${productos.length} producto${productos.length !== 1 ? 's' : ''}`, 'disponibles', ShieldCheck],
+            ['5 pasos', 'wizard dinámico', CheckCircle],
+            ['Bs. en tiempo real', 'Tasa BCV hoy', DollarSign],
+          ].map(([val, label, Icon]) => (
+            <div key={val} className="flex flex-col sm:flex-row items-center sm:gap-2 gap-1 px-4 py-3 text-center sm:text-left">
+              <Icon className="w-3.5 h-3.5 text-white/35 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-white/65 truncate">{val}</p>
+                <p className="text-[10px] text-white/30">{label}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { l: 'Total Simulaciones', v: cotizaciones.length, sub: 'Registradas',      Icon: Calculator, bg: 'bg-slate-100',  ic: 'text-slate-600' },
+          { l: 'Emitidas',           v: simEmitidas,         sub: 'Pólizas generadas', Icon: FileCheck,  bg: 'bg-emerald-100', ic: 'text-emerald-600' },
+          { l: 'En Revisión',        v: simEnRevision,       sub: 'Pendientes',        Icon: Clock,      bg: 'bg-amber-100',  ic: 'text-amber-600' },
+          { l: 'Rechazadas',         v: simRechazadas,       sub: 'Sin aprobación',    Icon: XCircle,    bg: 'bg-rose-100',   ic: 'text-rose-600' },
+        ].map(({ l, v, sub, Icon, bg, ic }) => (
+          <div key={l} className="card p-4 flex items-start gap-3">
+            <div className={`w-9 h-9 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
+              <Icon className={`w-4 h-4 ${ic}`} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs text-slate-500 font-medium leading-tight">{l}</p>
+              <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{v}</p>
+              <p className="text-xs text-slate-400 mt-1">{sub}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Tabla de cotizaciones */}
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-3 px-1 sm:px-0">
+          <div className="min-w-0">
+            <h3 className="text-base font-black text-slate-800">Cotizaciones registradas</h3>
+            <p className="text-xs text-slate-400">{cotizaciones.length} registros</p>
+          </div>
+          <div className="relative ml-auto w-full sm:w-56">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+            <input className="input-field pl-9 py-2 text-sm w-full" placeholder="Buscar…" value={search} onChange={e => setSearch(e.target.value)} />
+            {search && <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X className="w-3.5 h-3.5" /></button>}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2 px-1 sm:px-0">
+          {statuses.map((s, i) => {
+            const count = i === 0 ? cotizaciones.length : cotizaciones.filter(q => q.status === s).length
+            return (
+              <button key={s} onClick={() => setChipActive(i)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${i === chipActive ? 'bg-sefired-blue text-white border-sefired-blue shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}>
+                {s}
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${i === chipActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>{count}</span>
+              </button>
+            )
+          })}
+        </div>
+
+        <div className="card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-slate-50 border-b border-slate-100">
+                <tr>
+                  <th className="th-cell text-left hidden md:table-cell">N° Cotización</th>
+                  <th className="th-cell text-left">Cliente</th>
+                  <th className="th-cell text-left hidden sm:table-cell">Bien / Ref.</th>
+                  <th className="th-cell text-left hidden xl:table-cell">Producto</th>
+                  <th className="th-cell text-right hidden sm:table-cell">Total USD</th>
+                  <th className="th-cell text-left hidden lg:table-cell">Fecha</th>
+                  <th className="th-cell text-left">Estado</th>
+                  <th className="th-cell text-center">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {loadingCot ? (
+                  <tr><td colSpan={8} className="td-cell text-center py-10 text-slate-400">
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="w-4 h-4 border-2 border-slate-300 border-t-sefired-blue rounded-full animate-spin" />
+                      Cargando cotizaciones…
+                    </div>
+                  </td></tr>
+                ) : visibleCots.length === 0 ? (
+                  <tr><td colSpan={8} className="td-cell text-center py-10 text-slate-400">
+                    {search ? `Sin resultados para "${search}"` : 'No hay cotizaciones registradas.'}
+                  </td></tr>
+                ) : visibleCots.map(q => (
+                  <tr key={q.id} className="hover:bg-slate-50/60 transition-colors">
+                    <td className="td-cell hidden md:table-cell"><span className="font-mono font-bold text-xs text-slate-700">{q.nro}</span></td>
+                    <td className="td-cell">
+                      <p className="text-xs sm:text-sm font-semibold text-slate-800">{q.nombre}</p>
+                      <p className="text-[10px] text-slate-400 font-mono">{q.ci}</p>
+                      <p className="text-[10px] font-mono font-bold text-slate-500 md:hidden mt-0.5">{q.nro}</p>
+                    </td>
+                    <td className="td-cell font-mono text-xs text-slate-500 hidden sm:table-cell">
+                      {q.placa || (q.coberturas?.asegurado_nombre ? q.coberturas.asegurado_nombre : '—')}
+                    </td>
+                    <td className="td-cell text-xs text-slate-600 hidden xl:table-cell">{q.producto || '—'}</td>
+                    <td className="td-cell text-right font-bold text-sm text-slate-800 hidden sm:table-cell">{usd(q.total)}</td>
+                    <td className="td-cell text-xs text-slate-500 hidden lg:table-cell">{q.fecha}</td>
+                    <td className="td-cell"><StatusBadge status={q.status} /></td>
+                    <td className="px-2 sm:px-3 py-2">
+                      <div className="flex flex-wrap gap-1 justify-center">
+                        {canEdit && (q.status === 'En Revisión' || q.status === 'Aprobado') && (
+                          <button onClick={() => setUwModal(q)} className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition" title="Evaluación de Underwriting">
+                            <ClipboardList className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {canEdit && q.status === 'En Revisión' && (
+                          <button onClick={() => handleChangeStatus(q.id, 'Aprobado')} className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition" title="Aprobar directo">
+                            <Check className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {canEdit && q.status === 'En Revisión' && (
+                          <button onClick={() => handleChangeStatus(q.id, 'Rechazado')} className="p-1.5 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition" title="Rechazar directo">
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {canEmit && q.status === 'Aprobado' && (
+                          <button onClick={() => showModal('emitirCotizacion', { cot: q, onSaved: loadData })} className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition" title="Emitir póliza">
+                            <FileCheck className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {canEdit && q.status !== 'Emitida' && (
+                          <button onClick={() => openEditSim(q)} className="p-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition" title="Editar">
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {canDelete && (
+                          <button onClick={() => handleDelete(q.id, q.nro)} className="p-1.5 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition" title="Eliminar">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="px-4 py-3 border-t border-slate-100 flex items-center gap-2 text-xs text-slate-400">
+            <span>{visibleCots.length} cotizacion{visibleCots.length !== 1 ? 'es' : ''} visible{visibleCots.length !== 1 ? 's' : ''}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Wizard */}
+      {step === 1 && <Step1 sim={sim} setSim={setSim} onNext={() => setStep(2)} onClose={closeStep} productos={productos} />}
+      {step === 2 && <Step2 sim={sim} setSim={setSim} onNext={() => setStep(3)} onBack={() => setStep(1)} onClose={closeStep} />}
+      {step === 3 && <Step3 sim={sim} setSim={setSim} onNext={() => setStep(4)} onBack={() => setStep(2)} onClose={closeStep} />}
+      {step === 4 && <Step4 sim={sim} setSim={setSim} tasaBcv={tasaBcv} onNext={() => setStep(5)} onBack={() => setStep(3)} onClose={closeStep} />}
+      {step === 5 && (
+        <Step5
+          sim={sim} tasaBcv={tasaBcv} editId={editId}
+          onBack={() => setStep(4)} onClose={closeStep} onSaved={loadData}
+          showToast={showToast} currentUser={currentUser}
+        />
+      )}
+
+      {/* Underwriting modal */}
+      {uwModal && (
+        <UnderwritingModal
+          cot={uwModal}
+          onClose={() => setUwModal(null)}
+          onStatusChanged={() => { loadData(); setUwModal(null) }}
+          showToast={showToast}
+        />
+      )}
+    </div>
+  )
+}

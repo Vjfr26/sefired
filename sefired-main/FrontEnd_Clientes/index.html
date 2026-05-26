@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Sefired — Seguros y Fianzas en Venezuela. Cotiza tu seguro en línea." />
+  <title>Sefired | Seguros & Fianzas</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe',
+              400: '#60a5fa', 500: '#3b82f6', 600: '#2563eb',
+              700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a',
+            },
+            gold: { 400: '#fbbf24', 500: '#f59e0b', 600: '#d97706' }
+          },
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          screens: { xs: '375px' }
+        }
+      }
+    }
+  </script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body class="font-sans text-gray-800 min-h-screen flex flex-col">
+
+  <!-- Full-viewport background image -->
+  <div class="bg-layer" aria-hidden="true">
+    <img src="assets/images/img.jpg" alt="" draggable="false" fetchpriority="high" />
+  </div>
+
+  <!-- ================================================================
+       NAVBAR
+       ================================================================ -->
+  <header class="navbar-glass sticky top-0 z-50">
+    <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2">
+
+      <!-- Logo -->
+      <a href="#" class="flex items-center flex-shrink-0 group">
+        <img src="assets/logo1%20(Edited).png" alt="Sefired"
+             class="h-10 sm:h-12 w-auto object-contain group-hover:scale-105 transition-transform">
+      </a>
+
+      <!-- Right side: social + language -->
+      <div class="flex items-center gap-0.5 sm:gap-1">
+
+        <!-- Social: hidden on xs, visible on sm+ -->
+        <div class="hidden sm:flex items-center gap-0.5">
+          <a href="#" data-i18n-title="soc.facebook" title="Facebook"
+             class="social-btn text-blue-600 hover:bg-blue-50">
+            <i class="fa-brands fa-facebook-f text-sm"></i>
+          </a>
+          <a href="#" data-i18n-title="soc.twitter" title="Twitter / X"
+             class="social-btn text-gray-800 hover:bg-gray-100">
+            <i class="fa-brands fa-x-twitter text-sm"></i>
+          </a>
+          <a href="#" data-i18n-title="soc.linkedin" title="LinkedIn"
+             class="social-btn text-blue-700 hover:bg-blue-50">
+            <i class="fa-brands fa-linkedin-in text-sm"></i>
+          </a>
+        </div>
+
+        <!-- Always visible social -->
+        <a href="#" data-i18n-title="soc.instagram" title="Instagram"
+           class="social-btn text-pink-500 hover:bg-pink-50">
+          <i class="fa-brands fa-instagram text-sm"></i>
+        </a>
+        <a href="https://wa.me/58" target="_blank" rel="noopener"
+           data-i18n-title="soc.whatsapp" title="WhatsApp"
+           class="social-btn text-green-600 hover:bg-green-50">
+          <i class="fa-brands fa-whatsapp text-sm"></i>
+        </a>
+
+        <!-- Language Switcher -->
+        <div id="lang-switcher" class="flex items-center bg-gray-100 rounded-lg p-0.5 ml-1 sm:ml-2 flex-shrink-0">
+          <button class="lang-btn active" data-lang="es">ES</button>
+          <button class="lang-btn"        data-lang="en">EN</button>
+        </div>
+      </div>
+    </nav>
+  </header>
+
+  <!-- ================================================================
+       HERO — background image + cotizador
+       ================================================================ -->
+  <section class="hero-bg flex-1">
+    <div class="hero-inner">
+
+      <!-- RIGHT: form (full-width on mobile, fixed on desktop) -->
+      <div class="hero-right" id="cotizador">
+
+      <!-- ──────────── QUOTE CARD ──────────── -->
+      <div class="quote-card overflow-hidden">
+
+        <!-- Step tabs -->
+        <div class="flex bg-gray-50 border-b border-gray-100">
+          <button class="step-tab active flex-1 flex items-center justify-center gap-1.5 sm:gap-2 py-3 sm:py-3.5 text-xs sm:text-sm font-semibold" data-step="1">
+            <span class="step-num">1</span>
+            <span data-i18n="tab.step1" class="hidden xs:inline">Tipo de seguro</span>
+          </button>
+          <button class="step-tab flex-1 flex items-center justify-center gap-1.5 sm:gap-2 py-3 sm:py-3.5 text-xs sm:text-sm font-semibold" data-step="2">
+            <span class="step-num">2</span>
+            <span data-i18n="tab.step2" class="hidden xs:inline">Tus datos</span>
+          </button>
+          <button class="step-tab flex-1 flex items-center justify-center gap-1.5 sm:gap-2 py-3 sm:py-3.5 text-xs sm:text-sm font-semibold" data-step="3">
+            <span class="step-num">3</span>
+            <span data-i18n="tab.step3" class="hidden xs:inline">Tu cotización</span>
+          </button>
+        </div>
+
+        <div class="form-scroll-area">
+
+          <!-- ════════ STEP 1 ════════ -->
+          <div id="step-1" class="step-content">
+            <h2 data-i18n="s1.question" class="text-base sm:text-lg font-bold text-gray-800 mb-3 sm:mb-4">
+              ¿Qué deseas asegurar?
+            </h2>
+
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 mb-4 sm:mb-5">
+
+              <label class="insurance-card" data-type="vehiculo">
+                <input type="radio" name="tipo_seguro" value="vehiculo" class="sr-only" />
+                <div class="insurance-icon bg-blue-50 text-blue-600"><i class="fa-solid fa-car"></i></div>
+                <span data-i18n="ins.veh.label" class="insurance-label">Vehículo</span>
+                <span data-i18n="ins.veh.sub"   class="insurance-sub">Auto / Moto</span>
+              </label>
+
+              <label class="insurance-card" data-type="hogar">
+                <input type="radio" name="tipo_seguro" value="hogar" class="sr-only" />
+                <div class="insurance-icon bg-amber-50 text-amber-600"><i class="fa-solid fa-house"></i></div>
+                <span data-i18n="ins.hogar.label" class="insurance-label">Hogar</span>
+                <span data-i18n="ins.hogar.sub"   class="insurance-sub">Inmueble</span>
+              </label>
+
+              <label class="insurance-card" data-type="vida">
+                <input type="radio" name="tipo_seguro" value="vida" class="sr-only" />
+                <div class="insurance-icon bg-red-50 text-red-500"><i class="fa-solid fa-heart-pulse"></i></div>
+                <span data-i18n="ins.vida.label" class="insurance-label">Vida</span>
+                <span data-i18n="ins.vida.sub"   class="insurance-sub">Personal</span>
+              </label>
+
+              <label class="insurance-card" data-type="salud">
+                <input type="radio" name="tipo_seguro" value="salud" class="sr-only" />
+                <div class="insurance-icon bg-green-50 text-green-600"><i class="fa-solid fa-stethoscope"></i></div>
+                <span data-i18n="ins.salud.label" class="insurance-label">HCM / Salud</span>
+                <span data-i18n="ins.salud.sub"   class="insurance-sub">Médico</span>
+              </label>
+
+              <label class="insurance-card" data-type="empresarial">
+                <input type="radio" name="tipo_seguro" value="empresarial" class="sr-only" />
+                <div class="insurance-icon bg-purple-50 text-purple-600"><i class="fa-solid fa-building"></i></div>
+                <span data-i18n="ins.emp.label" class="insurance-label">Empresarial</span>
+                <span data-i18n="ins.emp.sub"   class="insurance-sub">Negocio</span>
+              </label>
+
+              <label class="insurance-card" data-type="fianza">
+                <input type="radio" name="tipo_seguro" value="fianza" class="sr-only" />
+                <div class="insurance-icon bg-indigo-50 text-indigo-600"><i class="fa-solid fa-file-contract"></i></div>
+                <span data-i18n="ins.fianza.label" class="insurance-label">Fianzas</span>
+                <span data-i18n="ins.fianza.sub"   class="insurance-sub">Garantía</span>
+              </label>
+            </div>
+
+            <!-- Sub-fields: vehiculo -->
+            <div id="fields-vehiculo" class="extra-fields hidden space-y-3 mb-4">
+              <div class="grid grid-cols-2 gap-3 sm:gap-4">
+                <div>
+                  <label class="field-label" data-i18n="veh.marca">Marca</label>
+                  <select id="marca_vehiculo" class="field-input">
+                    <option value="" data-i18n="sel.default">Seleccionar...</option>
+                    <option>Toyota</option><option>Chevrolet</option><option>Ford</option>
+                    <option>Nissan</option><option>Hyundai</option><option>Kia</option>
+                    <option>Mitsubishi</option><option>Honda</option><option>Otro</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="field-label" data-i18n="veh.anio">Año del vehículo</label>
+                  <select id="anio_vehiculo" class="field-input"></select>
+                </div>
+              </div>
+              <div>
+                <label class="field-label" data-i18n="veh.cobertura">Cobertura deseada</label>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-1">
+                  <label class="coverage-option">
+                    <input type="radio" name="cobertura_veh" value="responsabilidad" class="mr-2" />
+                    <span data-i18n="veh.rc">Responsabilidad Civil</span>
+                  </label>
+                  <label class="coverage-option">
+                    <input type="radio" name="cobertura_veh" value="limitada" class="mr-2" />
+                    <span data-i18n="veh.limitada">Cobertura Limitada</span>
+                  </label>
+                  <label class="coverage-option">
+                    <input type="radio" name="cobertura_veh" value="amplia" class="mr-2" />
+                    <span data-i18n="veh.amplia">Cobertura Amplia</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Sub-fields: hogar -->
+            <div id="fields-hogar" class="extra-fields hidden space-y-3 mb-4">
+              <div class="grid grid-cols-2 gap-3 sm:gap-4">
+                <div>
+                  <label class="field-label" data-i18n="hogar.tipo">Tipo de inmueble</label>
+                  <select class="field-input">
+                    <option value="" data-i18n="sel.default">Seleccionar...</option>
+                    <option data-i18n="hogar.opt.casa">Casa</option>
+                    <option data-i18n="hogar.opt.apto">Apartamento</option>
+                    <option data-i18n="hogar.opt.local">Local comercial</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="field-label" data-i18n="hogar.m2">Metros cuadrados (m²)</label>
+                  <input type="number" class="field-input"
+                         data-i18n-ph="hogar.m2.ph" placeholder="Ej. 90" min="20" max="2000" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Sub-fields: vida -->
+            <div id="fields-vida" class="extra-fields hidden space-y-3 mb-4">
+              <div class="grid grid-cols-2 gap-3 sm:gap-4">
+                <div>
+                  <label class="field-label" data-i18n="vida.edad">Edad del asegurado</label>
+                  <input type="number" class="field-input"
+                         data-i18n-ph="vida.edad.ph" placeholder="Ej. 35" min="18" max="80" />
+                </div>
+                <div>
+                  <label class="field-label" data-i18n="vida.suma">Suma asegurada (USD)</label>
+                  <input type="number" class="field-input"
+                         data-i18n-ph="vida.suma.ph" placeholder="Ej. 10000" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Sub-fields: salud -->
+            <div id="fields-salud" class="extra-fields hidden space-y-3 mb-4">
+              <div class="grid grid-cols-2 gap-3 sm:gap-4">
+                <div>
+                  <label class="field-label" data-i18n="salud.benef">Número de beneficiarios</label>
+                  <select class="field-input">
+                    <option data-i18n="salud.benef.1">1 — Individual</option>
+                    <option data-i18n="salud.benef.2">2 — Pareja</option>
+                    <option data-i18n="salud.benef.3">3 — Familiar (3)</option>
+                    <option data-i18n="salud.benef.4">4+ — Familiar (4+)</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="field-label" data-i18n="salud.suma">Suma asegurada (USD)</label>
+                  <input type="number" class="field-input"
+                         data-i18n-ph="salud.suma.ph" placeholder="Ej. 5000" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Sub-fields: empresarial -->
+            <div id="fields-empresarial" class="extra-fields hidden space-y-3 mb-4">
+              <div>
+                <label class="field-label" data-i18n="emp.rubro">Rubro de la empresa</label>
+                <select class="field-input">
+                  <option value="" data-i18n="sel.default">Seleccionar...</option>
+                  <option data-i18n="emp.opt.comercio">Comercio</option>
+                  <option data-i18n="emp.opt.manufactura">Manufactura</option>
+                  <option data-i18n="emp.opt.servicios">Servicios</option>
+                  <option data-i18n="emp.opt.construccion">Construcción</option>
+                  <option data-i18n="emp.opt.transporte">Transporte</option>
+                  <option data-i18n="emp.opt.otro">Otro</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Sub-fields: fianza -->
+            <div id="fields-fianza" class="extra-fields hidden space-y-3 mb-4">
+              <div class="grid grid-cols-2 gap-3 sm:gap-4">
+                <div>
+                  <label class="field-label" data-i18n="fianza.tipo">Tipo de fianza</label>
+                  <select class="field-input">
+                    <option value="" data-i18n="sel.default">Seleccionar...</option>
+                    <option data-i18n="fianza.opt.fc">Fiel cumplimiento</option>
+                    <option data-i18n="fianza.opt.anticipo">Anticipo</option>
+                    <option data-i18n="fianza.opt.laboral">Laboral</option>
+                    <option data-i18n="fianza.opt.judicial">Judicial</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="field-label" data-i18n="fianza.monto">Monto de la fianza (USD)</label>
+                  <input type="number" class="field-input"
+                         data-i18n-ph="fianza.monto.ph" placeholder="Ej. 50000" />
+                </div>
+              </div>
+            </div>
+
+            <div class="flex justify-end">
+              <button id="btn-step1-next" class="btn-primary" disabled>
+                <span data-i18n="btn.next">Continuar</span>
+                <i class="fa-solid fa-arrow-right ml-2 text-xs"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- ════════ STEP 2 ════════ -->
+          <div id="step-2" class="step-content hidden">
+            <h2 data-i18n="s2.title" class="text-base sm:text-lg font-bold text-gray-800 mb-3 sm:mb-4">
+              Tus datos de contacto
+            </h2>
+
+            <div class="space-y-3 sm:space-y-4 mb-4 sm:mb-5">
+              <div class="grid grid-cols-2 gap-3 sm:gap-4">
+                <div>
+                  <label class="field-label">
+                    <span data-i18n="f.nombre">Nombre</span>
+                    <span class="text-red-500 ml-0.5">*</span>
+                  </label>
+                  <input id="nombre" type="text" class="field-input"
+                         data-i18n-ph="f.nombre.ph" placeholder="Ej. María" autocomplete="given-name" />
+                </div>
+                <div>
+                  <label class="field-label">
+                    <span data-i18n="f.apellido">Apellido</span>
+                    <span class="text-red-500 ml-0.5">*</span>
+                  </label>
+                  <input id="apellido" type="text" class="field-input"
+                         data-i18n-ph="f.apellido.ph" placeholder="Ej. González" autocomplete="family-name" />
+                </div>
+              </div>
+
+              <div>
+                <label class="field-label">
+                  <span data-i18n="f.cedula">Cédula de Identidad</span>
+                  <span class="text-red-500 ml-0.5">*</span>
+                </label>
+                <div class="flex gap-2">
+                  <select id="cedula_tipo" class="field-input w-16 sm:w-20 flex-shrink-0">
+                    <option value="V">V-</option>
+                    <option value="E">E-</option>
+                    <option value="J">J-</option>
+                  </select>
+                  <input id="cedula" type="text" class="field-input flex-1"
+                         placeholder="12345678" maxlength="10" inputmode="numeric" />
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-3 sm:gap-4">
+                <div>
+                  <label class="field-label">
+                    <span data-i18n="f.telefono">Teléfono</span>
+                    <span class="text-red-500 ml-0.5">*</span>
+                  </label>
+                  <input id="telefono" type="tel" class="field-input"
+                         placeholder="0412-0000000" autocomplete="tel" />
+                </div>
+                <div>
+                  <label data-i18n="f.email" class="field-label">Correo electrónico</label>
+                  <input id="email" type="email" class="field-input"
+                         data-i18n-ph="f.email.ph" placeholder="tu@correo.com" autocomplete="email" />
+                </div>
+              </div>
+
+              <div>
+                <label data-i18n="f.estado" class="field-label">Estado (Venezuela)</label>
+                <select id="estado" class="field-input">
+                  <option value="" data-i18n="sel.estado">Seleccionar estado...</option>
+                  <option>Amazonas</option><option>Anzoátegui</option><option>Apure</option>
+                  <option>Aragua</option><option>Barinas</option><option>Bolívar</option>
+                  <option>Carabobo</option><option>Cojedes</option><option>Delta Amacuro</option>
+                  <option>Distrito Capital</option><option>Falcón</option><option>Guárico</option>
+                  <option>Lara</option><option>Mérida</option><option>Miranda</option>
+                  <option>Monagas</option><option>Nueva Esparta</option><option>Portuguesa</option>
+                  <option>Sucre</option><option>Táchira</option><option>Trujillo</option>
+                  <option>La Guaira</option><option>Yaracuy</option><option>Zulia</option>
+                </select>
+              </div>
+
+              <div class="flex items-start gap-3 p-3 bg-blue-50 rounded-xl border border-blue-100">
+                <input type="checkbox" id="acepto_terminos"
+                       class="mt-0.5 accent-brand-700 w-4 h-4 flex-shrink-0 cursor-pointer" />
+                <label for="acepto_terminos" class="text-xs text-gray-800 leading-relaxed cursor-pointer">
+                  <span data-i18n="f.terms">Acepto que Sefired procese mis datos personales para recibir información sobre seguros y fianzas, de acuerdo con la</span>
+                  <a href="#" data-i18n="f.privacy" class="text-brand-700 underline font-medium ml-1">Política de Privacidad</a>.
+                </label>
+              </div>
+            </div>
+
+            <div class="flex justify-between gap-3">
+              <button id="btn-step2-back" class="btn-secondary">
+                <i class="fa-solid fa-arrow-left mr-2 text-xs"></i>
+                <span data-i18n="btn.back">Atrás</span>
+              </button>
+              <button id="btn-step2-next" class="btn-primary" disabled>
+                <span data-i18n="btn.calc">Calcular cotización</span>
+                <i class="fa-solid fa-calculator ml-2 text-xs"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- ════════ STEP 3 ════════ -->
+          <div id="step-3" class="step-content hidden">
+
+            <!-- Loading -->
+            <div id="result-loading" class="flex flex-col items-center justify-center py-12">
+              <div class="loader mb-4"></div>
+              <p data-i18n="loading" class="text-gray-700 text-sm">Calculando tu cotización...</p>
+            </div>
+
+            <!-- Result -->
+            <div id="result-content" class="hidden">
+              <div class="text-center mb-4 sm:mb-5">
+                <div class="inline-flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 bg-green-100 rounded-full mb-2">
+                  <i class="fa-solid fa-circle-check text-green-600 text-xl sm:text-2xl"></i>
+                </div>
+                <h2 data-i18n="res.title" class="text-lg sm:text-xl font-bold text-gray-800">¡Tu cotización está lista!</h2>
+                <p data-i18n="res.subtitle" class="text-gray-700 text-[10px] sm:text-xs mt-0.5">Estimación basada en la información suministrada</p>
+              </div>
+
+              <div class="bg-gradient-to-br from-brand-700 to-brand-900 rounded-xl p-4 sm:p-4 text-white mb-3 sm:mb-4">
+                <div class="flex justify-between items-start mb-4">
+                  <div>
+                    <p data-i18n="res.tipo" class="text-brand-200 text-xs font-medium uppercase tracking-wide">Tipo de seguro</p>
+                    <p id="res-tipo" class="font-bold text-base sm:text-lg mt-0.5">—</p>
+                  </div>
+                  <div class="text-right">
+                    <p data-i18n="res.annual" class="text-brand-200 text-xs font-medium uppercase tracking-wide">Prima anual estimada</p>
+                    <p id="res-prima-anual" class="font-extrabold text-xl sm:text-2xl mt-0.5 text-gold-400">$ —</p>
+                  </div>
+                </div>
+                <div class="border-t border-brand-600 pt-3 flex justify-between text-sm">
+                  <span data-i18n="res.monthly" class="text-brand-200">Prima mensual estimada</span>
+                  <span id="res-prima-mensual" class="font-semibold text-white">$ —</span>
+                </div>
+              </div>
+
+              <div class="space-y-1 mb-3 sm:mb-4">
+                <div class="flex justify-between text-sm py-2 border-b border-gray-100">
+                  <span data-i18n="res.titular" class="text-gray-700">Titular</span>
+                  <span id="res-titular" class="font-medium text-gray-800 text-right ml-3">—</span>
+                </div>
+                <div class="flex justify-between text-sm py-2 border-b border-gray-100">
+                  <span data-i18n="res.telefono" class="text-gray-700">Teléfono</span>
+                  <span id="res-telefono" class="font-medium text-gray-800">—</span>
+                </div>
+                <div class="flex justify-between text-sm py-2 border-b border-gray-100">
+                  <span data-i18n="res.estado" class="text-gray-700">Estado</span>
+                  <span id="res-estado" class="font-medium text-gray-800">—</span>
+                </div>
+              </div>
+
+              <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 sm:p-4 text-xs text-amber-800 mb-5 flex gap-2">
+                <i class="fa-solid fa-triangle-exclamation mt-0.5 flex-shrink-0"></i>
+                <p data-i18n="res.disclaimer">
+                  Esta cotización es <strong>referencial</strong> y puede variar según inspección técnica y condiciones específicas de la póliza. Un asesor de Sefired se contactará contigo a la brevedad.
+                </p>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2 sm:gap-3">
+                <button id="btn-restart" class="btn-secondary text-xs sm:text-sm">
+                  <i class="fa-solid fa-rotate-left mr-1.5"></i>
+                  <span data-i18n="btn.restart">Nueva cotización</span>
+                </button>
+                <button class="btn-primary text-xs sm:text-sm whatsapp-btn">
+                  <i class="fa-brands fa-whatsapp mr-1.5"></i>
+                  <span data-i18n="btn.whatsapp">Hablar con asesor</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+      <!-- / quote-card -->
+
+      </div><!-- /hero-right -->
+    </div><!-- /hero-inner -->
+  </section>
+
+  <!-- ================================================================
+       CHATBOT FAB
+       ================================================================ -->
+  <button id="chatbot-btn" class="chatbot-fab" aria-label="Chat" data-i18n-title="chat.fab">
+    <i class="fa-solid fa-comment-dots text-xl" id="chatbot-icon"></i>
+    <span class="chatbot-badge">1</span>
+  </button>
+
+  <!-- Chatbot Panel -->
+  <div id="chatbot-panel" class="chatbot-panel hidden" role="dialog" aria-modal="true">
+    <div class="chatbot-header">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
+          <i class="fa-solid fa-robot text-white text-base"></i>
+        </div>
+        <div>
+          <p data-i18n="chat.title" class="font-semibold text-sm leading-none">Asistente Sefired</p>
+          <p class="text-xs text-green-300 flex items-center gap-1 mt-0.5">
+            <span class="w-1.5 h-1.5 bg-green-400 rounded-full inline-block"></span>
+            <span data-i18n="chat.online">En línea</span>
+          </p>
+        </div>
+      </div>
+      <button id="chatbot-close" class="text-white/70 hover:text-white transition-colors p-1 rounded" aria-label="Close">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+    </div>
+
+    <div id="chat-messages" class="chatbot-messages">
+      <div class="chat-msg bot">
+        <p data-i18n="chat.greeting1">¡Hola! 👋 Soy el asistente virtual de <strong>Sefired</strong>.</p>
+        <p data-i18n="chat.greeting2" class="mt-1">¿En qué puedo ayudarte hoy?</p>
+      </div>
+      <div class="chat-suggestions">
+        <button class="chat-chip" data-msg-key="chip1" data-i18n="chat.chip1">Cotizar seguro</button>
+        <button class="chat-chip" data-msg-key="chip2" data-i18n="chat.chip2">¿Qué seguros ofrecen?</button>
+        <button class="chat-chip" data-msg-key="chip3" data-i18n="chat.chip3">Hablar con asesor</button>
+      </div>
+    </div>
+
+    <div class="chatbot-input-area">
+      <input id="chat-input" type="text" class="chatbot-input"
+             data-i18n-ph="chat.ph" placeholder="Escribe tu mensaje..." />
+      <button id="chat-send" class="chat-send-btn" aria-label="Send">
+        <i class="fa-solid fa-paper-plane text-sm"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- ================================================================
+       FOOTER
+       ================================================================ -->
+  <footer class="footer-bg">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-6">
+      <div class="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs sm:text-sm sm:pr-20">
+
+        <!-- Logo + copyright -->
+        <div class="flex items-center gap-2.5">
+          <img src="assets/logo1%20(Edited).png" alt="Sefired" class="h-7 w-auto object-contain flex-shrink-0">
+          <span class="text-gray-700">
+            &copy; <span id="year"></span>
+            <strong class="text-gray-700 font-semibold">Sefired</strong>
+            <span class="mx-1 text-gray-300">·</span>
+            <span data-i18n="footer.rights" class="text-gray-600">Todos los derechos reservados.</span>
+          </span>
+        </div>
+
+        <!-- Divider (mobile) -->
+        <div class="w-24 h-px bg-gray-200 sm:hidden"></div>
+
+        <!-- Developer credit -->
+        <div class="flex items-center gap-1.5 text-gray-600">
+          <span data-i18n="footer.by">Desarrollado por</span>
+          <a href="https://victecnology.com" target="_blank" rel="noopener"
+             class="inline-flex items-center gap-1 font-semibold text-brand-600 hover:text-brand-800 transition-colors">
+            <i class="fa-solid fa-code text-[10px]"></i>
+            Victecnology Lda
+          </a>
+        </div>
+
+      </div>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="js/main.js"></script>
+</body>
+</html>

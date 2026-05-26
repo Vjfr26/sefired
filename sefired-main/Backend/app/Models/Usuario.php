@@ -1,0 +1,57 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
+
+class Usuario extends Authenticatable
+{
+    use HasFactory, Notifiable;
+
+    protected $table = 'usuarios';
+    public $timestamps = false;
+
+    protected $fillable = [
+        'nombre',
+        'genero',
+        'cargo',
+        'nick',
+        'password',
+        'api_token',
+        'token_expira_en',
+        'token_created_at',
+        'sede',
+        'nro_sede',
+        'tipo',
+        'permisos',
+        'activo',
+        'motivo_bloqueo',
+        'temp',
+        'temp_expira_en',
+    ];
+
+    protected $hidden = [
+        'password',
+        'remember_token',
+        'api_token',
+        'token_expira_en',
+        'token_created_at',
+        'temp',
+        'temp_expira_en',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'activo' => 'boolean',
+            'permisos' => 'array',
+            'temp' => 'boolean',
+            'temp_expira_en'   => 'datetime',
+            'token_created_at' => 'datetime',
+            'fecha_creacion'   => 'datetime',
+            'password' => 'hashed',
+        ];
+    }
+}
