@@ -10,4 +10,4 @@
 export const API_BASE_URL = import.meta.env.VITE_API_URL ?? ''
 
 /** Nombre de la app mostrado en la UI. */
-export const APP_NAME = import.meta.env.VITE_APP_NAME ?? 'Sefired'
+export const APP_NAME = import.meta.env.VITE_APP_NAME ?? 'J&M'

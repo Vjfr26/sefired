@@ -31,7 +31,7 @@ const NAV = [
 ];
 
 const VIEW_META = {
-  'home':          { navId: 'home',         title: 'Inicio',             sub: 'Cotizador de Seguros Sefired' },
+  'home':          { navId: 'home',         title: 'Inicio',             sub: 'Cotizador de Seguros J&M' },
   'cat-productos': { navId: 'productos',    title: 'Productos',          sub: 'Catálogo de coberturas y servicios' },
   'cli-cliente':   { navId: 'clientes',     title: 'Clientes & Pólizas', sub: 'Gestión de clientes, pólizas y renovaciones' },
   'cli-vehiculo':  { navId: 'vehiculos',    title: 'Vehículos',          sub: 'Registro y consulta de vehículos asegurados' },
@@ -165,11 +165,11 @@ function simBar(active) {
       const n = i + 1, done = n < active, cur = n === active;
       const dot = `<div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all ${
         done ? 'bg-emerald-500 text-white'
-             : cur  ? 'bg-sefired-blue text-white shadow-[0_0_0_4px_rgba(0,20,99,0.15)]'
+             : cur  ? 'bg-jm-blue text-white shadow-[0_0_0_4px_rgba(0,20,99,0.15)]'
                     : 'bg-slate-100 text-slate-400'
       }">${done ? '<i data-lucide="check" class="w-3.5 h-3.5"></i>' : n}</div>`;
       const lbl = `<p class="text-[9px] font-bold mt-1 text-center leading-tight ${
-        done ? 'text-emerald-500' : cur ? 'text-sefired-blue' : 'text-slate-400'
+        done ? 'text-emerald-500' : cur ? 'text-jm-blue' : 'text-slate-400'
       }">${s.label}</p>`;
       const line = i < steps.length - 1
         ? `<div class="flex-1 h-0.5 mb-5 mx-1 transition-colors ${done ? 'bg-emerald-400' : 'bg-slate-200'}"></div>`
@@ -190,7 +190,7 @@ function simModal(step, body, footer, wide = false) {
             <i data-lucide="calculator" class="w-5 h-5 text-white"></i>
           </div>
           <div class="min-w-0">
-            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sefired · Seguros Vehiculares</p>
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">J&M · Seguros Vehiculares</p>
             <h3 class="text-lg font-black text-slate-800 mt-0.5">Simulador de Prima</h3>
           </div>
         </div>
@@ -341,12 +341,12 @@ function catParams() {
 
 function catConfig() {
   return formCard([
-    { label: 'Razón Social', val: 'Seguros Sefired C.A.', span: true },
+    { label: 'Razón Social', val: 'Seguros J&M C.A.', span: true },
     { label: 'RIF', val: 'J-30012345-6' },
     { label: 'Regulador', val: 'SUDEASEG', ro: true },
     { label: 'Dirección', val: 'Av. Principal, Caracas', span: true },
     { label: 'Teléfono', val: '+58 212-555-0100' },
-    { label: 'Email', val: 'info@sefired.com' },
+    { label: 'Email', val: 'info@jandm.com' },
     { label: 'Moneda Base', val: 'USD', ro: true },
     { label: 'País', val: 'Venezuela', ro: true },
   ], 'Guardar Configuración');
@@ -494,12 +494,12 @@ window.simIniciar = function() {
   const tipoCard = t => {
     const on = simState.tipo === t.val;
     return `<button onclick="simTipo('${t.val}')" id="sim-t-${t.val}"
-      class="flex flex-col items-center gap-2 p-3.5 rounded-2xl border-2 transition-all text-center ${on ? 'border-sefired-blue bg-blue-50/50' : 'border-slate-200 hover:border-slate-300'}">
-      <div class="w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${on ? 'bg-sefired-blue' : 'bg-slate-100'}">
+      class="flex flex-col items-center gap-2 p-3.5 rounded-2xl border-2 transition-all text-center ${on ? 'border-jm-blue bg-blue-50/50' : 'border-slate-200 hover:border-slate-300'}">
+      <div class="w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${on ? 'bg-jm-blue' : 'bg-slate-100'}">
         <i data-lucide="${t.icon}" class="w-4 h-4 ${on ? 'text-white' : 'text-slate-500'}"></i>
       </div>
       <div>
-        <p class="text-xs font-bold ${on ? 'text-sefired-blue' : 'text-slate-700'}">${t.label}</p>
+        <p class="text-xs font-bold ${on ? 'text-jm-blue' : 'text-slate-700'}">${t.label}</p>
         <p class="text-[9px] leading-tight mt-0.5 ${on ? 'text-blue-400' : 'text-slate-400'}">${t.desc}</p>
       </div>
     </button>`;
@@ -578,12 +578,12 @@ window.simTipo = function(val) {
   container.innerHTML = tipos.map(t => {
     const on = t.val === val;
     return `<button onclick="simTipo('${t.val}')" id="sim-t-${t.val}"
-      class="flex flex-col items-center gap-2 p-3.5 rounded-2xl border-2 transition-all text-center ${on ? 'border-sefired-blue bg-blue-50/50' : 'border-slate-200 hover:border-slate-300'}">
-      <div class="w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${on ? 'bg-sefired-blue' : 'bg-slate-100'}">
+      class="flex flex-col items-center gap-2 p-3.5 rounded-2xl border-2 transition-all text-center ${on ? 'border-jm-blue bg-blue-50/50' : 'border-slate-200 hover:border-slate-300'}">
+      <div class="w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${on ? 'bg-jm-blue' : 'bg-slate-100'}">
         <i data-lucide="${t.icon}" class="w-4 h-4 ${on ? 'text-white' : 'text-slate-500'}"></i>
       </div>
       <div>
-        <p class="text-xs font-bold ${on ? 'text-sefired-blue' : 'text-slate-700'}">${t.label}</p>
+        <p class="text-xs font-bold ${on ? 'text-jm-blue' : 'text-slate-700'}">${t.label}</p>
         <p class="text-[9px] leading-tight mt-0.5 ${on ? 'text-blue-400' : 'text-slate-400'}">${t.desc}</p>
       </div>
     </button>`;
@@ -620,7 +620,7 @@ window.simPaso2 = function() {
       </div>
       <div class="shrink-0 text-right">
         <p class="text-[10px] text-slate-400 uppercase tracking-wide">Valor</p>
-        <p class="text-base font-black text-sefired-blue">${usd(simState.valor)}</p>
+        <p class="text-base font-black text-jm-blue">${usd(simState.valor)}</p>
       </div>
     </div>
     <div class="flex items-center gap-2 mb-3">
@@ -680,7 +680,7 @@ window.simPaso3 = function() {
     </div>
     <div class="space-y-2 mb-4" id="sim-cov-list">
       ${Object.entries(simState.coberturas).map(([cod, c]) => `
-      <label id="sim-row-${cod}" class="flex items-start gap-3 p-3.5 rounded-2xl border-2 transition-all select-none ${c.req ? 'cursor-not-allowed border-rose-200/50 bg-rose-50/20' : c.chk ? 'cursor-pointer border-sefired-blue/25 bg-blue-50/40' : 'cursor-pointer border-slate-200 bg-white hover:border-slate-300'}">
+      <label id="sim-row-${cod}" class="flex items-start gap-3 p-3.5 rounded-2xl border-2 transition-all select-none ${c.req ? 'cursor-not-allowed border-rose-200/50 bg-rose-50/20' : c.chk ? 'cursor-pointer border-jm-blue/25 bg-blue-50/40' : 'cursor-pointer border-slate-200 bg-white hover:border-slate-300'}">
         <input type="checkbox" id="sim-c-${cod}" ${c.chk?'checked':''} ${c.req?'disabled':''}
           class="mt-0.5 w-4 h-4 accent-blue-700 shrink-0" onchange="simToggle('${cod}',this.checked)">
         <div class="flex-1 min-w-0">
@@ -719,7 +719,7 @@ window.simToggle = function(cod, chk) {
   const row = document.getElementById(`sim-row-${cod}`);
   if (row) row.className = `flex items-start gap-3 p-3.5 rounded-2xl border-2 transition-all select-none ${
     simState.coberturas[cod].req ? 'cursor-not-allowed border-rose-200/50 bg-rose-50/20'
-    : chk ? 'cursor-pointer border-sefired-blue/25 bg-blue-50/40'
+    : chk ? 'cursor-pointer border-jm-blue/25 bg-blue-50/40'
     : 'cursor-pointer border-slate-200 bg-white hover:border-slate-300'}`;
   const sub = Object.values(simState.coberturas).filter(c => c.chk).reduce((s, c) => s + c.prima, 0);
   const iva = sub * 0.16;
@@ -951,7 +951,7 @@ function emiNumero() {
     <p class="text-xs text-slate-500 mb-2 uppercase tracking-widest">Número de Póliza Asignado</p>
     <p class="text-2xl sm:text-4xl font-extrabold text-blue-700 tracking-wider break-all mb-3">SEF-2026-VEH-00848</p>
     <div class="flex flex-wrap items-center justify-center gap-4 text-xs text-slate-400 mb-6">
-      <span><strong class="text-slate-600">SEF</strong> · Sefired</span>
+      <span><strong class="text-slate-600">SEF</strong> · J&M</span>
       <span><strong class="text-slate-600">2026</strong> · Año</span>
       <span><strong class="text-slate-600">VEH</strong> · Ramo Vehículo</span>
       <span><strong class="text-slate-600">00848</strong> · Correlativo</span>
@@ -990,7 +990,7 @@ function emiRecibo() {
     <div class="flex flex-wrap justify-between items-start gap-3 mb-5 pb-4 border-b border-slate-100">
       <div>
         <h4 class="font-bold text-slate-900 text-base">RECIBO DE PRIMA</h4>
-        <p class="text-xs text-slate-500 mt-0.5">Sefired C.A. · RIF J-30012345-6</p>
+        <p class="text-xs text-slate-500 mt-0.5">J&M C.A. · RIF J-30012345-6</p>
       </div>
       <div class="text-right">
         <p class="font-semibold text-slate-700 text-sm">REC-2026-00848</p>
@@ -1051,7 +1051,7 @@ function facImpuestos() {
   return tbl([{ l: 'Concepto', k: 'conc', tr: true }, { l: 'Base Imponible', k: 'base', r: true, hide: 'md' }, { l: '%', k: 'pct', r: true, hide: 'sm' }, { l: 'Monto', k: 'monto', r: true }, { l: 'Normativa', k: 'norm', hide: 'sm', tr: true }], [
     { conc: 'Prima Neta', base: usd(532.50), pct: '—', monto: usd(532.50), norm: 'Base de cálculo' },
     { conc: 'IVA', base: usd(532.50), pct: '16.00%', monto: usd(85.20), norm: 'SENIAT' },
-    { conc: 'Derecho de Póliza', base: '—', pct: 'Fijo', monto: usd(5.00), norm: 'Sefired' },
+    { conc: 'Derecho de Póliza', base: '—', pct: 'Fijo', monto: usd(5.00), norm: 'J&M' },
     { conc: 'Impuesto a Primas', base: usd(532.50), pct: '1.00%', monto: usd(5.33), norm: 'Ley de Seguros' },
     { conc: 'TOTAL', base: '—', pct: '—', monto: usd(627.03), norm: '' },
   ]);
@@ -1392,14 +1392,14 @@ function cotSimulador() {
         <div class="flex-1 min-w-0">
           <div class="inline-flex items-center gap-2 bg-white/10 border border-white/15 rounded-full px-3 py-1.5 mb-4">
             <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-400"></i>
-            <span class="text-xs font-bold text-white/70 uppercase tracking-wider">Seguro Vehicular Sefired</span>
+            <span class="text-xs font-bold text-white/70 uppercase tracking-wider">Seguro Vehicular J&M</span>
           </div>
           <h2 class="text-2xl sm:text-3xl font-black text-white leading-snug mb-2">Simula el costo<br><span class="text-emerald-400">de tu póliza</span></h2>
           <p class="text-sm text-white/50 max-w-xs">Obtén una cotización personalizada al instante. Elige coberturas, calcula prima y guarda tu simulación.</p>
         </div>
         <div class="shrink-0">
           <button onclick="simIniciar()"
-            class="flex items-center gap-2.5 bg-white text-sefired-blue text-sm font-black px-7 py-4 rounded-2xl hover:bg-blue-50 transition-all shadow-xl shadow-black/25 group">
+            class="flex items-center gap-2.5 bg-white text-jm-blue text-sm font-black px-7 py-4 rounded-2xl hover:bg-blue-50 transition-all shadow-xl shadow-black/25 group">
             <i data-lucide="calculator" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
             Iniciar Simulación
           </button>
@@ -1430,7 +1430,7 @@ function cotSimulador() {
       <div class="flex flex-wrap items-center gap-2">
         ${['Todos','En Revisión','Aprobado','Emitida','Rechazado'].map((s, i) => `
         <button onclick="filterSimStatus('${s}',${i})" id="sim-chip-${i}"
-          class="px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${i === 0 ? 'bg-sefired-blue text-white border-sefired-blue' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}">
+          class="px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${i === 0 ? 'bg-jm-blue text-white border-jm-blue' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}">
           ${s}
         </button>`).join('')}
       </div>
@@ -1496,7 +1496,7 @@ function cotSimulador() {
       </div>
       <div class="px-4 py-3 border-t border-slate-100 flex items-center justify-between gap-2 text-xs text-slate-400">
         <span>${quotes.length} simulaciones</span>
-        <button onclick="simIniciar()" class="flex items-center gap-1 text-sefired-blue font-semibold hover:underline">
+        <button onclick="simIniciar()" class="flex items-center gap-1 text-jm-blue font-semibold hover:underline">
           <i data-lucide="plus" class="w-3.5 h-3.5"></i> Nueva
         </button>
       </div>
@@ -1507,7 +1507,7 @@ function cotSimulador() {
 window.filterSimStatus = function(status, idx) {
   document.querySelectorAll('[id^="sim-chip-"]').forEach((chip, i) => {
     const active = i === idx;
-    chip.className = `px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${active ? 'bg-sefired-blue text-white border-sefired-blue' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`;
+    chip.className = `px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${active ? 'bg-jm-blue text-white border-jm-blue' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`;
   });
   document.querySelectorAll('#sim-tbl-body tr').forEach(row => {
     if (status === 'Todos') { row.classList.remove('hidden'); return; }
@@ -1520,9 +1520,9 @@ function confAbout() {
   return `<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     <div class="card p-6">
       <div class="flex items-center gap-4 mb-6 pb-4 border-b border-slate-100">
-        <img src="/logo2.png" alt="Sefired" class="h-14 object-contain">
+        <img src="/logo2.png" alt="J&M" class="h-14 object-contain">
         <div>
-          <h3 class="font-bold text-slate-800 text-lg">Seguros Sefired</h3>
+          <h3 class="font-bold text-slate-800 text-lg">Seguros J&M</h3>
           <p class="text-sm text-slate-500">Cooperativa de Seguros de Vehículos R.L.</p>
         </div>
       </div>
@@ -1531,8 +1531,8 @@ function confAbout() {
         <div class="flex justify-between gap-3 py-2 border-b border-slate-100"><span class="text-slate-500">Regulador</span><span class="font-semibold text-blue-700">SUDEASEG</span></div>
         <div class="flex justify-between gap-3 py-2 border-b border-slate-100"><span class="text-slate-500">Registro</span><span class="font-mono text-xs text-slate-600">RSE-2010-00247</span></div>
         <div class="flex justify-between gap-3 py-2 border-b border-slate-100"><span class="text-slate-500">País</span><span class="font-semibold">Venezuela</span></div>
-        <div class="flex justify-between gap-3 py-2 border-b border-slate-100"><span class="text-slate-500">Email</span><span class="text-blue-600">info@sefired.com</span></div>
-        <div class="flex justify-between gap-3 py-2"><span class="text-slate-500">Web</span><span class="text-blue-600">www.sefired.com</span></div>
+        <div class="flex justify-between gap-3 py-2 border-b border-slate-100"><span class="text-slate-500">Email</span><span class="text-blue-600">info@jandm.com</span></div>
+        <div class="flex justify-between gap-3 py-2"><span class="text-slate-500">Web</span><span class="text-blue-600">www.jandm.com</span></div>
       </div>
     </div>
     <div class="card p-6">
@@ -1547,7 +1547,7 @@ function confAbout() {
       </div>
       <div class="mt-5 p-4 bg-blue-50 rounded-xl">
         <p class="text-xs font-semibold text-blue-800 mb-1">Licencia de uso</p>
-        <p class="text-xs text-blue-600">Este sistema es propiedad de Seguros Sefired C.A. Su uso no autorizado está prohibido.</p>
+        <p class="text-xs text-blue-600">Este sistema es propiedad de Seguros J&M C.A. Su uso no autorizado está prohibido.</p>
       </div>
     </div>
   </div>`;
@@ -1737,12 +1737,12 @@ function viewHome() {
     <div class="card w-full max-w-xl mx-auto overflow-hidden">
       <!-- User info -->
       <div class="flex flex-col items-center text-center px-8 sm:px-14 pt-8 sm:pt-10 pb-7 sm:pb-9 border-b border-slate-100">
-        <div class="w-20 h-20 rounded-3xl bg-sefired-blue flex items-center justify-center text-2xl font-extrabold text-white mb-5 shadow-xl shadow-blue-900/20">
+        <div class="w-20 h-20 rounded-3xl bg-jm-blue flex items-center justify-center text-2xl font-extrabold text-white mb-5 shadow-xl shadow-blue-900/20">
           CR
         </div>
         <p class="text-xs font-bold text-slate-400 uppercase tracking-[0.28em] mb-2">Bienvenido de vuelta</p>
         <h2 class="text-2xl sm:text-3xl font-black text-slate-800 mb-2 tracking-tight">Carlos Ruiz</h2>
-        <p class="text-sm font-semibold text-slate-500">Asesor de Ventas · Sefired R.L.</p>
+        <p class="text-sm font-semibold text-slate-500">Asesor de Ventas · J&M R.L.</p>
         <p class="text-xs text-slate-400 font-mono mt-1.5">RIF: J-30012345-6 · Caracas Principal</p>
       </div>
       <!-- Quick access -->
@@ -1788,7 +1788,7 @@ function _viewHomeOld_unused() {
     <div class="card p-6 md:p-10">
       <div class="flex items-center justify-between mb-6">
         <h3 class="text-xl font-bold text-slate-800">Simulador de Cotizaciones</h3>
-        <span class="text-xs font-bold text-slate-500 uppercase tracking-widest">SEFIRED</span>
+        <span class="text-xs font-bold text-slate-500 uppercase tracking-widest">J&M</span>
       </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
@@ -1802,16 +1802,16 @@ function _viewHomeOld_unused() {
                 <span class="text-xs font-bold">Auto</span>
               </button>
               <button class="type-btn group h-20">
-                <i data-lucide="home" class="w-6 h-6 text-slate-500 group-hover:text-sefired-green"></i>
-                <span class="text-xs font-bold text-slate-600 group-hover:text-sefired-green">Hogar</span>
+                <i data-lucide="home" class="w-6 h-6 text-slate-500 group-hover:text-jm-green"></i>
+                <span class="text-xs font-bold text-slate-600 group-hover:text-jm-green">Hogar</span>
               </button>
               <button class="type-btn group h-20">
-                <i data-lucide="heart" class="w-6 h-6 text-slate-500 group-hover:text-sefired-green"></i>
-                <span class="text-xs font-bold text-slate-600 group-hover:text-sefired-green">Vida</span>
+                <i data-lucide="heart" class="w-6 h-6 text-slate-500 group-hover:text-jm-green"></i>
+                <span class="text-xs font-bold text-slate-600 group-hover:text-jm-green">Vida</span>
               </button>
               <button class="type-btn group h-20">
-                <i data-lucide="plane" class="w-6 h-6 text-slate-500 group-hover:text-sefired-green"></i>
-                <span class="text-xs font-bold text-slate-600 group-hover:text-sefired-green">Viajes</span>
+                <i data-lucide="plane" class="w-6 h-6 text-slate-500 group-hover:text-jm-green"></i>
+                <span class="text-xs font-bold text-slate-600 group-hover:text-jm-green">Viajes</span>
               </button>
             </div>
           </div>
@@ -1829,7 +1829,7 @@ function _viewHomeOld_unused() {
           
           <div class="input-group">
             <label class="input-label">Correo Electrónico</label>
-            <input type="text" class="input-control h-10" placeholder="ejemplo@sefired.com" value="cruiz@sefired.com">
+            <input type="text" class="input-control h-10" placeholder="ejemplo@jandm.com" value="cruiz@jandm.com">
           </div>
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1850,7 +1850,7 @@ function _viewHomeOld_unused() {
           <div class="input-group">
             <div class="flex justify-between items-center mb-3">
               <label class="input-label text-xs">Suma Asegurada</label>
-              <span class="text-lg font-black text-sefired-blue">$ 15.000,00</span>
+              <span class="text-lg font-black text-jm-blue">$ 15.000,00</span>
             </div>
             <input type="range" min="5000" max="100000" step="1000" value="15000" class="w-full">
           </div>
@@ -1864,13 +1864,13 @@ function _viewHomeOld_unused() {
               
               <div class="space-y-2">
                 <p class="text-xs font-bold text-slate-500 uppercase tracking-widest">Prima Mensual Estada</p>
-                <p class="text-2xl md:text-3xl font-black text-sefired-green tracking-tight">$ 150.00</p>
+                <p class="text-2xl md:text-3xl font-black text-jm-green tracking-tight">$ 150.00</p>
               </div>
             </div>
 
             <div class="space-y-2 mb-8">
               <p class="text-xs font-bold text-slate-500 uppercase tracking-widest">Prima Anual Estimada</p>
-              <p class="text-2xl md:text-3xl font-black text-sefired-green tracking-tight">$ 2.000.00</p>
+              <p class="text-2xl md:text-3xl font-black text-jm-green tracking-tight">$ 2.000.00</p>
             </div>
 
             <button class="btn-primary w-full py-4 text-lg font-black rounded-2xl shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-transform">
@@ -1889,10 +1889,10 @@ function confPerfil() {
     <div class="card p-6 lg:col-span-2">
       <h4 class="font-semibold text-slate-800 mb-5">Información Personal</h4>
       <div class="flex items-center gap-5 pb-5 mb-5 border-b border-slate-100">
-        <div class="w-16 h-16 rounded-2xl bg-sefired-dark flex items-center justify-center text-xl font-extrabold text-white shrink-0">CR</div>
+        <div class="w-16 h-16 rounded-2xl bg-jm-dark flex items-center justify-center text-xl font-extrabold text-white shrink-0">CR</div>
         <div>
           <p class="font-bold text-slate-800">Carlos Ruiz</p>
-          <p class="text-sm text-slate-500">Asesor de Ventas · Sefired R.L.</p>
+          <p class="text-sm text-slate-500">Asesor de Ventas · J&M R.L.</p>
           <button onclick="showToast('Función de cambio de foto próximamente','info')" class="text-xs text-blue-600 font-semibold hover:underline mt-1">Cambiar foto</button>
         </div>
       </div>
@@ -1999,14 +1999,14 @@ function confPrefs() {
 
 function confUsuarios() {
   const usuarios = [
-    { usr: 'vadmin', nom: 'Victor Admin', rol: 'Gerente Regional', email: 'vadmin@sefired.com', ult: '03/05/2026', est: 'Activo' },
-    { usr: 'psalazar', nom: 'Pedro Salazar', rol: 'Agente', email: 'psalazar@sefired.com', ult: '03/05/2026', est: 'Activo' },
-    { usr: 'asuarez', nom: 'Ana Suárez', rol: 'Agente', email: 'asuarez@sefired.com', ult: '02/05/2026', est: 'Activo' },
-    { usr: 'lromero', nom: 'Luis Romero', rol: 'Agente', email: 'lromero@sefired.com', ult: '02/05/2026', est: 'Activo' },
-    { usr: 'cmendoza', nom: 'Carla Mendoza', rol: 'Agente', email: 'cmendoza@sefired.com', ult: '01/05/2026', est: 'Activo' },
-    { usr: 'rcontrol', nom: 'Rosa Control', rol: 'Supervisor', email: 'rcontrol@sefired.com', ult: '03/05/2026', est: 'Activo' },
-    { usr: 'jaudit', nom: 'Juan Auditor', rol: 'Solo Lectura', email: 'jaudit@sefired.com', ult: '28/04/2026', est: 'Activo' },
-    { usr: 'xbaja', nom: 'Xavier Baja', rol: 'Agente', email: 'xbaja@sefired.com', ult: '15/03/2026', est: 'Inactivo' },
+    { usr: 'vadmin', nom: 'Victor Admin', rol: 'Gerente Regional', email: 'vadmin@jandm.com', ult: '03/05/2026', est: 'Activo' },
+    { usr: 'psalazar', nom: 'Pedro Salazar', rol: 'Agente', email: 'psalazar@jandm.com', ult: '03/05/2026', est: 'Activo' },
+    { usr: 'asuarez', nom: 'Ana Suárez', rol: 'Agente', email: 'asuarez@jandm.com', ult: '02/05/2026', est: 'Activo' },
+    { usr: 'lromero', nom: 'Luis Romero', rol: 'Agente', email: 'lromero@jandm.com', ult: '02/05/2026', est: 'Activo' },
+    { usr: 'cmendoza', nom: 'Carla Mendoza', rol: 'Agente', email: 'cmendoza@jandm.com', ult: '01/05/2026', est: 'Activo' },
+    { usr: 'rcontrol', nom: 'Rosa Control', rol: 'Supervisor', email: 'rcontrol@jandm.com', ult: '03/05/2026', est: 'Activo' },
+    { usr: 'jaudit', nom: 'Juan Auditor', rol: 'Solo Lectura', email: 'jaudit@jandm.com', ult: '28/04/2026', est: 'Activo' },
+    { usr: 'xbaja', nom: 'Xavier Baja', rol: 'Agente', email: 'xbaja@jandm.com', ult: '15/03/2026', est: 'Inactivo' },
   ];
   return searchBar('s-usr', 'Buscar usuario…',
     `<button onclick="showToast('Formulario nuevo usuario','info')" class="btn-primary ml-auto"><i data-lucide="plus" class="w-4 h-4"></i>Nuevo Usuario</button>`,
@@ -2069,14 +2069,14 @@ function confRoles() {
 function confEmpresa() {
   return `<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     ${formCard([
-    { label: 'Razón Social', val: 'Seguros Sefired C.A.', span: true },
+    { label: 'Razón Social', val: 'Seguros J&M C.A.', span: true },
     { label: 'RIF', val: 'J-30012345-6' },
     { label: 'Registro SUDEASEG', val: 'RSE-2010-00247' },
     { label: 'Dirección', val: 'Av. Francisco de Miranda, Torre empresarial, Caracas', span: true },
     { label: 'Teléfono Principal', val: '+58 212-555-0100' },
     { label: 'Teléfono Secundario', val: '+58 212-555-0101' },
-    { label: 'Email Corporativo', val: 'info@sefired.com' },
-    { label: 'Sitio Web', val: 'www.sefired.com' },
+    { label: 'Email Corporativo', val: 'info@jandm.com' },
+    { label: 'Sitio Web', val: 'www.jandm.com' },
   ], 'Guardar Datos Empresa')}
 
     <div class="space-y-5">
@@ -2139,7 +2139,7 @@ function confRespaldo() {
         ${formGrid([
     { label: 'Frecuencia', type: 'select', opts: ['Diario (23:00)', 'Cada 12 horas', 'Semanal (Domingo)', 'Mensual'] },
     { label: 'Retención', type: 'select', opts: ['7 días', '15 días', '30 días', '90 días'] },
-    { label: 'Ruta de destino', val: '/backups/sefired/', span: true },
+    { label: 'Ruta de destino', val: '/backups/jm/', span: true },
   ])}
         <label class="flex items-center justify-between cursor-pointer">
           <span class="text-sm text-slate-700">Respaldo automático activo</span>
@@ -2217,16 +2217,16 @@ function usrLista() {
   const roleBadge = r => badge(r, ROLE_COLOR[r] || 'slate');
 
   const users = [
-    { init: 'CR', nom: 'Carlos Ruiz',      email: 'c.ruiz@sefired.com',     rol: 'Admin',             oficina: 'Caracas Principal', est: 'Activo',    ultimo: '07/05/2026 08:12' },
-    { init: 'PS', nom: 'Pedro Salazar',    email: 'p.salazar@sefired.com',   rol: 'Oficina',           oficina: 'Caracas Principal', est: 'Activo',    ultimo: '07/05/2026 07:55' },
-    { init: 'AS', nom: 'Ana Suárez',       email: 'a.suarez@sefired.com',    rol: 'Vendedor Sucursal', oficina: 'Valencia',          est: 'Activo',    ultimo: '06/05/2026 16:30' },
-    { init: 'LR', nom: 'Luis Romero',      email: 'l.romero@sefired.com',    rol: 'Vendedor Calle',    oficina: 'Caracas Principal', est: 'Activo',    ultimo: '06/05/2026 14:15' },
-    { init: 'VM', nom: 'Valentina Mora',   email: 'v.mora@sefired.com',      rol: 'Vendedor Sucursal', oficina: 'Maracaibo',         est: 'Bloqueado', ultimo: '02/05/2026 11:00' },
-    { init: 'JG', nom: 'José González',    email: 'j.gonzalez@sefired.com',  rol: 'Vendedor Calle',    oficina: 'Valencia',          est: 'Activo',    ultimo: '05/05/2026 09:45' },
-    { init: 'MT', nom: 'María Torres',     email: 'm.torres@sefired.com',    rol: 'Oficina',           oficina: 'Maracaibo',         est: 'Activo',    ultimo: '07/05/2026 08:00' },
-    { init: 'RD', nom: 'Ricardo Díaz',     email: 'r.diaz@sefired.com',      rol: 'Vendedor Calle',    oficina: 'Caracas Principal', est: 'Bloqueado', ultimo: '28/04/2026 17:22' },
-    { init: 'GF', nom: 'Gabriela Flores',  email: 'g.flores@sefired.com',    rol: 'Vendedor Sucursal', oficina: 'Caracas Principal', est: 'Activo',    ultimo: '07/05/2026 09:30' },
-    { init: 'EM', nom: 'Eduardo Medina',   email: 'e.medina@sefired.com',    rol: 'Oficina',           oficina: 'Valencia',          est: 'Activo',    ultimo: '06/05/2026 15:50' },
+    { init: 'CR', nom: 'Carlos Ruiz',      email: 'c.ruiz@jandm.com',     rol: 'Admin',             oficina: 'Caracas Principal', est: 'Activo',    ultimo: '07/05/2026 08:12' },
+    { init: 'PS', nom: 'Pedro Salazar',    email: 'p.salazar@jandm.com',   rol: 'Oficina',           oficina: 'Caracas Principal', est: 'Activo',    ultimo: '07/05/2026 07:55' },
+    { init: 'AS', nom: 'Ana Suárez',       email: 'a.suarez@jandm.com',    rol: 'Vendedor Sucursal', oficina: 'Valencia',          est: 'Activo',    ultimo: '06/05/2026 16:30' },
+    { init: 'LR', nom: 'Luis Romero',      email: 'l.romero@jandm.com',    rol: 'Vendedor Calle',    oficina: 'Caracas Principal', est: 'Activo',    ultimo: '06/05/2026 14:15' },
+    { init: 'VM', nom: 'Valentina Mora',   email: 'v.mora@jandm.com',      rol: 'Vendedor Sucursal', oficina: 'Maracaibo',         est: 'Bloqueado', ultimo: '02/05/2026 11:00' },
+    { init: 'JG', nom: 'José González',    email: 'j.gonzalez@jandm.com',  rol: 'Vendedor Calle',    oficina: 'Valencia',          est: 'Activo',    ultimo: '05/05/2026 09:45' },
+    { init: 'MT', nom: 'María Torres',     email: 'm.torres@jandm.com',    rol: 'Oficina',           oficina: 'Maracaibo',         est: 'Activo',    ultimo: '07/05/2026 08:00' },
+    { init: 'RD', nom: 'Ricardo Díaz',     email: 'r.diaz@jandm.com',      rol: 'Vendedor Calle',    oficina: 'Caracas Principal', est: 'Bloqueado', ultimo: '28/04/2026 17:22' },
+    { init: 'GF', nom: 'Gabriela Flores',  email: 'g.flores@jandm.com',    rol: 'Vendedor Sucursal', oficina: 'Caracas Principal', est: 'Activo',    ultimo: '07/05/2026 09:30' },
+    { init: 'EM', nom: 'Eduardo Medina',   email: 'e.medina@jandm.com',    rol: 'Oficina',           oficina: 'Valencia',          est: 'Activo',    ultimo: '06/05/2026 15:50' },
   ];
 
   const estBadge = est => est === 'Activo'
@@ -2310,7 +2310,7 @@ function usrLista() {
       ${['Todos', ...ROLES].map((r, i) => `
       <button onclick="filterUsersRole('${r}',${i})"
         id="usr-chip-${i}"
-        class="px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${i === 0 ? 'bg-sefired-blue text-white border-sefired-blue' : 'bg-white text-slate-600 border-slate-200 hover:border-sefired-blue hover:text-sefired-blue'}">
+        class="px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${i === 0 ? 'bg-jm-blue text-white border-jm-blue' : 'bg-white text-slate-600 border-slate-200 hover:border-jm-blue hover:text-jm-blue'}">
         ${r}${i > 0 ? ` · ${byRole[r]}` : ''}
       </button>`).join('')}
     </div>
@@ -2329,7 +2329,7 @@ function usrLista() {
       { l: '',              k: 'acc', acc: true },
     ], users.map(u => ({
       usr: `<div class="flex items-center gap-2 sm:gap-2.5 min-w-0">
-        <div class="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl ${u.est === 'Bloqueado' ? 'bg-slate-300' : 'bg-sefired-blue'} flex items-center justify-center text-[9px] sm:text-[10px] font-bold text-white shrink-0">${u.init}</div>
+        <div class="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl ${u.est === 'Bloqueado' ? 'bg-slate-300' : 'bg-jm-blue'} flex items-center justify-center text-[9px] sm:text-[10px] font-bold text-white shrink-0">${u.init}</div>
         <div class="min-w-0">
           <p class="font-semibold text-slate-800 text-xs sm:text-sm break-words">${u.nom}</p>
           <p class="text-[10px] sm:text-xs text-slate-400 truncate">${u.email}</p>
@@ -2348,8 +2348,8 @@ window.filterUsersRole = function(rol, idx) {
   document.querySelectorAll('[id^="usr-chip-"]').forEach((chip, i) => {
     const active = i === idx;
     chip.className = `px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${active
-      ? 'bg-sefired-blue text-white border-sefired-blue'
-      : 'bg-white text-slate-600 border-slate-200 hover:border-sefired-blue hover:text-sefired-blue'}`;
+      ? 'bg-jm-blue text-white border-jm-blue'
+      : 'bg-white text-slate-600 border-slate-200 hover:border-jm-blue hover:text-jm-blue'}`;
   });
   document.querySelectorAll('#tbl-usuarios tbody tr').forEach(row => {
     if (rol === 'Todos') { row.classList.remove('hidden'); return; }
@@ -2367,7 +2367,7 @@ window.showNewUserModal = function() {
       </div>
       <div>
         <label class="field-label">Correo electrónico <span class="text-rose-500">*</span></label>
-        <input type="email" class="input-field" placeholder="usuario@sefired.com">
+        <input type="email" class="input-field" placeholder="usuario@jandm.com">
       </div>
       <div>
         <label class="field-label">Contraseña temporal <span class="text-rose-500">*</span></label>
@@ -2590,11 +2590,11 @@ window.showChangeRole = function(nom, currentRol) {
     <p class="text-xs text-slate-500 mb-4">Rol actual: <strong>${currentRol}</strong>. Selecciona el nuevo rol para este usuario.</p>
     <div class="space-y-2.5">
       ${roles.map(r => `
-      <label class="flex items-start gap-3 p-4 rounded-2xl border-2 cursor-pointer transition-all ${r.key === currentRol ? 'border-sefired-blue bg-blue-50/40' : 'border-slate-200 hover:border-slate-300 bg-white'}">
+      <label class="flex items-start gap-3 p-4 rounded-2xl border-2 cursor-pointer transition-all ${r.key === currentRol ? 'border-jm-blue bg-blue-50/40' : 'border-slate-200 hover:border-slate-300 bg-white'}">
         <input type="radio" name="rol-select" value="${r.key}" ${r.key === currentRol ? 'checked' : ''} class="mt-0.5 accent-blue-700 shrink-0">
         <div class="min-w-0">
           <div class="flex items-center gap-2 mb-0.5">
-            <i data-lucide="${r.icon}" class="w-4 h-4 text-sefired-blue shrink-0"></i>
+            <i data-lucide="${r.icon}" class="w-4 h-4 text-jm-blue shrink-0"></i>
             <p class="font-bold text-slate-800 text-sm">${r.key}</p>
           </div>
           <p class="text-xs text-slate-500 leading-relaxed">${r.desc}</p>
@@ -2945,7 +2945,7 @@ function pdfPage(content) {
 function pdfHdr(docTitle, docSub, ref, date) {
   return `<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:32px;padding-bottom:20px;border-bottom:2px solid #001463">
     <div>
-      <p style="font-size:22px;font-weight:900;color:#001463;letter-spacing:-0.5px">SEFIRED</p>
+      <p style="font-size:22px;font-weight:900;color:#001463;letter-spacing:-0.5px">J&M</p>
       <p style="font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:2px;margin-top:2px">Cooperativa de Seguros de Vehículos R.L.</p>
       <p style="font-size:9px;color:#94a3b8;margin-top:2px">RIF J-12.345.678-9 · Av. Principal, Caracas 1010</p>
     </div>
@@ -2988,7 +2988,7 @@ function pdfFooter(agente, oficina) {
         </div>
       </div>
     </div>
-    <p style="font-size:8px;color:#94a3b8;text-align:center;margin-top:18px;line-height:1.6">Documento generado por el sistema interno Sefired. Válido únicamente con sello y firma del supervisor autorizado. Autorizado por SUDEASEG.</p>
+    <p style="font-size:8px;color:#94a3b8;text-align:center;margin-top:18px;line-height:1.6">Documento generado por el sistema interno J&M. Válido únicamente con sello y firma del supervisor autorizado. Autorizado por SUDEASEG.</p>
   </div>`;
 }
 
@@ -3063,7 +3063,7 @@ window.showPdfCertificado = function() {
     ${pdfHdr('Certificado de Seguro', 'Seguro de Vehículo Automotor', 'POL-VEH-2026-0042', 'Vigente: 10/05/2026 — 10/05/2027')}
     ${pdfSec('Datos generales de la póliza')}
     ${pdfRow('N° de Póliza', 'POL-VEH-2026-0042', true)}
-    ${pdfRow('Aseguradora', 'Sefired · Cooperativa de Seguros de Vehículos R.L.')}
+    ${pdfRow('Aseguradora', 'J&M · Cooperativa de Seguros de Vehículos R.L.')}
     ${pdfRow('Tipo de seguro', 'Vehículo Automotor — Particular')}
     ${pdfRow('Inicio de vigencia', '10/05/2026 a las 12:00 m')}
     ${pdfRow('Vencimiento', '10/05/2027 a las 12:00 m')}
@@ -3085,7 +3085,7 @@ window.showPdfCertificado = function() {
     ${pdfRow('Accidentes Personales', usd(40000) + ' — 4 ocupantes')}
     ${pdfRow('RC Obligatoria SUDEASEG', 'Según Ley y Resolución SUDEASEG')}
     <p style="font-size:9px;color:#475569;margin-top:18px;padding:12px 14px;background:#f8fafc;border-radius:6px;border-left:3px solid #001463;line-height:1.7">
-      Este certificado acredita la existencia de una póliza de seguros emitida por Sefired, Cooperativa de Seguros de Vehículos R.L., bajo las condiciones generales y particulares del contrato de seguro correspondiente. Autorizado por SUDEASEG según Resolución N° 001-2025.
+      Este certificado acredita la existencia de una póliza de seguros emitida por J&M, Cooperativa de Seguros de Vehículos R.L., bajo las condiciones generales y particulares del contrato de seguro correspondiente. Autorizado por SUDEASEG según Resolución N° 001-2025.
     </p>
     ${pdfFooter('Agente · Oficina Caracas Principal', 'Caracas Principal')}
   `));
@@ -3118,7 +3118,7 @@ window.showPdfClientes = function() {
     ${pdfHdr('Listado de Clientes', `Total: ${clientes.length} registros · Oficina Caracas Principal`, null, `Generado: ${fecha}`)}
     ${pdfSec('Clientes registrados')}
     ${table}
-    <p style="font-size:9px;color:#94a3b8;text-align:right;margin-top:12px">Reporte generado por sistema interno Sefired · ${fecha}</p>
+    <p style="font-size:9px;color:#94a3b8;text-align:right;margin-top:12px">Reporte generado por sistema interno J&M · ${fecha}</p>
   `));
 };
 

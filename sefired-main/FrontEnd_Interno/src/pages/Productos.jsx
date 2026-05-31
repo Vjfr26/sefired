@@ -13,39 +13,10 @@ import { fetchTarifario, createTarifa, updateTarifa, deleteTarifa } from '../api
 
 const MONEDAS  = ['USD', 'BS', 'EUR']
 const CATEGORIAS = ['vehicular', 'bienes', 'personas']
-export const TIPOS_CALCULO = [
-  { val: 'fijo',      label: 'Fijo',      desc: 'Una sola tarifa con prima fija' },
-  { val: 'por_plan',  label: 'Por Plan',  desc: 'Planes distintos (Básico, Plata, Oro…)' },
-  { val: 'por_nivel', label: 'Por Nivel', desc: 'Niveles de suma asegurada creciente' },
-  { val: 'por_valor', label: 'Por Valor', desc: 'Tasa % sobre el valor declarado' },
-]
+import { TIPOS_CALCULO, TIPOS_PRODUCTO, tipoBadge } from '../utils/productos.jsx'
+export { TIPOS_CALCULO, TIPOS_PRODUCTO, tipoBadge } from '../utils/productos.jsx'
 
 const fmtId = id => 'PRO-' + String(id).padStart(4, '0')
-
-export const TIPOS_PRODUCTO = [
-  // Vehiculares
-  { val: 'rcv',        label: 'RCV',        full: 'RCV — Responsabilidad Civil Vehicular',      bg: 'bg-sky-100',      text: 'text-sky-700'      },
-  { val: 'apov',       label: 'APOV',       full: 'APOV — Accidentes Personales Ocupantes',     bg: 'bg-violet-100',   text: 'text-violet-700'   },
-  { val: 'alpd',       label: 'ALPD',       full: 'ALPD — Accidentes de Vida Personal',         bg: 'bg-emerald-100',  text: 'text-emerald-700'  },
-  { val: 'ec',         label: 'EC',         full: 'EC — Equipo y Contenido',                    bg: 'bg-amber-100',    text: 'text-amber-700'    },
-  { val: 'ep',         label: 'EP',         full: 'EP — Equipo y Planta',                       bg: 'bg-orange-100',   text: 'text-orange-700'   },
-  // No vehiculares
-  { val: 'vida',       label: 'Vida',       full: 'Vida — Seguro de Vida Individual',            bg: 'bg-rose-100',     text: 'text-rose-700'     },
-  { val: 'salud',      label: 'Salud',      full: 'Salud — Hospitalización y Maternidad (HCM)', bg: 'bg-teal-100',     text: 'text-teal-700'     },
-  { val: 'hogar',      label: 'Hogar',      full: 'Hogar — Seguro de Inmueble y Contenido',     bg: 'bg-lime-100',     text: 'text-lime-700'     },
-  { val: 'accidentes', label: 'Accidentes', full: 'Accidentes — Personales sin Vehículo',       bg: 'bg-cyan-100',     text: 'text-cyan-700'     },
-  { val: 'funeraria',  label: 'Funeraria',  full: 'Funeraria — Asistencia Exequial',            bg: 'bg-slate-200',    text: 'text-slate-700'    },
-  { val: 'otro',       label: 'Otro',       full: 'Otro — Tipo personalizado',                  bg: 'bg-gray-100',     text: 'text-gray-600'     },
-]
-
-export const tipoBadge = (tipo) => {
-  const t = TIPOS_PRODUCTO.find(x => x.val === tipo) ?? { label: tipo ?? '?', bg: 'bg-slate-100', text: 'text-slate-500' }
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold whitespace-nowrap ${t.bg} ${t.text}`}>
-      {t.label}
-    </span>
-  )
-}
 
 const CATEGORIA_ICON = { vehicular: Car, bienes: Package, personas: Users }
 
@@ -93,8 +64,8 @@ function DocsRequeridosEditor({ value = [], onChange }) {
               onClick={() => toggle(nombre)}
               className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
                 sel
-                  ? 'bg-sefired-blue text-white border-sefired-blue'
-                  : 'bg-white text-slate-600 border-slate-200 hover:border-sefired-blue'
+                  ? 'bg-jm-blue text-white border-jm-blue'
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-jm-blue'
               }`}
             >
               {nombre}
@@ -129,7 +100,7 @@ function DocsRequeridosEditor({ value = [], onChange }) {
                   type="checkbox"
                   checked={d.obligatorio}
                   onChange={e => setObligatorio(d.nombre, e.target.checked)}
-                  className="w-3.5 h-3.5 accent-sefired-blue"
+                  className="w-3.5 h-3.5 accent-jm-blue"
                 />
                 Obligatorio
               </label>
@@ -168,7 +139,7 @@ function ProductoModal({ producto, onClose, onSaved }) {
     codigo:                producto?.codigo       || '',
     tipo:                  producto?.tipo         || '',
     categoria:             producto?.categoria    || 'vehicular',
-    requiere_vehiculo:     producto?.requiere_vehiculo ?? true,
+    tipo_bien:             producto?.tipo_bien    || 'ninguno',
     tipo_calculo:          producto?.tipo_calculo  || 'fijo',
     derecho_poliza:        producto?.derecho_poliza ?? 0,
     descripcion:           producto?.descripcion  || '',
@@ -214,7 +185,7 @@ function ProductoModal({ producto, onClose, onSaved }) {
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-2xl bg-sefired-blue flex items-center justify-center">
+            <div className="w-9 h-9 rounded-2xl bg-jm-blue flex items-center justify-center">
               <Shield className="w-4.5 h-4.5 text-white" />
             </div>
             <div>
@@ -250,24 +221,19 @@ function ProductoModal({ producto, onClose, onSaved }) {
                 </div>
                 <div>
                   <label className={lbl}>Categoría</label>
-                  <select className={sel} value={form.categoria} onChange={e => {
-                    const v = e.target.value
-                    setForm(prev => ({ ...prev, categoria: v, requiere_vehiculo: v === 'vehicular' }))
-                  }}>
+                  <select className={sel} value={form.categoria} onChange={e => set('categoria', e.target.value)}>
                     {CATEGORIAS.map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
                   </select>
                 </div>
-                <div className="flex items-center gap-2.5 pt-5">
-                  <input
-                    type="checkbox"
-                    id="req_veh"
-                    checked={form.requiere_vehiculo}
-                    onChange={e => set('requiere_vehiculo', e.target.checked)}
-                    className="w-4 h-4 accent-sefired-blue shrink-0"
-                  />
-                  <label htmlFor="req_veh" className="text-sm text-slate-700 cursor-pointer select-none leading-tight">
-                    Requiere placa / vehículo
-                  </label>
+                <div>
+                  <label className={lbl}>Tipo de bien</label>
+                  <select className={sel} value={form.tipo_bien} onChange={e => set('tipo_bien', e.target.value)}>
+                    <option value="ninguno">Ninguno</option>
+                    <option value="vehiculo">Vehículo</option>
+                    <option value="inmueble">Inmueble</option>
+                    <option value="vida">Vida / Personas</option>
+                    <option value="bien">Bien general</option>
+                  </select>
                 </div>
               </div>
             </section>
@@ -286,9 +252,9 @@ function ProductoModal({ producto, onClose, onSaved }) {
                           key={t.val}
                           type="button"
                           onClick={() => set('tipo_calculo', t.val)}
-                          className={`flex flex-col items-start p-2.5 rounded-xl border-2 text-left transition-all ${on ? 'border-sefired-blue bg-blue-50/50' : 'border-slate-200 hover:border-slate-300'}`}
+                          className={`flex flex-col items-start p-2.5 rounded-xl border-2 text-left transition-all ${on ? 'border-jm-blue bg-blue-50/50' : 'border-slate-200 hover:border-slate-300'}`}
                         >
-                          <p className={`text-xs font-bold ${on ? 'text-sefired-blue' : 'text-slate-700'}`}>{t.label}</p>
+                          <p className={`text-xs font-bold ${on ? 'text-jm-blue' : 'text-slate-700'}`}>{t.label}</p>
                           <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">{t.desc}</p>
                         </button>
                       )
@@ -682,7 +648,7 @@ function TarifarioModal({ producto, onClose }) {
                 />
               </div>
               <div className="flex items-center gap-2">
-                <input type="checkbox" id="tar_activo" checked={form.activo} onChange={e => setForm(p => ({ ...p, activo: e.target.checked }))} className="w-4 h-4 accent-sefired-blue" />
+                <input type="checkbox" id="tar_activo" checked={form.activo} onChange={e => setForm(p => ({ ...p, activo: e.target.checked }))} className="w-4 h-4 accent-jm-blue" />
                 <label htmlFor="tar_activo" className="text-sm text-slate-700 cursor-pointer">Activo</label>
               </div>
               <div className="flex gap-2 justify-end pt-1">
@@ -995,7 +961,7 @@ export default function Productos() {
 
       {loading && (
         <div className="flex justify-center items-center py-16 text-slate-400 text-sm gap-2">
-          <div className="w-4 h-4 border-2 border-slate-300 border-t-sefired-blue rounded-full animate-spin" />
+          <div className="w-4 h-4 border-2 border-slate-300 border-t-jm-blue rounded-full animate-spin" />
           Cargando pólizas…
         </div>
       )}

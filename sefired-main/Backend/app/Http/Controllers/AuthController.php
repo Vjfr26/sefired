@@ -42,7 +42,7 @@ class AuthController extends Controller
                     "⚠️ ATAQUE DETECTADO — IP: {$request->ip()} — Patrón malicioso en campos de login (nick o password)",
                     'usuarios'
                 );
-                return response()->json(['message' => 'Solicitud rechazada por medidas de seguridad.'], 403);
+                return response()->json(['message' => 'Solicitud rechazada.'], 403);
             }
         }
 
@@ -62,7 +62,7 @@ class AuthController extends Controller
         // ── 2a. Verificar si la IP está en la lista de IPs bloqueadas permanentemente ─
         if (IpBloqueada::where('ip', $request->ip())->exists()) {
             $this->logActivity('login_blocked', "IP bloqueada intentó acceder: {$request->ip()}", 'usuarios');
-            return response()->json(['message' => 'Acceso denegado desde esta dirección IP.'], 403);
+            return response()->json(['message' => 'Acceso denegado.'], 403);
         }
 
         // ── 2b. Lockout progresivo por IP ────────────────────────────────────────
@@ -74,23 +74,28 @@ class AuthController extends Controller
         if (Cache::has($lockoutKey)) {
             $this->logActivity('login_blocked', "IP en lockout temporal intentó acceder: {$request->ip()}", 'usuarios');
             return response()->json([
-                'message' => "Acceso bloqueado por seguridad. Intenta de nuevo en {$lockoutMinutes} minutos o contacta al administrador.",
+                'message' => 'Acceso temporalmente bloqueado. Intenta de nuevo más tarde o contacta al administrador.',
             ], 429);
         }
 
         // ── 3. Verificar Cloudflare Turnstile ────────────────────────────────────
-        $turnstile = Http::asForm()->post('https://challenges.cloudflare.com/turnstile/v0/siteverify', [
-            'secret'   => env('TURNSTILE_SECRET_KEY'),
-            'response' => $request->turnstile_token,
-            'remoteip' => $request->ip(),
-        ]);
+        // Si TURNSTILE_SECRET_KEY no está configurada (ej. entorno local/dev),
+        // se omite la verificación para no bloquear el desarrollo.
+        $turnstileSecret = config('services.turnstile.secret');
+        if ($turnstileSecret) {
+            $turnstile = Http::asForm()->post('https://challenges.cloudflare.com/turnstile/v0/siteverify', [
+                'secret'   => $turnstileSecret,
+                'response' => $request->turnstile_token,
+                'remoteip' => $request->ip(),
+            ]);
 
-        if (!$turnstile->successful() || !$turnstile->json('success')) {
-            $this->logActivity('login_failed', "Verificación Turnstile fallida desde IP: {$request->ip()}", 'usuarios');
-            return response()->json([
-                'message' => 'La verificación de seguridad falló. Por favor, intenta de nuevo.',
-                'errors'  => ['turnstile' => ['Captcha inválido']],
-            ], 422);
+            if (!$turnstile->successful() || !$turnstile->json('success')) {
+                $this->logActivity('login_failed', "Verificación Turnstile fallida desde IP: {$request->ip()}", 'usuarios');
+                return response()->json([
+                    'message' => 'La verificación de seguridad falló. Por favor, intenta de nuevo.',
+                    'errors'  => ['turnstile' => ['Captcha inválido']],
+                ], 422);
+            }
         }
 
         // ── 4. Verificar credenciales ─────────────────────────────────────────────
@@ -133,7 +138,7 @@ class AuthController extends Controller
                 );
 
                 return response()->json([
-                    'message' => 'Cuenta bloqueada por seguridad tras múltiples intentos fallidos. Contacte al administrador del sistema.',
+                    'message' => 'Acceso bloqueado. Contacte al administrador.',
                 ], 429);
             }
 
@@ -144,8 +149,7 @@ class AuthController extends Controller
                 'usuarios'
             );
             return response()->json([
-                'message' => "Credenciales incorrectas. Te quedan {$restantes} intento(s) antes del bloqueo automático.",
-                'attempts_remaining' => $restantes,
+                'message' => 'Usuario o contraseña incorrectos.',
             ], 401);
         }
 
@@ -153,13 +157,33 @@ class AuthController extends Controller
             return response()->json(['message' => 'Esta cuenta se encuentra desactivada. Contacte al administrador.'], 403);
         }
 
-        // ── 5. Login exitoso ──────────────────────────────────────────────────────
+        // ── 5. Verificar sesión única — rechazar si ya hay sesión activa válida ────
+        $sesionActiva = $usuario->api_token
+            && $usuario->token_expira_en
+            && now()->isBefore($usuario->token_expira_en)
+            && $usuario->token_created_at
+            && now()->isBefore($usuario->token_created_at->addHours(12));
+
+        if ($sesionActiva) {
+            $this->logActivity(
+                'login_bloqueado',
+                "Intento de sesión doble bloqueado para {$usuario->nick} desde IP: {$request->ip()}",
+                'usuarios',
+                $usuario->id
+            );
+            return response()->json([
+                'message' => 'Este usuario ya tiene una sesión activa en otro dispositivo. Cierra esa sesión antes de continuar.',
+            ], 409);
+        }
+
+        // ── 6. Login exitoso ──────────────────────────────────────────────────────
         Cache::forget($attemptsKey);
         Cache::forget($lockoutKey);
 
-        $token = bin2hex(random_bytes(40));
+        $token     = bin2hex(random_bytes(40));
+        $tokenHash = hash('sha256', $token);
         $usuario->update([
-            'api_token'        => $token,
+            'api_token'        => $tokenHash,
             'token_expira_en'  => now()->addHours(8),
             'token_created_at' => now(),
         ]);
@@ -206,8 +230,8 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
-        $token = str_replace('Bearer ', '', $request->header('Authorization'));
-        $usuario = Usuario::where('api_token', $token)->first();
+        $token   = str_replace('Bearer ', '', $request->header('Authorization'));
+        $usuario = Usuario::where('api_token', hash('sha256', $token))->first();
 
         if ($usuario) {
             $this->logActivity('logout', "Usuario {$usuario->nick} ha cerrado sesión", 'usuarios', $usuario->id);

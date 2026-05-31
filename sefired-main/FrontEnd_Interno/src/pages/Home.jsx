@@ -48,7 +48,7 @@ export default function Home() {
           <UserAvatar rol={currentUser?.tipo} genero={currentUser?.genero} className="w-20 h-20 rounded-3xl mb-5 shadow-xl shadow-blue-900/20" />
           <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.28em] mb-2">Bienvenido de vuelta</p>
           <h2 className="text-2xl sm:text-3xl font-black text-slate-800 mb-2 tracking-tight">{currentUser?.nombre ?? '—'}</h2>
-          <p className="text-sm font-semibold text-slate-500">{currentUser?.cargo ?? '—'} · Sefired R.L.</p>
+          <p className="text-sm font-semibold text-slate-500">{currentUser?.cargo ?? '—'} · J&M R.L.</p>
           <p className="text-xs text-slate-400 font-mono mt-1.5">RIF: J-30012345-6 · Caracas Principal</p>
         </div>
 

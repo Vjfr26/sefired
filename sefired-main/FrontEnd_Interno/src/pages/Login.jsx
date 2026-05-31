@@ -25,7 +25,7 @@ export default function Login({ onLogin }) {
       if (window.turnstile && !widgetId) {
         try {
           widgetId = window.turnstile.render('#turnstile-container', {
-            sitekey: '0x4AAAAAADPWm4GmxJIO3s97',
+            sitekey: import.meta.env.VITE_TURNSTILE_SITE_KEY,
             theme: 'light',
           })
         } catch {
@@ -137,11 +137,11 @@ export default function Login({ onLogin }) {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-sefired-light relative">
+    <div className="min-h-screen flex flex-col bg-jm-light relative">
       {/* DECORATIVE BACKGROUND BLOBS */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10">
-        <div className="absolute -top-24 -left-24 w-96 h-96 bg-sefired-blue/5 rounded-full blur-3xl"></div>
-        <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-sefired-green/5 rounded-full blur-3xl"></div>
+        <div className="absolute -top-24 -left-24 w-96 h-96 bg-jm-blue/5 rounded-full blur-3xl"></div>
+        <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-jm-green/5 rounded-full blur-3xl"></div>
       </div>
 
       {/* MAIN CONTENT */}
@@ -150,14 +150,14 @@ export default function Login({ onLogin }) {
           
           {/* LOGO */}
           <div className="flex flex-col items-center mb-3 sm:mb-6">
-            <img src="/logo1%20(Edited).png" alt="Logo Sefired" className="h-20 sm:h-28 lg:h-36 w-auto object-contain" />
+            <img src="/logo-sinfondo.png" alt="Logo J&M" className="h-20 sm:h-28 lg:h-36 w-auto object-contain" />
             <p className="text-[8px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] text-center mt-2.5">
               Cooperativa de Seguros de Vehículos R.L.
             </p>
           </div>
 
           {/* LOGIN CARD */}
-          <div className="card p-4 sm:p-8 bg-white/50 backdrop-blur-2xl shadow-2xl shadow-sefired-blue/10 animate-in fade-in zoom-in duration-700">
+          <div className="card p-4 sm:p-8 bg-white/50 backdrop-blur-2xl shadow-2xl shadow-jm-blue/10 animate-in fade-in zoom-in duration-700">
             <div className="mb-3 sm:mb-6">
               <h1 className="text-lg sm:text-2xl font-black text-slate-800 tracking-tight">Bienvenido</h1>
               <p className="text-xs text-slate-500 font-medium mt-0.5">
@@ -182,7 +182,7 @@ export default function Login({ onLogin }) {
                       setNick(safe)
                       setLoginError('')
                     }}
-                    className="input-control h-10 sm:h-12 pl-10 bg-slate-50/50 border-slate-100 hover:border-sefired-blue/30 transition-all"
+                    className="input-control h-10 sm:h-12 pl-10 bg-slate-50/50 border-slate-100 hover:border-jm-blue/30 transition-all"
                     placeholder="Tu usuario"
                   />
                   <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
@@ -202,7 +202,7 @@ export default function Login({ onLogin }) {
                     maxLength={255}
                     autoComplete="current-password"
                     onChange={(e) => { setPassword(e.target.value); setLoginError('') }}
-                    className="input-control h-10 sm:h-12 pl-10 bg-slate-50/50 border-slate-100 hover:border-sefired-blue/30 transition-all"
+                    className="input-control h-10 sm:h-12 pl-10 bg-slate-50/50 border-slate-100 hover:border-jm-blue/30 transition-all"
                     placeholder="••••••••"
                   />
                   <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
@@ -248,7 +248,7 @@ export default function Login({ onLogin }) {
       <footer className="w-full px-4 py-3 sm:py-5 border-t border-slate-200/60 bg-white/20 backdrop-blur-sm">
         <div className="flex flex-col items-center gap-0.5 text-center px-2">
           <p className="text-[10px] font-bold text-slate-700 uppercase tracking-widest leading-snug">
-            © 2024 SEFIRED R.L. — Todos los derechos reservados
+            © 2024 J&M R.L. — Todos los derechos reservados
           </p>
           <p className="text-[9px] text-slate-400 uppercase tracking-[0.15em] leading-snug">
             V 2.4.0 — Internal System · Made with <span className="text-red-400">❤</span> by Victecnology lda.

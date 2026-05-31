@@ -3,7 +3,7 @@
  *
  * Paso 1: Seleccionar producto (carga tipo_calculo y documentos_requeridos)
  * Paso 2: Cliente (nuevo o existente)
- * Paso 3: Bien asegurado (vehículo si requiere_vehiculo, sino datos del asegurado)
+ * Paso 3: Bien asegurado (vehículo si tipo_bien='vehiculo', sino datos del asegurado)
  * Paso 4: Tarifario / Plan (driven by producto.tipo_calculo)
  * Paso 5: Documentos + Resumen + Enviar
  */
@@ -22,21 +22,30 @@ import { fetchTasas } from '../api/tasas.js'
 import { fetchProductos } from '../api/productos.js'
 import { fetchTarifario } from '../api/tarifario.js'
 import { fetchCotizaciones, createCotizacion, updateCotizacion, deleteCotizacion } from '../api/solicitudes.js'
+import { createBien, updateBien } from '../api/bienes.js'
 import { fetchUnderwriting, createUnderwriting } from '../api/underwriting.js'
 import { fetchDocumentosCliente, uploadDocumentoCliente, deleteDocumentoCliente } from '../api/clienteDocumentos.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const STATUS_BADGE = {
-  'En Revisión': 'bg-amber-100 text-amber-700',
-  'Aprobado':    'bg-blue-100 text-blue-700',
-  'Emitida':     'bg-emerald-100 text-emerald-700',
-  'Rechazado':   'bg-rose-100 text-rose-700',
+  'en_revision': 'bg-amber-100 text-amber-700',
+  'aprobado':    'bg-blue-100 text-blue-700',
+  'emitida':     'bg-emerald-100 text-emerald-700',
+  'rechazado':   'bg-rose-100 text-rose-700',
+  'pendiente':   'bg-slate-100 text-slate-500',
+}
+const STATUS_LABEL = {
+  'en_revision': 'En Revisión',
+  'aprobado':    'Aprobado',
+  'emitida':     'Emitida',
+  'rechazado':   'Rechazado',
+  'pendiente':   'Pendiente',
 }
 
 function StatusBadge({ status }) {
   return (
     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${STATUS_BADGE[status] ?? 'bg-slate-100 text-slate-500'}`}>
-      {status}
+      {STATUS_LABEL[status] ?? status}
     </span>
   )
 }
@@ -45,12 +54,14 @@ function freshState() {
   return {
     // Paso 1
     producto_id:   null,
-    producto:      null,   // objeto completo del producto
+    producto:      null,
     // Paso 2
     cliente_id:    null,
     cliente_nuevo: false,
     nombre:        '', ci: '', tel: '', email: '',
     direccion:     '', nacimiento: '', sexo: 'M',
+    // Paso 3 — bien asegurado vinculado
+    bien_asegurado_id: null,
     // Paso 3 — vehículo
     placa: '', marca: 'Toyota', modelo: '', año: String(new Date().getFullYear()),
     color: '', uso: 'Particular', valor: 15000,
@@ -58,7 +69,7 @@ function freshState() {
     asegurado_nombre: '', asegurado_ci: '',
     // Paso 4 — tarifario
     tarifario_id: null,
-    tarifa:       null,   // fila seleccionada
+    tarifa:       null,
     // Paso 4 — por_valor
     valor_declarado: 0,
     // Coberturas calculadas (snapshot)
@@ -68,6 +79,7 @@ function freshState() {
 
 function simFromCot(q) {
   const cobs = q.coberturas || {}
+  const attr = q.bien_atributos || {}
   return {
     producto_id:      q.producto_id ?? null,
     producto:         null,
@@ -76,12 +88,13 @@ function simFromCot(q) {
     nombre:           q.nombre  || '',
     ci:               q.ci      || '',
     tel: '', email: '', direccion: '', nacimiento: '', sexo: 'M',
-    placa:            q.placa   || '',
-    marca:            cobs.marca  || 'Toyota',
-    modelo:           cobs.modelo || '',
-    año:              String(cobs.año || new Date().getFullYear()),
-    color:            cobs.color  || '',
-    uso:              cobs.uso    || 'Particular',
+    bien_asegurado_id: q.bien_asegurado_id || null,
+    placa:            attr.placa  || '',
+    marca:            attr.marca  || cobs.marca  || 'Toyota',
+    modelo:           attr.modelo || cobs.modelo || '',
+    año:              String(attr.anio || cobs.año || new Date().getFullYear()),
+    color:            attr.color  || cobs.color  || '',
+    uso:              attr.uso    || cobs.uso    || 'Particular',
     valor:            parseFloat(cobs.valor_mercado) || 15000,
     asegurado_nombre: q.asegurado_nombre || '',
     asegurado_ci:     q.asegurado_ci     || '',
@@ -111,13 +124,13 @@ function SimBar({ active }) {
             <div className="flex flex-col items-center" style={{ flexShrink: 0, width: '4.5rem' }}>
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all ${
                 done ? 'bg-emerald-500 text-white'
-                     : cur ? 'bg-sefired-blue text-white shadow-[0_0_0_4px_rgba(0,20,99,0.15)]'
+                     : cur ? 'bg-jm-blue text-white shadow-[0_0_0_4px_rgba(0,20,99,0.15)]'
                            : 'bg-slate-100 text-slate-400'
               }`}>
                 {done ? <Check className="w-3.5 h-3.5" /> : n}
               </div>
               <p className={`text-[9px] font-bold mt-1 text-center leading-tight ${
-                done ? 'text-emerald-500' : cur ? 'text-sefired-blue' : 'text-slate-400'
+                done ? 'text-emerald-500' : cur ? 'text-jm-blue' : 'text-slate-400'
               }`}>{s.label}</p>
             </div>
             {i < STEPS.length - 1 && (
@@ -143,7 +156,7 @@ function SimShell({ step, size = 'md', onClose, footer, children }) {
                 <Calculator className="w-5 h-5 text-white" />
               </div>
               <div className="min-w-0">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sefired · Simulador de Seguros</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">J&M · Simulador de Seguros</p>
                 <h3 className="text-base font-black text-slate-800">Cotización</h3>
               </div>
             </div>
@@ -214,22 +227,22 @@ function Step1({ sim, setSim, onNext, onClose, productos }) {
                 key={p.id}
                 type="button"
                 onClick={() => setSim(prev => ({ ...prev, producto_id: p.id, producto: p }))}
-                className={`flex items-start gap-3 p-4 rounded-2xl border-2 text-left transition-all ${on ? 'border-sefired-blue bg-blue-50/50' : 'border-slate-200 hover:border-slate-300'}`}
+                className={`flex items-start gap-3 p-4 rounded-2xl border-2 text-left transition-all ${on ? 'border-jm-blue bg-blue-50/50' : 'border-slate-200 hover:border-slate-300'}`}
               >
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${on ? 'bg-sefired-blue' : 'bg-slate-100'}`}>
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${on ? 'bg-jm-blue' : 'bg-slate-100'}`}>
                   <CatIcon className={`w-4.5 h-4.5 ${on ? 'text-white' : 'text-slate-500'}`} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className={`text-sm font-bold ${on ? 'text-sefired-blue' : 'text-slate-800'}`}>{p.nombre}</p>
+                  <p className={`text-sm font-bold ${on ? 'text-jm-blue' : 'text-slate-800'}`}>{p.nombre}</p>
                   {p.codigo && <p className="text-[10px] font-mono text-slate-400">{p.codigo}</p>}
                   <p className="text-xs text-slate-400 mt-0.5 line-clamp-2">{p.descripcion}</p>
                   <div className="flex flex-wrap gap-1 mt-1.5">
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-semibold">{p.tipo_calculo}</span>
-                    {p.requiere_vehiculo && <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-600 font-semibold">Vehículo</span>}
+                    {p.tipo_bien && p.tipo_bien !== 'ninguno' && <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-600 font-semibold capitalize">{p.tipo_bien}</span>}
                     {p.derecho_poliza > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">+ {usd(p.derecho_poliza)}</span>}
                   </div>
                 </div>
-                {on && <Check className="w-4 h-4 text-sefired-blue shrink-0 mt-0.5" />}
+                {on && <Check className="w-4 h-4 text-jm-blue shrink-0 mt-0.5" />}
               </button>
             )
           })}
@@ -343,7 +356,7 @@ function Step2({ sim, setSim, onNext, onBack, onClose }) {
       {/* Producto seleccionado — resumen */}
       {sim.producto && (
         <div className="mb-4 p-3 rounded-2xl border border-slate-200 bg-slate-50/70 flex items-center gap-3">
-          <Shield className="w-4 h-4 text-sefired-blue shrink-0" />
+          <Shield className="w-4 h-4 text-jm-blue shrink-0" />
           <p className="text-sm font-bold text-slate-700 truncate">{sim.producto.nombre}</p>
         </div>
       )}
@@ -357,7 +370,7 @@ function Step2({ sim, setSim, onNext, onBack, onClose }) {
             <button
               key={m}
               onClick={() => { setModo(m); setErr('') }}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${modo === m ? 'bg-white text-sefired-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${modo === m ? 'bg-white text-jm-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
             >
               {label}
             </button>
@@ -393,8 +406,8 @@ function Step2({ sim, setSim, onNext, onBack, onClose }) {
               {results.map(c => (
                 <button key={c.id} onClick={() => selectClient(c)}
                   className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition text-left border-b border-slate-50 last:border-0">
-                  <div className="w-8 h-8 rounded-full bg-sefired-blue/10 flex items-center justify-center shrink-0">
-                    <User className="w-4 h-4 text-sefired-blue" />
+                  <div className="w-8 h-8 rounded-full bg-jm-blue/10 flex items-center justify-center shrink-0">
+                    <User className="w-4 h-4 text-jm-blue" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-slate-800 truncate">{c.nom}</p>
@@ -482,7 +495,8 @@ const MARCAS = ['Toyota','Chevrolet','Ford','Hyundai','Kia','Jeep','Nissan','Hon
 const USOS   = ['Particular','Ejecutivo / Transporte de personal','Carga liviana','Carga pesada','Colectivo / Minibús','Rústico / Pickup','Oficial']
 
 function Step3({ sim, setSim, onNext, onBack, onClose }) {
-  const requiereVehiculo = sim.producto?.requiere_vehiculo ?? true
+  const tipoBien        = sim.producto?.tipo_bien ?? 'ninguno'
+  const requiereVehiculo = tipoBien === 'vehiculo'
   const [err, setErr] = useState('')
   const curYear = new Date().getFullYear()
   const years   = Array.from({ length: 35 }, (_, i) => curYear + 1 - i)
@@ -751,11 +765,11 @@ function Step4({ sim, setSim, tasaBcv, onNext, onBack, onClose }) {
                         key={t.id}
                         type="button"
                         onClick={() => setSim(p => ({ ...p, tarifario_id: t.id, tarifa: t }))}
-                        className={`w-full text-left p-4 rounded-2xl border-2 transition-all ${on ? 'border-sefired-blue bg-blue-50/50' : 'border-slate-200 hover:border-slate-300'}`}
+                        className={`w-full text-left p-4 rounded-2xl border-2 transition-all ${on ? 'border-jm-blue bg-blue-50/50' : 'border-slate-200 hover:border-slate-300'}`}
                       >
                         <div className="flex items-center justify-between gap-2 mb-1">
-                          <p className={`text-sm font-bold ${on ? 'text-sefired-blue' : 'text-slate-800'}`}>{t.nombre}</p>
-                          {on && <Check className="w-4 h-4 text-sefired-blue shrink-0" />}
+                          <p className={`text-sm font-bold ${on ? 'text-jm-blue' : 'text-slate-800'}`}>{t.nombre}</p>
+                          {on && <Check className="w-4 h-4 text-jm-blue shrink-0" />}
                         </div>
                         {renderDatos(t.datos || {})}
                       </button>
@@ -835,23 +849,50 @@ function Step5({ sim, tasaBcv, editId, onBack, onClose, onSaved, showToast, curr
         total, total_bs: totBs,
         tipo_calculo: prod?.tipo_calculo,
         documentos_requeridos: prod?.documentos_requeridos || [],
-        marca: sim.marca, modelo: sim.modelo, año: sim.año,
-        color: sim.color, uso: sim.uso, valor_mercado: sim.valor,
+        valor_mercado: sim.valor,
         valor_declarado: sim.valor_declarado,
         tarifa: sim.tarifa ? { id: sim.tarifa.id, nombre: sim.tarifa.nombre, datos: sim.tarifa.datos } : null,
       }
+
+      // Crear o actualizar el bien_asegurado según el tipo del producto
+      let bienId = sim.bien_asegurado_id || null
+      const tipoBien = prod?.tipo_bien ?? 'ninguno'
+
+      if (tipoBien === 'vehiculo' && sim.placa.trim()) {
+        const bienData = {
+          tipo: 'vehiculo',
+          atributos: {
+            placa: sim.placa.trim().toUpperCase(),
+            marca: sim.marca,
+            modelo: sim.modelo,
+            anio: sim.año,
+            color: sim.color,
+            uso: sim.uso,
+            valor_mercado: sim.valor,
+          },
+          valor_declarado: sim.valor || null,
+          descripcion: `${sim.marca} ${sim.modelo} ${sim.año}`.trim(),
+        }
+        if (bienId) {
+          await updateBien(bienId, bienData)
+        } else {
+          const nuevo = await createBien(bienData)
+          bienId = nuevo.id
+        }
+      }
+
       const payload = {
-        cliente_id:      sim.cliente_id,
-        placa:           sim.placa || null,
-        producto_id:     sim.producto_id,
-        tarifario_id:    sim.tarifario_id || null,
-        total,           total_bs: totBs,
-        fecha_solicitud: fechaISO,
+        persona_id:        sim.cliente_id  || null,
+        bien_asegurado_id: bienId,
+        producto_id:       sim.producto_id,
+        tarifario_id:      sim.tarifario_id || null,
+        total,             total_bs: totBs,
+        fecha_solicitud:   fechaISO,
         coberturas,
-        nombre_tomador:   sim.nombre,
-        ci_tomador:       sim.ci,
-        asegurado_nombre: sim.asegurado_nombre || null,
-        asegurado_ci:     sim.asegurado_ci     || null,
+        nombre_tomador:    sim.nombre,
+        ci_tomador:        sim.ci,
+        asegurado_nombre:  sim.asegurado_nombre || null,
+        asegurado_ci:      sim.asegurado_ci     || null,
       }
       if (isEdit) await updateCotizacion(editId, payload)
       else        await createCotizacion(payload)
@@ -887,7 +928,7 @@ function Step5({ sim, tasaBcv, editId, onBack, onClose, onSaved, showToast, curr
                 {isEdit ? `Editando ${nroPreview}` : 'Revisión final'}
               </p>
               <p className={`text-xs ${isEdit ? 'text-blue-500' : 'text-emerald-600'}`}>
-                {isEdit ? 'Los cambios reemplazarán la cotización existente.' : 'Se guardará con estado "En Revisión".'}
+                {isEdit ? 'Los cambios reemplazarán la cotización existente.' : 'Se guardará con estado "En Revisión" para revisión.'}
               </p>
             </div>
           </div>
@@ -902,7 +943,7 @@ function Step5({ sim, tasaBcv, editId, onBack, onClose, onSaved, showToast, curr
               <div className="flex justify-between"><span className="text-slate-400">Producto</span><span className="font-semibold text-slate-700">{prod?.nombre || '—'}</span></div>
               {sim.tarifa && <div className="flex justify-between"><span className="text-slate-400">Plan / Tarifa</span><span className="font-semibold text-slate-700">{sim.tarifa.nombre}</span></div>}
               <div className="flex justify-between"><span className="text-slate-400">Tomador</span><span className="font-semibold text-slate-700">{sim.nombre || '—'} · {sim.ci || '—'}</span></div>
-              {sim.placa && <div className="flex justify-between"><span className="text-slate-400">Placa</span><span className="font-mono font-bold text-slate-700">{sim.placa}</span></div>}
+              {sim.placa && <div className="flex justify-between"><span className="text-slate-400">Placa / Bien</span><span className="font-mono font-bold text-slate-700">{sim.placa}</span></div>}
               {sim.modelo && <div className="flex justify-between"><span className="text-slate-400">Vehículo</span><span className="text-slate-700">{sim.marca} {sim.modelo} {sim.año}</span></div>}
               {sim.asegurado_nombre && <div className="flex justify-between"><span className="text-slate-400">Asegurado</span><span className="text-slate-700">{sim.asegurado_nombre}</span></div>}
             </div>
@@ -915,7 +956,7 @@ function Step5({ sim, tasaBcv, editId, onBack, onClose, onSaved, showToast, curr
                 <FileText className="w-3.5 h-3.5 text-slate-400" />
                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Documentos del cliente</p>
               </div>
-              <button onClick={() => setShowUpload(v => !v)} className="text-xs font-bold text-sefired-blue hover:underline flex items-center gap-1">
+              <button onClick={() => setShowUpload(v => !v)} className="text-xs font-bold text-jm-blue hover:underline flex items-center gap-1">
                 <Upload className="w-3 h-3" /> Subir
               </button>
             </div>
@@ -962,7 +1003,7 @@ function Step5({ sim, tasaBcv, editId, onBack, onClose, onSaved, showToast, curr
               ) : docs.map(d => (
                 <div key={d.id} className="flex items-center gap-2">
                   <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                  <a href={d.url} target="_blank" rel="noreferrer" className="text-xs text-sefired-blue hover:underline truncate flex-1">{d.nombre}</a>
+                  <a href={d.url} target="_blank" rel="noreferrer" className="text-xs text-jm-blue hover:underline truncate flex-1">{d.nombre}</a>
                   <button onClick={() => handleDeleteDoc(d)} className="p-1 hover:bg-rose-50 rounded-lg transition">
                     <X className="w-3 h-3 text-rose-400" />
                   </button>
@@ -1125,7 +1166,7 @@ function UnderwritingModal({ cot, onClose, onStatusChanged, showToast }) {
               </div>
               <div className="flex items-center gap-2 self-end pb-1">
                 <input type="checkbox" id="uw_insp" checked={form.requiere_inspeccion}
-                  onChange={e => setF('requiere_inspeccion', e.target.checked)} className="w-4 h-4 accent-sefired-blue" />
+                  onChange={e => setF('requiere_inspeccion', e.target.checked)} className="w-4 h-4 accent-jm-blue" />
                 <label htmlFor="uw_insp" className="text-sm text-slate-700 cursor-pointer">Requiere inspección</label>
               </div>
               <div className="col-span-2">
@@ -1165,7 +1206,7 @@ function UnderwritingModal({ cot, onClose, onStatusChanged, showToast }) {
             </p>
             {loading ? (
               <div className="flex justify-center py-8">
-                <div className="w-5 h-5 border-2 border-slate-300 border-t-sefired-blue rounded-full animate-spin" />
+                <div className="w-5 h-5 border-2 border-slate-300 border-t-jm-blue rounded-full animate-spin" />
               </div>
             ) : evaluaciones.length === 0 ? (
               <div className="text-center py-10 text-slate-400">
@@ -1258,20 +1299,22 @@ export default function Simulador() {
 
   const closeStep = () => { setStep(0); setEditId(null) }
 
-  const statuses = ['Todos', 'En Revisión', 'Aprobado', 'Emitida', 'Rechazado']
+  const statuses = ['Todos', 'en_revision', 'aprobado', 'emitida', 'rechazado']
+  const statusLabels = ['Todos', 'En Revisión', 'Aprobado', 'Emitida', 'Rechazado']
 
   const byChip = chipActive === 0 ? cotizaciones : cotizaciones.filter(q => q.status === statuses[chipActive])
   const visibleCots = search.trim()
     ? byChip.filter(q => {
         const sq = search.toLowerCase()
+        const placaRef = q.bien_atributos?.placa || q.bien_atributos?.descripcion || ''
         return q.nombre.toLowerCase().includes(sq) || q.ci.toLowerCase().includes(sq)
-          || (q.placa || '').toLowerCase().includes(sq) || q.nro.toLowerCase().includes(sq)
+          || placaRef.toLowerCase().includes(sq) || q.nro.toLowerCase().includes(sq)
       })
     : byChip
 
-  const simEmitidas   = cotizaciones.filter(q => q.status === 'Emitida').length
-  const simEnRevision = cotizaciones.filter(q => q.status === 'En Revisión').length
-  const simRechazadas = cotizaciones.filter(q => q.status === 'Rechazado').length
+  const simEmitidas   = cotizaciones.filter(q => q.status === 'emitida').length
+  const simEnRevision = cotizaciones.filter(q => q.status === 'en_revision').length
+  const simRechazadas = cotizaciones.filter(q => q.status === 'rechazado').length
 
   const handleChangeStatus = async (id, status) => {
     try { await updateCotizacion(id, { status }); showToast(`Estado → "${status}"`, 'success'); loadData() }
@@ -1309,7 +1352,7 @@ export default function Simulador() {
           <div className="flex-1 min-w-0">
             <div className="inline-flex items-center gap-2 bg-white/10 border border-white/15 rounded-full px-3 py-1.5 mb-3">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="text-xs font-bold text-white/70 uppercase tracking-wider">Sefired · Simulador</span>
+              <span className="text-xs font-bold text-white/70 uppercase tracking-wider">J&M · Simulador</span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-black text-white leading-snug mb-1.5">
               Cotiza cualquier<br /><span className="text-emerald-400">tipo de póliza</span>
@@ -1324,7 +1367,7 @@ export default function Simulador() {
           </div>
           {canCreate && (
             <div className="shrink-0">
-              <button onClick={openSim} className="flex items-center gap-2.5 bg-white text-sefired-blue text-sm font-black px-7 py-4 rounded-2xl hover:bg-blue-50 transition-all shadow-xl shadow-black/25 group">
+              <button onClick={openSim} className="flex items-center gap-2.5 bg-white text-jm-blue text-sm font-black px-7 py-4 rounded-2xl hover:bg-blue-50 transition-all shadow-xl shadow-black/25 group">
                 <Calculator className="w-5 h-5 group-hover:scale-110 transition-transform" />
                 Iniciar Simulación
               </button>
@@ -1388,8 +1431,8 @@ export default function Simulador() {
             const count = i === 0 ? cotizaciones.length : cotizaciones.filter(q => q.status === s).length
             return (
               <button key={s} onClick={() => setChipActive(i)}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${i === chipActive ? 'bg-sefired-blue text-white border-sefired-blue shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}>
-                {s}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${i === chipActive ? 'bg-jm-blue text-white border-jm-blue shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}>
+                {statusLabels[i]}
                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${i === chipActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>{count}</span>
               </button>
             )
@@ -1415,7 +1458,7 @@ export default function Simulador() {
                 {loadingCot ? (
                   <tr><td colSpan={8} className="td-cell text-center py-10 text-slate-400">
                     <div className="flex items-center justify-center gap-2">
-                      <div className="w-4 h-4 border-2 border-slate-300 border-t-sefired-blue rounded-full animate-spin" />
+                      <div className="w-4 h-4 border-2 border-slate-300 border-t-jm-blue rounded-full animate-spin" />
                       Cargando cotizaciones…
                     </div>
                   </td></tr>
@@ -1432,7 +1475,7 @@ export default function Simulador() {
                       <p className="text-[10px] font-mono font-bold text-slate-500 md:hidden mt-0.5">{q.nro}</p>
                     </td>
                     <td className="td-cell font-mono text-xs text-slate-500 hidden sm:table-cell">
-                      {q.placa || (q.coberturas?.asegurado_nombre ? q.coberturas.asegurado_nombre : '—')}
+                      {q.bien_atributos?.placa || q.bien_atributos?.descripcion || q.asegurado_nombre || '—'}
                     </td>
                     <td className="td-cell text-xs text-slate-600 hidden xl:table-cell">{q.producto || '—'}</td>
                     <td className="td-cell text-right font-bold text-sm text-slate-800 hidden sm:table-cell">{usd(q.total)}</td>
@@ -1440,27 +1483,27 @@ export default function Simulador() {
                     <td className="td-cell"><StatusBadge status={q.status} /></td>
                     <td className="px-2 sm:px-3 py-2">
                       <div className="flex flex-wrap gap-1 justify-center">
-                        {canEdit && (q.status === 'En Revisión' || q.status === 'Aprobado') && (
+                        {canEdit && (q.status === 'en_revision' || q.status === 'aprobado') && (
                           <button onClick={() => setUwModal(q)} className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition" title="Evaluación de Underwriting">
                             <ClipboardList className="w-3.5 h-3.5" />
                           </button>
                         )}
-                        {canEdit && q.status === 'En Revisión' && (
-                          <button onClick={() => handleChangeStatus(q.id, 'Aprobado')} className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition" title="Aprobar directo">
+                        {canEdit && q.status === 'en_revision' && (
+                          <button onClick={() => handleChangeStatus(q.id, 'aprobado')} className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition" title="Aprobar directo">
                             <Check className="w-3.5 h-3.5" />
                           </button>
                         )}
-                        {canEdit && q.status === 'En Revisión' && (
-                          <button onClick={() => handleChangeStatus(q.id, 'Rechazado')} className="p-1.5 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition" title="Rechazar directo">
+                        {canEdit && q.status === 'en_revision' && (
+                          <button onClick={() => handleChangeStatus(q.id, 'rechazado')} className="p-1.5 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition" title="Rechazar directo">
                             <X className="w-3.5 h-3.5" />
                           </button>
                         )}
-                        {canEmit && q.status === 'Aprobado' && (
+                        {canEmit && q.status === 'aprobado' && (
                           <button onClick={() => showModal('emitirCotizacion', { cot: q, onSaved: loadData })} className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition" title="Emitir póliza">
                             <FileCheck className="w-3.5 h-3.5" />
                           </button>
                         )}
-                        {canEdit && q.status !== 'Emitida' && (
+                        {canEdit && q.status !== 'emitida' && (
                           <button onClick={() => openEditSim(q)} className="p-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition" title="Editar">
                             <Pencil className="w-3.5 h-3.5" />
                           </button>

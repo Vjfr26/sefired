@@ -50,6 +50,7 @@ class Usuario extends Authenticatable
             'temp' => 'boolean',
             'temp_expira_en'   => 'datetime',
             'token_created_at' => 'datetime',
+            'token_expira_en'  => 'datetime',
             'fecha_creacion'   => 'datetime',
             'password' => 'hashed',
         ];

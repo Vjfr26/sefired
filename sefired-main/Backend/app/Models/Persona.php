@@ -3,10 +3,13 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Persona extends Model
 {
+    use SoftDeletes;
+
     protected $table = 'persona';
     public $timestamps = false;
 
@@ -27,18 +30,30 @@ class Persona extends Model
         'profesion',
         'actividad',
         'archivo',
+        'activo',
     ];
 
     protected function casts(): array
     {
         return [
-            'nacimiento' => 'date',
+            'nacimiento'     => 'date',
             'fecha_creacion' => 'datetime',
+            'activo'         => 'boolean',
         ];
     }
 
-    public function cliente(): HasOne
+    public function solicitudes(): HasMany
     {
-        return $this->hasOne(Cliente::class, 'persona_id');
+        return $this->hasMany(Solicitud::class, 'persona_id');
+    }
+
+    public function bienes(): HasMany
+    {
+        return $this->hasMany(BienAsegurado::class, 'persona_id');
+    }
+
+    public function documentos(): HasMany
+    {
+        return $this->hasMany(ClienteDocumento::class, 'persona_id');
     }
 }

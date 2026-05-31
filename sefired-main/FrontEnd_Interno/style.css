@@ -3,10 +3,10 @@
 
 @theme {
   --font-sans: "Inter", system-ui, -apple-system, sans-serif;
-  --color-sefired-blue: #001463;
-  --color-sefired-dark: #000c3b;
-  --color-sefired-light: #F0F7FF;
-  --color-sefired-green: #146300;
+  --color-jm-blue: #001463;
+  --color-jm-dark: #000c3b;
+  --color-jm-light: #F0F7FF;
+  --color-jm-green: #146300;
 
   --animate-slide-in-top: slide-in-top 0.2s ease-out;
 
@@ -161,7 +161,7 @@
 
   /* Buttons — responsive padding, never overflow */
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 bg-sefired-green text-white text-sm font-bold px-4 sm:px-6 py-2.5 sm:py-3 rounded-2xl hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20 cursor-pointer;
+    @apply inline-flex items-center justify-center gap-2 bg-jm-green text-white text-sm font-bold px-4 sm:px-6 py-2.5 sm:py-3 rounded-2xl hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20 cursor-pointer;
     min-width: 0;
   }
 
@@ -172,11 +172,11 @@
 
   /* Dashboard Specific */
   .type-btn {
-    @apply flex flex-col items-center justify-center p-4 rounded-2xl bg-white border border-slate-200 hover:border-sefired-green hover:bg-emerald-50 transition-all duration-300 cursor-pointer;
+    @apply flex flex-col items-center justify-center p-4 rounded-2xl bg-white border border-slate-200 hover:border-jm-green hover:bg-emerald-50 transition-all duration-300 cursor-pointer;
   }
 
   .type-btn.active {
-    @apply bg-sefired-green text-white border-sefired-green shadow-lg shadow-emerald-500/30;
+    @apply bg-jm-green text-white border-jm-green shadow-lg shadow-emerald-500/30;
   }
 
   .type-btn.active i {
@@ -192,7 +192,7 @@
   }
 
   .input-control {
-    @apply w-full max-w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-sefired-green focus:border-transparent outline-none transition-all;
+    @apply w-full max-w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-jm-green focus:border-transparent outline-none transition-all;
     min-width: 0;
   }
 
@@ -212,7 +212,7 @@
   }
 
   input[type="range"]::-webkit-slider-thumb {
-    @apply appearance-none w-5 h-5 bg-sefired-green rounded-full cursor-pointer shadow-md border-2 border-white;
+    @apply appearance-none w-5 h-5 bg-jm-green rounded-full cursor-pointer shadow-md border-2 border-white;
   }
 
   /* Badges — never expand container */
@@ -250,7 +250,7 @@
     content: '';
     @apply absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200;
   }
-  .toggle-input:checked ~ .toggle-track { @apply bg-sefired-green; }
+  .toggle-input:checked ~ .toggle-track { @apply bg-jm-green; }
   .toggle-input:checked ~ .toggle-track::after { @apply translate-x-5; }
 
   /* Step indicator */

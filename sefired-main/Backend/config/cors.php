@@ -2,7 +2,7 @@
 
 /**
  * Para desarrollo: CORS_ALLOWED_ORIGINS no se define y usa el default (localhost:5173).
- * Para producción: definir en .env → CORS_ALLOWED_ORIGINS=https://panel.sefired.com
+ * Para producción: definir en .env → CORS_ALLOWED_ORIGINS=https://panel.jandm.com
  * Si se necesitan varios orígenes: CORS_ALLOWED_ORIGINS=https://a.com,https://b.com
  */
 
@@ -18,7 +18,7 @@ return [
 
     'allowed_origins_patterns' => [],
 
-    'allowed_headers' => ['Accept', 'Content-Type', 'Authorization'],
+    'allowed_headers' => ['Accept', 'Content-Type', 'Authorization', 'X-Device-Fingerprint'],
 
     'exposed_headers' => [],
 

@@ -18,13 +18,21 @@ trait LogsActivity
      */
     public function logActivity(string $accion, string $descripcion, ?string $tabla = null, ?int $usuarioId = null)
     {
+        $fingerprint = null;
+        $raw = Request::header('X-Device-Fingerprint');
+        if ($raw) {
+            $decoded = json_decode($raw, true);
+            $fingerprint = is_array($decoded) ? $decoded : null;
+        }
+
         Log::create([
-            'usuario_id' => $usuarioId ?? (auth()->id() ?? null),
-            'accion'     => $accion,
-            'tabla'      => $tabla,
-            'descripcion'=> $descripcion,
-            'ip'         => Request::ip(),
-            'user_agent' => Request::header('User-Agent'),
+            'usuario_id'         => $usuarioId ?? (auth()->id() ?? null),
+            'accion'             => $accion,
+            'tabla'              => $tabla,
+            'descripcion'        => $descripcion,
+            'ip'                 => Request::ip(),
+            'user_agent'         => Request::header('User-Agent'),
+            'device_fingerprint' => $fingerprint,
         ]);
     }
 }

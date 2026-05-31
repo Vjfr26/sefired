@@ -16,8 +16,9 @@ class Solicitud extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'cliente_id',
-        'placa',
+        'persona_id',
+        'bien_asegurado_id',
+        'fuente',
         'producto_id',
         'tarifario_id',
         'total',
@@ -39,22 +40,28 @@ class Solicitud extends Model
     protected function casts(): array
     {
         return [
-            'cliente_id'       => 'integer',
-            'producto_id'      => 'integer',
-            'tarifario_id'     => 'integer',
-            'vendedor_id'      => 'integer',
-            'total'            => 'decimal:2',
-            'total_bs'         => 'decimal:2',
-            'suma_cobertura_bs'=> 'decimal:2',
-            'suma_prima_bs'    => 'decimal:2',
-            'fecha_solicitud'  => 'date',
-            'coberturas'       => 'array',
+            'persona_id'        => 'integer',
+            'bien_asegurado_id' => 'integer',
+            'producto_id'       => 'integer',
+            'tarifario_id'      => 'integer',
+            'vendedor_id'       => 'integer',
+            'total'             => 'decimal:2',
+            'total_bs'          => 'decimal:2',
+            'suma_cobertura_bs' => 'decimal:2',
+            'suma_prima_bs'     => 'decimal:2',
+            'fecha_solicitud'   => 'date',
+            'coberturas'        => 'array',
         ];
     }
 
-    public function cliente(): BelongsTo
+    public function persona(): BelongsTo
     {
-        return $this->belongsTo(Cliente::class, 'cliente_id');
+        return $this->belongsTo(Persona::class, 'persona_id');
+    }
+
+    public function bien(): BelongsTo
+    {
+        return $this->belongsTo(BienAsegurado::class, 'bien_asegurado_id');
     }
 
     public function producto(): BelongsTo

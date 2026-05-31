@@ -212,9 +212,9 @@ function TabAbout() {
       {/* Company info */}
       <div className="card p-6">
         <div className="flex items-center gap-4 mb-6 pb-4 border-b border-slate-100">
-          <img src="/logo2.png" alt="Sefired" className="h-14 object-contain" />
+          <img src="/logo2.png" alt="J&M" className="h-14 object-contain" />
           <div>
-            <h3 className="font-bold text-slate-800 text-lg">Seguros Sefired</h3>
+            <h3 className="font-bold text-slate-800 text-lg">Seguros J&M</h3>
             <p className="text-sm text-slate-500">Cooperativa de Seguros de Vehículos R.L.</p>
           </div>
         </div>
@@ -224,8 +224,8 @@ function TabAbout() {
             ['Regulador',  'SUDEASEG',          'font-semibold text-blue-700'],
             ['Registro',   'RSE-2010-00247',    'font-mono text-xs text-slate-600'],
             ['País',       'Venezuela',         'font-semibold'],
-            ['Email',      'info@sefired.com',  'text-blue-600'],
-            ['Web',        'www.sefired.com',   'text-blue-600'],
+            ['Email',      'info@jandm.com',  'text-blue-600'],
+            ['Web',        'www.jandm.com',   'text-blue-600'],
           ].map(([label, val, cls]) => (
             <div key={label} className="flex justify-between gap-3 py-2 border-b border-slate-100">
               <span className="text-slate-500">{label}</span>
@@ -255,7 +255,7 @@ function TabAbout() {
         </div>
         <div className="mt-5 p-4 bg-blue-50 rounded-xl">
           <p className="text-xs font-semibold text-blue-800 mb-1">Licencia de uso</p>
-          <p className="text-xs text-blue-600">Este sistema es propiedad de Seguros Sefired C.A. Su uso no autorizado está prohibido.</p>
+          <p className="text-xs text-blue-600">Este sistema es propiedad de Seguros J&M C.A. Su uso no autorizado está prohibido.</p>
         </div>
       </div>
     </div>

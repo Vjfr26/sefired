@@ -127,9 +127,12 @@ export const bs = (n, r = 38.54) => 'Bs. ' + ceilToCents(n * r).toLocaleString('
 export const STATUS_COLOR = {
   'Activo': 'green', 'Activa': 'green', 'Vigente': 'green', 'Emitida': 'green', 'Aprobado': 'green', 'Cobrado': 'green',
   'Pagada': 'green', 'Pagado': 'green', 'Completado': 'green', 'Completada': 'green', 'Cumplida': 'green', 'Generado': 'green',
+  'emitida': 'green', 'aprobado': 'green',
   'Inactivo': 'slate', 'Vencida': 'slate', 'Cerrado': 'slate', 'Cancelada': 'slate',
   'Pendiente': 'amber', 'En Revisión': 'amber', 'Por Vencer': 'amber', 'Parcial': 'amber',
+  'pendiente': 'amber', 'en_revision': 'amber',
   'Rechazado': 'red', 'Anulada': 'red', 'Bloqueado': 'red', 'En riesgo': 'red',
+  'rechazado': 'red',
   'Cliente Bloqueado': 'amber',
   'Asignado': 'blue', 'En Proceso': 'blue', 'Generada': 'blue', 'En curso': 'blue',
 }
@@ -415,7 +418,7 @@ export const NAV = [
   { id: 'productos',    label: 'Productos',           icon: 'package',     viewId: 'cat-productos' },
   { id: 'usuarios',     label: 'Usuarios',           icon: 'user-cog',    viewId: 'usr-lista' },
   { id: 'clientes',     label: 'Clientes & Pólizas', icon: 'users',       viewId: 'cli-cliente' },
-  { id: 'vehiculos',    label: 'Vehículos',          icon: 'car',         viewId: 'cli-vehiculo' },
+  { id: 'vehiculos',    label: 'Bienes',              icon: 'car',         viewId: 'cli-vehiculo' },
   { id: 'reportes',     label: 'Reportes',           icon: 'bar-chart-3', viewId: 'rep-menu' },
   { id: 'tasas',        label: 'Tasa del Día',       icon: 'dollar-sign', viewId: 'tas-registro' },
   { id: 'config',       label: 'Configuración',      icon: 'settings',    viewId: 'conf-menu' },
@@ -427,10 +430,10 @@ export const NAV = [
  * padre ('clientes') aunque el Header muestre el subtítulo específico.
  */
 export const VIEW_META = {
-  'home':          { navId: 'home',         title: 'Inicio',             sub: 'Cotizador de Seguros Sefired' },
+  'home':          { navId: 'home',         title: 'Inicio',             sub: 'Cotizador de Seguros J&M' },
   'cat-productos': { navId: 'productos',    title: 'Productos',           sub: 'Catálogo de productos y coberturas' },
   'cli-cliente':   { navId: 'clientes',     title: 'Clientes & Pólizas', sub: 'Gestión de clientes, pólizas y renovaciones' },
-  'cli-vehiculo':  { navId: 'vehiculos',    title: 'Vehículos',          sub: 'Registro y consulta de vehículos asegurados' },
+  'cli-vehiculo':  { navId: 'vehiculos',    title: 'Bienes Asegurados',  sub: 'Registro y consulta de bienes asegurados' },
   'cot-simulador': { navId: 'cotizaciones', title: 'Simulador',          sub: 'Simulador de cotizaciones de seguros vehiculares' },
   'rep-menu':      { navId: 'reportes',     title: 'Reportes',           sub: 'Generación y exportación de reportes' },
   'tas-registro':  { navId: 'tasas',        title: 'Tasas del Día',      sub: 'Registro de tasas BCV — Dólar y Euro' },
@@ -445,6 +448,11 @@ export const VIEW_META = {
 // ── Generadores de HTML para documentos PDF ──────────────────────────────────
 // Estas funciones construyen fragmentos HTML con estilos inline para que funcionen
 // correctamente en ventanas de impresión donde el CSS externo no está disponible.
+
+/** Escapa caracteres HTML para uso seguro en strings interpolados con innerHTML. */
+function h(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+}
 
 /**
  * Envuelve el contenido en una "hoja" de papel A4 con padding.
@@ -462,23 +470,23 @@ export function pdfPage(content) {
  * @param {string} ref       Número de referencia o código (opcional)
  * @param {string} date      Fecha del documento (opcional)
  * @param {string} logoUrl   URL absoluta del logo (ej. window.location.origin + '/Logo_sin_fondo.png')
- *                           Si se omite, solo aparece el texto "SEFIRED"
+ *                           Si se omite, solo aparece el texto "J&M"
  */
 export function pdfHdr(docTitle, docSub, ref, date, logoUrl = '') {
   return `<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:32px;padding-bottom:20px;border-bottom:2px solid #001463">
     <div style="display:flex;align-items:center;gap:12px">
-      ${logoUrl ? `<img src="${logoUrl}" alt="Sefired" style="height:52px;width:auto;object-fit:contain" />` : ''}
+      ${logoUrl ? `<img src="${logoUrl}" alt="J&M" style="height:52px;width:auto;object-fit:contain" />` : ''}
       <div>
-        <p style="font-size:22px;font-weight:900;color:#001463;letter-spacing:-0.5px">SEFIRED</p>
+        <p style="font-size:22px;font-weight:900;color:#001463;letter-spacing:-0.5px">J&M</p>
         <p style="font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:2px;margin-top:2px">Cooperativa de Seguros de Vehículos R.L.</p>
         <p style="font-size:9px;color:#94a3b8;margin-top:2px">RIF J-12.345.678-9 · Av. Principal, Caracas 1010</p>
       </div>
     </div>
     <div style="text-align:right">
-      <p style="font-size:16px;font-weight:900;color:#1e293b;text-transform:uppercase;letter-spacing:1px">${docTitle}</p>
-      ${docSub ? `<p style="font-size:10px;color:#64748b;margin-top:3px">${docSub}</p>` : ''}
-      ${ref   ? `<p style="font-size:11px;font-family:monospace;color:#001463;font-weight:700;margin-top:6px">${ref}</p>` : ''}
-      ${date  ? `<p style="font-size:10px;color:#64748b;margin-top:2px">${date}</p>` : ''}
+      <p style="font-size:16px;font-weight:900;color:#1e293b;text-transform:uppercase;letter-spacing:1px">${h(docTitle)}</p>
+      ${docSub ? `<p style="font-size:10px;color:#64748b;margin-top:3px">${h(docSub)}</p>` : ''}
+      ${ref   ? `<p style="font-size:11px;font-family:monospace;color:#001463;font-weight:700;margin-top:6px">${h(ref)}</p>` : ''}
+      ${date  ? `<p style="font-size:10px;color:#64748b;margin-top:2px">${h(date)}</p>` : ''}
     </div>
   </div>`
 }
@@ -491,7 +499,7 @@ export function pdfHdr(docTitle, docSub, ref, date, logoUrl = '') {
 export function pdfFooterSimple() {
   const now = new Date().toLocaleDateString('es-VE', { day:'2-digit', month:'long', year:'numeric' })
   return `<div style="margin-top:48px;padding-top:16px;border-top:1px solid #e2e8f0;text-align:center">
-    <p style="font-size:11px;font-weight:700;color:#001463">SEFIRED — Cooperativa de Seguros de Vehículos R.L.</p>
+    <p style="font-size:11px;font-weight:700;color:#001463">J&M — Cooperativa de Seguros de Vehículos R.L.</p>
     <p style="font-size:9px;color:#94a3b8;margin-top:4px">RIF J-12.345.678-9 · Av. Principal, Caracas 1010 · Tel. (0212) 000-0000</p>
     <p style="font-size:8px;color:#cbd5e1;margin-top:8px;line-height:1.6">Documento generado el ${now} · Autorizado por SUDEASEG · Válido únicamente con sello oficial.</p>
   </div>`
@@ -499,7 +507,7 @@ export function pdfFooterSimple() {
 
 /** Título de sección dentro del documento (línea separadora con texto pequeño en mayúsculas). */
 export function pdfSec(title) {
-  return `<p style="font-size:9px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:2px;margin:22px 0 10px;padding-bottom:5px;border-bottom:1px solid #e2e8f0">${title}</p>`
+  return `<p style="font-size:9px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:2px;margin:22px 0 10px;padding-bottom:5px;border-bottom:1px solid #e2e8f0">${h(title)}</p>`
 }
 
 /**
@@ -510,8 +518,8 @@ export function pdfSec(title) {
  */
 export function pdfRow(label, value, mono = false) {
   return `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:4px 0;border-bottom:1px solid #f1f5f9">
-    <span style="font-size:11px;color:#64748b">${label}</span>
-    <span style="font-size:12px;font-weight:600;color:#1e293b${mono ? ';font-family:monospace' : ''}">${value}</span>
+    <span style="font-size:11px;color:#64748b">${h(label)}</span>
+    <span style="font-size:12px;font-weight:600;color:#1e293b${mono ? ';font-family:monospace' : ''}">${h(value)}</span>
   </div>`
 }
 
@@ -523,9 +531,9 @@ export function pdfRow(label, value, mono = false) {
  */
 export function pdfTotal(label, amount, sub) {
   return `<div style="display:flex;justify-content:space-between;align-items:center;background:#001463;color:white;padding:12px 16px;border-radius:8px;margin-top:14px">
-    <span style="font-size:13px;font-weight:700">${label}</span>
-    <span style="font-size:22px;font-weight:900">${amount}</span>
-  </div>${sub ? `<p style="font-size:9px;color:#64748b;text-align:right;margin-top:5px">${sub}</p>` : ''}`
+    <span style="font-size:13px;font-weight:700">${h(label)}</span>
+    <span style="font-size:22px;font-weight:900">${h(amount)}</span>
+  </div>${sub ? `<p style="font-size:9px;color:#64748b;text-align:right;margin-top:5px">${h(sub)}</p>` : ''}`
 }
 
 /**
@@ -540,17 +548,17 @@ export function pdfFooter(agente, oficina) {
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:48px">
       <div style="text-align:center">
         <div style="border-top:1px solid #1e293b;padding-top:8px;margin-top:44px">
-          <p style="font-size:10px;font-weight:700;color:#1e293b">${agente}</p>
+          <p style="font-size:10px;font-weight:700;color:#1e293b">${h(agente)}</p>
           <p style="font-size:9px;color:#64748b">Agente de Seguros · Sello y Firma</p>
         </div>
       </div>
       <div style="text-align:center">
         <div style="border-top:1px solid #1e293b;padding-top:8px;margin-top:44px">
-          <p style="font-size:10px;font-weight:700;color:#1e293b">Supervisor · ${oficina}</p>
+          <p style="font-size:10px;font-weight:700;color:#1e293b">Supervisor · ${h(oficina)}</p>
           <p style="font-size:9px;color:#64748b">Autorizado · Sello y Firma</p>
         </div>
       </div>
     </div>
-    <p style="font-size:8px;color:#94a3b8;text-align:center;margin-top:18px;line-height:1.6">Documento generado por el sistema interno Sefired. Válido únicamente con sello y firma del supervisor autorizado. Autorizado por SUDEASEG.</p>
+    <p style="font-size:8px;color:#94a3b8;text-align:center;margin-top:18px;line-height:1.6">Documento generado por el sistema interno J&M. Válido únicamente con sello y firma del supervisor autorizado. Autorizado por SUDEASEG.</p>
   </div>`
 }

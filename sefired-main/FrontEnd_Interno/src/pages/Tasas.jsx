@@ -178,7 +178,7 @@ export default function Tasas() {
         <div className="space-y-4">
           {loading ? (
             <div className="flex justify-center items-center py-16 text-slate-400 text-sm gap-2">
-              <div className="w-4 h-4 border-2 border-slate-300 border-t-sefired-blue rounded-full animate-spin" />
+              <div className="w-4 h-4 border-2 border-slate-300 border-t-jm-blue rounded-full animate-spin" />
               Cargando tasas…
             </div>
           ) : (

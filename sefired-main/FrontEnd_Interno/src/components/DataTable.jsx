@@ -121,8 +121,8 @@ export default function DataTable({ cols, rows, footer = null, id, searchable = 
                       {sortable && c.l && (
                         active
                           ? sortDir === 'asc'
-                              ? <ChevronUp   className="w-3 h-3 text-sefired-blue shrink-0" />
-                              : <ChevronDown className="w-3 h-3 text-sefired-blue shrink-0" />
+                              ? <ChevronUp   className="w-3 h-3 text-jm-blue shrink-0" />
+                              : <ChevronDown className="w-3 h-3 text-jm-blue shrink-0" />
                           : <ChevronsUpDown className="w-3 h-3 text-slate-300 group-hover:text-slate-400 shrink-0 transition-colors" />
                       )}
                     </span>

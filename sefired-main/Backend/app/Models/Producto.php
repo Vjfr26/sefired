@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -14,11 +15,12 @@ class Producto extends Model
     public $timestamps = false;
 
     protected $fillable = [
+        'parent_id',
         'nombre',
         'codigo',
         'tipo',
+        'tipo_bien',
         'categoria',
-        'requiere_vehiculo',
         'tipo_calculo',
         'derecho_poliza',
         'descripcion',
@@ -28,7 +30,6 @@ class Producto extends Model
         'documento_path',
         'documentos',
         'documentos_requeridos',
-        'tasas',
         'created_by',
         'updated_by',
     ];
@@ -36,14 +37,24 @@ class Producto extends Model
     protected function casts(): array
     {
         return [
-            'requiere_vehiculo' => 'boolean',
-            'derecho_poliza'    => 'decimal:2',
-            'cobertura'         => 'decimal:2',
-            'prima'             => 'decimal:2',
-            'documentos'             => 'array',
-            'documentos_requeridos'  => 'array',
-            'tasas'                  => 'array',
+            'derecho_poliza'        => 'decimal:2',
+            'cobertura'             => 'decimal:2',
+            'prima'                 => 'decimal:2',
+            'documentos'            => 'array',
+            'documentos_requeridos' => 'array',
         ];
+    }
+
+    /** Producto padre (si este es un sub-tipo) */
+    public function parent(): BelongsTo
+    {
+        return $this->belongsTo(Producto::class, 'parent_id');
+    }
+
+    /** Sub-tipos asociados a este producto padre */
+    public function subtipos(): HasMany
+    {
+        return $this->hasMany(Producto::class, 'parent_id');
     }
 
     public function tarifarios(): HasMany

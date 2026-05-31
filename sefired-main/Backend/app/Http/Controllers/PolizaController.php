@@ -45,19 +45,19 @@ class PolizaController extends Controller
             WorkflowService::assertPoliza($poliza->status, $data['status']);
         }
 
-        // Si se intenta activar, verificar que el vehículo no tenga ya otra póliza activa
+        // Si se intenta activar, verificar que el bien no tenga ya otra póliza activa
         if (isset($data['status']) && $data['status'] === 'ACTIVA' && $poliza->status !== 'ACTIVA') {
-            $placa = $poliza->solicitud?->placa;
+            $bienId = $poliza->solicitud?->bien_asegurado_id;
 
-            if ($placa) {
-                $conflicto = Poliza::whereHas('solicitud', fn($q) => $q->where('placa', $placa))
+            if ($bienId) {
+                $conflicto = Poliza::whereHas('solicitud', fn($q) => $q->where('bien_asegurado_id', $bienId))
                     ->where('status', 'ACTIVA')
                     ->where('id', '!=', $poliza->id)
                     ->exists();
 
                 if ($conflicto) {
                     return response()->json([
-                        'error' => 'El vehículo ' . $placa . ' ya tiene una póliza ACTIVA. Anule o venza la anterior antes de activar esta.',
+                        'error' => 'Este bien ya tiene una póliza ACTIVA. Anule o venza la anterior antes de activar esta.',
                     ], 409);
                 }
             }

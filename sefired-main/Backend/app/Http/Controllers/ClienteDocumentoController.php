@@ -2,33 +2,21 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Cliente;
 use App\Models\ClienteDocumento;
+use App\Models\Persona;
 use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
-/**
- * Gestión de documentos del cliente (cédula, RIF, certificados, etc.).
- *
- * Los documentos se suben una vez y quedan en el perfil del cliente.
- * El simulador y el módulo de clientes los consultan para mostrar alertas de faltantes.
- *
- * Rutas (ver api.php):
- *   GET    /api/clientes/{id}/documentos        → lista documentos del cliente
- *   POST   /api/clientes/{id}/documentos        → subir nuevo documento
- *   DELETE /api/clientes/{id}/documentos/{docId}→ eliminar documento
- */
 class ClienteDocumentoController extends Controller
 {
     use LogsActivity;
 
-    /** Lista todos los documentos del cliente con sus URLs de descarga. */
-    public function index($clienteId)
+    public function index($personaId)
     {
-        $cliente = Cliente::findOrFail($clienteId);
+        $persona = Persona::findOrFail($personaId);
 
-        $docs = $cliente->documentos()
+        $docs = $persona->documentos()
             ->orderBy('created_at', 'desc')
             ->get()
             ->map(fn($d) => $this->row($d));
@@ -36,13 +24,9 @@ class ClienteDocumentoController extends Controller
         return response()->json($docs);
     }
 
-    /**
-     * Sube un documento y lo asocia al cliente.
-     * Acepta PDF, imágenes JPG/PNG y documentos Word/Excel.
-     */
-    public function store(Request $request, $clienteId)
+    public function store(Request $request, $personaId)
     {
-        Cliente::findOrFail($clienteId);
+        Persona::findOrFail($personaId);
 
         $request->validate([
             'documento' => 'required|file|mimes:pdf,jpg,jpeg,png,doc,docx|max:10240',
@@ -51,10 +35,10 @@ class ClienteDocumentoController extends Controller
 
         $file     = $request->file('documento');
         $filename = uniqid('cdoc_') . '.' . $file->getClientOriginalExtension();
-        $path     = $file->storeAs("clientes/{$clienteId}/documentos", $filename, 'public');
+        $path     = $file->storeAs("clientes/{$personaId}/documentos", $filename, 'public');
 
         $doc = ClienteDocumento::create([
-            'cliente_id' => $clienteId,
+            'persona_id' => $personaId,
             'nombre'     => trim($request->input('nombre')),
             'path'       => $path,
             'size'       => $file->getSize(),
@@ -63,7 +47,7 @@ class ClienteDocumentoController extends Controller
 
         $this->logActivity(
             'Documento Subido',
-            "Doc \"{$doc->nombre}\" para cliente #{$clienteId}",
+            "Doc \"{$doc->nombre}\" para cliente #{$personaId}",
             'cliente_documentos',
             auth()->id()
         );
@@ -71,17 +55,16 @@ class ClienteDocumentoController extends Controller
         return response()->json($this->row($doc), 201);
     }
 
-    /** Elimina un documento del cliente y su archivo físico. */
-    public function destroy($clienteId, $docId)
+    public function destroy($personaId, $docId)
     {
-        $doc = ClienteDocumento::where('cliente_id', $clienteId)->findOrFail($docId);
+        $doc = ClienteDocumento::where('persona_id', $personaId)->findOrFail($docId);
 
         Storage::disk('public')->delete($doc->path);
         $doc->delete();
 
         $this->logActivity(
             'Documento Eliminado',
-            "Doc \"{$doc->nombre}\" del cliente #{$clienteId}",
+            "Doc \"{$doc->nombre}\" del cliente #{$personaId}",
             'cliente_documentos',
             auth()->id()
         );
@@ -93,7 +76,7 @@ class ClienteDocumentoController extends Controller
     {
         return [
             'id'         => $d->id,
-            'cliente_id' => $d->cliente_id,
+            'persona_id' => $d->persona_id,
             'nombre'     => $d->nombre,
             'path'       => $d->path,
             'url'        => Storage::disk('public')->url($d->path),

@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Solicitud;
-use App\Models\Cliente;
+use App\Models\Persona;
 use App\Models\Poliza;
 use App\Models\Factura;
 use App\Services\WorkflowService;
@@ -33,7 +33,7 @@ class SolicitudController extends Controller
      */
     public function index()
     {
-        $solicitudes = Solicitud::with(['cliente.persona', 'producto'])
+        $solicitudes = Solicitud::with(['persona', 'producto'])
             ->orderByDesc('fecha_solicitud')
             ->orderByDesc('id')
             ->get()
@@ -52,26 +52,27 @@ class SolicitudController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'cliente_id'       => 'required|integer|exists:cliente,id',
-            'placa'            => 'nullable|string|max:20',
-            'producto_id'      => 'nullable|integer|exists:producto,id',
-            'tarifario_id'     => 'nullable|integer|exists:tarifario,id',
-            'total'            => 'required|numeric|min:0',
-            'total_bs'         => 'required|numeric|min:0',
-            'fecha_solicitud'  => 'required|date',
-            'coberturas'       => 'required|array',
-            'nombre_tomador'   => 'nullable|string|max:120',
-            'ci_tomador'       => 'nullable|string|max:20',
-            'asegurado_nombre' => 'nullable|string|max:120',
-            'asegurado_ci'     => 'nullable|string|max:20',
+            'persona_id'        => 'nullable|integer|exists:persona,id',
+            'bien_asegurado_id' => 'nullable|integer|exists:bien_asegurado,id',
+            'producto_id'       => 'nullable|integer|exists:producto,id',
+            'tarifario_id'      => 'nullable|integer|exists:tarifario,id',
+            'total'             => 'required|numeric|min:0',
+            'total_bs'          => 'required|numeric|min:0',
+            'fecha_solicitud'   => 'required|date',
+            'coberturas'        => 'required|array',
+            'nombre_tomador'    => 'nullable|string|max:120',
+            'ci_tomador'        => 'nullable|string|max:20',
+            'asegurado_nombre'  => 'nullable|string|max:120',
+            'asegurado_ci'      => 'nullable|string|max:20',
         ]);
 
         $data['vendedor_id'] = auth()->id();
-        $data['status']      = 'En Revisión';
+        $data['status']      = 'en_revision';
+        $data['fuente']      = 'interno';
 
         $solicitud = Solicitud::create($data);
 
-        $ref = $solicitud->placa ?? $solicitud->asegurado_nombre ?? "cliente #{$solicitud->cliente_id}";
+        $ref = $solicitud->asegurado_nombre ?? $solicitud->nombre_tomador ?? "solicitud #{$solicitud->id}";
         $this->logActivity(
             'Cotización Creada',
             "Cotización #{$solicitud->id} — {$ref}",
@@ -79,7 +80,7 @@ class SolicitudController extends Controller
             auth()->id()
         );
 
-        return response()->json($this->formatRow($solicitud->load(['cliente.persona', 'producto'])), 201);
+        return response()->json($this->formatRow($solicitud->load(['persona', 'producto'])), 201);
     }
 
     /**
@@ -90,24 +91,24 @@ class SolicitudController extends Controller
     {
         $solicitud = Solicitud::findOrFail($id);
 
-        if ($solicitud->status === 'Emitida') {
+        if ($solicitud->status === 'emitida') {
             return response()->json(['error' => 'No se puede editar una cotización ya emitida.'], 409);
         }
 
         $data = $request->validate([
-            'status'           => 'sometimes|in:En Revisión,Aprobado,Rechazado',
-            'cliente_id'       => 'sometimes|integer|exists:cliente,id',
-            'placa'            => 'nullable|string|max:20',
-            'producto_id'      => 'nullable|integer|exists:producto,id',
-            'tarifario_id'     => 'nullable|integer|exists:tarifario,id',
-            'total'            => 'sometimes|numeric|min:0',
-            'total_bs'         => 'sometimes|numeric|min:0',
-            'fecha_solicitud'  => 'sometimes|date',
-            'coberturas'       => 'sometimes|array',
-            'nombre_tomador'   => 'nullable|string|max:120',
-            'ci_tomador'       => 'nullable|string|max:20',
-            'asegurado_nombre' => 'nullable|string|max:120',
-            'asegurado_ci'     => 'nullable|string|max:20',
+            'status'            => 'sometimes|in:en_revision,aprobado,rechazado,pendiente',
+            'persona_id'        => 'sometimes|integer|exists:persona,id',
+            'bien_asegurado_id' => 'nullable|integer|exists:bien_asegurado,id',
+            'producto_id'       => 'nullable|integer|exists:producto,id',
+            'tarifario_id'      => 'nullable|integer|exists:tarifario,id',
+            'total'             => 'sometimes|numeric|min:0',
+            'total_bs'          => 'sometimes|numeric|min:0',
+            'fecha_solicitud'   => 'sometimes|date',
+            'coberturas'        => 'sometimes|array',
+            'nombre_tomador'    => 'nullable|string|max:120',
+            'ci_tomador'        => 'nullable|string|max:20',
+            'asegurado_nombre'  => 'nullable|string|max:120',
+            'asegurado_ci'      => 'nullable|string|max:20',
         ]);
 
         // Validar transición de estado antes de persistir
@@ -129,7 +130,7 @@ class SolicitudController extends Controller
     /**
      * Emite una cotización: crea la Póliza y la Factura de forma automática.
      *
-     * Solo puede emitirse si el status es 'Aprobado' o 'En Revisión'.
+     * Solo puede emitirse si el status es 'aprobado' o 'en_revision'.
      * El nro_contrato y número de factura se auto-generan a partir del ID de póliza.
      *
      * Campos requeridos: pago, sede. Opcional: referencia.
@@ -138,7 +139,7 @@ class SolicitudController extends Controller
     {
         $solicitud = Solicitud::findOrFail($id);
 
-        if ($solicitud->status === 'Emitida') {
+        if ($solicitud->status === 'emitida') {
             return response()->json(['error' => 'Esta cotización ya fue emitida.'], 409);
         }
 
@@ -148,7 +149,7 @@ class SolicitudController extends Controller
             'sede'       => 'required|string|max:20',
         ]);
 
-        $solicitud->load(['cliente.persona', 'producto', 'tarifario']);
+        $solicitud->load(['persona', 'producto', 'tarifario', 'bien']);
 
         $cobs    = is_array($solicitud->coberturas) ? $solicitud->coberturas : [];
         $hoy     = now()->toDateString();
@@ -171,8 +172,8 @@ class SolicitudController extends Controller
         // Snapshot inmutable: datos tal como existían al momento de emisión.
         $snapshot = [
             'tomador' => [
-                'nombre' => $solicitud->nombre_tomador ?? $solicitud->cliente?->persona?->nombre,
-                'ci'     => $solicitud->ci_tomador     ?? $solicitud->cliente?->persona?->cedula,
+                'nombre' => $solicitud->nombre_tomador ?? $solicitud->persona?->nombre,
+                'ci'     => $solicitud->ci_tomador     ?? $solicitud->persona?->cedula,
             ],
             'asegurado' => [
                 'nombre' => $aseguradoNombre,
@@ -191,12 +192,16 @@ class SolicitudController extends Controller
                 'version' => $solicitud->tarifario->version,
                 'datos'   => $solicitud->tarifario->datos,
             ] : null,
-            'coberturas'       => $cobs,
-            'tasa_bcv'         => $tasaBcv,
-            'placa'            => $solicitud->placa,
-            'fecha_emision'    => $hoy,
-            'total_usd'        => (float) $solicitud->total,
-            'total_bs'         => (float) $solicitud->total_bs,
+            'coberturas'    => $cobs,
+            'tasa_bcv'      => $tasaBcv,
+            'bien'          => $solicitud->bien ? [
+                'id'        => $solicitud->bien->id,
+                'tipo'      => $solicitud->bien->tipo,
+                'atributos' => $solicitud->bien->atributos,
+            ] : null,
+            'fecha_emision' => $hoy,
+            'total_usd'     => (float) $solicitud->total,
+            'total_bs'      => (float) $solicitud->total_bs,
         ];
 
         $result = DB::transaction(function () use ($solicitud, $data, $hoy, $venc, $anno, $coberturaDolares, $coberturaBS, $aseguradoNombre, $aseguradoCi, $snapshot) {
@@ -238,7 +243,7 @@ class SolicitudController extends Controller
                 'usuario_id'    => auth()->id(),
             ]);
 
-            $solicitud->update(['status' => 'Emitida']);
+            $solicitud->update(['status' => 'emitida']);
 
             return ['nro_contrato' => $nroContrato, 'nro_factura' => $nroFactura];
         });
@@ -285,30 +290,33 @@ class SolicitudController extends Controller
         $totalBs  = (float) $s->total_bs;
         $tasaBcv  = $cobs['tasaBCV'] ?? null;
 
-        $nombre = $s->nombre_tomador ?? $s->cliente?->persona?->nombre ?? '—';
-        $ci     = $s->ci_tomador     ?? $s->cliente?->persona?->cedula  ?? '—';
+        $nombre = $s->nombre_tomador ?? $s->persona?->nombre ?? '—';
+        $ci     = $s->ci_tomador     ?? $s->persona?->cedula  ?? '—';
 
         // Número de cotización: COT-YYYY-XXXXX
         $nro = 'COT-' . $s->fecha_solicitud?->format('Y') . '-' . str_pad($s->id, 5, '0', STR_PAD_LEFT);
 
         return [
-            'id'               => $s->id,
-            'nro'              => $nro,
-            'cliente_id'       => $s->cliente_id,
-            'nombre'           => $nombre,
-            'ci'               => $ci,
-            'placa'            => $s->placa ?? '—',
-            'producto_id'      => $s->producto_id,
-            'producto'         => $s->producto?->nombre ?? '—',
-            'tarifario_id'     => $s->tarifario_id,
-            'total'            => $total,
-            'total_bs'         => $totalBs,
-            'tasa_bcv'         => $tasaBcv,
-            'status'           => $s->status ?? 'En Revisión',
-            'fecha'            => $s->fecha_solicitud?->format('d/m/Y') ?? '—',
-            'coberturas'       => $cobs,
-            'asegurado_nombre' => $s->asegurado_nombre,
-            'asegurado_ci'     => $s->asegurado_ci,
+            'id'                => $s->id,
+            'nro'               => $nro,
+            'persona_id'        => $s->persona_id,
+            'nombre'            => $nombre,
+            'ci'                => $ci,
+            'bien_asegurado_id' => $s->bien_asegurado_id,
+            'bien_tipo'         => $s->bien?->tipo,
+            'bien_atributos'    => $s->bien?->atributos,
+            'producto_id'       => $s->producto_id,
+            'producto'          => $s->producto?->nombre ?? '—',
+            'tarifario_id'      => $s->tarifario_id,
+            'total'             => $total,
+            'total_bs'          => $totalBs,
+            'tasa_bcv'          => $tasaBcv,
+            'fuente'            => $s->fuente ?? 'interno',
+            'status'            => $s->status ?? 'en_revision',
+            'fecha'             => $s->fecha_solicitud?->format('d/m/Y') ?? '—',
+            'coberturas'        => $cobs,
+            'asegurado_nombre'  => $s->asegurado_nombre,
+            'asegurado_ci'      => $s->asegurado_ci,
         ];
     }
 }

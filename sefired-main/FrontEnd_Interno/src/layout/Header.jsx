@@ -37,7 +37,7 @@ export default function Header({ onSidebarOpen }) {
   }
 
   return (
-    <header className="bg-sefired-light px-4 sm:px-8 lg:px-12 py-5 flex items-center justify-between shrink-0 border-b border-white/40 shadow-sm">
+    <header className="bg-jm-light px-4 sm:px-8 lg:px-12 py-5 flex items-center justify-between shrink-0 border-b border-white/40 shadow-sm">
 
       {/* Sección izquierda: botón de menú (móvil) + título de la sección */}
       <div className="flex items-center gap-3 min-w-0">
@@ -46,10 +46,10 @@ export default function Header({ onSidebarOpen }) {
           onClick={onSidebarOpen}
           aria-label="Abrir menú"
         >
-          <Menu className="w-5 h-5 text-sefired-dark" />
+          <Menu className="w-5 h-5 text-jm-dark" />
         </button>
         <div className="min-w-0">
-          <h2 className="text-lg sm:text-2xl font-black text-sefired-dark tracking-tight truncate">{title}</h2>
+          <h2 className="text-lg sm:text-2xl font-black text-jm-dark tracking-tight truncate">{title}</h2>
           <p className="text-xs sm:text-sm text-slate-600 font-medium mt-0.5 truncate">{subtitle}</p>
         </div>
       </div>
@@ -62,7 +62,7 @@ export default function Header({ onSidebarOpen }) {
             className="flex items-center gap-2 px-2 sm:px-4 py-2 bg-white/50 backdrop-blur-sm rounded-full border border-white/50 cursor-pointer hover:bg-white transition-all shadow-sm"
           >
             <UserAvatar rol={currentUser?.tipo} genero={currentUser?.genero} className="w-6 h-6 rounded-full" />
-            <span className="hidden sm:inline text-sm font-bold text-sefired-dark">{currentUser?.nombre ?? '—'}</span>
+            <span className="hidden sm:inline text-sm font-bold text-jm-dark">{currentUser?.nombre ?? '—'}</span>
             <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${menuOpen ? 'rotate-180' : ''}`} />
           </button>
 

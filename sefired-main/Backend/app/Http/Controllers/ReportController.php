@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Log;
 use App\Models\Usuario;
-use App\Models\Cliente;
+use App\Models\Persona;
 use App\Models\Poliza;
 use App\Models\Solicitud;
 use App\Models\UnderwritingEvaluacion;
@@ -54,13 +54,13 @@ class ReportController extends Controller
         $stats = [
             'total_usuarios'           => Usuario::count(),
             'usuarios_activos'         => Usuario::where('activo', true)->count(),
-            'total_clientes'           => Cliente::count(),
+            'total_clientes'           => Persona::count(),
             'logs_hoy'                 => Log::whereDate('created_at', today())->count(),
             'total_cotizaciones'       => Solicitud::count(),
-            'cotizaciones_en_revision' => Solicitud::where('status', 'En Revisión')->count(),
-            'cotizaciones_aprobadas'   => Solicitud::where('status', 'Aprobado')->count(),
-            'cotizaciones_emitidas'    => Solicitud::where('status', 'Emitida')->count(),
-            'cotizaciones_rechazadas'  => Solicitud::where('status', 'Rechazado')->count(),
+            'cotizaciones_en_revision' => Solicitud::where('status', 'en_revision')->count(),
+            'cotizaciones_aprobadas'   => Solicitud::where('status', 'aprobado')->count(),
+            'cotizaciones_emitidas'    => Solicitud::where('status', 'emitida')->count(),
+            'cotizaciones_rechazadas'  => Solicitud::where('status', 'rechazado')->count(),
             'polizas_activas'          => Poliza::where('status', 'ACTIVA')->count(),
             'polizas_vencidas'         => Poliza::where('status', 'VENCIDA')->count(),
             'polizas_anuladas'         => Poliza::where('status', 'ANULADA')->count(),

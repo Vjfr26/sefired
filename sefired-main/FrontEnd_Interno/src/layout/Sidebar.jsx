@@ -1,7 +1,7 @@
 /**
  * Sidebar — Barra de navegación lateral de la aplicación.
  *
- * Muestra el logo de Sefired, los ítems de menú y un widget con las tasas
+ * Muestra el logo de J&M, los ítems de menú y un widget con las tasas
  * BCV del día (dólar y euro). El diseño tiene dos versiones:
  *
  *   - Escritorio (lg+): el sidebar es fijo y siempre visible a la izquierda.
@@ -49,20 +49,20 @@ export default function Sidebar({ onClose, sidebarOpen = false }) {
         {/* Versión horizontal para móvil y tablet */}
         <div className="flex lg:hidden items-center gap-3.5 px-1">
           <div className="w-14 h-14 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-center shrink-0 p-1">
-            <img src="/logo2.png" alt="Logo" className="w-full h-full object-contain" />
+            <img src="/logo-sinfondo.png" alt="Logo" className="w-full h-full object-contain" />
           </div>
           <div className="min-w-0">
-            <p className="text-base font-black text-white leading-tight tracking-tight">SEFIRED</p>
+            <p className="text-base font-black text-white leading-tight tracking-tight">J&M</p>
             <p className="text-xs font-semibold text-white/60 leading-tight mt-0.5">Cooperativa de Seguros<br />de Vehículos R.L.</p>
           </div>
         </div>
         {/* Versión centrada vertical para escritorio */}
         <div className="hidden lg:flex flex-col items-center text-center gap-3">
           <div className="w-28 h-28 rounded-3xl bg-white/10 border border-white/15 flex items-center justify-center p-1.5 shadow-lg">
-            <img src="/logo2.png" alt="Logo" className="w-full h-full object-contain" />
+            <img src="/logo-sinfondo.png" alt="Logo" className="w-full h-full object-contain" />
           </div>
           <div>
-            <p className="text-xl font-black text-white tracking-tight">SEFIRED</p>
+            <p className="text-xl font-black text-white tracking-tight">J&M</p>
             <p className="text-xs font-semibold text-white/55 mt-1 leading-snug">Cooperativa de Seguros<br />de Vehículos R.L.</p>
           </div>
         </div>

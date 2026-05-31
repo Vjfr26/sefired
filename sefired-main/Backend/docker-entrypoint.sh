@@ -35,6 +35,7 @@ QUEUE_CONNECTION=database
 FILESYSTEM_DISK=local
 
 CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:5174}
+TURNSTILE_SECRET_KEY=${TURNSTILE_SECRET_KEY:-}
 EOF
     echo "[entrypoint] .env generado desde variables de entorno Docker."
 else

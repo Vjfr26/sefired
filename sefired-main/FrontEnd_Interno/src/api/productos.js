@@ -1,7 +1,7 @@
 /**
  * Servicio de API para el módulo de Productos (coberturas).
  *
- * Un "producto" en Sefired es una cobertura de seguro que se puede contratar
+ * Un "producto" en J&M es una cobertura de seguro que se puede contratar
  * (ej. Casco Pérdida Total, Responsabilidad Civil Voluntaria).
  *
  * Formato de respuesta del backend (GET /api/productos — array de objetos):

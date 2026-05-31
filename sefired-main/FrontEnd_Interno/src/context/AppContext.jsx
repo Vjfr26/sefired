@@ -263,7 +263,19 @@ export function AppProvider({ children, onLogout }) {
     }))
   }, [])
 
-  const handleLogout = useCallback(() => {
+  const handleLogout = useCallback(async () => {
+    const token = localStorage.getItem('auth_token')
+    if (token) {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/logout`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' },
+        })
+        if (!res.ok) console.error('[logout] backend returned', res.status)
+      } catch (err) {
+        console.error('[logout] network error', err)
+      }
+    }
     localStorage.removeItem('auth_token')
     localStorage.removeItem('user')
     localStorage.removeItem('nav_view')

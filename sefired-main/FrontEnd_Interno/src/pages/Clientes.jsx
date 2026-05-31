@@ -131,7 +131,7 @@ export default function Clientes() {
   const handlePrintClientes = (list) => {
     const logoUrl = window.location.origin + '/Logo_sin_fondo.png'
     const estBadge = est => {
-      const col = est === 'Activo' ? '#10b981' : est === 'Bloqueado' ? '#f43f5e' : est === 'Rechazado' ? '#f43f5e' : est === 'En Revisión' ? '#f59e0b' : est === 'Aprobado' ? '#3b82f6' : '#94a3b8'
+      const col = est === 'Activo' ? '#10b981' : est === 'Bloqueado' ? '#f43f5e' : (est === 'Rechazado' || est === 'rechazado') ? '#f43f5e' : (est === 'En Revisión' || est === 'en_revision' || est === 'pendiente') ? '#f59e0b' : (est === 'Aprobado' || est === 'aprobado') ? '#3b82f6' : '#94a3b8'
       return `<span style="font-size:10px;font-weight:700;color:white;background:${col};padding:2px 8px;border-radius:999px">${est}</span>`
     }
     const tableRows = list.map(c => `
@@ -208,18 +208,18 @@ export default function Clientes() {
       </div>`
 
       return pdfPage(
-        pdfHdr('PÓLIZA DE SEGURO VEHICULAR', 'Documento oficial de cobertura', '', new Date().toLocaleDateString('es-VE'), logoUrl) +
+        pdfHdr(pol.bien_tipo === 'vehiculo' ? 'PÓLIZA DE SEGURO VEHICULAR' : 'PÓLIZA DE SEGURO', 'Documento oficial de cobertura', '', new Date().toLocaleDateString('es-VE'), logoUrl) +
         polBanner +
         pdfSec('I. DATOS DEL TOMADOR Y ASEGURADO') +
         pdfRow('Nombre completo', clienteNombre) + pdfRow('Cédula / RIF', c.ci, true) +
         pdfRow('Teléfono', tel) + pdfRow('Correo electrónico', mail) + pdfRow('Dirección', dir) +
-        pdfSec('II. DATOS DEL VEHÍCULO ASEGURADO') +
-        pdfRow('Placa', pol.placa, true) +
-        pdfRow('Marca / Modelo', `${pol.veh_marca ?? ''} ${pol.veh_modelo ?? ''}`.trim() || '—') +
-        pdfRow('Año de fabricación', String(pol.veh_anio ?? '—')) +
-        pdfRow('Tipo / Clase', pol.veh_tipo || '—') + pdfRow('Color', pol.veh_color || '—') +
-        (pol.veh_serial_carroceria && pol.veh_serial_carroceria !== '—' ? pdfRow('Serial de Carrocería', pol.veh_serial_carroceria, true) : '') +
-        (pol.veh_serial_motor      && pol.veh_serial_motor      !== '—' ? pdfRow('Serial de Motor', pol.veh_serial_motor, true) : '') +
+        pdfSec('II. DATOS DEL BIEN ASEGURADO') +
+        pdfRow('Referencia', pol.bien_ref || '—', true) +
+        pdfRow('Tipo', pol.bien_tipo || '—') +
+        (pol.bien_atributos?.marca  ? pdfRow('Marca',  pol.bien_atributos.marca)  : '') +
+        (pol.bien_atributos?.modelo ? pdfRow('Modelo', pol.bien_atributos.modelo) : '') +
+        (pol.bien_atributos?.anio   ? pdfRow('Año', String(pol.bien_atributos.anio)) : '') +
+        (pol.bien_atributos?.color  ? pdfRow('Color',  pol.bien_atributos.color)  : '') +
         pdfSec('III. COBERTURAS CONTRATADAS') + cobTable +
         pdfSec('IV. CONDICIONES PARTICULARES') +
         pdfRow('Tipo de Póliza', pol.tipo || '—') + pdfRow('Forma de Pago', pol.pago || '—') +
@@ -494,7 +494,7 @@ export default function Clientes() {
 
       {loading && (
         <div className="flex justify-center items-center py-16 text-slate-400 text-sm gap-2">
-          <div className="w-4 h-4 border-2 border-slate-300 border-t-sefired-blue rounded-full animate-spin" />
+          <div className="w-4 h-4 border-2 border-slate-300 border-t-jm-blue rounded-full animate-spin" />
           Cargando clientes…
         </div>
       )}

@@ -11,7 +11,7 @@ class ClienteDocumento extends Model
     protected $table = 'cliente_documentos';
 
     protected $fillable = [
-        'cliente_id',
+        'persona_id',
         'nombre',
         'path',
         'size',
@@ -21,14 +21,14 @@ class ClienteDocumento extends Model
     protected function casts(): array
     {
         return [
-            'cliente_id' => 'integer',
+            'persona_id' => 'integer',
             'size'       => 'integer',
         ];
     }
 
-    public function cliente(): BelongsTo
+    public function persona(): BelongsTo
     {
-        return $this->belongsTo(Cliente::class, 'cliente_id');
+        return $this->belongsTo(Persona::class, 'persona_id');
     }
 
     public function getUrlAttribute(): string

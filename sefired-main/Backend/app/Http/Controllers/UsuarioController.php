@@ -69,7 +69,7 @@ class UsuarioController extends Controller
         // Si se está bloqueando, guardamos el motivo y bloqueamos la IP
         if (!$usuario->activo) {
             if ($request->has('motivo')) {
-                $usuario->motivo_bloqueo = $request->motivo;
+                $usuario->motivo_bloqueo = strip_tags(trim(substr($request->motivo, 0, 200)));
             }
 
             // Obtener la última IP conocida del usuario desde los logs
@@ -217,10 +217,22 @@ class UsuarioController extends Controller
 
     public function destroy($id)
     {
+        if ((int) $id === auth()->id()) {
+            return response()->json(['status' => 'error', 'message' => 'No puedes eliminar tu propia cuenta.'], 403);
+        }
+
         $usuario = Usuario::find($id);
 
         if (!$usuario) {
             return response()->json(['status' => 'error', 'message' => 'Usuario no encontrado'], 404);
+        }
+
+        // Impedir eliminar el último Admin activo
+        if ($usuario->tipo === 'Admin') {
+            $adminsActivos = Usuario::where('tipo', 'Admin')->where('activo', true)->count();
+            if ($adminsActivos <= 1) {
+                return response()->json(['status' => 'error', 'message' => 'No se puede eliminar el último administrador activo.'], 403);
+            }
         }
 
         $nick = $usuario->nick;

@@ -38,15 +38,15 @@ class UnderwritingController extends Controller
     /**
      * Crea una nueva evaluación.
      *
-     * Si el resultado es 'aprobado' → solicitud pasa a 'Aprobado'.
-     * Si el resultado es 'rechazado' → solicitud pasa a 'Rechazado'.
+     * Si el resultado es 'aprobado' → solicitud pasa a 'aprobado'.
+     * Si el resultado es 'rechazado' → solicitud pasa a 'rechazado'.
      * En ambos casos se valida la transición con WorkflowService.
      */
     public function store(Request $request, $solicitudId)
     {
         $solicitud = Solicitud::findOrFail($solicitudId);
 
-        if ($solicitud->status === 'Emitida') {
+        if ($solicitud->status === 'emitida') {
             return response()->json(['error' => 'No se puede evaluar una cotización ya emitida.'], 409);
         }
 
@@ -70,8 +70,8 @@ class UnderwritingController extends Controller
 
             // Sincronizar estado de la solicitud con el resultado
             $mapEstado = [
-                'aprobado'  => 'Aprobado',
-                'rechazado' => 'Rechazado',
+                'aprobado'  => 'aprobado',
+                'rechazado' => 'rechazado',
             ];
 
             if (isset($mapEstado[$data['resultado']])) {
@@ -114,10 +114,10 @@ class UnderwritingController extends Controller
             $evaluacion->update($data);
 
             if (isset($data['resultado'])) {
-                $mapEstado = ['aprobado' => 'Aprobado', 'rechazado' => 'Rechazado'];
+                $mapEstado = ['aprobado' => 'aprobado', 'rechazado' => 'rechazado'];
                 $solicitud = $evaluacion->solicitud;
 
-                if (isset($mapEstado[$data['resultado']]) && $solicitud->status !== 'Emitida') {
+                if (isset($mapEstado[$data['resultado']]) && $solicitud->status !== 'emitida') {
                     $nuevoStatus = $mapEstado[$data['resultado']];
                     if (WorkflowService::canTransitionSolicitud($solicitud->status, $nuevoStatus)) {
                         $solicitud->update(['status' => $nuevoStatus]);

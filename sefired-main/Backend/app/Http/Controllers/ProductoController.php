@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Storage;
 /**
  * CRUD de productos (coberturas de seguro) para el panel interno.
  *
- * Un "producto" en Sefired es una cobertura que se puede contratar:
+ * Un "producto" en J&M es una cobertura que se puede contratar:
  * por ejemplo "Casco Pérdida Total", "Responsabilidad Civil Voluntaria", etc.
  * Cada producto tiene una prima (costo anual) y una cobertura (suma máxima asegurada).
  *
@@ -42,11 +42,12 @@ class ProductoController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
+            'parent_id'              => 'nullable|integer|exists:producto,id',
             'nombre'                 => 'required|string|max:150',
             'codigo'                 => 'nullable|string|max:20',
             'tipo'                   => 'required|string|in:rcv,apov,alpd,ec,ep,vida,salud,hogar,accidentes,funeraria,otro',
             'categoria'              => 'nullable|string|in:vehicular,bienes,personas',
-            'requiere_vehiculo'      => 'boolean',
+            'tipo_bien'              => 'nullable|string|in:vehiculo,inmueble,vida,bien,ninguno',
             'tipo_calculo'           => 'required|string|in:fijo,por_plan,por_nivel,por_valor',
             'derecho_poliza'         => 'numeric|min:0',
             'descripcion'            => 'nullable|string',
@@ -72,11 +73,12 @@ class ProductoController extends Controller
         $producto = Producto::findOrFail($id);
 
         $data = $request->validate([
+            'parent_id'              => 'sometimes|nullable|integer|exists:producto,id',
             'nombre'                 => 'sometimes|required|string|max:150',
             'codigo'                 => 'nullable|string|max:20',
             'tipo'                   => 'sometimes|required|string|in:rcv,apov,alpd,ec,ep,vida,salud,hogar,accidentes,funeraria,otro',
             'categoria'              => 'nullable|string|in:vehicular,bienes,personas',
-            'requiere_vehiculo'      => 'sometimes|boolean',
+            'tipo_bien'              => 'sometimes|nullable|string|in:vehiculo,inmueble,vida,bien,ninguno',
             'tipo_calculo'           => 'sometimes|required|string|in:fijo,por_plan,por_nivel,por_valor',
             'derecho_poliza'         => 'sometimes|numeric|min:0',
             'descripcion'            => 'nullable|string',
@@ -156,13 +158,17 @@ class ProductoController extends Controller
         $producto = Producto::findOrFail($id);
         $path     = $request->input('path');
 
-        $documentos = collect($producto->documentos ?? [])
-            ->reject(fn($d) => $d['path'] === $path)
-            ->values()
-            ->all();
+        $documentos = collect($producto->documentos ?? []);
+
+        // Verificar que el path pertenezca a este producto antes de borrar
+        if (!$documentos->contains('path', $path)) {
+            return response()->json(['error' => 'Documento no encontrado para este producto.'], 404);
+        }
+
+        $restantes = $documentos->reject(fn($d) => $d['path'] === $path)->values()->all();
 
         Storage::disk('public')->delete($path);
-        $producto->update(['documentos' => $documentos ?: null]);
+        $producto->update(['documentos' => $restantes ?: null]);
 
         return response()->json(['mensaje' => 'Documento eliminado correctamente']);
     }
@@ -238,11 +244,12 @@ class ProductoController extends Controller
     {
         return [
             'id'                    => $p->id,
+            'parent_id'             => $p->parent_id,
             'codigo'                => $p->codigo,
             'nombre'                => $p->nombre,
-            'tipo'                  => $p->tipo ?? 'alpd',
+            'tipo'                  => $p->tipo ?? 'otro',
+            'tipo_bien'             => $p->tipo_bien ?? 'ninguno',
             'categoria'             => $p->categoria,
-            'requiere_vehiculo'     => (bool) $p->requiere_vehiculo,
             'tipo_calculo'          => $p->tipo_calculo ?? 'fijo',
             'derecho_poliza'        => (float) $p->derecho_poliza,
             'descripcion'           => $p->descripcion ?? '',
@@ -251,7 +258,6 @@ class ProductoController extends Controller
             'moneda'                => $p->moneda,
             'documentos'            => $this->formatDocumentos($p->documentos ?? []),
             'documentos_requeridos' => $p->documentos_requeridos ?? [],
-            'tasas'                 => $p->tasas,
         ];
     }
 }

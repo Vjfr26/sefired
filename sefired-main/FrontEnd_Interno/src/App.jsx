@@ -58,9 +58,9 @@ export default function App() {
   // Pantalla de carga mientras se verifica la sesión — sin datos visibles
   if (loggedIn === null) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-sefired-light">
+      <div className="min-h-screen flex items-center justify-center bg-jm-light">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-8 h-8 border-4 border-sefired-blue/20 border-t-sefired-blue rounded-full animate-spin" />
+          <div className="w-8 h-8 border-4 border-jm-blue/20 border-t-jm-blue rounded-full animate-spin" />
           <p className="text-xs text-slate-400 font-medium tracking-wide">Verificando sesión…</p>
         </div>
       </div>

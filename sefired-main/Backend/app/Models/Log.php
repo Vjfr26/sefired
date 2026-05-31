@@ -16,6 +16,11 @@ class Log extends Model
         'descripcion',
         'ip',
         'user_agent',
+        'device_fingerprint',
+    ];
+
+    protected $casts = [
+        'device_fingerprint' => 'array',
     ];
 
     public function usuario(): BelongsTo

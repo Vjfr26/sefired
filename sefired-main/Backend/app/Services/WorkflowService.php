@@ -11,10 +11,10 @@ use Illuminate\Validation\ValidationException;
  * cuando se intenta una transición no permitida.
  *
  * Solicitud:
- *   En Revisión → Aprobado | Rechazado
- *   Aprobado    → Emitida  | Rechazado
- *   Rechazado   → (terminal)
- *   Emitida     → (terminal — solo se puede cambiar por emitir())
+ *   en_revision → aprobado | rechazado
+ *   aprobado    → emitida  | rechazado
+ *   rechazado   → (terminal)
+ *   emitida     → (terminal — solo se puede cambiar por emitir())
  *
  * Póliza:
  *   ACTIVA    → VENCIDA | ANULADA | SUSPENDIDA | RENOVADA
@@ -26,10 +26,11 @@ use Illuminate\Validation\ValidationException;
 class WorkflowService
 {
     private const SOLICITUD_TRANSITIONS = [
-        'En Revisión' => ['Aprobado', 'Rechazado'],
-        'Aprobado'    => ['Emitida',  'Rechazado'],
-        'Rechazado'   => [],
-        'Emitida'     => [],
+        'en_revision' => ['aprobado', 'rechazado'],
+        'aprobado'    => ['emitida',  'rechazado'],
+        'rechazado'   => [],
+        'emitida'     => [],
+        'pendiente'   => ['en_revision', 'rechazado'],
     ];
 
     private const POLIZA_TRANSITIONS = [

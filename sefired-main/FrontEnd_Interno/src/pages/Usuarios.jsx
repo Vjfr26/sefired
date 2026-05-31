@@ -190,8 +190,8 @@ export default function Usuarios() {
             onClick={() => setChipActive(i)}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
               i === chipActive
-                ? 'bg-sefired-blue text-white border-sefired-blue'
-                : 'bg-white text-slate-600 border-slate-200 hover:border-sefired-blue hover:text-sefired-blue'
+                ? 'bg-jm-blue text-white border-jm-blue'
+                : 'bg-white text-slate-600 border-slate-200 hover:border-jm-blue hover:text-jm-blue'
             }`}
           >
             {r}{i > 0 ? ` · ${byRole[r] ?? 0}` : ''}

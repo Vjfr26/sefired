@@ -36,7 +36,7 @@ import { X, Trash2, Pencil, Check, Lock, LockOpen, ShieldCheck, Building, UserCh
 import { useApp } from '../context/AppContext.jsx'
 import FormGrid from './FormGrid.jsx'
 import { fmtMonto, PERMISOS_POR_ROL, getEffectivePerms, getEffectivePermsObj, PERMS_CATALOG, PERMS_ORDER, LOCKED_PERMS, pdfPage, pdfHdr, pdfSec, pdfRow, pdfTotal, pdfFooterSimple } from '../utils/helpers.jsx'
-import { TIPOS_PRODUCTO, TIPOS_CALCULO, tipoBadge } from '../pages/Productos.jsx'
+import { TIPOS_PRODUCTO, TIPOS_CALCULO, tipoBadge } from '../utils/productos.jsx'
 import { storeUsuario, updateUsuario } from '../api/usuarios.js'
 import { uploadDocumentoProducto, deleteDocumentoProducto } from '../api/productos.js'
 import { fetchPolizasCliente, fetchFacturasCliente, fetchSolicitudesCliente } from '../api/clientes.js'
@@ -312,7 +312,7 @@ function EmitirCotizacionModal({ cot, onSaved }) {
         {/* Resumen de la cotización */}
         <div className="p-3 bg-blue-50 rounded-xl border border-blue-100 space-y-1">
           <p className="text-xs font-bold text-blue-700 font-mono">{cot.nro}</p>
-          <p className="text-xs text-blue-600">{cot.nombre}{cot.placa ? ` · Placa: ${cot.placa}` : ''}</p>
+          <p className="text-xs text-blue-600">{cot.nombre}{cot.bien_atributos?.placa ? ` · Placa: ${cot.bien_atributos.placa}` : ''}</p>
           <p className="text-sm font-bold text-blue-800">${Number(cot.total).toFixed(2)} USD</p>
         </div>
         <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100 text-xs text-emerald-700">
@@ -608,11 +608,11 @@ function ChangeRoleModal({ user, onSave }) {
       <p className="text-xs text-slate-500 mb-4">Rol actual: <strong>{user.tipo}</strong>. Selecciona el nuevo rol para este usuario.</p>
       <form id="change-role-form" onSubmit={handleSave} className="space-y-2.5">
         {ROLE_OPTIONS.map(r => (
-          <label key={r.key} className={`flex items-start gap-3 p-4 rounded-2xl border-2 cursor-pointer transition-all ${r.key === user.tipo ? 'border-sefired-blue bg-blue-50/40' : 'border-slate-200 hover:border-slate-300 bg-white'}`}>
+          <label key={r.key} className={`flex items-start gap-3 p-4 rounded-2xl border-2 cursor-pointer transition-all ${r.key === user.tipo ? 'border-jm-blue bg-blue-50/40' : 'border-slate-200 hover:border-slate-300 bg-white'}`}>
             <input type="radio" name="rol-select" defaultValue={r.key} defaultChecked={r.key === user.tipo} className="mt-0.5 accent-blue-700 shrink-0" />
             <div className="min-w-0">
               <div className="flex items-center gap-2 mb-0.5">
-                <r.Icon className="w-4 h-4 text-sefired-blue shrink-0" />
+                <r.Icon className="w-4 h-4 text-jm-blue shrink-0" />
                 <p className="font-bold text-slate-800 text-sm">{r.key}</p>
               </div>
               <p className="text-xs text-slate-500 leading-relaxed">{r.desc}</p>
@@ -946,9 +946,9 @@ function ProductoDetailModal({ p }) {
             </div>
           )}
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-            <p className="text-[10px] text-slate-400 font-medium mb-0.5">Requiere vehículo</p>
-            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${p.requiere_vehiculo ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-500'}`}>
-              {p.requiere_vehiculo ? 'Sí' : 'No'}
+            <p className="text-[10px] text-slate-400 font-medium mb-0.5">Tipo de bien</p>
+            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${p.tipo_bien && p.tipo_bien !== 'ninguno' ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-500'} capitalize`}>
+              {p.tipo_bien && p.tipo_bien !== 'ninguno' ? p.tipo_bien : 'Ninguno'}
             </span>
           </div>
           {p.derecho_poliza > 0 && (
@@ -1506,8 +1506,11 @@ function ClienteDocsModal({ c }) {
         </div>
       </div>`
 
+    const bienAttr = pol.bien_atributos || {}
+    const tieneVehiculo = pol.bien_tipo === 'vehiculo' && bienAttr.placa
+
     const html = pdfPage(
-      pdfHdr(pol.placa ? 'PÓLIZA DE SEGURO VEHICULAR' : 'PÓLIZA DE SEGURO', 'Documento oficial de cobertura', '', new Date().toLocaleDateString('es-VE'), logoUrl) +
+      pdfHdr(tieneVehiculo ? 'PÓLIZA DE SEGURO VEHICULAR' : 'PÓLIZA DE SEGURO', 'Documento oficial de cobertura', '', new Date().toLocaleDateString('es-VE'), logoUrl) +
       polBanner +
 
       pdfSec('I. DATOS DEL TOMADOR Y ASEGURADO') +
@@ -1517,21 +1520,21 @@ function ClienteDocsModal({ c }) {
       pdfRow('Correo electrónico',   mail) +
       pdfRow('Dirección',            dir) +
 
-      (pol.placa
+      (tieneVehiculo
         ? pdfSec('II. DATOS DEL VEHÍCULO ASEGURADO') +
-          pdfRow('Placa',                pol.placa, true) +
-          pdfRow('Marca / Modelo',       `${pol.veh_marca ?? ''} ${pol.veh_modelo ?? ''}`.trim() || '—') +
-          pdfRow('Año de fabricación',   String(pol.veh_anio ?? '—')) +
-          pdfRow('Tipo / Clase',         pol.veh_tipo  || '—') +
-          pdfRow('Color',                pol.veh_color || '—') +
-          (pol.veh_serial_carroceria && pol.veh_serial_carroceria !== '—' ? pdfRow('Serial de Carrocería', pol.veh_serial_carroceria, true) : '') +
-          (pol.veh_serial_motor      && pol.veh_serial_motor      !== '—' ? pdfRow('Serial de Motor',      pol.veh_serial_motor,      true) : '')
+          pdfRow('Placa',                bienAttr.placa, true) +
+          pdfRow('Marca / Modelo',       `${bienAttr.marca ?? ''} ${bienAttr.modelo ?? ''}`.trim() || '—') +
+          pdfRow('Año de fabricación',   String(bienAttr.anio ?? '—')) +
+          pdfRow('Tipo / Clase',         bienAttr.uso   || '—') +
+          pdfRow('Color',                bienAttr.color || '—') +
+          (bienAttr.serial_carroceria ? pdfRow('Serial de Carrocería', bienAttr.serial_carroceria, true) : '') +
+          (bienAttr.serial_motor      ? pdfRow('Serial de Motor',      bienAttr.serial_motor,      true) : '')
         : '') +
 
-      pdfSec(pol.placa ? 'III. COBERTURAS CONTRATADAS' : 'II. COBERTURAS CONTRATADAS') +
+      pdfSec(tieneVehiculo ? 'III. COBERTURAS CONTRATADAS' : 'II. COBERTURAS CONTRATADAS') +
       cobTable +
 
-      pdfSec(pol.placa ? 'IV. CONDICIONES PARTICULARES' : 'III. CONDICIONES PARTICULARES') +
+      pdfSec(tieneVehiculo ? 'IV. CONDICIONES PARTICULARES' : 'III. CONDICIONES PARTICULARES') +
       pdfRow('Tipo de Póliza',       pol.tipo  || '—') +
       pdfRow('Forma de Pago',        pol.pago  || '—') +
       pdfRow('Sede / Oficina',       pol.sede  || '—') +
@@ -1539,7 +1542,7 @@ function ClienteDocsModal({ c }) {
       pdfRow('Cobertura en Bs.',     `Bs. ${Number(pol.cobertura_bs).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`) +
       pdfTotal('Prima Anual Total', `$${Number(pol.total).toFixed(2)}`, `Equivalente a Bs. ${Number(pol.total_bs).toFixed(2)} al cambio del día de emisión`) +
 
-      pdfSec(pol.placa ? 'V. PERÍODO DE VIGENCIA' : 'IV. PERÍODO DE VIGENCIA') +
+      pdfSec(tieneVehiculo ? 'V. PERÍODO DE VIGENCIA' : 'IV. PERÍODO DE VIGENCIA') +
       vigencia +
 
       pdfFooterSimple()
@@ -1595,7 +1598,7 @@ function ClienteDocsModal({ c }) {
                     </div>
                     <p className="text-xs font-semibold text-slate-700 truncate">{pol.producto}</p>
                     <p className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
-                      {pol.placa && <><Car className="w-3 h-3 shrink-0" />{pol.placa} · </>}
+                      {pol.bien_ref && pol.bien_ref !== '—' && <><Car className="w-3 h-3 shrink-0" />{pol.bien_ref} · </>}
                       {pol.fecha_emision} → {pol.fecha_vencimiento}
                     </p>
                   </div>
@@ -1646,7 +1649,7 @@ function ClienteDocsModal({ c }) {
                     </div>
                     <p className="text-xs font-semibold text-slate-500 truncate">{pol.producto}</p>
                     <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
-                      {pol.placa && <><Car className="w-3 h-3 shrink-0" />{pol.placa} · </>}
+                      {pol.bien_ref && pol.bien_ref !== '—' && <><Car className="w-3 h-3 shrink-0" />{pol.bien_ref} · </>}
                       {pol.fecha_emision}
                     </p>
                   </div>
@@ -1704,7 +1707,7 @@ function ClienteFacturasModal({ c }) {
         <div style="display:flex;align-items:center;margin-bottom:10px;gap:12px;border-bottom:2px solid #001463;padding-bottom:10px">
           <img src="${logoUrl}" alt="Logo" style="height:48px;object-fit:contain" onerror="this.style.display='none'" />
           <div style="flex:1;text-align:center">
-            <p style="font-size:13px;font-weight:900;color:#001463;margin:0;line-height:1.2">COOPERATIVA DE SEGUROS SEFIRED R.L.</p>
+            <p style="font-size:13px;font-weight:900;color:#001463;margin:0;line-height:1.2">COOPERATIVA DE SEGUROS J&M R.L.</p>
             <p style="font-size:9px;color:#555;margin:2px 0 0">Sistema de Emisión y Registro de Pólizas</p>
           </div>
         </div>
@@ -1857,9 +1860,9 @@ function ClienteFacturasModal({ c }) {
                 </div>
                 <p className="text-xs font-semibold text-slate-700 truncate">{f.poliza_producto}</p>
                 <div className="flex items-center gap-3 text-[11px] text-slate-500 flex-wrap mt-0.5">
-                  {f.poliza_placa && (
+                  {f.poliza_bien && f.poliza_bien !== '—' && (
                     <span className="flex items-center gap-1">
-                      <Car className="w-3 h-3 shrink-0" />{f.poliza_placa}
+                      <Car className="w-3 h-3 shrink-0" />{f.poliza_bien}
                     </span>
                   )}
                   <span>{f.fecha_factura} · {f.sede}</span>
@@ -2003,7 +2006,7 @@ function AjustarPolizaModal({ c, onSave }) {
                 </div>
                 <p className="text-xs font-semibold text-slate-700 truncate">{pol.producto}</p>
                 <p className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
-                  {pol.placa && <><Car className="w-3 h-3 shrink-0" />{pol.placa} · </>}
+                  {pol.bien_ref && pol.bien_ref !== '—' && <><Car className="w-3 h-3 shrink-0" />{pol.bien_ref} · </>}
                   {pol.fecha_emision} → {pol.fecha_vencimiento}
                 </p>
               </div>
@@ -2018,7 +2021,7 @@ function AjustarPolizaModal({ c, onSave }) {
           <div className="p-3 bg-indigo-50 rounded-xl border border-indigo-100">
             <p className="text-xs font-bold text-indigo-700 font-mono">{selected.nro_contrato}</p>
             <p className="text-xs text-indigo-500 mt-0.5 flex items-center gap-1">
-              {selected.placa && <><Car className="w-3 h-3 shrink-0" />{selected.placa} · </>}
+              {selected.bien_ref && selected.bien_ref !== '—' && <><Car className="w-3 h-3 shrink-0" />{selected.bien_ref} · </>}
               {selected.producto}
             </p>
           </div>
@@ -2109,10 +2112,18 @@ function AjustarPolizaModal({ c, onSave }) {
 
 // ── Cotizaciones del cliente ─────────────────────────────────────────────────
 const SOL_STATUS_STYLE = {
-  'En Revisión': { bg: 'bg-amber-100',  text: 'text-amber-700',  dot: 'bg-amber-500'  },
-  'Aprobado':    { bg: 'bg-blue-100',   text: 'text-blue-700',   dot: 'bg-blue-500'   },
-  'Emitida':     { bg: 'bg-emerald-100',text: 'text-emerald-700',dot: 'bg-emerald-500'},
-  'Rechazado':   { bg: 'bg-rose-100',   text: 'text-rose-700',   dot: 'bg-rose-500'   },
+  'en_revision': { bg: 'bg-amber-100',  text: 'text-amber-700',  dot: 'bg-amber-500'  },
+  'aprobado':    { bg: 'bg-blue-100',   text: 'text-blue-700',   dot: 'bg-blue-500'   },
+  'emitida':     { bg: 'bg-emerald-100',text: 'text-emerald-700',dot: 'bg-emerald-500'},
+  'rechazado':   { bg: 'bg-rose-100',   text: 'text-rose-700',   dot: 'bg-rose-500'   },
+  'pendiente':   { bg: 'bg-slate-100',  text: 'text-slate-500',  dot: 'bg-slate-400'  },
+}
+const SOL_STATUS_LABEL = {
+  'en_revision': 'En Revisión',
+  'aprobado':    'Aprobado',
+  'emitida':     'Emitida',
+  'rechazado':   'Rechazado',
+  'pendiente':   'Pendiente',
 }
 
 function ClienteSolicitudesModal({ c }) {
@@ -2137,10 +2148,11 @@ function ClienteSolicitudesModal({ c }) {
 
   const FILTERS = [
     { id: 'all',         label: 'Todas',       count: solicitudes.length },
-    { id: 'En Revisión', label: 'En Revisión', count: counts['En Revisión'] ?? 0 },
-    { id: 'Aprobado',    label: 'Aprobadas',   count: counts['Aprobado']    ?? 0 },
-    { id: 'Emitida',     label: 'Emitidas',    count: counts['Emitida']     ?? 0 },
-    { id: 'Rechazado',   label: 'Rechazadas',  count: counts['Rechazado']   ?? 0 },
+    { id: 'en_revision', label: 'En Revisión', count: counts['en_revision'] ?? 0 },
+    { id: 'aprobado',    label: 'Aprobadas',   count: counts['aprobado']    ?? 0 },
+    { id: 'emitida',     label: 'Emitidas',    count: counts['emitida']     ?? 0 },
+    { id: 'rechazado',   label: 'Rechazadas',  count: counts['rechazado']   ?? 0 },
+    { id: 'pendiente',   label: 'Pendientes',  count: counts['pendiente']   ?? 0 },
   ].filter(f => f.id === 'all' || f.count > 0)
 
   const generateCotPdf = (s) => {
@@ -2150,7 +2162,7 @@ function ClienteSolicitudesModal({ c }) {
     const nombre  = s.nombre_tomador || c.nombre || c.nom || '—'
     const ci      = s.ci_tomador     || c.ci      || '—'
     const st      = SOL_STATUS_STYLE[s.status] ?? {}
-    const stColor = s.status === 'Rechazado' ? '#f43f5e' : s.status === 'Emitida' ? '#059669' : s.status === 'Aprobado' ? '#3b82f6' : '#f59e0b'
+    const stColor = s.status === 'rechazado' ? '#f43f5e' : s.status === 'emitida' ? '#059669' : s.status === 'aprobado' ? '#3b82f6' : '#f59e0b'
 
     const banner = `
       <div style="background:#001463;color:white;padding:14px 22px;border-radius:10px;margin-bottom:22px;display:flex;justify-content:space-between;align-items:center">
@@ -2193,19 +2205,19 @@ function ClienteSolicitudesModal({ c }) {
       pdfSec('DATOS DEL TOMADOR') +
       pdfRow('Nombre completo', nombre) +
       pdfRow('Cédula / RIF',    ci,  true) +
-      (s.placa
+      (s.bien_tipo === 'vehiculo' && s.bien_atributos?.placa
         ? pdfSec('DATOS DEL VEHÍCULO') +
-          pdfRow('Placa',           s.placa, true) +
-          (cobs.marca  ? pdfRow('Marca',   cobs.marca)  : '') +
-          (cobs.modelo ? pdfRow('Modelo',  cobs.modelo) : '') +
-          (cobs.año    ? pdfRow('Año',     String(cobs.año), true) : '') +
-          (cobs.color  ? pdfRow('Color',   cobs.color)  : '') +
-          (cobs.uso    ? pdfRow('Uso',     cobs.uso)    : '') +
+          pdfRow('Placa',           s.bien_atributos.placa, true) +
+          (s.bien_atributos.marca  ? pdfRow('Marca',   s.bien_atributos.marca)  : '') +
+          (s.bien_atributos.modelo ? pdfRow('Modelo',  s.bien_atributos.modelo) : '') +
+          (s.bien_atributos.anio   ? pdfRow('Año',     String(s.bien_atributos.anio), true) : '') +
+          (s.bien_atributos.color  ? pdfRow('Color',   s.bien_atributos.color)  : '') +
+          (s.bien_atributos.uso    ? pdfRow('Uso',     s.bien_atributos.uso)    : '') +
           (cobs.valor_mercado ? pdfRow('Valor de Mercado', `$${Number(cobs.valor_mercado).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, true) : '')
-        : (cobs.asegurado_nombre
+        : (s.asegurado_nombre
             ? pdfSec('DATOS DEL ASEGURADO') +
-              pdfRow('Nombre', cobs.asegurado_nombre) +
-              (cobs.asegurado_ci ? pdfRow('Cédula', cobs.asegurado_ci, true) : '')
+              pdfRow('Nombre', s.asegurado_nombre) +
+              (s.asegurado_ci ? pdfRow('Cédula', s.asegurado_ci, true) : '')
             : '')
       ) +
       pdfSec('COBERTURAS CONTRATADAS') +
@@ -2218,7 +2230,7 @@ function ClienteSolicitudesModal({ c }) {
 
     closeModal()
     showPdfViewer(`Cotización ${s.nro}`, pdfPage(
-      pdfHdr(s.placa ? 'COTIZACIÓN DE SEGURO VEHICULAR' : 'COTIZACIÓN DE SEGURO', `Fecha: ${s.fecha}`, '', new Date().toLocaleDateString('es-VE'), logoUrl) + content
+      pdfHdr(s.bien_tipo === 'vehiculo' ? 'COTIZACIÓN DE SEGURO VEHICULAR' : 'COTIZACIÓN DE SEGURO', `Fecha: ${s.fecha}`, '', new Date().toLocaleDateString('es-VE'), logoUrl) + content
     ))
   }
 
@@ -2282,7 +2294,7 @@ function ClienteSolicitudesModal({ c }) {
                     <td className="px-3 py-2.5 font-mono font-bold text-[11px] text-slate-700 whitespace-nowrap">{s.nro}</td>
                     <td className="px-3 py-2.5 text-slate-500 text-xs whitespace-nowrap">{s.fecha}</td>
                     <td className="px-3 py-2.5 font-mono font-semibold text-slate-700 text-xs whitespace-nowrap">
-                      {s.placa || s.coberturas?.asegurado_nombre || '—'}
+                      {s.bien_ref && s.bien_ref !== '—' ? s.bien_ref : (s.asegurado_nombre || '—')}
                     </td>
                     <td className="px-3 py-2.5 text-slate-600 text-xs">{s.producto}</td>
                     <td className="px-3 py-2.5 text-right font-semibold text-slate-700 text-xs whitespace-nowrap">
@@ -2291,7 +2303,7 @@ function ClienteSolicitudesModal({ c }) {
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${st.bg} ${st.text}`}>
                         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${st.dot}`} />
-                        {s.status}
+                        {SOL_STATUS_LABEL[s.status] ?? s.status}
                       </span>
                     </td>
                     <td className="px-3 py-2.5 text-center">
@@ -2377,30 +2389,34 @@ function ClienteHistorialModal({ c }) {
         <p style="font-size:16px;font-weight:900;color:#1e293b">${pol.fecha_vencimiento}</p></div>
     </div>`
 
+    const bienAttr2   = pol.bien_atributos || {}
+    const tieneVeh2   = pol.bien_tipo === 'vehiculo' && bienAttr2.placa
+
     closeModal()
     showPdfViewer(`Póliza — ${pol.nro_contrato}`, pdfPage(
-      pdfHdr(pol.placa ? 'PÓLIZA DE SEGURO VEHICULAR' : 'PÓLIZA DE SEGURO', 'Documento oficial de cobertura', '', new Date().toLocaleDateString('es-VE'), logoUrl) +
+      pdfHdr(tieneVeh2 ? 'PÓLIZA DE SEGURO VEHICULAR' : 'PÓLIZA DE SEGURO', 'Documento oficial de cobertura', '', new Date().toLocaleDateString('es-VE'), logoUrl) +
       polBanner +
       pdfSec('I. DATOS DEL TOMADOR Y ASEGURADO') +
       pdfRow('Nombre completo', clienteNombre) + pdfRow('Cédula / RIF', c.ci, true) +
       pdfRow('Teléfono', tel) + pdfRow('Correo electrónico', mail) + pdfRow('Dirección', dir) +
-      (pol.placa
+      (tieneVeh2
         ? pdfSec('II. DATOS DEL VEHÍCULO ASEGURADO') +
-          pdfRow('Placa', pol.placa, true) +
-          pdfRow('Marca / Modelo', `${pol.veh_marca ?? ''} ${pol.veh_modelo ?? ''}`.trim() || '—') +
-          pdfRow('Año de fabricación', String(pol.veh_anio ?? '—')) +
-          pdfRow('Tipo / Clase', pol.veh_tipo || '—') + pdfRow('Color', pol.veh_color || '—') +
-          (pol.veh_serial_carroceria && pol.veh_serial_carroceria !== '—' ? pdfRow('Serial de Carrocería', pol.veh_serial_carroceria, true) : '') +
-          (pol.veh_serial_motor      && pol.veh_serial_motor      !== '—' ? pdfRow('Serial de Motor', pol.veh_serial_motor, true) : '')
+          pdfRow('Placa', bienAttr2.placa, true) +
+          pdfRow('Marca / Modelo', `${bienAttr2.marca ?? ''} ${bienAttr2.modelo ?? ''}`.trim() || '—') +
+          pdfRow('Año de fabricación', String(bienAttr2.anio ?? '—')) +
+          pdfRow('Tipo / Clase', bienAttr2.uso   || '—') +
+          pdfRow('Color',        bienAttr2.color || '—') +
+          (bienAttr2.serial_carroceria ? pdfRow('Serial de Carrocería', bienAttr2.serial_carroceria, true) : '') +
+          (bienAttr2.serial_motor      ? pdfRow('Serial de Motor',      bienAttr2.serial_motor,      true) : '')
         : '') +
-      pdfSec(pol.placa ? 'III. COBERTURAS CONTRATADAS' : 'II. COBERTURAS CONTRATADAS') + cobTable +
-      pdfSec(pol.placa ? 'IV. CONDICIONES PARTICULARES' : 'III. CONDICIONES PARTICULARES') +
+      pdfSec(tieneVeh2 ? 'III. COBERTURAS CONTRATADAS' : 'II. COBERTURAS CONTRATADAS') + cobTable +
+      pdfSec(tieneVeh2 ? 'IV. CONDICIONES PARTICULARES' : 'III. CONDICIONES PARTICULARES') +
       pdfRow('Tipo de Póliza', pol.tipo || '—') + pdfRow('Forma de Pago', pol.pago || '—') +
       pdfRow('Sede / Oficina', pol.sede || '—') +
       pdfRow('Prima en Bolívares', `Bs. ${Number(pol.total_bs).toFixed(2)}`) +
       pdfRow('Cobertura en Bs.', `Bs. ${Number(pol.cobertura_bs).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`) +
       pdfTotal('Prima Anual Total', `$${Number(pol.total).toFixed(2)}`, `Equivalente a Bs. ${Number(pol.total_bs).toFixed(2)} al cambio del día de emisión`) +
-      pdfSec(pol.placa ? 'V. PERÍODO DE VIGENCIA' : 'IV. PERÍODO DE VIGENCIA') + vigencia +
+      pdfSec(tieneVeh2 ? 'V. PERÍODO DE VIGENCIA' : 'IV. PERÍODO DE VIGENCIA') + vigencia +
       pdfFooterSimple()
     ))
   }
@@ -2484,7 +2500,7 @@ function ClienteHistorialModal({ c }) {
                     </div>
                     <p className="text-xs font-semibold text-slate-700 truncate">{pol.producto}</p>
                     <p className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
-                      {pol.placa && <><Car className="w-3 h-3 shrink-0" />{pol.placa} · </>}
+                      {pol.bien_ref && pol.bien_ref !== '—' && <><Car className="w-3 h-3 shrink-0" />{pol.bien_ref} · </>}
                       {pol.fecha_emision} → {pol.fecha_vencimiento}
                     </p>
                   </div>
@@ -2528,7 +2544,7 @@ function ClienteHistorialModal({ c }) {
                     </div>
                     <p className="text-xs font-semibold text-slate-500 truncate">{pol.producto}</p>
                     <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
-                      {pol.placa && <><Car className="w-3 h-3 shrink-0" />{pol.placa} · </>}
+                      {pol.bien_ref && pol.bien_ref !== '—' && <><Car className="w-3 h-3 shrink-0" />{pol.bien_ref} · </>}
                       {pol.fecha_emision}
                     </p>
                   </div>
