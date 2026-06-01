@@ -20,12 +20,12 @@
  * transparente: el frontend solo envía un objeto plano con todos los campos.
  */
 import { useState, useEffect, useCallback } from 'react'
-import { Pencil, RefreshCw, Trash2, Printer, UserPlus, Users, UserCheck, UserX, ShieldCheck, Eye, Lock, LockOpen, FileText, SlidersHorizontal, Receipt, ClipboardList, FolderOpen } from 'lucide-react'
+import { Pencil, RefreshCw, Trash2, UserPlus, Users, UserCheck, UserX, ShieldCheck, Eye, Lock, LockOpen, Receipt, ClipboardList, FolderOpen } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
-import { rsbadge, usd, pdfPage, pdfHdr, pdfSec, pdfRow, pdfTotal, pdfFooterSimple } from '../utils/helpers.jsx'
+import { rsbadge } from '../utils/helpers.jsx'
 import SearchBar from '../components/SearchBar.jsx'
 import DataTable from '../components/DataTable.jsx'
-import { fetchClientes, createCliente, updateCliente, deleteCliente, toggleCliente, fetchPolizasCliente } from '../api/clientes.js'
+import { fetchClientes, createCliente, updateCliente, deleteCliente, toggleCliente } from '../api/clientes.js'
 
 // Convierte el ID numérico del backend al formato visual "CLI-0001"
 const fmtId = id => 'CLI-' + String(id).padStart(4, '0')
@@ -82,6 +82,7 @@ const COLS = [
   { k: 'email',     l: 'Email',           hide: 'xl', nw: true },
   { k: 'polNum',    l: 'N° Póliza',       hide: 'md' },
   { k: 'primaCell', l: 'Prima',           hide: 'md', nw: true },
+  { k: 'vigCell',   l: 'Vigencia',        hide: 'xl', nw: true },
   { k: 'est',       l: 'Estado',          nw: true },
   { k: 'acc',       l: '',                acc: true },
 ]
@@ -92,7 +93,6 @@ export default function Clientes() {
   const [clients, setClients]   = useState([])
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState(null)
-  const [printModal, setPrintModal]   = useState(false)
 
   // showToast es estable (memoizado en AppContext) así que incluirlo aquí no provoca bucles
   const loadClientes = useCallback(async () => {
@@ -112,140 +112,7 @@ export default function Clientes() {
   // Carga inicial al montar el componente
   useEffect(() => { loadClientes() }, [loadClientes])
 
-  // ── Helpers de impresión ──────────────────────────────────────────────────
-  const openPrintWindow = (title, pagesHtml) => {
-    const w = window.open('', '_blank')
-    w.document.write(`<!DOCTYPE html><html><head>
-      <meta charset="UTF-8"><title>${title}</title>
-      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-      <style>
-        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-        body{font-family:'Inter',system-ui,sans-serif;background:#525659;padding:32px;display:flex;flex-direction:column;align-items:center;gap:32px}
-        .pdf-page{background:white;width:210mm;min-height:297mm;padding:18mm 20mm;box-shadow:0 4px 24px rgba(0,0,0,.3)}
-        @media print{body{background:white;padding:0}@page{size:A4;margin:0}.pdf-page{box-shadow:none;page-break-after:always}}
-      </style>
-    </head><body>${pagesHtml}<script>window.onload=function(){setTimeout(function(){window.print();},600)}<\/script></body></html>`)
-    w.document.close()
-  }
 
-  const handlePrintClientes = (list) => {
-    const logoUrl = window.location.origin + '/Logo_sin_fondo.png'
-    const estBadge = est => {
-      const col = est === 'Activo' ? '#10b981' : est === 'Bloqueado' ? '#f43f5e' : (est === 'Rechazado' || est === 'rechazado') ? '#f43f5e' : (est === 'En Revisión' || est === 'en_revision' || est === 'pendiente') ? '#f59e0b' : (est === 'Aprobado' || est === 'aprobado') ? '#3b82f6' : '#94a3b8'
-      return `<span style="font-size:10px;font-weight:700;color:white;background:${col};padding:2px 8px;border-radius:999px">${est}</span>`
-    }
-    const tableRows = list.map(c => `
-      <tr style="border-bottom:1px solid #f1f5f9">
-        <td style="padding:6px 4px;font-size:11px;color:#1e293b">${c.nom}</td>
-        <td style="padding:6px 4px;font-size:11px;font-family:monospace;color:#475569">${c.ci}</td>
-        <td style="padding:6px 4px;font-size:11px;color:#475569">${c.tel}</td>
-        <td style="padding:6px 4px;font-size:11px;color:#475569">${c.email}</td>
-        <td style="padding:6px 4px;font-size:11px;font-weight:600;color:#1e293b">${c.prima === '—' ? '<span style="color:#94a3b8">Sin póliza</span>' : c.prima}</td>
-        <td style="padding:6px 4px;text-align:center">${estBadge(c.est)}</td>
-      </tr>`).join('')
-    const table = `<table style="width:100%;border-collapse:collapse;margin-top:4px">
-      <thead>
-        <tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0">
-          <th style="padding:7px 4px;font-size:9px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;text-align:left">Nombre</th>
-          <th style="padding:7px 4px;font-size:9px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;text-align:left">CI / RIF</th>
-          <th style="padding:7px 4px;font-size:9px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;text-align:left">Teléfono</th>
-          <th style="padding:7px 4px;font-size:9px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;text-align:left">Email</th>
-          <th style="padding:7px 4px;font-size:9px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;text-align:left">Prima</th>
-          <th style="padding:7px 4px;font-size:9px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;text-align:center">Estado</th>
-        </tr>
-      </thead>
-      <tbody>${tableRows}</tbody>
-    </table>`
-    openPrintWindow('Listado de Clientes', pdfPage(
-      pdfHdr('LISTADO DE CLIENTES', `${list.length} clientes`, '', new Date().toLocaleDateString('es-VE'), logoUrl) +
-      pdfSec('CLIENTES REGISTRADOS') + table + pdfFooterSimple()
-    ))
-  }
-
-  const handlePrintPolizas = async (list) => {
-    const logoUrl = window.location.origin + '/Logo_sin_fondo.png'
-
-    const polizaPage = (c, pol) => {
-      const clienteNombre = c.nombre || c.nom
-      const tel  = c.celular || c.telefono || '—'
-      const mail = c.correo  || c.email    || '—'
-      const dir  = c.direccion || '—'
-
-      const polBanner = `<div style="background:#001463;color:white;padding:14px 22px;border-radius:10px;margin-bottom:26px;display:flex;justify-content:space-between;align-items:center">
-        <div><p style="font-size:9px;font-weight:700;letter-spacing:2px;opacity:0.65;text-transform:uppercase;margin-bottom:4px">N° de Póliza / Contrato</p>
-          <p style="font-size:20px;font-weight:900;font-family:monospace;letter-spacing:2px">${pol.nro_contrato}</p></div>
-        <div style="text-align:right"><p style="font-size:9px;font-weight:700;letter-spacing:2px;opacity:0.65;text-transform:uppercase;margin-bottom:4px">Estado</p>
-          <p style="font-size:15px;font-weight:900;${pol.status === 'ACTIVA' ? 'color:#6ee7b7' : pol.status === 'VENCIDA' ? 'color:#fcd34d' : 'color:#fca5a5'}">${pol.status}</p></div>
-      </div>`
-
-      const cobTable = `<table style="width:100%;border-collapse:collapse;margin-top:10px;font-size:12px">
-        <thead><tr style="background:#001463;color:white">
-          <th style="padding:9px 12px;text-align:left;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase">Cobertura / Producto</th>
-          <th style="padding:9px 12px;text-align:right;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase">Suma Asegurada</th>
-          <th style="padding:9px 12px;text-align:right;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase">Prima (USD)</th>
-        </tr></thead>
-        <tbody><tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0">
-          <td style="padding:11px 12px;font-weight:600;color:#1e293b">${pol.producto}</td>
-          <td style="padding:11px 12px;text-align:right;font-weight:700;color:#1e293b;font-family:monospace">$${Number(pol.cobertura_dolares).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-          <td style="padding:11px 12px;text-align:right;font-weight:700;color:#059669;font-family:monospace">$${Number(pol.total).toFixed(2)}</td>
-        </tr></tbody>
-        <tfoot><tr style="background:#f1f5f9">
-          <td style="padding:9px 12px;font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px">Total</td>
-          <td style="padding:9px 12px;text-align:right;font-weight:900;color:#001463;font-family:monospace">$${Number(pol.cobertura_dolares).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-          <td style="padding:9px 12px;text-align:right;font-size:15px;font-weight:900;color:#059669;font-family:monospace">$${Number(pol.total).toFixed(2)}</td>
-        </tr></tfoot>
-      </table>`
-
-      const vigencia = `<div style="display:grid;grid-template-columns:1fr auto 1fr;gap:16px;align-items:center;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-top:10px">
-        <div><p style="font-size:9px;font-weight:700;color:#64748b;letter-spacing:1px;text-transform:uppercase;margin-bottom:5px">Inicio de Vigencia</p>
-          <p style="font-size:16px;font-weight:900;color:#1e293b">${pol.fecha_emision}</p></div>
-        <div style="text-align:center"><p style="font-size:9px;font-weight:600;color:#94a3b8;letter-spacing:1px;margin-bottom:5px">DURACIÓN</p>
-          <div style="border-top:2px dashed #cbd5e1;width:80px;margin:0 auto 5px"></div>
-          <p style="font-size:11px;font-weight:700;color:#64748b">12 meses</p>
-          <div style="border-top:2px dashed #cbd5e1;width:80px;margin:5px auto 0"></div></div>
-        <div style="text-align:right"><p style="font-size:9px;font-weight:700;color:#64748b;letter-spacing:1px;text-transform:uppercase;margin-bottom:5px">Fin de Vigencia</p>
-          <p style="font-size:16px;font-weight:900;color:#1e293b">${pol.fecha_vencimiento}</p></div>
-      </div>`
-
-      return pdfPage(
-        pdfHdr(pol.bien_tipo === 'vehiculo' ? 'PÓLIZA DE SEGURO VEHICULAR' : 'PÓLIZA DE SEGURO', 'Documento oficial de cobertura', '', new Date().toLocaleDateString('es-VE'), logoUrl) +
-        polBanner +
-        pdfSec('I. DATOS DEL TOMADOR Y ASEGURADO') +
-        pdfRow('Nombre completo', clienteNombre) + pdfRow('Cédula / RIF', c.ci, true) +
-        pdfRow('Teléfono', tel) + pdfRow('Correo electrónico', mail) + pdfRow('Dirección', dir) +
-        pdfSec('II. DATOS DEL BIEN ASEGURADO') +
-        pdfRow('Referencia', pol.bien_ref || '—', true) +
-        pdfRow('Tipo', pol.bien_tipo || '—') +
-        (pol.bien_atributos?.marca  ? pdfRow('Marca',  pol.bien_atributos.marca)  : '') +
-        (pol.bien_atributos?.modelo ? pdfRow('Modelo', pol.bien_atributos.modelo) : '') +
-        (pol.bien_atributos?.anio   ? pdfRow('Año', String(pol.bien_atributos.anio)) : '') +
-        (pol.bien_atributos?.color  ? pdfRow('Color',  pol.bien_atributos.color)  : '') +
-        pdfSec('III. COBERTURAS CONTRATADAS') + cobTable +
-        pdfSec('IV. CONDICIONES PARTICULARES') +
-        pdfRow('Tipo de Póliza', pol.tipo || '—') + pdfRow('Forma de Pago', pol.pago || '—') +
-        pdfRow('Sede / Oficina', pol.sede || '—') +
-        (pol.referencia && pol.referencia !== '—' ? pdfRow('Referencia de Pago', pol.referencia, true) : '') +
-        vigencia +
-        pdfSec('V. RESUMEN FINANCIERO') +
-        pdfTotal('Prima Anual Total', `$${Number(pol.total).toFixed(2)}`, pol.total_bs ? `Equivalente a Bs. ${Number(pol.total_bs).toFixed(2)} al cambio del día de emisión` : '') +
-        pdfFooterSimple()
-      )
-    }
-
-    try {
-      const allPages = []
-      for (const c of list) {
-        const polizas = await fetchPolizasCliente(c.id).catch(() => [])
-        for (const pol of polizas.filter(p => p.status !== 'RECHAZADA')) {
-          allPages.push(polizaPage(c, pol))
-        }
-      }
-      if (allPages.length === 0) return
-      openPrintWindow('Pólizas de Clientes', allPages.join(''))
-    } catch {
-      // silently ignore
-    }
-  }
 
   // ── Filtrado local ────────────────────────────────────────────────────────
   // La búsqueda trabaja sobre los datos ya cargados en memoria, sin peticiones adicionales
@@ -271,10 +138,7 @@ export default function Clientes() {
   const canBlockCliente   = canAct('clientes', 'block')
   const canViewPolizas    = canAct('clientes', 'view_polizas')
   const canViewFacturas   = canAct('clientes', 'view_facturas')
-  const canRenewPoliza    = canAct('clientes', 'renew')
-  const canAdjust         = canAct('clientes', 'adjust')
-  const canPrint          = canAct('clientes', 'print')
-  const canViewDocs       = canAct('clientes', 'view')
+  const canViewDocs       = canAct('clientes', 'view_docs')
 
   if (!canAct('clientes', 'view')) {
     return (
@@ -293,20 +157,34 @@ export default function Clientes() {
     const isBlocked   = c.activo === false
 
     const polNum = (
-      <span className={`font-mono font-bold text-[11px] ${tienePoliza ? 'text-emerald-700' : 'text-slate-400'}`}>
-        {tienePoliza ? c.pol : <span className="italic font-normal">Sin póliza</span>}
+      <span className={`font-mono font-bold text-sm whitespace-nowrap ${tienePoliza ? 'text-emerald-700' : 'text-slate-400'}`}>
+        {tienePoliza ? c.pol : <span className="italic font-normal text-xs">Sin póliza</span>}
       </span>
     )
 
     const primaCell = tienePoliza
-      ? <span className="font-semibold text-[12px] text-slate-700 whitespace-nowrap">{c.prima}</span>
-      : <span className="text-slate-300 text-[11px]">—</span>
+      ? <span className="font-semibold text-sm text-slate-700 whitespace-nowrap">{c.prima}</span>
+      : <span className="text-slate-300 text-xs">—</span>
+
+    const vigCell = (() => {
+      if (!tienePoliza || !c.vig || c.vig === '—') return <span className="text-slate-300 text-[11px]">—</span>
+      const [inicio, fin] = c.vig.split(' – ')
+      const vencido = c.dias_vencimiento !== null && c.dias_vencimiento !== undefined && c.dias_vencimiento < 0
+      const porVencer = c.dias_vencimiento !== null && c.dias_vencimiento !== undefined && c.dias_vencimiento >= 0 && c.dias_vencimiento <= 30
+      return (
+        <div className="leading-tight">
+          <p className="text-[10px] text-slate-400">{inicio}</p>
+          <p className={`text-[11px] font-semibold ${vencido ? 'text-rose-600' : porVencer ? 'text-amber-600' : 'text-slate-600'}`}>{fin}</p>
+        </div>
+      )
+    })()
 
     return {
       ...c,
       displayId: fmtId(c.id),
       polNum,
       primaCell,
+      vigCell,
       est: rsbadge(c.est),
       acc: (
         <div className="flex flex-nowrap gap-1 items-center justify-center">
@@ -321,7 +199,7 @@ export default function Clientes() {
 
           {canViewPolizas && (
             <button
-              onClick={() => showModal('clienteHistorial', { c })}
+              onClick={() => showModal('clienteHistorial', { c, onSaved: loadClientes })}
               className="p-1.5 sm:p-2 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition inline-flex items-center justify-center"
               title="Ver pólizas"
             >
@@ -336,6 +214,16 @@ export default function Clientes() {
               title="Documentos del cliente"
             >
               <FolderOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            </button>
+          )}
+
+          {tienePoliza && canViewFacturas && (
+            <button
+              onClick={() => showModal('clienteFacturas', { c })}
+              className="p-1.5 sm:p-2 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 transition inline-flex items-center justify-center"
+              title="Ver facturas"
+            >
+              <Receipt className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
           )}
 
@@ -355,41 +243,12 @@ export default function Clientes() {
             </button>
           )}
 
-          {canRenewPoliza && (
-            <button
-              onClick={() => showModal('renovar', { client: c, onSaved: loadClientes })}
-              className="p-1.5 sm:p-2 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition inline-flex items-center justify-center"
-              title="Renovar póliza"
-            >
-              <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </button>
-          )}
-
-          {tienePoliza && canViewFacturas && (
-            <button
-              onClick={() => showModal('clienteFacturas', { c })}
-              className="p-1.5 sm:p-2 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 transition inline-flex items-center justify-center"
-              title="Ver facturas"
-            >
-              <Receipt className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </button>
-          )}
-
-          {tienePoliza && canAdjust && (
-            <button
-              onClick={() => showModal('ajustarPoliza', { c, onSave: loadClientes })}
-              className="p-1.5 sm:p-2 rounded-lg bg-violet-50 text-violet-600 hover:bg-violet-100 transition inline-flex items-center justify-center"
-              title="Ajustar póliza"
-            >
-              <SlidersHorizontal className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </button>
-          )}
-
           {canBlockCliente && (
             <button
-              onClick={() => showModal('confirmDelete', {
-                name: `${isBlocked ? 'Activar' : 'Desactivar'}: ${c.nom}`,
-                onConfirm: async () => { await toggleCliente(c.id); await loadClientes() },
+              onClick={() => showModal('blockCliente', {
+                nom: c.nom,
+                activo: c.activo,
+                onConfirm: async (motivo) => { await toggleCliente(c.id, motivo); await loadClientes() },
               })}
               className={`p-1.5 sm:p-2 rounded-lg transition inline-flex items-center justify-center ${isBlocked ? 'bg-teal-50 text-teal-600 hover:bg-teal-100' : 'bg-orange-50 text-orange-600 hover:bg-orange-100'}`}
               title={isBlocked ? 'Activar cliente' : 'Desactivar cliente'}
@@ -468,11 +327,6 @@ export default function Clientes() {
         onSearch={setSearch}
         extra={
           <>
-            {canPrint && (
-              <button onClick={() => setPrintModal(true)} className="btn-secondary">
-                <Printer className="w-4 h-4" />Imprimir
-              </button>
-            )}
 
             {canCreateCliente && (
               <button
@@ -503,61 +357,6 @@ export default function Clientes() {
       )}
       {!loading && !error && <DataTable cols={COLS} rows={dataRows} />}
 
-      {/* ── Modal de opciones de impresión ── */}
-      {printModal && (() => {
-        const printList = clients
-        const label = `todos los clientes (${clients.length})`
-        return (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-            onClick={() => setPrintModal(false)}
-          >
-            <div
-              className="bg-white rounded-2xl shadow-2xl p-6 w-80 flex flex-col gap-3"
-              onClick={e => e.stopPropagation()}
-            >
-              <div className="flex items-center gap-2 mb-1">
-                <Printer className="w-5 h-5 text-slate-500" />
-                <h3 className="font-bold text-slate-800 text-base">Opciones de impresión</h3>
-              </div>
-              <p className="text-xs text-slate-500 -mt-1">Imprimiendo: <span className="font-semibold text-slate-700">{label}</span></p>
-
-              <button
-                onClick={() => { handlePrintClientes(printList); setPrintModal(false) }}
-                className="flex items-center gap-3 px-4 py-3 rounded-xl border border-slate-100 hover:bg-slate-50 transition text-left"
-              >
-                <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
-                  <Users className="w-4 h-4 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-800">Información de clientes</p>
-                  <p className="text-xs text-slate-400">Nombre, CI, teléfono, email, estado</p>
-                </div>
-              </button>
-
-              <button
-                onClick={() => { handlePrintPolizas(printList); setPrintModal(false) }}
-                className="flex items-center gap-3 px-4 py-3 rounded-xl border border-slate-100 hover:bg-slate-50 transition text-left"
-              >
-                <div className="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
-                  <FileText className="w-4 h-4 text-indigo-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-800">Pólizas</p>
-                  <p className="text-xs text-slate-400">N° póliza, vigencia, prima, estado</p>
-                </div>
-              </button>
-
-              <button
-                onClick={() => setPrintModal(false)}
-                className="mt-1 text-sm text-slate-400 hover:text-slate-600 transition text-center py-1"
-              >
-                Cancelar
-              </button>
-            </div>
-          </div>
-        )
-      })()}
     </div>
   )
 }

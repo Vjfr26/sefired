@@ -76,7 +76,7 @@ export default function Tasas() {
     ...r,
     f:   r.fecha,
     mon: monedaBadge(r.moneda),
-    t:   <span className="font-bold">{r.valor}</span>,
+    t:   <span className="font-bold">{fmtTasa(r.valor)}</span>,
     v:   varText(r.variacion, r.var_color),
     acc: (
       <div className="flex gap-1 justify-center flex-nowrap">

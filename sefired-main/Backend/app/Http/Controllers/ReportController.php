@@ -9,6 +9,7 @@ use App\Models\Poliza;
 use App\Models\Solicitud;
 use App\Models\UnderwritingEvaluacion;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class ReportController extends Controller
 {
@@ -51,21 +52,41 @@ class ReportController extends Controller
      */
     public function getStats()
     {
+        // Consolidar conteos en el menor número de queries posible
+        $solCounts = Solicitud::selectRaw("
+            COUNT(*) as total,
+            SUM(status = 'en_revision') as en_revision,
+            SUM(status = 'aprobado')    as aprobado,
+            SUM(status = 'emitida')     as emitida,
+            SUM(status = 'rechazado')   as rechazado
+        ")->first();
+
+        $polCounts = Poliza::selectRaw("
+            SUM(status = 'ACTIVA')   as activas,
+            SUM(status = 'VENCIDA')  as vencidas,
+            SUM(status = 'ANULADA')  as anuladas
+        ")->first();
+
+        $uwCounts = UnderwritingEvaluacion::selectRaw("
+            SUM(resultado = 'pendiente')  as pendiente,
+            SUM(resultado = 'observado')  as observado
+        ")->first();
+
         $stats = [
             'total_usuarios'           => Usuario::count(),
             'usuarios_activos'         => Usuario::where('activo', true)->count(),
             'total_clientes'           => Persona::count(),
             'logs_hoy'                 => Log::whereDate('created_at', today())->count(),
-            'total_cotizaciones'       => Solicitud::count(),
-            'cotizaciones_en_revision' => Solicitud::where('status', 'en_revision')->count(),
-            'cotizaciones_aprobadas'   => Solicitud::where('status', 'aprobado')->count(),
-            'cotizaciones_emitidas'    => Solicitud::where('status', 'emitida')->count(),
-            'cotizaciones_rechazadas'  => Solicitud::where('status', 'rechazado')->count(),
-            'polizas_activas'          => Poliza::where('status', 'ACTIVA')->count(),
-            'polizas_vencidas'         => Poliza::where('status', 'VENCIDA')->count(),
-            'polizas_anuladas'         => Poliza::where('status', 'ANULADA')->count(),
-            'underwriting_pendiente'   => UnderwritingEvaluacion::where('resultado', 'pendiente')->count(),
-            'underwriting_observado'   => UnderwritingEvaluacion::where('resultado', 'observado')->count(),
+            'total_cotizaciones'       => (int) $solCounts->total,
+            'cotizaciones_en_revision' => (int) $solCounts->en_revision,
+            'cotizaciones_aprobadas'   => (int) $solCounts->aprobado,
+            'cotizaciones_emitidas'    => (int) $solCounts->emitida,
+            'cotizaciones_rechazadas'  => (int) $solCounts->rechazado,
+            'polizas_activas'          => (int) $polCounts->activas,
+            'polizas_vencidas'         => (int) $polCounts->vencidas,
+            'polizas_anuladas'         => (int) $polCounts->anuladas,
+            'underwriting_pendiente'   => (int) $uwCounts->pendiente,
+            'underwriting_observado'   => (int) $uwCounts->observado,
         ];
 
         return response()->json($stats);

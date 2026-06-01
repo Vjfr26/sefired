@@ -2,6 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\CotizacionMail;
+use App\Mail\CotizacionStatusMail;
+use App\Mail\PolizaEmitidaMail;
+use App\Mail\FacturaMail;
+use App\Models\EmailLog;
 use App\Models\Solicitud;
 use App\Models\Persona;
 use App\Models\Poliza;
@@ -10,6 +15,7 @@ use App\Services\WorkflowService;
 use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 
 /**
  * Gestión de cotizaciones/solicitudes de seguro.
@@ -71,6 +77,7 @@ class SolicitudController extends Controller
         $data['fuente']      = 'interno';
 
         $solicitud = Solicitud::create($data);
+        $solicitud->load(['persona', 'producto', 'bien']);
 
         $ref = $solicitud->asegurado_nombre ?? $solicitud->nombre_tomador ?? "solicitud #{$solicitud->id}";
         $this->logActivity(
@@ -80,7 +87,21 @@ class SolicitudController extends Controller
             auth()->id()
         );
 
-        return response()->json($this->formatRow($solicitud->load(['persona', 'producto'])), 201);
+        // Enviar simulación por correo al cliente si tiene correo registrado
+        $correo = $solicitud->persona?->correo;
+        if ($correo) {
+            try {
+                Mail::to($correo)->queue(new CotizacionMail($solicitud));
+                EmailLog::registrar(
+                    tipo: 'cotizacion',
+                    destinatario: $correo,
+                    asunto: 'Simulación de seguro',
+                    personaId: $solicitud->persona_id,
+                );
+            } catch (\Throwable) {}
+        }
+
+        return response()->json($this->formatRow($solicitud), 201);
     }
 
     /**
@@ -116,6 +137,7 @@ class SolicitudController extends Controller
             WorkflowService::assertSolicitud($solicitud->status, $data['status']);
         }
 
+        $statusAnterior = $solicitud->status;
         $solicitud->update($data);
 
         $logMsg = isset($data['status'])
@@ -123,6 +145,22 @@ class SolicitudController extends Controller
             : "Cotización #{$id} actualizada";
 
         $this->logActivity('Cotización Actualizada', $logMsg, 'solicitud', auth()->id());
+
+        // Notificar al cliente cuando la cotización cambia a aprobada o rechazada
+        if (isset($data['status']) && in_array($data['status'], ['aprobado', 'rechazado']) && $data['status'] !== $statusAnterior) {
+            $correo = $solicitud->persona?->correo;
+            if ($correo) {
+                try {
+                    Mail::to($correo)->queue(new CotizacionStatusMail($solicitud->fresh('persona', 'producto'), $data['status']));
+                    EmailLog::registrar(
+                        'cotizacion_' . $data['status'],
+                        $correo,
+                        $data['status'] === 'aprobado' ? 'Cotización aprobada' : 'Cotización rechazada',
+                        $solicitud->persona_id
+                    );
+                } catch (\Throwable) {}
+            }
+        }
 
         return response()->json(['message' => 'Cotización actualizada correctamente']);
     }
@@ -144,9 +182,18 @@ class SolicitudController extends Controller
         }
 
         $data = $request->validate([
-            'pago'       => 'required|string|max:30',
-            'referencia' => 'nullable|string|max:50',
-            'sede'       => 'required|string|max:20',
+            'tasa_bcv'          => 'required|numeric|min:0.0001',
+            'tasa_eur'          => 'nullable|numeric|min:0.0001',
+            'frecuencia_pago'   => 'nullable|string|in:Mensual,Anual',
+            'pagos'             => 'required|array|min:1',
+            'pagos.*.forma'     => 'required|string|max:30',
+            'pagos.*.moneda'    => 'required|string|in:USD,EUR,Bs.',
+            'pagos.*.monto'     => 'required|numeric|min:0.01',
+            'pagos.*.referencia'=> 'nullable|string|max:100',
+            // campos legacy / fallback
+            'pago'      => 'nullable|string|max:30',
+            'moneda'    => 'nullable|string|max:10',
+            'referencia'=> 'nullable|string|max:50',
         ]);
 
         $solicitud->load(['persona', 'producto', 'tarifario', 'bien']);
@@ -155,7 +202,42 @@ class SolicitudController extends Controller
         $hoy     = now()->toDateString();
         $venc    = now()->addYear()->toDateString();
         $anno    = now()->year;
-        $tasaBcv = (float) ($cobs['tasaBCV'] ?? 1);
+        $tasaBcv = (float) $data['tasa_bcv'];
+        $tasaEur = isset($data['tasa_eur']) && $data['tasa_eur'] > 0 ? (float) $data['tasa_eur'] : $tasaBcv;
+
+        // Validar que la suma de los pagos equivale al total de la póliza (±0.10 USD de tolerancia)
+        $totalPoliza  = (float) $solicitud->total;
+        $totalPagado  = 0.0;
+        foreach ($data['pagos'] as $p) {
+            $monto = (float) $p['monto'];
+            $totalPagado += match ($p['moneda']) {
+                'USD' => $monto,
+                'EUR' => $tasaEur > 0 ? $monto * ($tasaEur / $tasaBcv) : $monto,
+                'Bs.' => $tasaBcv > 0 ? $monto / $tasaBcv               : 0,
+                default => 0,
+            };
+        }
+
+        // Comparación exacta en centavos para evitar errores de punto flotante
+        if ((int) round($totalPagado * 100) !== (int) round($totalPoliza * 100)) {
+            return response()->json([
+                'error' => sprintf(
+                    'El total de los pagos ($ %.2f USD) no coincide con el total de la póliza ($ %.2f USD). Diferencia: $ %.2f USD.',
+                    round($totalPagado, 2), $totalPoliza, abs(round($totalPagado, 2) - $totalPoliza)
+                ),
+            ], 422);
+        }
+
+        // Resumen de formas de pago para el campo string
+        $pagoResumen = collect($data['pagos'])
+            ->map(fn($p) => $p['forma'] . ' ' . $p['moneda'])
+            ->join(' / ');
+
+        $moneda      = $data['pagos'][0]['moneda'] ?? 'USD';
+        $frecuencia  = $data['frecuencia_pago'] ?? 'Anual';
+
+        // Sede desde el usuario autenticado o fallback
+        $sede = auth()->user()?->sede ?? 'Principal';
 
         // cobertura_dolares: para productos por_valor (RCV) es el valor de mercado del vehículo;
         // para los demás tipos (fijo, por_plan, por_nivel) es la suma asegurada del producto.
@@ -163,7 +245,9 @@ class SolicitudController extends Controller
         $coberturaDolares = ($tipoCal === 'por_valor')
             ? (float) ($cobs['valor_mercado'] ?? 0)
             : (float) ($solicitud->producto?->cobertura ?? 0);
-        $coberturaBS = $coberturaDolares * $tasaBcv;
+        $totalUsd    = (float) $solicitud->total;
+        $totalBs     = round($totalUsd * $tasaBcv, 2);
+        $coberturaBS = round($coberturaDolares * $tasaBcv, 2);
 
         // Asegurado: si se indicó una persona diferente al tomador, se usa esa; si no, el tomador mismo.
         $aseguradoNombre = $solicitud->asegurado_nombre ?? $solicitud->nombre_tomador ?? null;
@@ -192,34 +276,42 @@ class SolicitudController extends Controller
                 'version' => $solicitud->tarifario->version,
                 'datos'   => $solicitud->tarifario->datos,
             ] : null,
-            'coberturas'    => $cobs,
-            'tasa_bcv'      => $tasaBcv,
-            'bien'          => $solicitud->bien ? [
+            'coberturas'       => $cobs,
+            'tasa_bcv'         => (float) ($cobs['tasaBCV'] ?? 1),
+            'tasa_emision'     => $tasaBcv,
+            'tasa_emision_eur' => $tasaEur,
+            'moneda'           => $moneda,
+            'pagos'            => $data['pagos'],
+            'bien'             => $solicitud->bien ? [
                 'id'        => $solicitud->bien->id,
                 'tipo'      => $solicitud->bien->tipo,
                 'atributos' => $solicitud->bien->atributos,
             ] : null,
             'fecha_emision' => $hoy,
-            'total_usd'     => (float) $solicitud->total,
-            'total_bs'      => (float) $solicitud->total_bs,
+            'total_usd'     => $totalUsd,
+            'total_bs'      => $totalBs,
         ];
 
-        $result = DB::transaction(function () use ($solicitud, $data, $hoy, $venc, $anno, $coberturaDolares, $coberturaBS, $aseguradoNombre, $aseguradoCi, $snapshot) {
+        $result = DB::transaction(function () use ($solicitud, $data, $hoy, $venc, $anno, $coberturaDolares, $coberturaBS, $aseguradoNombre, $aseguradoCi, $snapshot, $tasaBcv, $tasaEur, $totalUsd, $totalBs, $moneda, $pagoResumen, $sede, $frecuencia) {
             $poliza = Poliza::create([
                 'nro_contrato'         => 'TMP-' . uniqid(),
                 'solicitud_id'         => $solicitud->id,
                 'producto_id'          => $solicitud->producto_id ?? null,
-                'total'                => $solicitud->total,
-                'total_bs'             => $solicitud->total_bs,
+                'total'                => $totalUsd,
+                'total_bs'             => $totalBs,
+                'tasa_emision'         => $tasaBcv,
+                'tasa_emision_eur'     => $tasaEur,
                 'cobertura_dolares'    => $coberturaDolares,
                 'cobertura_bs'         => $coberturaBS,
                 'asegurado_nombre'     => $aseguradoNombre,
                 'asegurado_ci'         => $aseguradoCi,
-                'pago'                 => $data['pago'],
+                'pago'                 => $pagoResumen,
+                'frecuencia_pago'      => $frecuencia,
+                'moneda'               => $moneda,
                 'tipo'                 => 'Individual',
                 'fecha_emision'        => $hoy,
                 'fecha_vencimiento'    => $venc,
-                'sede_poliza'          => $data['sede'],
+                'sede_poliza'          => $sede,
                 'vendedor_id'          => $solicitud->vendedor_id ?? auth()->id(),
                 'status'               => 'ACTIVA',
                 'snapshot_datos'       => $snapshot,
@@ -233,13 +325,14 @@ class SolicitudController extends Controller
 
             Factura::create([
                 'numero'        => $nroFactura,
-                'sede'          => $data['sede'],
+                'sede'          => $sede,
                 'fecha_factura' => $hoy,
                 'poliza_id'     => $poliza->id,
-                'valor'         => $solicitud->total,
-                'valor_bs'      => $solicitud->total_bs,
-                'forma_pago'    => $data['pago'],
-                'referencia'    => $data['referencia'] ?? null,
+                'valor'         => $totalUsd,
+                'valor_bs'      => $totalBs,
+                'forma_pago'    => $pagoResumen,
+                'moneda'        => $moneda,
+                'referencia'    => $data['pagos'][0]['referencia'] ?? null,
                 'usuario_id'    => auth()->id(),
             ]);
 
@@ -254,6 +347,28 @@ class SolicitudController extends Controller
             'poliza',
             auth()->id()
         );
+
+        // Correos — se despachan en cola para no bloquear el request
+        $polizaEmitida = Poliza::with(['solicitud.persona', 'producto'])
+            ->where('nro_contrato', $result['nro_contrato'])->first();
+        $facturaEmitida = Factura::with('poliza')
+            ->where('numero', $result['nro_factura'])->first();
+        $correo = $solicitud->persona?->correo;
+
+        if ($correo && $polizaEmitida) {
+            try {
+                Mail::to($correo)->queue(new PolizaEmitidaMail($polizaEmitida));
+                EmailLog::registrar('poliza_emitida', $correo, 'Póliza emitida ' . $result['nro_contrato'],
+                    $solicitud->persona?->id, $polizaEmitida->id);
+            } catch (\Throwable) {}
+        }
+        if ($correo && $facturaEmitida) {
+            try {
+                Mail::to($correo)->queue(new FacturaMail($facturaEmitida, $solicitud->persona?->nombre ?? ''));
+                EmailLog::registrar('factura', $correo, 'Factura ' . $result['nro_factura'],
+                    $solicitud->persona?->id, $polizaEmitida?->id);
+            } catch (\Throwable) {}
+        }
 
         return response()->json([
             'message'      => 'Póliza y factura generadas correctamente',

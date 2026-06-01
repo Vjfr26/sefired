@@ -132,14 +132,60 @@ const ProdSecHdr = ({ Icon, children }) => (
   </div>
 )
 
-function ProductoModal({ producto, onClose, onSaved }) {
-  const isEdit = !!producto?.id
+// ── ComboField: input con sugerencias filtradas ──────────────────────────────
+function ComboField({ value, onChange, suggestions, placeholder, className = '' }) {
+  const [open, setOpen]   = useState(false)
+  const [query, setQuery] = useState(value)
+  const ref = useRef(null)
+
+  useEffect(() => { setQuery(value) }, [value])
+
+  useEffect(() => {
+    if (!open) return
+    const close = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [open])
+
+  const filtered = suggestions.filter(s => s.toLowerCase().includes(query.toLowerCase()) && s !== query)
+
+  return (
+    <div ref={ref} className="relative">
+      <input
+        className={`input-field text-sm ${className}`}
+        value={query}
+        placeholder={placeholder}
+        onChange={e => { setQuery(e.target.value); onChange(e.target.value); setOpen(true) }}
+        onFocus={() => setOpen(true)}
+      />
+      {open && filtered.length > 0 && (
+        <ul className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-44 overflow-y-auto">
+          {filtered.map(s => (
+            <li key={s}>
+              <button
+                type="button"
+                className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 transition capitalize"
+                onMouseDown={e => { e.preventDefault(); onChange(s); setQuery(s); setOpen(false) }}
+              >
+                {s}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+function ProductoModal({ producto, productos = [], onClose, onSaved }) {
+  const isEdit  = !!producto?.id
   const [form, setForm] = useState({
+    es_nuevo:              true,
     nombre:                producto?.nombre       || '',
     codigo:                producto?.codigo       || '',
     tipo:                  producto?.tipo         || '',
-    categoria:             producto?.categoria    || 'vehicular',
-    tipo_bien:             producto?.tipo_bien    || 'ninguno',
+    categoria:             producto?.categoria    || '',
+    tipo_bien:             producto?.tipo_bien    || '',
     tipo_calculo:          producto?.tipo_calculo  || 'fijo',
     derecho_poliza:        producto?.derecho_poliza ?? 0,
     descripcion:           producto?.descripcion  || '',
@@ -148,15 +194,35 @@ function ProductoModal({ producto, onClose, onSaved }) {
     moneda:                producto?.moneda       || 'USD',
     documentos_requeridos: producto?.documentos_requeridos || [],
   })
-  const [saving, setSaving] = useState(false)
-  const [err, setErr]       = useState('')
+  const [errors,  setErrors]  = useState({})
+  const [saving,  setSaving]  = useState(false)
+  const [formErr, setFormErr] = useState('')
 
-  const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
+  const set = (k, v) => { setForm(prev => ({ ...prev, [k]: v })); setErrors(e => ({ ...e, [k]: '' })) }
+
+  // Sugerencias únicas de productos existentes
+  const sugerencias = {
+    tipo:      [...new Set(productos.map(p => p.tipo).filter(Boolean))],
+    categoria: [...new Set([...CATEGORIAS, ...productos.map(p => p.categoria).filter(Boolean)])],
+    tipo_bien: [...new Set(['vehiculo', 'inmueble', 'vida', 'bien', 'ninguno', ...productos.map(p => p.tipo_bien).filter(Boolean)])],
+  }
+
+  const validate = () => {
+    const e = {}
+    if (!form.nombre.trim())      e.nombre      = 'Obligatorio'
+    if (!form.tipo.trim())        e.tipo        = 'Obligatorio'
+    if (!form.categoria.trim())   e.categoria   = 'Obligatorio'
+    if (!form.tipo_bien.trim())   e.tipo_bien   = 'Obligatorio'
+    if (!form.descripcion.trim()) e.descripcion = 'Obligatorio'
+    if (!(parseFloat(form.prima) > 0))          e.prima     = 'Debe ser mayor a 0'
+    setErrors(e)
+    return Object.keys(e).length === 0
+  }
 
   const handleSave = async () => {
-    if (!form.nombre.trim()) { setErr('El nombre es obligatorio.'); return }
+    if (!validate()) { setFormErr('Completa todos los campos obligatorios.'); return }
     setSaving(true)
-    setErr('')
+    setFormErr('')
     try {
       const payload = {
         ...form,
@@ -169,18 +235,18 @@ function ProductoModal({ producto, onClose, onSaved }) {
       onSaved()
       onClose()
     } catch (e) {
-      setErr(e.message || 'Error al guardar')
+      setFormErr(e.message || 'Error al guardar')
     } finally {
       setSaving(false)
     }
   }
 
-  const inp = 'input-field text-sm'
-  const sel = 'select-field text-sm'
+  const inp = (field) => `input-field text-sm ${errors[field] ? 'border-rose-400 focus:ring-rose-300' : ''}`
   const lbl = 'field-label'
+  const M   = form.moneda   // alias para etiquetas con moneda
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 bg-black/50 z-[80] flex items-center justify-center p-4 backdrop-blur-sm">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in duration-200">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
@@ -199,8 +265,64 @@ function ProductoModal({ producto, onClose, onSaved }) {
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto p-6">
-          {err && <p className="text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2 mb-4">{err}</p>}
+        <div className="flex-1 overflow-y-auto p-6 space-y-5">
+          {formErr && <p className="text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2">{formErr}</p>}
+
+          {/* ── ¿Nuevo tipo o tipo existente? ── */}
+          {!isEdit && (
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
+              <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-3">¿Qué tipo de póliza es?</p>
+              <div className="flex gap-3">
+                {[
+                  { val: true,  label: '✦ Nuevo tipo de póliza', desc: 'Primera póliza de este ramo / categoría' },
+                  { val: false, label: '↳ Variante de tipo existente', desc: 'Versión diferente de un ramo ya registrado' },
+                ].map(opt => (
+                  <button
+                    key={String(opt.val)}
+                    type="button"
+                    onClick={() => set('es_nuevo', opt.val)}
+                    className={`flex-1 text-left p-3 rounded-xl border-2 transition-all ${
+                      form.es_nuevo === opt.val
+                        ? 'border-jm-blue bg-blue-50'
+                        : 'border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <p className={`text-xs font-bold ${form.es_nuevo === opt.val ? 'text-jm-blue' : 'text-slate-700'}`}>{opt.label}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{opt.desc}</p>
+                  </button>
+                ))}
+              </div>
+              {!form.es_nuevo && (
+                <div className="mt-3">
+                  <label className={lbl}>Ramo base <span className="text-rose-500">*</span></label>
+                  <select
+                    className="select-field text-sm"
+                    value={form.tipo}
+                    onChange={e => {
+                      const ramo = e.target.value
+                      // Auto-rellenar categoría y tipo_bien desde el producto base
+                      const base = productos.find(p => p.tipo === ramo)
+                      setForm(prev => ({
+                        ...prev,
+                        tipo:      ramo,
+                        categoria: base?.categoria ?? prev.categoria,
+                        tipo_bien: base?.tipo_bien ?? prev.tipo_bien,
+                      }))
+                      setErrors(err => ({ ...err, tipo: '', categoria: '', tipo_bien: '' }))
+                    }}
+                  >
+                    <option value="">— Selecciona el ramo base —</option>
+                    {[...new Set(productos.map(p => p.tipo).filter(Boolean))].map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Al seleccionar el ramo, Categoría y Tipo de bien se heredan automáticamente.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-x-6">
             {/* ── Identificación ── */}
@@ -209,31 +331,60 @@ function ProductoModal({ producto, onClose, onSaved }) {
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2">
                   <label className={lbl}>Nombre de la póliza <span className="text-rose-500">*</span></label>
-                  <input className={inp} value={form.nombre} onChange={e => set('nombre', e.target.value)} placeholder="Ej. RCV Particular Privado" />
+                  <input className={inp('nombre')} value={form.nombre} onChange={e => set('nombre', e.target.value)} placeholder="Ej. RCV Particular Privado" />
+                  {errors.nombre && <p className="text-[10px] text-rose-500 mt-0.5">{errors.nombre}</p>}
                 </div>
                 <div>
                   <label className={lbl}>Código interno</label>
-                  <input className={`${inp} font-mono uppercase`} value={form.codigo} onChange={e => set('codigo', e.target.value.toUpperCase())} placeholder="ACC-ORO" maxLength={20} />
+                  <input className={`input-field text-sm font-mono uppercase`} value={form.codigo} onChange={e => set('codigo', e.target.value.toUpperCase())} placeholder="ACC-ORO" maxLength={20} />
                 </div>
                 <div>
-                  <label className={lbl}>Ramo de seguro</label>
-                  <input className={inp} value={form.tipo} onChange={e => set('tipo', e.target.value)} placeholder="Ej. RCV, Vida, HCM…" />
+                  <label className={lbl}>Ramo de seguro <span className="text-rose-500">*</span></label>
+                  {!form.es_nuevo && !isEdit ? (
+                    <div className="input-field text-sm bg-slate-50 text-slate-500 flex items-center gap-2 cursor-not-allowed">
+                      <span className="text-slate-400">🔒</span><span>{form.tipo || '—'}</span>
+                    </div>
+                  ) : (
+                    <>
+                      <select className={`select-field text-sm ${errors.tipo ? 'border-rose-400' : ''}`} value={form.tipo} onChange={e => set('tipo', e.target.value)}>
+                        <option value="">— Selecciona el ramo —</option>
+                        {sugerencias.tipo.map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                      {errors.tipo && <p className="text-[10px] text-rose-500 mt-0.5">{errors.tipo}</p>}
+                    </>
+                  )}
                 </div>
                 <div>
-                  <label className={lbl}>Categoría</label>
-                  <select className={sel} value={form.categoria} onChange={e => set('categoria', e.target.value)}>
-                    {CATEGORIAS.map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
-                  </select>
+                  <label className={lbl}>Categoría <span className="text-rose-500">*</span></label>
+                  {!form.es_nuevo && !isEdit ? (
+                    <div className="input-field text-sm bg-slate-50 text-slate-500 flex items-center gap-2 cursor-not-allowed capitalize">
+                      <span className="text-slate-400">🔒</span><span>{form.categoria || '—'}</span>
+                    </div>
+                  ) : (
+                    <>
+                      <select className={`select-field text-sm ${errors.categoria ? 'border-rose-400' : ''}`} value={form.categoria} onChange={e => set('categoria', e.target.value)}>
+                        <option value="">— Selecciona la categoría —</option>
+                        {sugerencias.categoria.map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
+                      </select>
+                      {errors.categoria && <p className="text-[10px] text-rose-500 mt-0.5">{errors.categoria}</p>}
+                    </>
+                  )}
                 </div>
                 <div>
-                  <label className={lbl}>Tipo de bien</label>
-                  <select className={sel} value={form.tipo_bien} onChange={e => set('tipo_bien', e.target.value)}>
-                    <option value="ninguno">Ninguno</option>
-                    <option value="vehiculo">Vehículo</option>
-                    <option value="inmueble">Inmueble</option>
-                    <option value="vida">Vida / Personas</option>
-                    <option value="bien">Bien general</option>
-                  </select>
+                  <label className={lbl}>Tipo de bien <span className="text-rose-500">*</span></label>
+                  {!form.es_nuevo && !isEdit ? (
+                    <div className="input-field text-sm bg-slate-50 text-slate-500 flex items-center gap-2 cursor-not-allowed capitalize">
+                      <span className="text-slate-400">🔒</span><span>{form.tipo_bien || '—'}</span>
+                    </div>
+                  ) : (
+                    <>
+                      <select className={`select-field text-sm ${errors.tipo_bien ? 'border-rose-400' : ''}`} value={form.tipo_bien} onChange={e => set('tipo_bien', e.target.value)}>
+                        <option value="">— Selecciona el tipo —</option>
+                        {sugerencias.tipo_bien.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
+                      </select>
+                      {errors.tipo_bien && <p className="text-[10px] text-rose-500 mt-0.5">{errors.tipo_bien}</p>}
+                    </>
+                  )}
                 </div>
               </div>
             </section>
@@ -248,12 +399,8 @@ function ProductoModal({ producto, onClose, onSaved }) {
                     {TIPOS_CALCULO.map(t => {
                       const on = form.tipo_calculo === t.val
                       return (
-                        <button
-                          key={t.val}
-                          type="button"
-                          onClick={() => set('tipo_calculo', t.val)}
-                          className={`flex flex-col items-start p-2.5 rounded-xl border-2 text-left transition-all ${on ? 'border-jm-blue bg-blue-50/50' : 'border-slate-200 hover:border-slate-300'}`}
-                        >
+                        <button key={t.val} type="button" onClick={() => set('tipo_calculo', t.val)}
+                          className={`flex flex-col items-start p-2.5 rounded-xl border-2 text-left transition-all ${on ? 'border-jm-blue bg-blue-50/50' : 'border-slate-200 hover:border-slate-300'}`}>
                           <p className={`text-xs font-bold ${on ? 'text-jm-blue' : 'text-slate-700'}`}>{t.label}</p>
                           <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">{t.desc}</p>
                         </button>
@@ -261,36 +408,54 @@ function ProductoModal({ producto, onClose, onSaved }) {
                     })}
                   </div>
                 </div>
+
+                {/* Moneda base → afecta etiquetas de todos los montos */}
+                <div>
+                  <label className={lbl}>Moneda base <span className="text-rose-500">*</span></label>
+                  <div className="flex gap-2 mt-1">
+                    {MONEDAS.map(m => (
+                      <button key={m} type="button" onClick={() => set('moneda', m)}
+                        className={`flex-1 py-1.5 rounded-xl text-xs font-bold border-2 transition-all ${
+                          form.moneda === m
+                            ? m === 'USD' ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                            : m === 'EUR' ? 'border-amber-500 bg-amber-50 text-amber-700'
+                            : 'border-blue-500 bg-blue-50 text-blue-700'
+                            : 'border-slate-200 text-slate-500 hover:border-slate-300'
+                        }`}>
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1">Todos los montos se expresan en {M}.</p>
+                </div>
+
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className={lbl}>Moneda base</label>
-                    <select className={sel} value={form.moneda} onChange={e => set('moneda', e.target.value)}>
-                      {MONEDAS.map(m => <option key={m}>{m}</option>)}
-                    </select>
+                    <label className={lbl}>Derecho póliza ({M})</label>
+                    <input type="number" className="input-field text-sm" min="0" step="0.01" value={form.derecho_poliza} onChange={e => set('derecho_poliza', e.target.value)} placeholder="0.00" />
                   </div>
                   <div>
-                    <label className={lbl}>Derecho póliza (USD)</label>
-                    <input type="number" className={inp} min="0" step="0.01" value={form.derecho_poliza} onChange={e => set('derecho_poliza', e.target.value)} placeholder="15.00" />
+                    <label className={lbl}>Prima base ({M}) <span className="text-rose-500">*</span></label>
+                    <input type="number" className={inp('prima')} min="0" step="0.01" value={form.prima} onChange={e => set('prima', e.target.value)} placeholder="0.00" />
+                    {errors.prima && <p className="text-[10px] text-rose-500 mt-0.5">{errors.prima}</p>}
                   </div>
-                  <div>
-                    <label className={lbl}>Prima base referencial</label>
-                    <input type="number" className={inp} min="0" step="0.01" value={form.prima} onChange={e => set('prima', e.target.value)} placeholder="0.00" />
-                  </div>
-                  <div>
-                    <label className={lbl}>Cobertura / Suma asegurada</label>
-                    <input type="number" className={inp} min="0" step="0.01" value={form.cobertura} onChange={e => set('cobertura', e.target.value)} placeholder="0.00" />
+                  <div className="col-span-2">
+                    <label className={lbl}>Cobertura / Suma asegurada ({M})</label>
+                    <input type="number" className="input-field text-sm" min="0" step="0.01" value={form.cobertura} onChange={e => set('cobertura', e.target.value)} placeholder="0.00" />
                   </div>
                 </div>
+
                 <div>
-                  <label className={lbl}>Descripción</label>
-                  <textarea className={`${inp} resize-none`} rows={2} value={form.descripcion} onChange={e => set('descripcion', e.target.value)} placeholder="Descripción de la póliza…" />
+                  <label className={lbl}>Descripción <span className="text-rose-500">*</span></label>
+                  <textarea className={`${inp('descripcion')} resize-none`} rows={2} value={form.descripcion} onChange={e => set('descripcion', e.target.value)} placeholder="Descripción de la póliza…" />
+                  {errors.descripcion && <p className="text-[10px] text-rose-500 mt-0.5">{errors.descripcion}</p>}
                 </div>
               </div>
             </section>
           </div>
 
           {/* ── Documentos (fila completa) ── */}
-          <section className="mt-5 pt-5 border-t border-slate-100">
+          <section className="pt-4 border-t border-slate-100">
             <ProdSecHdr Icon={ListChecks}>Documentos requeridos para la solicitud</ProdSecHdr>
             <DocsRequeridosEditor
               value={form.documentos_requeridos}
@@ -586,7 +751,7 @@ function TarifarioModal({ producto, onClose }) {
   const vigenteCount = tarifas.filter(t => t.estado !== 'archivado').length
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 bg-black/50 z-[80] flex items-center justify-center p-4 backdrop-blur-sm">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in duration-200">
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
           <div>
@@ -765,6 +930,7 @@ export default function Productos() {
 
   useEffect(() => { loadProductos() }, [loadProductos])
 
+  const canCreate     = canAct('productos', 'create')
   const canEdit       = canAct('productos', 'edit')
   const canDelete     = canAct('productos', 'delete')
   const canManageDocs = canAct('productos', 'manage_docs')
@@ -804,17 +970,16 @@ export default function Productos() {
     : productos
 
   const dataRows = filtered.map(p => {
-    const primaDisplay = p.moneda === monedaDisplay ? p.prima : convertir(p.prima, p.moneda, monedaDisplay)
-    const cobDisplay   = p.moneda === monedaDisplay ? p.cobertura : convertir(p.cobertura, p.moneda, monedaDisplay)
-    const calcMeta     = CALCULO_BADGE[p.tipo_calculo] ?? CALCULO_BADGE.fijo
+    const calcMeta = CALCULO_BADGE[p.tipo_calculo] ?? CALCULO_BADGE.fijo
+    const monColor = p.moneda === 'USD' ? 'green' : p.moneda === 'EUR' ? 'amber' : 'blue'
     return {
       ...p,
       displayId: fmtId(p.id),
       tipob:  tipoBadge(p.tipo),
       calc:   <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold ${calcMeta.bg} ${calcMeta.text}`}>{calcMeta.label}</span>,
-      primab: fmtMonto(primaDisplay, monedaDisplay),
-      cob:    fmtMonto(cobDisplay,   monedaDisplay),
-      mon:    <span className={`badge badge-${monedaDisplay === 'USD' ? 'green' : monedaDisplay === 'EUR' ? 'amber' : 'blue'}`}>{monedaDisplay}</span>,
+      primab: fmtMonto(p.prima,     p.moneda),
+      cob:    fmtMonto(p.cobertura, p.moneda),
+      mon:    <span className={`badge badge-${monColor}`}>{p.moneda}</span>,
       acc: (
         <div className="flex gap-1 justify-center flex-nowrap items-center">
           <button onClick={() => showModal('productoDetail', { p })} className="p-2 rounded-lg bg-slate-50 text-slate-500 hover:bg-slate-100 transition inline-flex items-center justify-center" title="Ver detalles">
@@ -951,7 +1116,7 @@ export default function Productos() {
         placeholder="Buscar por nombre o descripción…"
         onSearch={setSearch}
         extra={
-          canEdit && (
+          canCreate && (
             <button onClick={() => setModalProd('new')} className="btn-primary ml-auto">
               <Plus className="w-4 h-4" />Nueva Póliza
             </button>
@@ -972,6 +1137,7 @@ export default function Productos() {
       {modalProd && (
         <ProductoModal
           producto={modalProd === 'new' ? null : modalProd}
+          productos={productos}
           onClose={() => setModalProd(null)}
           onSaved={loadProductos}
         />

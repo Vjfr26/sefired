@@ -240,4 +240,19 @@ class AuthController extends Controller
 
         return response()->json(['message' => 'Sesión cerrada correctamente.']);
     }
+
+    /** Verifica que la contraseña ingresada coincide con la del usuario en sesión. */
+    public function verifyPassword(Request $request)
+    {
+        $request->validate(['password' => 'required|string']);
+
+        $token   = str_replace('Bearer ', '', $request->header('Authorization'));
+        $usuario = Usuario::where('api_token', hash('sha256', $token))->first();
+
+        if (!$usuario || !Hash::check($request->input('password'), $usuario->password)) {
+            return response()->json(['error' => 'Contraseña incorrecta'], 401);
+        }
+
+        return response()->json(['ok' => true]);
+    }
 }

@@ -1,15 +1,40 @@
-FROM php:8.3-cli
+FROM dunglas/frankenphp:1-php8.3
 
-RUN apt-get update && apt-get install -y \
-    git curl zip unzip \
-    libpng-dev libonig-dev libxml2-dev libzip-dev \
-    && docker-php-ext-install pdo_mysql mbstring bcmath gd zip \
-    && rm -rf /var/lib/apt/lists/*
+# ── Extensiones PHP ────────────────────────────────────────────────────────────
+# install-php-extensions es el helper oficial de FrankenPHP/Docker PHP
+RUN install-php-extensions \
+    pdo_mysql \
+    mbstring \
+    bcmath \
+    gd \
+    zip \
+    opcache \
+    redis \
+    pcntl
+
+# ── OPcache (bytecode cache — PHP arranca 5x más rápido) ──────────────────────
+RUN { \
+    echo 'opcache.enable=1'; \
+    echo 'opcache.enable_cli=1'; \
+    echo 'opcache.memory_consumption=256'; \
+    echo 'opcache.interned_strings_buffer=32'; \
+    echo 'opcache.max_accelerated_files=32000'; \
+    echo 'opcache.validate_timestamps=0'; \
+    echo 'opcache.save_comments=1'; \
+    echo 'opcache.fast_shutdown=1'; \
+} > /usr/local/etc/php/conf.d/opcache.ini
+
+# ── Límites PHP ────────────────────────────────────────────────────────────────
+RUN { \
+    echo 'memory_limit=256M'; \
+    echo 'max_execution_time=60'; \
+    echo 'upload_max_filesize=20M'; \
+    echo 'post_max_size=20M'; \
+} > /usr/local/etc/php/conf.d/app.ini
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www
-
 COPY . .
 
 RUN composer install --no-interaction --prefer-dist --optimize-autoloader \

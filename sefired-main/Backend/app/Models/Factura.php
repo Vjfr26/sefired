@@ -21,6 +21,7 @@ class Factura extends Model
         'valor',
         'valor_bs',
         'forma_pago',
+        'moneda',
         'referencia',
         'usuario_id',
         'created_by',

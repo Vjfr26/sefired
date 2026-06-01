@@ -191,22 +191,56 @@ function SecLabel({ icon: Icon, label }) {
 // ── PASO 1: Seleccionar Producto ──────────────────────────────────────────────
 const CAT_ICON = { vehicular: Car, bienes: Package, personas: Users }
 
+const CAT_COLOR = {
+  vehicular: { bg: 'bg-blue-600',   light: 'bg-blue-50',   text: 'text-blue-600',   border: 'border-blue-500' },
+  bienes:    { bg: 'bg-violet-600', light: 'bg-violet-50', text: 'text-violet-600', border: 'border-violet-500' },
+  personas:  { bg: 'bg-emerald-600',light: 'bg-emerald-50',text: 'text-emerald-600',border: 'border-emerald-500' },
+  default:   { bg: 'bg-slate-600',  light: 'bg-slate-50',  text: 'text-slate-600',  border: 'border-slate-400' },
+}
+
 function Step1({ sim, setSim, onNext, onClose, productos }) {
-  const [err, setErr] = useState('')
+  const [err, setErr]   = useState('')
+  const [page, setPage] = useState(0)
+  const [cols, setCols] = useState(3)
+
+  // Ajuste responsive: 1 col móvil, 2 tablet, 3 desktop
+  useEffect(() => {
+    const update = () => {
+      if (window.innerWidth < 500) setCols(1)
+      else if (window.innerWidth < 900) setCols(2)
+      else setCols(3)
+    }
+    update()
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [])
+
+  const perPage    = cols * 2          // 2 filas siempre
+  const totalPages = Math.ceil(productos.length / perPage)
+  const pageItems  = productos.slice(page * perPage, page * perPage + perPage)
+
+  // Si el producto seleccionado no está en la página actual, ir a su página
+  useEffect(() => {
+    if (!sim.producto_id || perPage === 0) return
+    const idx = productos.findIndex(p => p.id === sim.producto_id)
+    if (idx >= 0) setPage(Math.floor(idx / perPage))
+  }, [sim.producto_id, productos, perPage])
 
   const handleNext = () => {
-    if (!sim.producto_id) { setErr('Selecciona un producto para continuar.'); return }
+    if (!sim.producto_id) { setErr('Selecciona un tipo de póliza para continuar.'); return }
     setErr('')
     onNext()
   }
+
+  const goPage = (p) => setPage(Math.max(0, Math.min(totalPages - 1, p)))
 
   return (
     <SimShell step={1} size="xl" onClose={onClose} footer={
       <>
         <button onClick={onClose} className="btn-secondary">Cancelar</button>
-        {sim.producto_id && (
-          <button onClick={handleNext} className="btn-primary">Continuar <ArrowRight className="w-4 h-4" /></button>
-        )}
+        <button onClick={handleNext} className="btn-primary">
+          Continuar <ArrowRight className="w-4 h-4" />
+        </button>
       </>
     }>
       {err && <p className="mb-3 text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2">{err}</p>}
@@ -218,40 +252,113 @@ function Step1({ sim, setSim, onNext, onClose, productos }) {
           No hay productos configurados. Un administrador debe crear productos primero.
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {productos.map(p => {
-            const CatIcon = CAT_ICON[p.categoria] ?? Shield
-            const on = sim.producto_id === p.id
-            return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => setSim(prev => ({ ...prev, producto_id: p.id, producto: p }))}
-                className={`flex items-start gap-3 p-4 rounded-2xl border-2 text-left transition-all ${on ? 'border-jm-blue bg-blue-50/50' : 'border-slate-200 hover:border-slate-300'}`}
-              >
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${on ? 'bg-jm-blue' : 'bg-slate-100'}`}>
-                  <CatIcon className={`w-4.5 h-4.5 ${on ? 'text-white' : 'text-slate-500'}`} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className={`text-sm font-bold ${on ? 'text-jm-blue' : 'text-slate-800'}`}>{p.nombre}</p>
-                  {p.codigo && <p className="text-[10px] font-mono text-slate-400">{p.codigo}</p>}
-                  <p className="text-xs text-slate-400 mt-0.5 line-clamp-2">{p.descripcion}</p>
-                  <div className="flex flex-wrap gap-1 mt-1.5">
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-semibold">{p.tipo_calculo}</span>
-                    {p.tipo_bien && p.tipo_bien !== 'ninguno' && <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-600 font-semibold capitalize">{p.tipo_bien}</span>}
-                    {p.derecho_poliza > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">+ {usd(p.derecho_poliza)}</span>}
+        <>
+          {/* Cuadrícula 3×2 con flechas a los lados */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => goPage(page - 1)}
+              disabled={page === 0}
+              className="w-8 h-8 shrink-0 rounded-full border border-slate-200 bg-white flex items-center justify-center hover:bg-slate-50 disabled:opacity-20 disabled:cursor-not-allowed transition shadow-sm"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 text-slate-600" />
+            </button>
+
+          <div className="grid gap-3 flex-1 min-h-[200px]"
+               style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+            {pageItems.map(p => {
+              const CatIcon = CAT_ICON[p.categoria] ?? Shield
+              const colors  = CAT_COLOR[p.categoria] ?? CAT_COLOR.default
+              const on      = sim.producto_id === p.id
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setSim(prev => ({ ...prev, producto_id: p.id, producto: p }))}
+                  className={`relative flex flex-col rounded-2xl border-2 text-left transition-all duration-200 overflow-hidden
+                    ${on
+                      ? `${colors.border} ${colors.light} shadow-lg`
+                      : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-md'
+                    }`}
+                >
+                  {/* Header */}
+                  <div className={`${on ? colors.bg : 'bg-slate-100'} px-3 pt-3 pb-2.5 transition-colors`}>
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center mb-1.5 ${on ? 'bg-white/20' : 'bg-white'}`}>
+                      <CatIcon className={`w-4 h-4 ${on ? 'text-white' : colors.text}`} />
+                    </div>
+                    <p className={`text-[13px] font-bold leading-tight ${on ? 'text-white' : 'text-slate-800'}`}>{p.nombre}</p>
                   </div>
-                </div>
-                {on && <Check className="w-4 h-4 text-jm-blue shrink-0 mt-0.5" />}
-              </button>
-            )
-          })}
-        </div>
+                  {/* Cuerpo */}
+                  <div className="px-3 py-2 flex-1 flex flex-col gap-1.5">
+                    <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">{p.descripcion}</p>
+                    <div className="flex flex-wrap gap-1 mt-auto">
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${on ? `${colors.light} ${colors.text}` : 'bg-slate-100 text-slate-500'}`}>
+                        {p.tipo_calculo}
+                      </span>
+                      {p.tipo_bien && p.tipo_bien !== 'ninguno' && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-600 font-semibold capitalize">{p.tipo_bien}</span>
+                      )}
+                      {p.derecho_poliza > 0 && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">+ {usd(p.derecho_poliza)}</span>
+                      )}
+                    </div>
+                  </div>
+                  {/* Check seleccionado */}
+                  {on && (
+                    <div className={`absolute top-2 right-2 w-5 h-5 rounded-full ${colors.bg} flex items-center justify-center shadow`}>
+                      <Check className="w-3 h-3 text-white" />
+                    </div>
+                  )}
+                </button>
+              )
+            })}
+            {/* Relleno para completar la última página */}
+            {Array.from({ length: perPage - pageItems.length }).map((_, i) => (
+              <div key={`empty-${i}`} className="rounded-2xl border-2 border-dashed border-slate-100" />
+            ))}
+          </div>
+
+            <button
+              onClick={() => goPage(page + 1)}
+              disabled={page === totalPages - 1}
+              className="w-8 h-8 shrink-0 rounded-full border border-slate-200 bg-white flex items-center justify-center hover:bg-slate-50 disabled:opacity-20 disabled:cursor-not-allowed transition shadow-sm"
+            >
+              <ArrowRight className="w-3.5 h-3.5 text-slate-600" />
+            </button>
+          </div>
+
+          {/* Indicadores de página */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 mt-3">
+              {Array.from({ length: totalPages }).map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => goPage(i)}
+                  className={`rounded-full transition-all duration-200 ${
+                    i === page
+                      ? 'w-6 h-3 bg-blue-600'
+                      : 'w-3 h-3 bg-slate-200 hover:bg-slate-400'
+                  }`}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Producto seleccionado */}
+          {sim.producto && (
+            <div className={`mt-3 px-4 py-2.5 rounded-xl flex items-center gap-3 ${(CAT_COLOR[sim.producto.categoria] ?? CAT_COLOR.default).light} border ${(CAT_COLOR[sim.producto.categoria] ?? CAT_COLOR.default).border}`}>
+              <Check className={`w-4 h-4 shrink-0 ${(CAT_COLOR[sim.producto.categoria] ?? CAT_COLOR.default).text}`} />
+              <div>
+                <p className="text-sm font-bold text-slate-800">{sim.producto.nombre}</p>
+                <p className="text-xs text-slate-500">{sim.producto.descripcion}</p>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
-      {/* Documentos requeridos del producto seleccionado */}
+      {/* Documentos requeridos */}
       {sim.producto?.documentos_requeridos?.length > 0 && (
-        <div className="mt-4 p-3.5 rounded-2xl bg-amber-50 border border-amber-100">
+        <div className="mt-3 p-3.5 rounded-2xl bg-amber-50 border border-amber-100">
           <p className="text-xs font-bold text-amber-700 mb-2 flex items-center gap-1.5">
             <FileText className="w-3.5 h-3.5" /> Documentos requeridos para este producto
           </p>
@@ -279,7 +386,7 @@ function Step2({ sim, setSim, onNext, onBack, onClose }) {
   const [saving,   setSaving]   = useState(false)
 
   const [nuevoForm, setNuevoForm] = useState({
-    nombre: sim.nombre || '', ci: sim.ci || '',
+    nombre: sim.nombre || '', ci: sim.ci?.replace(/^[VEJ]-?/i, '') || '', ciPrefijo: sim.ci?.match(/^([VEJ])-?/i)?.[1]?.toUpperCase() || 'V',
     tel: sim.tel || '', email: sim.email || '',
     direccion: sim.direccion || '', nacimiento: sim.nacimiento || '',
     sexo: sim.sexo || 'M',
@@ -315,10 +422,11 @@ function Step2({ sim, setSim, onNext, onBack, onClose }) {
     if (!nuevoForm.email.trim())  { setErr('El correo electrónico es obligatorio.'); return }
     if (!nuevoForm.ciudad.trim()) { setErr('La ciudad es obligatoria.'); return }
     if (!nuevoForm.nacimiento)    { setErr('La fecha de nacimiento es obligatoria.'); return }
+    const cedulaCompleta = `${nuevoForm.ciPrefijo}-${nuevoForm.ci.replace(/\D/g, '')}`
     setSaving(true); setErr('')
     try {
       const res = await createCliente({
-        nombre: nuevoForm.nombre, cedula: nuevoForm.ci,
+        nombre: nuevoForm.nombre, cedula: cedulaCompleta,
         telefono: nuevoForm.tel, correo: nuevoForm.email,
         direccion: nuevoForm.direccion, nacimiento: nuevoForm.nacimiento,
         sexo: nuevoForm.sexo === 'M' ? 'Masculino' : 'Femenino',
@@ -432,7 +540,22 @@ function Step2({ sim, setSim, onNext, onBack, onClose }) {
             </div>
             <div>
               <label className={lbl}>Cédula / RIF <span className="text-rose-500">*</span></label>
-              <input className={`${inp} font-mono`} value={nuevoForm.ci} onChange={e => setNf('ci', e.target.value)} placeholder="V-12345678" />
+              <div className="flex gap-1">
+                <select
+                  className="select-field text-sm font-bold w-16 shrink-0"
+                  value={nuevoForm.ciPrefijo}
+                  onChange={e => {
+                    setNf('ciPrefijo', e.target.value)
+                    setNf('nacionalidad', e.target.value === 'V' ? 'Venezolano/a' : e.target.value === 'E' ? 'Extranjero/a' : 'Venezolano/a')
+                  }}
+                >
+                  <option value="V">V</option>
+                  <option value="E">E</option>
+                  <option value="J">J</option>
+                </select>
+                <input className={`${inp} font-mono flex-1`} value={nuevoForm.ci} onChange={e => setNf('ci', e.target.value.replace(/\D/g, ''))} placeholder="12345678" maxLength={10} />
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1">V=venezolano · E=extranjero · J=empresa</p>
             </div>
             <div>
               <label className={lbl}>Sexo</label>
@@ -1361,7 +1484,7 @@ export default function Simulador() {
             {tasaBcv && (
               <p className="text-xs text-white/40 mt-2">
                 <DollarSign className="w-3 h-3 inline mr-1" />
-                Tasa BCV hoy: <strong className="text-white/60">Bs. {tasaBcv.toFixed(2)}</strong>
+                Tasa BCV hoy: <strong className="text-white/60">Bs. {fmtTasa(tasaBcv)}</strong>
               </p>
             )}
           </div>

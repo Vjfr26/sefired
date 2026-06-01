@@ -43,3 +43,17 @@ export async function updatePoliza(id, data) {
   if (!res.ok) throw new Error(json.error || json.message || 'Error al actualizar póliza')
   return json
 }
+
+/**
+ * Obtiene el blob PDF oficial de una póliza generado por el backend (diseño La Venezolana).
+ * Devuelve el Blob para que el llamador decida si abrir en pestaña o forzar descarga.
+ * @param {number} id  ID de la póliza
+ */
+export async function downloadPolizaPdf(id) {
+  const res = await fetch(`${API}/${id}/pdf`, { headers: getAuthHeaders() })
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({}))
+    throw new Error(json.error || json.message || 'Error al generar el PDF')
+  }
+  return res.blob()
+}

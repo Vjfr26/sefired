@@ -36,6 +36,8 @@ Route::middleware([\App\Http\Middleware\ApiTokenMiddleware::class, 'throttle:120
     Route::post('/logout', [AuthController::class, 'logout']);
     // Cambio de contraseña: límite estricto para evitar fuerza bruta interna
     Route::post('/user/change-password', [AuthController::class, 'changePassword'])->middleware('throttle:5,10');
+    // Verificación de contraseña para confirmar acciones destructivas
+    Route::post('/user/verify-password', [AuthController::class, 'verifyPassword'])->middleware('throttle:10,1');
 
     // Perfil del usuario en sesión — solo campos necesarios, nunca el modelo completo
     Route::get('/user', fn(Request $r) => response()->json([
@@ -65,6 +67,7 @@ Route::middleware([\App\Http\Middleware\ApiTokenMiddleware::class, 'throttle:120
 
     // ── Escritura — throttle adicional: 40 req/min por usuario ───────────────
     Route::middleware('throttle:api_write')->group(function () {
+        Route::get('/polizas/{id}/pdf',            [PolizaController::class,          'pdf'])->middleware('perm:cotizaciones,view');
         Route::put('/polizas/{id}',                [PolizaController::class,          'update'])->middleware('perm:cotizaciones,edit');
         Route::post('/polizas/{id}/renovar',       [PolizaController::class,          'renovar'])->middleware('perm:cotizaciones,emit');
         Route::post('/clientes',                   [ClienteController::class,         'store'])->middleware('perm:cotizaciones,create');

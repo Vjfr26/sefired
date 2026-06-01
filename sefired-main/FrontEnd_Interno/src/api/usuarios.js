@@ -95,3 +95,15 @@ export async function changePassword(data) {
   }
   return json
 }
+
+/** Verifica que la contraseña ingresada coincide con la del usuario en sesión.
+ *  Lanza error si es incorrecta. */
+export async function verifyPassword(password) {
+  const res = await fetch(`${API_BASE_URL}/api/user/verify-password`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ password }),
+  })
+  if (!res.ok) throw new Error('Contraseña incorrecta')
+  return true
+}

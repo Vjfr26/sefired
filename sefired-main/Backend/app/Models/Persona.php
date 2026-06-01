@@ -31,6 +31,7 @@ class Persona extends Model
         'actividad',
         'archivo',
         'activo',
+        'motivo_bloqueo',
     ];
 
     protected function casts(): array

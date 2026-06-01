@@ -102,10 +102,11 @@ export async function fetchPolizasCliente(id) {
  *
  * @param {number} id  ID numérico del cliente
  */
-export async function toggleCliente(id) {
+export async function toggleCliente(id, motivo = null) {
   const res = await fetch(`${API}/${id}/toggle`, {
     method: 'PATCH',
-    headers: getAuthHeaders(),
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ motivo }),
   })
   const json = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(json.message || 'Error al cambiar estado del cliente')

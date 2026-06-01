@@ -21,6 +21,7 @@
 import {
   Home, Calculator, Package, UserCog, Users, Car,
   BarChart3, DollarSign, Settings,
+  Instagram, Facebook, Twitter,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { NAV, fmtTasa } from '../utils/helpers.jsx'
@@ -121,6 +122,36 @@ export default function Sidebar({ onClose, sidebarOpen = false }) {
               </div>
             </div>
           </div>
+        </div>
+        {/* ── Redes sociales ── */}
+        <div className="mt-6 pb-4 flex items-center justify-center gap-4">
+          <a
+            href="https://www.instagram.com/jmseguros"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Instagram"
+            className="p-2 rounded-xl text-white/40 hover:text-pink-400 hover:bg-white/10 transition-colors"
+          >
+            <Instagram className="w-4 h-4" />
+          </a>
+          <a
+            href="https://www.facebook.com/jmseguros"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Facebook"
+            className="p-2 rounded-xl text-white/40 hover:text-blue-400 hover:bg-white/10 transition-colors"
+          >
+            <Facebook className="w-4 h-4" />
+          </a>
+          <a
+            href="https://twitter.com/jmseguros"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Twitter / X"
+            className="p-2 rounded-xl text-white/40 hover:text-sky-400 hover:bg-white/10 transition-colors"
+          >
+            <Twitter className="w-4 h-4" />
+          </a>
         </div>
       </nav>
     </aside>

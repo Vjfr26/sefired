@@ -20,6 +20,20 @@ export default defineConfig({
   ],
   build: {
     cssMinify: 'esbuild',
+    // Separar vendedores de código de la app:
+    // react + react-dom se cachean independientemente del código de la app
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
+            return 'react-vendor'
+          }
+          if (id.includes('node_modules/lucide-react')) {
+            return 'lucide'
+          }
+        },
+      },
+    },
   },
   server: {
     host: true,

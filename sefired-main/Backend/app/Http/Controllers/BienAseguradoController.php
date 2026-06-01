@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\BienAseguradoMail;
 use App\Models\BienAsegurado;
 use App\Models\BienPersonaRol;
+use App\Models\EmailLog;
 use App\Models\Persona;
 use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 
 /**
  * CRUD de bienes asegurados.
@@ -30,7 +33,7 @@ class BienAseguradoController extends Controller
 
     public function index(Request $request)
     {
-        $query = BienAsegurado::with(['persona', 'roles.persona'])
+        $query = BienAsegurado::with(['persona', 'roles.persona', 'solicitudes.polizas'])
             ->orderByDesc('created_at');
 
         if ($request->filled('tipo')) {
@@ -70,6 +73,14 @@ class BienAseguradoController extends Controller
 
         $this->logActivity('crear_bien', "Bien [{$bien->tipo}] registrado — ID {$bien->id}");
 
+        $personaBien = $bien->fresh('persona')->persona;
+        if ($personaBien?->correo) {
+            try {
+                Mail::to($personaBien->correo)->queue(new BienAseguradoMail($bien, 'registrado', $personaBien->nombre));
+                EmailLog::registrar('bien_registrado', $personaBien->correo, 'Bien asegurado registrado', $personaBien->id);
+            } catch (\Throwable) {}
+        }
+
         return response()->json($this->formatBien($bien->fresh('persona')), 201);
     }
 
@@ -88,6 +99,14 @@ class BienAseguradoController extends Controller
         $bien->update($data);
 
         $this->logActivity('actualizar_bien', "Bien ID {$bien->id} actualizado");
+
+        $personaBien = $bien->fresh('persona')->persona;
+        if ($personaBien?->correo) {
+            try {
+                Mail::to($personaBien->correo)->queue(new BienAseguradoMail($bien, 'actualizado', $personaBien->nombre));
+                EmailLog::registrar('bien_actualizado', $personaBien->correo, 'Bien asegurado actualizado', $personaBien->id);
+            } catch (\Throwable) {}
+        }
 
         return response()->json($this->formatBien($bien->fresh('persona')));
     }
@@ -164,6 +183,25 @@ class BienAseguradoController extends Controller
             ])->values(),
             'created_at'      => $b->created_at?->toDateTimeString(),
         ];
+
+        // Incluir fechas de la póliza vigente (o última) asociada al bien
+        if ($b->solicitudes->isNotEmpty()) {
+            $polizas = $b->solicitudes->flatMap->polizas;
+            $activa  = $polizas->where('status', 'ACTIVA')->sortByDesc('fecha_emision')->first();
+            $polVig  = $activa ?? $polizas->sortByDesc('fecha_emision')->first();
+            if ($polVig) {
+                $out['poliza_id']             = $polVig->id;
+                $out['poliza_nro']            = $polVig->nro_contrato;
+                $out['poliza_status']         = $polVig->status;
+                $out['poliza_persona_id']     = $b->persona_id;
+                $out['poliza_fecha_emision']  = $polVig->fecha_emision?->format('d/m/Y');
+                $out['poliza_fecha_venc']     = $polVig->fecha_vencimiento?->format('d/m/Y');
+                $out['poliza_venc_iso']       = $polVig->fecha_vencimiento?->format('Y-m-d');
+                $out['dias_vencimiento']      = $polVig->fecha_vencimiento
+                    ? (int) now()->diffInDays($polVig->fecha_vencimiento, false)
+                    : null;
+            }
+        }
 
         if ($full) {
             $out['solicitudes'] = $b->solicitudes->map(fn($s) => [

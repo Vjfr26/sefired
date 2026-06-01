@@ -25,7 +25,7 @@ export default function Toast() {
   return (
     // pointer-events-none en el contenedor para que el fondo no bloquee clics.
     // Cada toast individual vuelve a tener pointer-events-auto por si se agrega un botón de cerrar.
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none">
+    <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-2 pointer-events-none">
       {toasts.map(t => (
         <div
           key={t.id}

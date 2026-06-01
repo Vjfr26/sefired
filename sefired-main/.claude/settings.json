@@ -189,7 +189,27 @@
       "Bash(curl -s http://localhost:8000/api/auth/login -X POST -H \"Content-Type: application/json\" -H \"Accept: application/json\" -d '{\"nick\":\"admin\",\"password\":\"wrongpass\"}')",
       "Bash(curl -s http://localhost:8000/api/login -X POST -H \"Content-Type: application/json\" -H \"Accept: application/json\" -d '{\"nick\":\"admin\",\"password\":\"wrongpass\"}')",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173/)",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5174/)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5174/)",
+      "Bash(curl -s http://localhost:8000/api/portal/productos -H \"Accept: application/json\")",
+      "Bash(curl -s -X POST http://localhost:8000/api/portal/cotizacion -H 'Content-Type: application/json' -H 'Accept: application/json' -d '{\"nombre\":\"Juan\",\"apellido\":\"Pérez\",\"cedula\":\"V-12345678\",\"telefono\":\"0414-1234567\",\"email\":\"juan@test.com\",\"estado\":\"Miranda\",\"tipo_seguro\":\"vehiculo\",\"prima_estimada\":350}')",
+      "Bash(curl -s http://localhost:5174/api/portal/productos -H \"Accept: application/json\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"http://localhost:5174/api/portal/productos\" -H \"Accept: application/json\")",
+      "Bash(curl -s \"http://localhost:5174/api/portal/productos\" -H \"Accept: application/json\")",
+      "Bash(curl -s -X POST \"http://localhost:5174/api/portal/cotizacion\" -H \"Content-Type: application/json\" -H \"Accept: application/json\" -d '{\"nombre\":\"Ana\",\"apellido\":\"López\",\"cedula\":\"V-22334455\",\"telefono\":\"0412-5556677\",\"email\":\"ana@test.com\",\"estado\":\"Carabobo\",\"tipo_seguro\":\"hogar\",\"prima_estimada\":220}')",
+      "Bash(curl -s -X POST http://localhost:8000/api/login -H 'Content-Type: application/json' -H 'Accept: application/json' -d '{\"nick\":\"admin\",\"password\":\"Admin1234!\",\"turnstile_token\":\"dev-bypass\"}')",
+      "Bash(grep -E \"\\\\.jsx$|\\\\.tsx$\")",
+      "Bash(node --check /home/victor/Documents/Proyectos/aseguradora2/sefired-main/FrontEnd_Clientes/public/js/main.js)",
+      "Bash(curl -s http://localhost:8000/api/portal/productos)",
+      "Bash(docker exec *)",
+      "Bash(python3 -m json.tool)",
+      "Bash(python3 -c \"import json,sys; [print\\(f'id={p[\\\\\"id\\\\\"]} nombre={p[\\\\\"nombre\\\\\"]} cat={p[\\\\\"categoria\\\\\"]} rv={p[\\\\\"requiere_vehiculo\\\\\"]}'\\) for p in json.load\\(sys.stdin\\)]\")",
+      "Bash(python3 -c \"import json,sys; [print\\(f'  {p[\\\\\"id\\\\\"]:2} | {p[\\\\\"nombre\\\\\"]:<40} | cat={str\\(p[\\\\\"categoria\\\\\"]\\):<12} | rv={p[\\\\\"requiere_vehiculo\\\\\"]}'\\) for p in json.load\\(sys.stdin\\)]\")",
+      "Bash(python3 -c \"import json,sys; [print\\(f'  {p[\\\\\"id\\\\\"]:2} | {p[\\\\\"nombre\\\\\"]:<45} | tipo={str\\(p[\\\\\"tipo\\\\\"]\\):<12} | cat={str\\(p[\\\\\"categoria\\\\\"]\\)}'\\) for p in json.load\\(sys.stdin\\)]\")",
+      "Bash(python3 -c \"import json,sys; p=json.load\\(sys.stdin\\)[0]; print\\('OK - campo derecho_poliza:', p['derecho_poliza'], '| tipo_calculo:', p['tipo_calculo']\\)\")",
+      "Bash(curl -s -X POST http://localhost:8000/api/portal/verificar -H 'Content-Type: application/json' -d '{\"cedula\":\"V87654321\"}')",
+      "Bash(curl -s -X POST http://localhost:8000/api/portal/verificar -H 'Content-Type: application/json' -d '{\"cedula\":\"V99999999\"}')",
+      "Bash(curl -s -X POST http://localhost:8000/api/portal/verificar -H 'Content-Type: application/json' -H 'Accept: application/json' -d '{\"cedula\":\"V87654321\"}')",
+      "Bash(curl -s -X POST http://localhost:8080/api/portal/verificar -H 'Content-Type: application/json' -H 'Accept: application/json' -d '{\"cedula\":\"V87654321\"}')"
     ]
   }
 }

@@ -41,7 +41,7 @@ function canvasHash() {
     ctx.fillStyle = '#f36'
     ctx.fillRect(100, 1, 50, 18)
     ctx.fillStyle = '#069'
-    ctx.fillText('Sefired🔐', 2, 4)
+    ctx.fillText('J&M🔐', 2, 4)
     // Los últimos 24 caracteres del data URL son únicos por GPU+driver+OS
     return c.toDataURL().slice(-24)
   } catch {
