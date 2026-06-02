@@ -16,6 +16,7 @@ const PAGE_MAP = {
   'tas-registro':  lazy(() => import('./Tasas.jsx')),
   'usr-lista':     lazy(() => import('./Usuarios.jsx')),
   'conf-menu':     lazy(() => import('./Configuracion.jsx')),
+  'renovaciones':  lazy(() => import('./Renovaciones.jsx')),
 }
 
 const PageSpinner = () => (

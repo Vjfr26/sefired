@@ -20,7 +20,7 @@
  */
 import {
   Home, Calculator, Package, UserCog, Users, Car,
-  BarChart3, DollarSign, Settings,
+  BarChart3, DollarSign, Settings, RefreshCw,
   Instagram, Facebook, Twitter,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
@@ -31,6 +31,7 @@ const ICON_MAP = {
   home: Home, calculator: Calculator, package: Package,
   'user-cog': UserCog, users: Users, car: Car,
   'bar-chart-3': BarChart3, 'dollar-sign': DollarSign, settings: Settings,
+  'refresh-cw': RefreshCw,
 }
 
 export default function Sidebar({ onClose, sidebarOpen = false }) {

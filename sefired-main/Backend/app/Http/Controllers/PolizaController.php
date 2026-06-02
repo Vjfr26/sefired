@@ -8,6 +8,7 @@ use App\Models\EmailLog;
 use App\Models\Poliza;
 use App\Models\Factura;
 use App\Models\Solicitud;
+use App\Models\SolicitudRenovacionQr;
 use App\Models\IndicadorEconomico;
 use App\Services\WorkflowService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -113,7 +114,6 @@ class PolizaController extends Controller
 
     /**
      * Genera el PDF de la póliza.
-     * La URL del QR se configura con POLIZA_QR_BASE_URL en el .env.
      */
     public function pdf($id)
     {
@@ -122,22 +122,7 @@ class PolizaController extends Controller
         $snap  = $poliza->snapshot_datos ?? [];
         $attrs = $snap['bien']['atributos'] ?? $poliza->solicitud?->bien?->atributos ?? [];
 
-        // Cédula: snapshot → columna poliza → persona relacionada → tomador de cotización
-        $ci = $snap['asegurado']['ci']
-            ?? $poliza->asegurado_ci
-            ?? $poliza->solicitud?->persona?->cedula
-            ?? $poliza->solicitud?->ci_tomador
-            ?? '';
-
-        // Placa: snapshot → bien relacionado
-        $placa = strtoupper($attrs['placa'] ?? '');
-
-        // El QR usa el número de contrato de J&M (POL-2026-XXXXX)
-        // que es el mismo que se envía en el reporte a La Venezolana
-        $baseUrl = rtrim(env('POLIZA_QR_BASE_URL', 'https://lavenezolanadeseguros.com.ve/qr.php'), '/');
-        $qrUrl   = $baseUrl . '?poliza=' . urlencode($poliza->nro_contrato)
-                            . '&cedula=' . urlencode($ci)
-                            . '&placa='  . urlencode($placa);
+        $qrUrl = url('/ver/' . urlencode($poliza->nro_contrato));
 
         // app('qrcode') fuerza instancia fresca (bind, no singleton) evitando
         // el cache de la facade que puede contaminar el format entre requests.
@@ -185,6 +170,139 @@ class PolizaController extends Controller
             'marca'             => $attrs['marca'] ?? '—',
             'modelo'            => $attrs['modelo'] ?? '—',
         ]);
+    }
+
+    /**
+     * Landing pública del QR: muestra información completa de la póliza
+     * con pestañas para visualizar, reimprimir y solicitar renovación.
+     */
+    public function landing($nroContrato)
+    {
+        $poliza = Poliza::with(['solicitud.bien', 'solicitud.persona', 'producto'])
+                        ->where('nro_contrato', $nroContrato)
+                        ->whereNull('deleted_at')
+                        ->first();
+
+        if (!$poliza) {
+            return response()->view('poliza-landing', [
+                'encontrada'   => false,
+                'nro_contrato' => $nroContrato,
+            ]);
+        }
+
+        $snap  = $poliza->snapshot_datos ?? [];
+        $attrs = $snap['bien']['atributos'] ?? $poliza->solicitud?->bien?->atributos ?? [];
+
+        // Tasas del día más recientes
+        $tasaUsd = (float) (IndicadorEconomico::usd()->orderBy('fecha', 'desc')->value('valor') ?? 0);
+        $tasaEur = (float) (IndicadorEconomico::eur()->orderBy('fecha', 'desc')->value('valor') ?? 0);
+        $totalUsd = (float) ($poliza->total ?? 0);
+        $totalBs  = $tasaUsd > 0 ? round($totalUsd * $tasaUsd, 2) : null;
+        $totalEur = ($tasaEur > 0 && $tasaUsd > 0) ? round($totalUsd * $tasaUsd / $tasaEur, 2) : null;
+
+        return response()->view('poliza-landing', [
+            'encontrada'        => true,
+            'nro_contrato'      => $poliza->nro_contrato,
+            'status'            => $poliza->status,
+            'fecha_emision'     => $poliza->fecha_emision?->format('d/m/Y'),
+            'fecha_vencimiento' => $poliza->fecha_vencimiento?->format('d/m/Y'),
+            'asegurado_nombre'  => $snap['asegurado']['nombre'] ?? $poliza->asegurado_nombre ?? '—',
+            'asegurado_ci'      => $snap['asegurado']['ci'] ?? $poliza->asegurado_ci ?? '—',
+            'producto'          => $snap['producto']['nombre'] ?? $poliza->producto?->nombre ?? '—',
+            'placa'             => strtoupper($attrs['placa'] ?? '—'),
+            'marca'             => strtoupper($attrs['marca'] ?? '—'),
+            'modelo'            => strtoupper($attrs['modelo'] ?? '—'),
+            'anio'              => $attrs['anio'] ?? '—',
+            'color'             => strtoupper($attrs['color'] ?? '—'),
+            'serial_carroceria' => strtoupper($attrs['serial_carroceria'] ?? $attrs['serialCarroceria'] ?? '—'),
+            'serial_motor'      => strtoupper($attrs['serial_motor'] ?? $attrs['serialMotor'] ?? '—'),
+            'total'             => $totalUsd,
+            'total_bs'          => $totalBs,
+            'total_eur'         => $totalEur,
+            'tasa_usd'          => $tasaUsd,
+            'tasa_eur'          => $tasaEur,
+        ]);
+    }
+
+    /**
+     * Descarga pública del PDF de la póliza (sin autenticación).
+     */
+    public function pdfPublico($nroContrato)
+    {
+        $poliza = Poliza::with(['solicitud.bien', 'solicitud.persona', 'producto', 'vendedor'])
+                        ->where('nro_contrato', $nroContrato)
+                        ->whereNull('deleted_at')
+                        ->firstOrFail();
+
+        $qrUrl = url('/ver/' . urlencode($poliza->nro_contrato));
+
+        try {
+            $qrSvg  = app('qrcode')->format('svg')->size(150)->errorCorrection('H')->generate($qrUrl);
+            $qrCode = 'data:image/svg+xml;base64,' . base64_encode((string) $qrSvg);
+        } catch (\Throwable $e) {
+            $qrCode = null;
+        }
+
+        $pdf = Pdf::loadView('poliza-pdf', compact('poliza', 'qrCode'))
+                  ->setPaper('letter', 'portrait');
+
+        $filename = 'poliza-' . str_replace(['/', ' '], '-', $poliza->nro_contrato) . '.pdf';
+
+        return $pdf->download($filename);
+    }
+
+    /**
+     * Recibe una solicitud pública de renovación desde la landing del QR.
+     * Los datos personales se toman del snapshot de la póliza, no del formulario.
+     * Acepta múltiples métodos de pago (pagos parciales en distintas monedas).
+     */
+    public function solicitarRenovacion(Request $request, $nroContrato)
+    {
+        $poliza = Poliza::where('nro_contrato', $nroContrato)
+                        ->whereNull('deleted_at')
+                        ->firstOrFail();
+
+        $metodosPermitidos = [
+            'Transferencia Bancaria', 'Pago Móvil', 'Zelle', 'Binance / Cripto',
+        ];
+
+        $data = $request->validate([
+            'pagos'                => 'required|array|min:1|max:5',
+            'pagos.*.metodo'       => 'required|string|in:' . implode(',', $metodosPermitidos),
+            'pagos.*.banco'        => 'nullable|string|max:80|regex:/^[\w\s\-\.áéíóúÁÉÍÓÚñÑ]+$/u',
+            'pagos.*.referencia'   => ['required', 'string', 'max:100', 'regex:/^[\w\s\-\/]+$/'],
+            'pagos.*.monto'        => 'required|numeric|min:0.01|max:9999999',
+            'pagos.*.moneda'       => 'required|string|in:USD,EUR,Bs.',
+        ]);
+
+        // Sanitizar cada referencia (quitar caracteres que no sean alfanuméricos, guión, barra, espacio)
+        $pagosLimpios = collect($data['pagos'])->map(fn($p) => [
+            'metodo'     => $p['metodo'],
+            'banco'      => isset($p['banco']) ? strip_tags(trim($p['banco'])) : null,
+            'referencia' => preg_replace('/[^\w\s\-\/]/', '', trim($p['referencia'])),
+            'monto'      => round((float) $p['monto'], 2),
+            'moneda'     => $p['moneda'],
+        ])->values()->all();
+
+        // Datos personales desde el snapshot de la póliza — no del cliente
+        $snap     = $poliza->snapshot_datos ?? [];
+        $persona  = $poliza->solicitud?->persona;
+        $nombre   = $snap['asegurado']['nombre'] ?? $poliza->asegurado_nombre ?? $persona?->nombre ?? null;
+        $telefono = $snap['tomador']['telefono'] ?? $persona?->celular ?? $persona?->telefono ?? null;
+        $correo   = $persona?->correo ?? null;
+
+        SolicitudRenovacionQr::create([
+            'poliza_id'           => $poliza->id,
+            'nro_contrato'        => $poliza->nro_contrato,
+            'nombre'              => $nombre,
+            'telefono'            => $telefono,
+            'correo'              => $correo,
+            'pagos'               => $pagosLimpios,
+            'total_usd_estimado'  => null, // El asesor verifica el monto real
+            'status'              => 'PENDIENTE',
+        ]);
+
+        return response()->json(['ok' => true]);
     }
 
     /**

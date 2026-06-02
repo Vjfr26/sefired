@@ -37,8 +37,7 @@ class PolizaEmitidaMail extends Mailable
             ?? ($snap['bien']['tipo'] ?? '—');
 
         try {
-            $qrUrl  = rtrim(env('POLIZA_QR_BASE_URL', 'https://lavenezolanadeseguros.com.ve/qr.php'), '/')
-                    . '?poliza=' . urlencode($pol->nro_contrato);
+            $qrUrl  = url('/ver/' . urlencode($pol->nro_contrato));
             $qrSvg  = app(QrGenerator::class)->format('svg')->size(120)->generate($qrUrl);
             $qrCode = 'data:image/svg+xml;base64,' . base64_encode((string) $qrSvg);
         } catch (\Throwable) {
@@ -62,7 +61,7 @@ class PolizaEmitidaMail extends Mailable
                 'primaDolares'    => number_format((float) $pol->total, 2),
                 'tasaEmision'     => number_format((float) ($pol->tasa_emision ?? 0), 4),
                 'totalBs'         => number_format((float) $pol->total_bs, 2),
-                'verificarUrl'    => url('/verificar/' . $pol->nro_contrato),
+                'verificarUrl'    => url('/ver/' . $pol->nro_contrato),
                 'qrCode'          => $qrCode,
             ],
         );
@@ -78,10 +77,7 @@ class PolizaEmitidaMail extends Mailable
             $ci    = $snap['asegurado']['ci'] ?? $pol->asegurado_ci ?? '';
             $placa = strtoupper($attrs['placa'] ?? '');
 
-            $qrUrl  = rtrim(env('POLIZA_QR_BASE_URL', 'https://lavenezolanadeseguros.com.ve/qr.php'), '/')
-                    . '?poliza=' . urlencode($pol->nro_contrato)
-                    . '&cedula=' . urlencode($ci)
-                    . '&placa='  . urlencode($placa);
+            $qrUrl  = url('/ver/' . urlencode($pol->nro_contrato));
             $qrSvg  = app(QrGenerator::class)->format('svg')->size(150)->errorCorrection('H')->generate($qrUrl);
             $qrCode = 'data:image/svg+xml;base64,' . base64_encode((string) $qrSvg);
         } catch (\Throwable) {

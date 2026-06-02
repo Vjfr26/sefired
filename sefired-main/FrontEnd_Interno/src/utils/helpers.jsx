@@ -415,15 +415,16 @@ export function canAct(user, moduleId, action = 'view') {
  * viewId: identificador de la primera vista que se abre al hacer clic
  */
 export const NAV = [
-  { id: 'home',         label: 'Inicio',            icon: 'home',        viewId: 'home' },
-  { id: 'cotizaciones', label: 'Simulador',          icon: 'calculator',  viewId: 'cot-simulador' },
-  { id: 'productos',    label: 'Productos',           icon: 'package',     viewId: 'cat-productos' },
-  { id: 'usuarios',     label: 'Usuarios',           icon: 'user-cog',    viewId: 'usr-lista' },
-  { id: 'clientes',     label: 'Clientes & Pólizas', icon: 'users',       viewId: 'cli-cliente' },
-  { id: 'vehiculos',    label: 'Bienes',              icon: 'car',         viewId: 'cli-vehiculo' },
-  { id: 'reportes',     label: 'Reportes',           icon: 'bar-chart-3', viewId: 'rep-menu' },
-  { id: 'tasas',        label: 'Tasa del Día',       icon: 'dollar-sign', viewId: 'tas-registro' },
-  { id: 'config',       label: 'Configuración',      icon: 'settings',    viewId: 'conf-menu' },
+  { id: 'home',          label: 'Inicio',              icon: 'home',          viewId: 'home' },
+  { id: 'cotizaciones',  label: 'Simulador',            icon: 'calculator',    viewId: 'cot-simulador' },
+  { id: 'productos',     label: 'Productos',             icon: 'package',       viewId: 'cat-productos' },
+  { id: 'usuarios',      label: 'Usuarios',             icon: 'user-cog',      viewId: 'usr-lista' },
+  { id: 'clientes',      label: 'Clientes & Pólizas',   icon: 'users',         viewId: 'cli-cliente' },
+  { id: 'vehiculos',     label: 'Bienes',                icon: 'car',           viewId: 'cli-vehiculo' },
+  { id: 'renovaciones',  label: 'Renovaciones QR',      icon: 'refresh-cw',    viewId: 'renovaciones' },
+  { id: 'reportes',      label: 'Reportes',             icon: 'bar-chart-3',   viewId: 'rep-menu' },
+  { id: 'tasas',         label: 'Tasa del Día',         icon: 'dollar-sign',   viewId: 'tas-registro' },
+  { id: 'config',        label: 'Configuración',        icon: 'settings',      viewId: 'conf-menu' },
 ]
 
 /**
@@ -440,7 +441,8 @@ export const VIEW_META = {
   'rep-menu':      { navId: 'reportes',     title: 'Reportes',           sub: 'Generación y exportación de reportes' },
   'tas-registro':  { navId: 'tasas',        title: 'Tasas del Día',      sub: 'Registro de tasas BCV — Dólar y Euro' },
   'usr-lista':     { navId: 'usuarios',     title: 'Usuarios',           sub: 'Gestión de usuarios, roles y permisos' },
-  'conf-menu':     { navId: 'config',       title: 'Configuración',      sub: 'Ajustes, seguridad y auditoría del sistema' },
+  'conf-menu':     { navId: 'config',        title: 'Configuración',       sub: 'Ajustes, seguridad y auditoría del sistema' },
+  'renovaciones':  { navId: 'renovaciones', title: 'Renovaciones QR',     sub: 'Solicitudes de renovación recibidas por código QR' },
   'cli-tomador':   { navId: 'clientes',     title: 'Clientes & Pólizas', sub: 'Gestión de tomadores' },
   'cli-conductor': { navId: 'clientes',     title: 'Clientes & Pólizas', sub: 'Gestión de conductores' },
   'cat-tipos':     { navId: 'productos',    title: 'Productos',           sub: 'Tipos, marcas y modelos' },

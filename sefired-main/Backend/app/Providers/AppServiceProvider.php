@@ -10,6 +10,7 @@ use App\Observers\AuditObserver;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -18,6 +19,10 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Forzar que url() siempre use APP_URL, ignorando el host del request.
+        // Sin esto, en Docker url() devuelve http://backend:8000/... (nombre del servicio).
+        URL::forceRootUrl(config('app.url'));
+
         $this->configureRateLimiters();
 
         $observer = new AuditObserver();

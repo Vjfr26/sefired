@@ -16,6 +16,7 @@ use App\Http\Controllers\TasaController;
 use App\Http\Controllers\PolizaController;
 use App\Http\Controllers\UnderwritingController;
 use App\Http\Controllers\PortalController;
+use App\Http\Controllers\SolicitudRenovacionQrController;
 
 // ── Portal público (sin autenticación) — cotizador para clientes ──────────────
 Route::prefix('portal')->middleware('throttle:60,1')->group(function () {
@@ -70,6 +71,9 @@ Route::middleware([\App\Http\Middleware\ApiTokenMiddleware::class, 'throttle:120
         Route::get('/polizas/{id}/pdf',            [PolizaController::class,          'pdf'])->middleware('perm:cotizaciones,view');
         Route::put('/polizas/{id}',                [PolizaController::class,          'update'])->middleware('perm:cotizaciones,edit');
         Route::post('/polizas/{id}/renovar',       [PolizaController::class,          'renovar'])->middleware('perm:cotizaciones,emit');
+        Route::get('/renovaciones-qr',             [SolicitudRenovacionQrController::class, 'index'])->middleware('perm:cotizaciones,view')->withoutMiddleware('throttle:api_write');
+        Route::post('/renovaciones-qr/{id}/autorizar', [SolicitudRenovacionQrController::class, 'autorizar'])->middleware('perm:cotizaciones,emit');
+        Route::post('/renovaciones-qr/{id}/rechazar',  [SolicitudRenovacionQrController::class, 'rechazar'])->middleware('perm:cotizaciones,edit');
         Route::post('/clientes',                   [ClienteController::class,         'store'])->middleware('perm:cotizaciones,create');
         Route::put('/clientes/{id}',               [ClienteController::class,         'update'])->middleware('perm:cotizaciones,edit');
         Route::patch('/clientes/{id}/toggle',      [ClienteController::class,         'toggle'])->middleware('perm:cotizaciones,edit');
