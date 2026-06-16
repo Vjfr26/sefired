@@ -1,0 +1,22 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('poliza', function (Blueprint $table) {
+            $table->string('frecuencia_pago', 10)->default('Anual')->after('pago');
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('poliza', function (Blueprint $table) {
+            $table->dropColumn('frecuencia_pago');
+        });
+    }
+};

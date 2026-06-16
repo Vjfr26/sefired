@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="J&M — Seguros y Fianzas en Venezuela. Cotiza tu seguro en línea." />
+  <title>J&M | Seguros & Fianzas</title>
+  <link rel="icon" type="image/png" href="assets/logo-sinfondo.png" />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="css/styles.css" />
+
+  <!-- Cloudflare Turnstile -->
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
+</head>
+<body class="font-sans text-gray-800 min-h-screen flex flex-col">
+
+  <!-- Full-viewport background image -->
+  <div class="bg-layer" aria-hidden="true">
+    <img src="assets/images/img.jpg" alt="" draggable="false" fetchpriority="high" />
+  </div>
+
+  <!-- ================================================================
+       NAVBAR
+       ================================================================ -->
+  <header class="navbar-glass sticky top-0 z-50">
+    <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2">
+
+      <!-- Logo -->
+      <a href="#" class="flex items-center flex-shrink-0 group">
+        <img src="assets/logo-sinfondo.png" alt="J&M"
+             class="h-10 sm:h-12 w-auto object-contain group-hover:scale-105 transition-transform">
+      </a>
+
+      <!-- Right side: social + language -->
+      <div class="flex items-center gap-2 sm:gap-2.5">
+
+        <!-- Social icons -->
+        <div class="flex items-center gap-2">
+          <a href="https://www.instagram.com/jmseguros" target="_blank" rel="noopener noreferrer"
+             title="Instagram" class="social-btn soc-ig">
+            <i class="fa-brands fa-instagram text-sm"></i>
+          </a>
+          <a href="https://www.facebook.com/jmseguros" target="_blank" rel="noopener noreferrer"
+             title="Facebook" class="social-btn soc-fb">
+            <i class="fa-brands fa-facebook-f text-sm"></i>
+          </a>
+          <a href="https://twitter.com/jmseguros" target="_blank" rel="noopener noreferrer"
+             title="Twitter / X" class="social-btn soc-x">
+            <i class="fa-brands fa-x-twitter text-sm"></i>
+          </a>
+        </div>
+
+        <!-- Language Switcher -->
+        <div id="lang-switcher" class="flex items-center bg-gray-100 rounded-lg p-0.5 ml-2 sm:ml-3 flex-shrink-0">
+          <button class="lang-btn active" data-lang="es">ES</button>
+          <button class="lang-btn"        data-lang="en">EN</button>
+        </div>
+      </div>
+    </nav>
+  </header>
+
+  <!-- ================================================================
+       HERO — background image + cotizador
+       ================================================================ -->
+  <section class="hero-bg flex-1">
+    <div class="hero-inner">
+
+      <!-- RIGHT: form (full-width on mobile, fixed on desktop) -->
+      <div class="hero-right" id="cotizador">
+
+      <!-- ──────────── QUOTE CARD ──────────── -->
+      <div class="quote-card overflow-hidden">
+
+        <!-- Step tabs -->
+        <div class="flex bg-gray-50 border-b border-gray-100">
+          <button class="step-tab active flex-1 flex items-center justify-center gap-1 py-2 text-[11px] sm:text-xs font-semibold" data-step="1">
+            <span class="step-num">1</span>
+            <span data-i18n="tab.step1" class="hidden xs:inline">Seguro</span>
+          </button>
+          <button class="step-tab flex-1 flex items-center justify-center gap-1 py-2 text-[11px] sm:text-xs font-semibold" data-step="2">
+            <span class="step-num">2</span>
+            <span data-i18n="tab.step2" class="hidden xs:inline">Registro</span>
+          </button>
+          <button class="step-tab flex-1 flex items-center justify-center gap-1 py-2 text-[11px] sm:text-xs font-semibold" data-step="3">
+            <span class="step-num">3</span>
+            <span data-i18n="tab.step3" class="hidden xs:inline">Resultado</span>
+          </button>
+        </div>
+
+        <div class="form-scroll-area">
+
+          <!-- ════════ STEP 1: ¿Qué deseas asegurar? ════════ -->
+          <div id="step-1" class="step-content">
+            <div class="lg:flex lg:gap-6 lg:items-center">
+
+              <!-- Columna izquierda — propuesta de valor (solo desktop) -->
+              <div class="hidden lg:flex lg:flex-col lg:justify-center lg:flex-shrink-0 lg:w-52 xl:w-56 lg:pr-5 lg:border-r lg:border-gray-100">
+                <h2 data-i18n="s1.question" class="text-sm font-bold text-gray-800 mb-1">¿Qué deseas asegurar?</h2>
+                <p class="text-[11px] text-gray-400 mb-5 leading-relaxed">Cotiza en minutos y recibe la mejor protección para ti.</p>
+                <div class="space-y-3">
+                  <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                      <i class="fa-solid fa-shield-check text-blue-600 text-xs"></i>
+                    </div>
+                    <div>
+                      <p class="text-xs font-semibold text-gray-700 leading-tight">Datos protegidos</p>
+                      <p class="text-[11px] text-gray-400 leading-tight">Tu información es confidencial</p>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center flex-shrink-0">
+                      <i class="fa-solid fa-bolt text-green-600 text-xs"></i>
+                    </div>
+                    <div>
+                      <p class="text-xs font-semibold text-gray-700 leading-tight">Cotización en 2 minutos</p>
+                      <p class="text-[11px] text-gray-400 leading-tight">Sin trámites complicados</p>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
+                      <i class="fa-solid fa-headset text-amber-600 text-xs"></i>
+                    </div>
+                    <div>
+                      <p class="text-xs font-semibold text-gray-700 leading-tight">Asesoría personalizada</p>
+                      <p class="text-[11px] text-gray-400 leading-tight">Un asesor te guiará en todo</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Columna derecha — controles interactivos -->
+              <div class="flex-1 min-w-0">
+
+                <!-- Título móvil -->
+                <h2 data-i18n="s1.question" class="lg:hidden text-base font-bold text-gray-800 mb-4 text-center">
+                  ¿Qué deseas asegurar?
+                </h2>
+
+                <!-- Loading skeleton -->
+                <div id="products-loading" class="grid grid-cols-3 gap-2 mb-4">
+                  <div class="h-24 rounded-xl bg-gray-100 animate-pulse"></div>
+                  <div class="h-24 rounded-xl bg-gray-100 animate-pulse"></div>
+                  <div class="h-24 rounded-xl bg-gray-100 animate-pulse"></div>
+                  <div class="h-24 rounded-xl bg-gray-100 animate-pulse"></div>
+                  <div class="h-24 rounded-xl bg-gray-100 animate-pulse"></div>
+                  <div class="h-24 rounded-xl bg-gray-100 animate-pulse"></div>
+                </div>
+
+                <!-- Cards de productos -->
+                <div class="carousel-row">
+                  <button id="carousel-prev" type="button" class="carousel-btn hidden" aria-label="Anterior">
+                    <i class="fa-solid fa-chevron-left"></i>
+                  </button>
+                  <div id="products-grid" class="grid grid-cols-3 gap-2 hidden"></div>
+                  <button id="carousel-next" type="button" class="carousel-btn hidden" aria-label="Siguiente">
+                    <i class="fa-solid fa-chevron-right"></i>
+                  </button>
+                </div>
+                <div id="carousel-controls" class="hidden items-center justify-center mt-2 mb-3">
+                  <div id="carousel-dots" class="flex items-center gap-1.5"></div>
+                </div>
+
+                <!-- Turnstile + botón -->
+                <div class="flex justify-center mt-1 mb-4">
+                  <div id="turnstile-portal"></div>
+                </div>
+                <div class="flex">
+                  <button id="btn-step1-next" class="btn-primary w-full" disabled>
+                    <span data-i18n="btn.next">Continuar</span>
+                    <i class="fa-solid fa-arrow-right ml-2 text-xs"></i>
+                  </button>
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+          <!-- ════════ STEP 2: Registro ════════ -->
+          <div id="step-2" class="step-content hidden">
+
+            <div class="mb-5">
+              <h2 class="text-base font-bold text-slate-800">Tus datos</h2>
+              <p class="text-xs text-slate-500 mt-0.5">Completa tu información para cotizar</p>
+            </div>
+
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-x-2 gap-y-2 mb-3">
+
+              <div class="col-span-2">
+                <label class="field-label"><span data-i18n="f.nombre_completo">Nombre completo</span><span class="text-red-500 ml-0.5">*</span></label>
+                <input id="f-nombre" type="text" class="field-input" placeholder="Ej. María González" autocomplete="name" />
+              </div>
+
+              <div class="col-span-2">
+                <label class="field-label"><span data-i18n="f.cedula">Cédula</span><span class="text-red-500 ml-0.5">*</span></label>
+                <div class="flex gap-2">
+                  <select id="f-cedula-tipo" class="field-input w-14 flex-shrink-0 px-1.5">
+                    <option value="V">V-</option><option value="E">E-</option>
+                    <option value="J">J-</option><option value="P">P-</option>
+                  </select>
+                  <input id="f-cedula" type="text" class="field-input flex-1 font-mono"
+                         placeholder="12345678" maxlength="8" inputmode="numeric"
+                         pattern="[0-9]+" autocomplete="off" />
+                </div>
+              </div>
+
+              <div>
+                <label class="field-label" data-i18n="f.sexo">Sexo</label>
+                <select id="f-sexo" class="field-input">
+                  <option value="M" data-i18n="f.sexo.m">Masculino</option>
+                  <option value="F" data-i18n="f.sexo.f">Femenino</option>
+                </select>
+              </div>
+              <div>
+                <label class="field-label" data-i18n="f.condicion">Condición civil</label>
+                <select id="f-condicion" class="field-input">
+                  <option value="">Seleccionar...</option>
+                  <option value="Soltero">Soltero</option><option value="Casado">Casado</option>
+                  <option value="Viudo">Viudo</option><option value="Divorciado">Divorciado</option>
+                  <option value="Concubino">Concubino</option>
+                </select>
+              </div>
+              <div>
+                <label class="field-label" data-i18n="f.nacimiento">Fecha de nacimiento</label>
+                <input id="f-nacimiento" type="date" class="field-input" />
+              </div>
+              <div>
+                <label class="field-label"><span data-i18n="f.telefono">Teléfono</span><span class="text-red-500 ml-0.5">*</span></label>
+                <input id="f-telefono" type="tel" class="field-input" placeholder="0412-0000000" autocomplete="tel" />
+              </div>
+              <div>
+                <label class="field-label"><span data-i18n="f.email">Correo</span><span class="text-red-500 ml-0.5">*</span></label>
+                <input id="f-email" type="email" class="field-input" data-i18n-ph="f.email.ph" placeholder="tu@correo.com" autocomplete="email" />
+              </div>
+              <div>
+                <label class="field-label" data-i18n="f.estado">Estado</label>
+                <select id="f-estado" class="field-input">
+                  <option value="" data-i18n="sel.estado">Seleccionar...</option>
+                  <option>Amazonas</option><option>Anzoátegui</option><option>Apure</option>
+                  <option>Aragua</option><option>Barinas</option><option>Bolívar</option>
+                  <option>Carabobo</option><option>Cojedes</option><option>Delta Amacuro</option>
+                  <option>Distrito Capital</option><option>Falcón</option><option>Guárico</option>
+                  <option>Lara</option><option>Mérida</option><option>Miranda</option>
+                  <option>Monagas</option><option>Nueva Esparta</option><option>Portuguesa</option>
+                  <option>Sucre</option><option>Táchira</option><option>Trujillo</option>
+                  <option>La Guaira</option><option>Yaracuy</option><option>Zulia</option>
+                </select>
+              </div>
+              <div>
+                <label class="field-label" data-i18n="f.nacionalidad">Nacionalidad</label>
+                <select id="f-nacionalidad" class="field-input">
+                  <option data-i18n="f.nac.ve">Venezolano/a</option>
+                  <option data-i18n="f.nac.ext">Extranjero/a</option>
+                </select>
+              </div>
+              <div>
+                <label class="field-label"><span data-i18n="f.ciudad">Ciudad</span><span class="text-red-500 ml-0.5">*</span></label>
+                <input id="f-ciudad" type="text" class="field-input" data-i18n-ph="f.ciudad.ph" placeholder="Ej. Caracas" />
+              </div>
+              <div class="col-span-2 sm:col-span-4">
+                <label class="field-label" data-i18n="f.direccion">Dirección <span class="font-normal text-gray-400 text-[10px] ml-1">(opcional)</span></label>
+                <input id="f-direccion" type="text" class="field-input" placeholder="Av. Libertador, Edif. Centro..." />
+              </div>
+
+            </div>
+
+            <!-- Datos del vehículo -->
+            <div id="vehicle-section" class="hidden mb-3">
+              <div class="flex items-center gap-2 mb-3 pb-2 border-b border-gray-100">
+                <div class="w-6 h-6 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                  <i class="fa-solid fa-car text-[11px] text-blue-600"></i>
+                </div>
+                <span data-i18n="s3.veh.title" class="text-xs font-bold text-gray-500 uppercase tracking-wider">Datos del vehículo</span>
+              </div>
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-x-2 gap-y-2">
+                <div>
+                  <label class="field-label"><span data-i18n="veh.placa">Placa</span><span class="text-red-500 ml-0.5">*</span></label>
+                  <input id="veh-placa" type="text" class="field-input font-mono uppercase tracking-widest" placeholder="ABC-123" maxlength="8" />
+                </div>
+                <div>
+                  <label class="field-label" data-i18n="veh.anio">Año</label>
+                  <select id="veh-anio" class="field-input"></select>
+                </div>
+                <div>
+                  <label class="field-label" data-i18n="veh.marca">Marca</label>
+                  <select id="veh-marca" class="field-input">
+                    <option value="Toyota">Toyota</option><option value="Chevrolet">Chevrolet</option>
+                    <option value="Ford">Ford</option><option value="Hyundai">Hyundai</option>
+                    <option value="Kia">Kia</option><option value="Jeep">Jeep</option>
+                    <option value="Nissan">Nissan</option><option value="Honda">Honda</option>
+                    <option value="Renault">Renault</option><option value="Mazda">Mazda</option>
+                    <option value="Volkswagen">Volkswagen</option><option value="Mitsubishi">Mitsubishi</option>
+                    <option value="Chery">Chery</option><option value="BYD">BYD</option>
+                    <option value="Fiat">Fiat</option><option value="Mercedes-Benz">Mercedes-Benz</option>
+                    <option value="BMW">BMW</option><option value="Dodge">Dodge</option><option value="Otro">Otro</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="field-label"><span data-i18n="veh.modelo">Modelo</span><span class="text-red-500 ml-0.5">*</span></label>
+                  <input id="veh-modelo" type="text" class="field-input" placeholder="Ej. Corolla XLi" />
+                </div>
+                <div>
+                  <label class="field-label" data-i18n="veh.color">Color</label>
+                  <input id="veh-color" type="text" class="field-input" placeholder="Ej. Blanco" />
+                </div>
+                <div>
+                  <label class="field-label" data-i18n="veh.uso">Uso</label>
+                  <select id="veh-uso" class="field-input">
+                    <option value="Particular">Particular</option>
+                    <option value="Ejecutivo">Ejecutivo / Personal</option>
+                    <option value="Carga liviana">Carga liviana</option>
+                    <option value="Carga pesada">Carga pesada</option>
+                    <option value="Colectivo">Colectivo / Minibús</option>
+                    <option value="Rustico">Rústico / Pickup</option>
+                    <option value="Oficial">Oficial</option>
+                  </select>
+                </div>
+                <div class="col-span-2">
+                  <label class="field-label" data-i18n="veh.valor">Valor de mercado (USD)</label>
+                  <div class="relative">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm pointer-events-none">$</span>
+                    <input id="veh-valor" type="number" min="500" step="500" class="field-input pl-7" placeholder="Ej. 15000" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div id="s2-error" class="hidden mb-4 text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3"></div>
+
+            <div class="bg-blue-50 border border-blue-100 rounded-xl p-2.5 mb-3">
+              <label class="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" id="acepto_terminos" class="mt-0.5 w-4 h-4 accent-blue-700 flex-shrink-0 cursor-pointer" />
+                <span class="text-xs text-gray-700 leading-relaxed">
+                  <span data-i18n="f.terms">Acepto que J&M procese mis datos personales para recibir información sobre seguros y fianzas, de acuerdo con la</span>
+                  <a href="#" data-i18n="f.privacy" class="text-blue-700 underline font-medium ml-1">Política de Privacidad</a>.
+                </span>
+              </label>
+            </div>
+
+            <div class="flex justify-between gap-3">
+              <button id="btn-step2-back" class="btn-secondary">
+                <i class="fa-solid fa-arrow-left mr-2 text-xs"></i>
+                <span data-i18n="btn.back">Atrás</span>
+              </button>
+              <button id="btn-step2-submit" class="btn-primary" disabled>
+                <span id="s2-submit-label" data-i18n="btn.calc">Calcular cotización</span>
+                <i id="s2-submit-icon" class="fa-solid fa-calculator ml-2 text-xs"></i>
+              </button>
+            </div>
+            </div>
+
+          </div>
+
+          <!-- ════════ STEP 3: Resultado ════════ -->
+          <div id="step-3" class="step-content hidden">
+
+            <!-- Loading -->
+            <div id="result-loading" class="flex flex-col items-center justify-center py-12">
+              <div class="loader mb-4"></div>
+              <p data-i18n="loading" class="text-gray-700 text-sm">Calculando tu cotización...</p>
+            </div>
+
+            <!-- Sub-A: Match (registro encontrado por cédula u/o nombre) -->
+            <div id="result-match" class="hidden">
+              <div class="flex items-center gap-3 mb-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                  <i class="fa-solid fa-shield-check text-blue-600 text-xl"></i>
+                </div>
+                <div>
+                  <p id="result-match-title" class="text-sm font-bold text-blue-800">¡Encontramos tu registro!</p>
+                  <p id="result-match-nombre" class="text-sm font-semibold text-blue-700"></p>
+                  <p id="result-match-poliza" class="text-xs text-blue-600 mt-0.5"></p>
+                </div>
+              </div>
+              <p class="text-sm text-gray-700 mb-4">Para gestionar tu póliza o contratar un nuevo seguro, comunícate con uno de nuestros asesores.</p>
+              <div class="grid grid-cols-2 gap-2 sm:gap-3">
+                <button id="btn-match-restart" class="btn-secondary text-xs sm:text-sm">
+                  <i class="fa-solid fa-rotate-left mr-1.5"></i>
+                  <span>Nueva consulta</span>
+                </button>
+                <button class="btn-primary text-xs sm:text-sm whatsapp-btn">
+                  <i class="fa-brands fa-whatsapp mr-1.5"></i>
+                  <span data-i18n="btn.whatsapp">Hablar con asesor</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Sub-B: No match — Cotización -->
+            <div id="result-quote" class="hidden">
+              <!-- Header -->
+              <div class="flex items-center gap-3 mb-4">
+                <div class="flex-shrink-0 w-11 h-11 bg-green-100 rounded-full flex items-center justify-center">
+                  <i class="fa-solid fa-circle-check text-green-600 text-xl"></i>
+                </div>
+                <div>
+                  <h2 data-i18n="res.title" class="text-base sm:text-lg font-bold text-gray-800 leading-tight">¡Tu cotización está lista!</h2>
+                  <p data-i18n="res.subtitle" class="text-gray-500 text-[10px] sm:text-xs mt-0.5">Estimación basada en la información suministrada</p>
+                </div>
+              </div>
+
+              <!-- 2-col layout on lg: card left / info right -->
+              <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
+
+                <!-- Left: financial card -->
+                <div class="bg-gradient-to-br from-brand-700 to-brand-900 rounded-xl p-4 text-white">
+                  <div class="mb-3">
+                    <p data-i18n="res.tipo" class="text-brand-200 text-[10px] font-semibold uppercase tracking-widest">Tipo de seguro</p>
+                    <p id="res-tipo" class="font-bold text-sm sm:text-base mt-0.5">—</p>
+                  </div>
+                  <div class="space-y-1.5 border-t border-white/10 pt-3">
+                    <div class="flex justify-between text-xs">
+                      <span data-i18n="res.prima_neta" class="text-white/55">Prima Neta</span>
+                      <span id="res-prima-neta" class="text-white/85 font-semibold">$ —</span>
+                    </div>
+                    <div class="flex justify-between text-xs">
+                      <span data-i18n="res.iva" class="text-white/55">IVA (16%)</span>
+                      <span id="res-iva" class="text-white/85 font-semibold">$ —</span>
+                    </div>
+                    <div class="flex justify-between text-xs">
+                      <span data-i18n="res.derecho" class="text-white/55">Derecho de Póliza</span>
+                      <span id="res-derecho" class="text-white/85 font-semibold">$ 0.00</span>
+                    </div>
+                  </div>
+                  <div class="border-t border-white/10 pt-3 mt-2">
+                    <p data-i18n="res.total_label" class="text-[10px] font-bold text-white/55 mb-0.5 uppercase tracking-wider">Total Anual (USD)</p>
+                    <p id="res-total" class="text-2xl font-extrabold text-gold-400">$ —</p>
+                    <p class="text-[10px] text-white/40 mt-1.5">
+                      <span data-i18n="res.monthly">Prima mensual estimada</span>:
+                      <span id="res-prima-mensual" class="font-semibold text-white/65">$ —</span>
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Right: client info + disclaimer -->
+                <div class="flex flex-col gap-2">
+                  <div class="flex-1 bg-gray-50 rounded-xl border border-gray-100 px-3 py-2 space-y-0.5">
+                    <div class="flex justify-between text-sm py-2 border-b border-gray-100 last:border-0">
+                      <span data-i18n="res.titular" class="text-gray-500 text-xs">Titular</span>
+                      <span id="res-titular" class="font-semibold text-gray-800 text-xs text-right ml-2">—</span>
+                    </div>
+                    <div class="flex justify-between text-sm py-2 border-b border-gray-100 last:border-0">
+                      <span data-i18n="res.telefono" class="text-gray-500 text-xs">Teléfono</span>
+                      <span id="res-telefono" class="font-semibold text-gray-800 text-xs">—</span>
+                    </div>
+                    <div class="flex justify-between text-sm py-2">
+                      <span data-i18n="res.estado" class="text-gray-500 text-xs">Estado</span>
+                      <span id="res-estado" class="font-semibold text-gray-800 text-xs">—</span>
+                    </div>
+                  </div>
+                  <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-[10px] text-amber-800 flex gap-1.5">
+                    <i class="fa-solid fa-triangle-exclamation mt-0.5 flex-shrink-0 text-xs"></i>
+                    <p data-i18n="res.disclaimer">
+                      Cotización <strong>referencial</strong>. Puede variar según inspección y condiciones de la póliza. Un asesor te contactará a la brevedad.
+                    </p>
+                  </div>
+                </div>
+
+              </div>
+
+              <!-- Action buttons -->
+              <div class="grid grid-cols-2 gap-2 sm:gap-3">
+                <button id="btn-restart" class="btn-secondary text-xs sm:text-sm">
+                  <i class="fa-solid fa-rotate-left mr-1.5"></i>
+                  <span data-i18n="btn.restart">Nueva cotización</span>
+                </button>
+                <button class="btn-primary text-xs sm:text-sm whatsapp-btn">
+                  <i class="fa-brands fa-whatsapp mr-1.5"></i>
+                  <span data-i18n="btn.whatsapp">Hablar con asesor</span>
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      </div>
+      <!-- / quote-card -->
+
+      </div><!-- /hero-right -->
+    </div><!-- /hero-inner -->
+  </section>
+
+  <!-- ================================================================
+       FAB BUTTONS — Chat (top) + WhatsApp (bottom)
+       ================================================================ -->
+  <button id="chatbot-btn" class="chatbot-fab" aria-label="Chat" data-i18n-title="chat.fab">
+    <i class="fa-solid fa-comment-dots text-xl" id="chatbot-icon"></i>
+    <span class="chatbot-badge">1</span>
+  </button>
+
+  <a id="whatsapp-fab-btn" href="https://wa.me/58" target="_blank" rel="noopener"
+     class="whatsapp-fab" aria-label="WhatsApp" title="WhatsApp">
+    <i class="fa-brands fa-whatsapp text-2xl"></i>
+  </a>
+
+  <!-- Chatbot Panel -->
+  <div id="chatbot-panel" class="chatbot-panel hidden" role="dialog" aria-modal="true">
+    <div class="chatbot-header">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
+          <i class="fa-solid fa-robot text-white text-base"></i>
+        </div>
+        <div>
+          <p data-i18n="chat.title" class="font-semibold text-sm leading-none">Asistente J&M</p>
+          <p class="text-xs text-green-300 flex items-center gap-1 mt-0.5">
+            <span class="w-1.5 h-1.5 bg-green-400 rounded-full inline-block"></span>
+            <span data-i18n="chat.online">En línea</span>
+          </p>
+        </div>
+      </div>
+      <button id="chatbot-close" class="text-white/70 hover:text-white transition-colors p-1 rounded" aria-label="Close">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+    </div>
+
+    <div id="chat-messages" class="chatbot-messages">
+      <div class="chat-msg bot">
+        <p data-i18n="chat.greeting1">¡Hola! 👋 Soy el asistente virtual de <strong>J&M</strong>.</p>
+        <p data-i18n="chat.greeting2" class="mt-1">¿En qué puedo ayudarte hoy?</p>
+      </div>
+      <div class="chat-suggestions">
+        <button class="chat-chip" data-msg-key="chip1" data-i18n="chat.chip1">Cotizar seguro</button>
+        <button class="chat-chip" data-msg-key="chip2" data-i18n="chat.chip2">¿Qué seguros ofrecen?</button>
+        <button class="chat-chip" data-msg-key="chip3" data-i18n="chat.chip3">Hablar con asesor</button>
+      </div>
+    </div>
+
+    <div class="chatbot-input-area">
+      <input id="chat-input" type="text" class="chatbot-input"
+             data-i18n-ph="chat.ph" placeholder="Escribe tu mensaje..." />
+      <button id="chat-send" class="chat-send-btn" aria-label="Send">
+        <i class="fa-solid fa-paper-plane text-sm"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- ================================================================
+       FOOTER
+       ================================================================ -->
+  <footer class="footer-bg">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-6">
+      <div class="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs sm:text-sm sm:pr-20">
+
+        <!-- Logo + copyright -->
+        <div class="flex items-center gap-2.5">
+          <img src="assets/logo-sinfondo.png" alt="J&M" class="h-7 w-auto object-contain flex-shrink-0">
+          <span class="text-slate-800 font-semibold">
+            &copy; <span id="year"></span>
+            <strong class="text-slate-900 font-bold">J&M</strong>
+            <span class="mx-1 text-slate-500">·</span>
+            <span data-i18n="footer.rights" class="text-slate-700">Todos los derechos reservados.</span>
+          </span>
+        </div>
+
+        <!-- Divider (mobile) -->
+        <div class="w-24 h-px bg-gray-300 sm:hidden"></div>
+
+        <!-- Developer credit -->
+        <div class="flex items-center gap-1.5 text-gray-600">
+          <span data-i18n="footer.by" class="font-bold">Desarrollado por</span>
+          <a href="https://victecnology.com" target="_blank" rel="noopener"
+             class="inline-flex items-center gap-1 font-bold text-blue-500 hover:text-blue-400 transition-colors">
+            <i class="fa-solid fa-code text-[10px]"></i>
+            Victecnology Lda
+          </a>
+        </div>
+
+      </div>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script>window.TURNSTILE_SITE_KEY = '0x4AAAAAADPWm4GmxJIO3s97'</script>
+  <script src="js/main.js"></script>
+</body>
+</html>

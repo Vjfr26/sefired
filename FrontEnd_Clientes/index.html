@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="J&M — Seguros y Fianzas en Venezuela. Cotiza tu seguro en línea." />
+  <title>J&M | Seguros & Fianzas</title>
+  <link rel="icon" type="image/png" href="assets/logo-sinfondo.png" />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="css/styles.css" />
+
+  <!-- Cloudflare Turnstile -->
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
+</head>
+<body class="font-sans text-gray-800 min-h-screen flex flex-col">
+
+  <!-- Full-viewport background image -->
+  <div class="bg-layer" aria-hidden="true">
+    <img src="assets/images/img.jpg" alt="" draggable="false" fetchpriority="high" />
+  </div>
+
+  <!-- ================================================================
+       NAVBAR
+       ================================================================ -->
+  <header class="navbar-glass sticky top-0 z-50">
+    <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2">
+
+      <!-- Logo -->
+      <a href="#" class="flex items-center flex-shrink-0 group">
+        <img src="assets/logo-sinfondo.png" alt="J&M"
+             class="h-10 sm:h-12 w-auto object-contain group-hover:scale-105 transition-transform">
+      </a>
+
+      <!-- Right side: social + language -->
+      <div class="flex items-center gap-2 sm:gap-2.5">
+
+        <!-- Social icons -->
+        <div class="flex items-center gap-2">
+          <a href="https://www.instagram.com/jmseguros" target="_blank" rel="noopener noreferrer"
+             title="Instagram" class="social-btn soc-ig">
+            <i class="fa-brands fa-instagram text-sm"></i>
+          </a>
+          <a href="https://www.facebook.com/jmseguros" target="_blank" rel="noopener noreferrer"
+             title="Facebook" class="social-btn soc-fb">
+            <i class="fa-brands fa-facebook-f text-sm"></i>
+          </a>
+          <a href="https://twitter.com/jmseguros" target="_blank" rel="noopener noreferrer"
+             title="Twitter / X" class="social-btn soc-x">
+            <i class="fa-brands fa-x-twitter text-sm"></i>
+          </a>
+        </div>
+
+        <!-- Language Switcher -->
+        <div id="lang-switcher" class="flex items-center bg-gray-100 rounded-lg p-0.5 ml-2 sm:ml-3 flex-shrink-0">
+          <button class="lang-btn active" data-lang="es">ES</button>
+          <button class="lang-btn"        data-lang="en">EN</button>
+        </div>
+      </div>
+    </nav>
+  </header>
+
+  <!-- ================================================================
+       HERO — background image + cotizador
+       ================================================================ -->
+  <section class="hero-bg flex-1">
+    <div class="hero-inner">
+
+      <!-- RIGHT: form (full-width on mobile, fixed on desktop) -->
+      <div class="hero-right" id="cotizador">
+
+      <!-- ──────────── QUOTE CARD ──────────── -->
+      <div class="quote-card overflow-hidden">
+
+        <!-- Step tabs (5 pasos) -->
+        <div class="flex bg-gray-50 border-b border-gray-100">
+          <button class="step-tab active flex-1 flex items-center justify-center gap-1 py-2 text-[11px] font-semibold" data-step="1">
+            <span class="step-num">1</span>
+            <span data-i18n="tab.s1" class="hidden xs:inline">Seguro</span>
+          </button>
+          <button class="step-tab flex-1 flex items-center justify-center gap-1 py-2 text-[11px] font-semibold" data-step="2">
+            <span class="step-num">2</span>
+            <span data-i18n="tab.s2" class="hidden xs:inline">Datos</span>
+          </button>
+          <button class="step-tab flex-1 flex items-center justify-center gap-1 py-2 text-[11px] font-semibold" data-step="3">
+            <span class="step-num">3</span>
+            <span data-i18n="tab.s3" class="hidden xs:inline">Bien</span>
+          </button>
+          <button class="step-tab flex-1 flex items-center justify-center gap-1 py-2 text-[11px] font-semibold" data-step="4">
+            <span class="step-num">4</span>
+            <span data-i18n="tab.s4" class="hidden xs:inline">Docs</span>
+          </button>
+          <button class="step-tab flex-1 flex items-center justify-center gap-1 py-2 text-[11px] font-semibold" data-step="5">
+            <span class="step-num">5</span>
+            <span data-i18n="tab.s5" class="hidden xs:inline">Enviar</span>
+          </button>
+        </div>
+
+        <!-- ══ ZONA 2: Contenido del paso (sólo campos, sin botones) ══ -->
+        <div class="form-scroll-area">
+
+          <!-- ════ PASO 1: Tipo de seguro + sub-tipo ════ -->
+          <div id="step-1" class="step-content">
+            <div class="step-heading">
+              <h2 data-i18n="s1.question">¿Qué deseas asegurar?</h2>
+            </div>
+            <div id="products-loading" class="grid grid-cols-3 gap-2 mb-3">
+              <div class="h-20 rounded-xl bg-gray-100 animate-pulse"></div>
+              <div class="h-20 rounded-xl bg-gray-100 animate-pulse"></div>
+              <div class="h-20 rounded-xl bg-gray-100 animate-pulse"></div>
+              <div class="h-20 rounded-xl bg-gray-100 animate-pulse"></div>
+              <div class="h-20 rounded-xl bg-gray-100 animate-pulse"></div>
+              <div class="h-20 rounded-xl bg-gray-100 animate-pulse"></div>
+            </div>
+            <div class="carousel-row">
+              <button id="carousel-prev" type="button" class="carousel-btn hidden" aria-label="Anterior">
+                <i class="fa-solid fa-chevron-left"></i>
+              </button>
+              <div id="products-grid" class="grid grid-cols-3 gap-2 hidden"></div>
+              <button id="carousel-next" type="button" class="carousel-btn hidden" aria-label="Siguiente">
+                <i class="fa-solid fa-chevron-right"></i>
+              </button>
+            </div>
+            <div id="carousel-controls" class="hidden items-center justify-center mt-2 mb-2">
+              <div id="carousel-dots" class="flex items-center gap-1.5"></div>
+            </div>
+            <div id="subtipos-section" class="hidden mb-2 subtipos-appear">
+              <div class="flex items-center gap-1.5 mb-1.5">
+                <i class="fa-solid fa-layer-group text-[10px] text-blue-500"></i>
+                <p data-i18n="s1.plan" class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Selecciona el plan</p>
+              </div>
+              <div id="subtipos-loading" class="hidden text-xs text-gray-400 py-2 text-center">
+                <i class="fa-solid fa-spinner fa-spin mr-1"></i> Cargando planes...
+              </div>
+              <div id="subtipos-grid" class="grid grid-cols-1 gap-1.5"></div>
+            </div>
+          </div>
+
+          <!-- ════ PASO 2: Datos personales ════ -->
+          <div id="step-2" class="step-content hidden">
+            <div class="step-heading">
+              <h2 data-i18n="s2.title">Datos personales</h2>
+              <p data-i18n="s2.sub">Completa tu información para cotizar</p>
+            </div>
+            <div class="grid grid-cols-2 xs:grid-cols-4 gap-x-2 gap-y-2">
+              <div class="col-span-2">
+                <label class="field-label"><span data-i18n="f.nombre_completo">Nombre completo</span> <span class="text-red-500">*</span></label>
+                <input id="f-nombre" type="text" class="field-input" placeholder="Ej. María González" autocomplete="name" />
+              </div>
+              <div class="col-span-2">
+                <label class="field-label"><span data-i18n="f.cedula">Cédula de identidad</span> <span class="text-red-500">*</span></label>
+                <div class="flex gap-1.5">
+                  <select id="f-cedula-tipo" class="field-input w-14 flex-shrink-0 px-1.5">
+                    <option value="V">V-</option><option value="E">E-</option>
+                    <option value="J">J-</option><option value="P">P-</option>
+                  </select>
+                  <input id="f-cedula" type="text" class="field-input flex-1 font-mono"
+                         placeholder="12 345 678" maxlength="8" inputmode="numeric" pattern="[0-9]+" autocomplete="off" />
+                </div>
+              </div>
+              <div class="col-span-2">
+                <label class="field-label"><span data-i18n="f.telefono">Teléfono</span> <span class="text-red-500">*</span></label>
+                <input id="f-telefono" type="tel" class="field-input" placeholder="0412-0000000" autocomplete="tel" />
+              </div>
+              <div class="col-span-2">
+                <label class="field-label"><span data-i18n="f.email">Correo electrónico</span> <span class="text-red-500">*</span></label>
+                <input id="f-email" type="email" class="field-input" placeholder="tu@correo.com" autocomplete="email" />
+              </div>
+              <div>
+                <label class="field-label" data-i18n="f.sexo">Sexo</label>
+                <select id="f-sexo" class="field-input">
+                  <option value="M" data-i18n="f.sexo.m">Masculino</option>
+                  <option value="F" data-i18n="f.sexo.f">Femenino</option>
+                </select>
+              </div>
+              <div>
+                <label class="field-label" data-i18n="f.condicion">Estado civil</label>
+                <select id="f-condicion" class="field-input">
+                  <option value="">—</option>
+                  <option value="Soltero">Soltero/a</option><option value="Casado">Casado/a</option>
+                  <option value="Viudo">Viudo/a</option><option value="Divorciado">Divorciado/a</option>
+                  <option value="Concubino">Concubino/a</option>
+                </select>
+              </div>
+              <div>
+                <label class="field-label" data-i18n="f.nacimiento">Nacimiento</label>
+                <input id="f-nacimiento" type="date" class="field-input" />
+              </div>
+              <div>
+                <label class="field-label" data-i18n="f.nacionalidad">Nacionalidad</label>
+                <select id="f-nacionalidad" class="field-input">
+                  <option data-i18n="f.nac.ve">Venezolano/a</option>
+                  <option data-i18n="f.nac.ext">Extranjero/a</option>
+                </select>
+              </div>
+              <div class="col-span-2">
+                <label class="field-label" data-i18n="f.estado">Estado / Provincia</label>
+                <select id="f-estado" class="field-input">
+                  <option value="">Seleccionar...</option>
+                  <option>Amazonas</option><option>Anzoátegui</option><option>Apure</option>
+                  <option>Aragua</option><option>Barinas</option><option>Bolívar</option>
+                  <option>Carabobo</option><option>Cojedes</option><option>Delta Amacuro</option>
+                  <option>Distrito Capital</option><option>Falcón</option><option>Guárico</option>
+                  <option>Lara</option><option>Mérida</option><option>Miranda</option>
+                  <option>Monagas</option><option>Nueva Esparta</option><option>Portuguesa</option>
+                  <option>Sucre</option><option>Táchira</option><option>Trujillo</option>
+                  <option>La Guaira</option><option>Yaracuy</option><option>Zulia</option>
+                </select>
+              </div>
+              <div class="col-span-2">
+                <label class="field-label"><span data-i18n="f.ciudad">Ciudad</span> <span class="text-red-500">*</span></label>
+                <input id="f-ciudad" type="text" class="field-input" placeholder="Ej. Caracas" />
+              </div>
+              <div class="col-span-2 xs:col-span-4">
+                <label class="field-label">
+                  <span data-i18n="f.direccion">Dirección</span>
+                  <span class="font-normal text-gray-400 text-[10px] ml-1">(opcional)</span>
+                </label>
+                <input id="f-direccion" type="text" class="field-input" placeholder="Av. Libertador, Edif. Centro, Piso 3..." />
+              </div>
+            </div>
+            <div id="s2-error" class="hidden mt-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2"></div>
+          </div>
+
+          <!-- ════ PASO 3: Datos del bien ════ -->
+          <div id="step-3" class="step-content hidden">
+            <div id="s3-vehiculo" class="hidden">
+              <div class="step-heading">
+                <h2 data-i18n="s3.veh.h">Datos del vehículo</h2>
+                <p data-i18n="s3.veh.sub">Información del vehículo a asegurar</p>
+              </div>
+              <div class="grid grid-cols-2 xs:grid-cols-4 gap-x-2 gap-y-2">
+                <div>
+                  <label class="field-label"><span data-i18n="veh.placa">Placa</span> <span class="text-red-500">*</span></label>
+                  <input id="veh-placa" type="text" class="field-input font-mono uppercase tracking-widest" placeholder="ABC-123" maxlength="8" />
+                </div>
+                <div>
+                  <label class="field-label" data-i18n="veh.anio">Año</label>
+                  <select id="veh-anio" class="field-input"></select>
+                </div>
+                <div>
+                  <label class="field-label" data-i18n="veh.marca">Marca</label>
+                  <select id="veh-marca" class="field-input">
+                    <option value="Toyota">Toyota</option><option value="Chevrolet">Chevrolet</option>
+                    <option value="Ford">Ford</option><option value="Hyundai">Hyundai</option>
+                    <option value="Kia">Kia</option><option value="Jeep">Jeep</option>
+                    <option value="Nissan">Nissan</option><option value="Honda">Honda</option>
+                    <option value="Renault">Renault</option><option value="Mazda">Mazda</option>
+                    <option value="Volkswagen">Volkswagen</option><option value="Mitsubishi">Mitsubishi</option>
+                    <option value="Chery">Chery</option><option value="BYD">BYD</option>
+                    <option value="Fiat">Fiat</option><option value="Mercedes-Benz">Mercedes-Benz</option>
+                    <option value="BMW">BMW</option><option value="Dodge">Dodge</option>
+                    <option value="Otro">Otro</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="field-label"><span data-i18n="veh.modelo">Modelo</span> <span class="text-red-500">*</span></label>
+                  <input id="veh-modelo" type="text" class="field-input" placeholder="Ej. Corolla XLi" />
+                </div>
+                <div>
+                  <label class="field-label" data-i18n="veh.color">Color</label>
+                  <input id="veh-color" type="text" class="field-input" placeholder="Ej. Blanco" />
+                </div>
+                <div>
+                  <label class="field-label" data-i18n="veh.uso">Uso</label>
+                  <select id="veh-uso" class="field-input">
+                    <option value="Particular">Particular</option>
+                    <option value="Ejecutivo">Ejecutivo / Personal</option>
+                    <option value="Carga liviana">Carga liviana</option>
+                    <option value="Carga pesada">Carga pesada</option>
+                    <option value="Colectivo">Colectivo / Minibús</option>
+                    <option value="Rustico">Rústico / Pickup</option>
+                    <option value="Oficial">Oficial</option>
+                  </select>
+                </div>
+                <div class="col-span-2">
+                  <label class="field-label"><span data-i18n="veh.valor">Valor de mercado (USD)</span> <span class="text-red-500">*</span></label>
+                  <div class="relative">
+                    <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xs pointer-events-none">$</span>
+                    <input id="veh-valor" type="number" min="500" step="500" class="field-input pl-6" placeholder="Ej. 15000" />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div id="s3-bien" class="hidden">
+              <div class="step-heading">
+                <h2 data-i18n="s3.bien.h">Datos del bien</h2>
+                <p data-i18n="s3.bien.sub">Información del bien a asegurar</p>
+              </div>
+              <div class="grid grid-cols-2 xs:grid-cols-4 gap-x-2 gap-y-2">
+                <div id="bien-tipo-wrap" class="col-span-2">
+                  <label class="field-label">Subtipo de bien <span class="text-red-500">*</span></label>
+                  <select id="bien-tipo" class="field-input">
+                    <option value="">Seleccionar...</option>
+                    <option value="Inmueble">Inmueble / Edificio</option>
+                    <option value="Equipo">Equipo / Maquinaria</option>
+                    <option value="Contenido">Contenido / Inventario</option>
+                    <option value="Vehiculo_esp">Vehículo Especial</option>
+                    <option value="Otro">Otro</option>
+                  </select>
+                </div>
+                <div class="col-span-2">
+                  <label class="field-label" data-i18n="bien.valor">Valor del bien (USD) <span class="text-red-500">*</span></label>
+                  <div class="relative">
+                    <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xs pointer-events-none">$</span>
+                    <input id="bien-valor" type="number" min="0" class="field-input pl-6" placeholder="0.00" />
+                  </div>
+                </div>
+                <div class="col-span-2 xs:col-span-4">
+                  <label class="field-label" data-i18n="bien.descripcion">Descripción del bien <span class="text-red-500">*</span></label>
+                  <input id="bien-descripcion" type="text" class="field-input" placeholder="Ej. Apartamento 3 habitaciones, piso 5" />
+                </div>
+                <div class="col-span-2 xs:col-span-4">
+                  <label class="field-label" data-i18n="bien.direccion">Dirección / Ubicación <span class="font-normal text-gray-400 text-[10px] ml-1">(opcional)</span></label>
+                  <input id="bien-direccion" type="text" class="field-input" placeholder="Av. Libertador, Edif. Centro..." />
+                </div>
+              </div>
+            </div>
+            <div id="s3-error" class="hidden mt-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2"></div>
+          </div>
+
+          <!-- ════ PASO 4: Documentos requeridos ════ -->
+          <div id="step-4" class="step-content hidden">
+            <div class="step-heading">
+              <h2 data-i18n="s4.title">Documentos requeridos</h2>
+              <p data-i18n="s4.sub">Adjunta los documentos del seguro</p>
+            </div>
+            <div id="docs-list" class="space-y-1.5"></div>
+            <div class="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700 flex items-start gap-2">
+              <i class="fa-solid fa-circle-info mt-0.5 shrink-0"></i>
+              <span>Puedes adjuntar los documentos ahora o enviarlos después por WhatsApp al asesor.
+                <button id="btn-skip-docs" type="button" class="underline font-semibold ml-1 hover:text-amber-900">Continuar sin documentos →</button>
+              </span>
+            </div>
+          </div>
+
+          <!-- ════ PASO 5: Confirmación ════ -->
+          <div id="step-5" class="step-content hidden">
+            <div id="s5-loading" class="hidden flex flex-col items-center justify-center py-10">
+              <div class="loader mb-3"></div>
+              <p class="text-gray-600 text-sm font-medium" data-i18n="s5.sending">Enviando solicitud...</p>
+            </div>
+            <div id="s5-match" class="hidden">
+              <div class="flex items-center gap-3 mb-3 p-3 bg-blue-50 border border-blue-200 rounded-xl">
+                <div class="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                  <i class="fa-solid fa-shield-check text-blue-600 text-lg"></i>
+                </div>
+                <div>
+                  <p id="s5-match-title" class="text-sm font-bold text-blue-800">¡Encontramos tu registro!</p>
+                  <p id="s5-match-nombre" class="text-sm font-semibold text-blue-700"></p>
+                  <p id="s5-match-sub" class="text-xs text-blue-600 mt-0.5"></p>
+                </div>
+              </div>
+              <p class="text-sm text-gray-600 leading-relaxed" data-i18n="s5.match.msg">Para gestionar tu póliza o contratar un nuevo seguro, contacta a un asesor.</p>
+            </div>
+            <div id="s5-success" class="hidden">
+              <div class="flex flex-col items-center text-center py-6">
+                <div class="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mb-3">
+                  <i class="fa-solid fa-circle-check text-green-600 text-2xl"></i>
+                </div>
+                <h2 class="text-sm font-bold text-gray-800 mb-1" data-i18n="s5.ok.title">¡Solicitud enviada!</h2>
+                <p class="text-xs text-gray-500 leading-relaxed" data-i18n="s5.ok.sub">Un asesor revisará tu información y te contactará a la brevedad para confirmar tu póliza.</p>
+              </div>
+            </div>
+            <div id="s5-confirm">
+              <div class="bg-gradient-to-br from-brand-700 to-brand-900 rounded-xl p-3 text-white mb-2">
+                <div class="flex justify-between items-start mb-2">
+                  <div class="flex-1 min-w-0 pr-2">
+                    <p class="text-[11px] font-semibold text-white/65 uppercase tracking-wider" data-i18n="res.tipo">Tipo de seguro</p>
+                    <p id="s5-producto-nombre" class="font-bold text-sm mt-0.5 leading-tight truncate">—</p>
+                  </div>
+                  <div class="text-right flex-shrink-0">
+                    <p class="text-[10px] text-white/65" data-i18n="res.total_label">Total Anual</p>
+                    <p id="s5-total" class="text-xl font-extrabold text-gold-400">$ —</p>
+                  </div>
+                </div>
+                <div class="border-t border-white/10 pt-2 grid grid-cols-3 gap-x-2 text-xs">
+                  <div><p class="text-white/60" data-i18n="res.prima_neta">Prima Neta</p><p id="s5-prima" class="font-semibold text-white/90">$ —</p></div>
+                  <div><p class="text-white/60" data-i18n="res.iva">IVA 16%</p><p id="s5-iva" class="font-semibold text-white/90">$ —</p></div>
+                  <div><p class="text-white/60" data-i18n="res.derecho">Derecho</p><p id="s5-derecho" class="font-semibold text-white/90">$ —</p></div>
+                </div>
+                <p class="text-xs text-white/55 mt-1.5 text-right">
+                  <span data-i18n="res.monthly">Mensual estimado</span>:
+                  <span id="s5-mensual" class="font-semibold text-white/75">$ —</span>
+                </p>
+              </div>
+              <div class="bg-gray-50 rounded-xl border border-gray-100 px-3 py-1 mb-2">
+                <div class="flex justify-between py-1.5 border-b border-gray-100">
+                  <span class="text-gray-500 text-xs" data-i18n="res.titular">Titular</span>
+                  <span id="s5-nombre" class="font-semibold text-gray-800 text-xs text-right ml-2 truncate max-w-[55%]">—</span>
+                </div>
+                <div class="flex justify-between py-1.5 border-b border-gray-100">
+                  <span class="text-gray-500 text-xs">Cédula</span>
+                  <span id="s5-cedula" class="font-semibold text-gray-800 text-xs font-mono">—</span>
+                </div>
+                <div class="flex justify-between py-1.5">
+                  <span class="text-gray-500 text-xs" data-i18n="s5.docs">Documentos</span>
+                  <span id="s5-docs-count" class="font-semibold text-gray-800 text-xs">—</span>
+                </div>
+              </div>
+              <div class="bg-amber-50 border border-amber-200 rounded-xl p-2 text-xs text-amber-800 flex gap-1.5">
+                <i class="fa-solid fa-triangle-exclamation mt-0.5 flex-shrink-0 text-[11px]"></i>
+                <p data-i18n="res.disclaimer">Cotización <strong>referencial</strong>. Puede variar. Un asesor te contactará a la brevedad.</p>
+              </div>
+            </div><!-- /s5-confirm -->
+          </div>
+
+        </div>
+        <!-- /form-scroll-area -->
+
+        <!-- ══ ZONA 3: Action Bar — fija al fondo del card ══ -->
+        <!-- ══ ZONA 3: Action Bar — fija al fondo ══ -->
+        <div class="form-action-bar">
+
+          <!-- Turnstile (paso 1) — centrado, tamaño natural -->
+          <div id="action-turnstile">
+            <div id="turnstile-portal"></div>
+          </div>
+
+          <!-- Términos (paso 2) -->
+          <div id="action-terms" class="hidden">
+            <label class="flex items-start gap-3 cursor-pointer bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5">
+              <input type="checkbox" id="acepto_terminos"
+                     class="mt-0.5 w-4 h-4 accent-blue-700 flex-shrink-0 cursor-pointer" />
+              <span class="text-xs text-gray-600 leading-relaxed">
+                <span data-i18n="f.terms">Acepto que J&M procese mis datos para recibir información sobre seguros, de acuerdo con la</span>
+                <a href="#" data-i18n="f.privacy" class="text-blue-600 underline font-semibold ml-1">Política de Privacidad</a>.
+              </span>
+            </label>
+          </div>
+
+          <!-- Hint documentos (paso 4) -->
+          <div id="action-docs-hint" class="hidden items-start gap-2 bg-sky-50 border border-sky-100 rounded-xl px-3 py-2">
+            <i class="fa-solid fa-circle-info text-sky-500 text-xs mt-0.5 flex-shrink-0"></i>
+            <p class="text-xs text-gray-500" data-i18n="s4.hint">Los opcionales puedes enviarlos también por WhatsApp al asesor.</p>
+          </div>
+
+          <!-- Botones de navegación -->
+          <div id="action-nav" class="flex items-center justify-between gap-3">
+            <button id="btn-back" class="btn-secondary hidden">
+              <i class="fa-solid fa-arrow-left mr-1.5 text-xs"></i>
+              <span data-i18n="btn.back">Atrás</span>
+            </button>
+            <button id="btn-next" class="btn-primary ml-auto" disabled>
+              <span id="btn-next-label" data-i18n="btn.next">Continuar</span>
+              <i id="btn-next-icon" class="fa-solid fa-arrow-right ml-1.5 text-xs"></i>
+            </button>
+          </div>
+
+          <!-- Botones resultado (paso 5 match / success) -->
+          <div id="action-result" class="hidden grid grid-cols-2 gap-3">
+            <button id="btn-restart" class="btn-secondary">
+              <i class="fa-solid fa-rotate-left mr-1.5 text-xs"></i>
+              <span data-i18n="btn.restart">Nueva cotización</span>
+            </button>
+            <button id="btn-whatsapp-main" class="btn-primary whatsapp-btn">
+              <i class="fa-brands fa-whatsapp mr-1.5 text-xs"></i>
+              <span data-i18n="btn.whatsapp">Hablar con asesor</span>
+            </button>
+          </div>
+
+        </div>
+        <!-- /form-action-bar -->
+
+      </div>
+      <!-- / quote-card -->
+
+      </div><!-- /hero-right -->
+    </div><!-- /hero-inner -->
+  </section>
+
+  <!-- ================================================================
+       FAB BUTTONS — Chat (top) + WhatsApp (bottom)
+       ================================================================ -->
+  <button id="chatbot-btn" class="chatbot-fab" aria-label="Chat" data-i18n-title="chat.fab">
+    <i class="fa-solid fa-comment-dots text-xl" id="chatbot-icon"></i>
+    <span class="chatbot-badge">1</span>
+  </button>
+
+  <a id="whatsapp-fab-btn" href="https://wa.me/58" target="_blank" rel="noopener"
+     class="whatsapp-fab" aria-label="WhatsApp" title="WhatsApp">
+    <i class="fa-brands fa-whatsapp text-2xl"></i>
+  </a>
+
+  <!-- Chatbot Panel -->
+  <div id="chatbot-panel" class="chatbot-panel hidden" role="dialog" aria-modal="true">
+    <div class="chatbot-header">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
+          <i class="fa-solid fa-robot text-white text-base"></i>
+        </div>
+        <div>
+          <p data-i18n="chat.title" class="font-semibold text-sm leading-none">Asistente J&M</p>
+          <p class="text-xs text-green-300 flex items-center gap-1 mt-0.5">
+            <span class="w-1.5 h-1.5 bg-green-400 rounded-full inline-block"></span>
+            <span data-i18n="chat.online">En línea</span>
+          </p>
+        </div>
+      </div>
+      <button id="chatbot-close" class="text-white/70 hover:text-white transition-colors p-1 rounded" aria-label="Close">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+    </div>
+
+    <div id="chat-messages" class="chatbot-messages">
+      <div class="chat-msg bot">
+        <p data-i18n="chat.greeting1">¡Hola! 👋 Soy el asistente virtual de <strong>J&M</strong>.</p>
+        <p data-i18n="chat.greeting2" class="mt-1">¿En qué puedo ayudarte hoy?</p>
+      </div>
+      <div class="chat-suggestions">
+        <button class="chat-chip" data-msg-key="chip1" data-i18n="chat.chip1">Cotizar seguro</button>
+        <button class="chat-chip" data-msg-key="chip2" data-i18n="chat.chip2">¿Qué seguros ofrecen?</button>
+        <button class="chat-chip" data-msg-key="chip3" data-i18n="chat.chip3">Hablar con asesor</button>
+      </div>
+    </div>
+
+    <div class="chatbot-input-area">
+      <input id="chat-input" type="text" class="chatbot-input"
+             data-i18n-ph="chat.ph" placeholder="Escribe tu mensaje..." />
+      <button id="chat-send" class="chat-send-btn" aria-label="Send">
+        <i class="fa-solid fa-paper-plane text-sm"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- ================================================================
+       FOOTER
+       ================================================================ -->
+  <footer class="footer-bg">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
+      <div class="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs sm:text-sm">
+
+        <!-- Logo + copyright — lado claro (izquierda) -->
+        <div class="flex items-center gap-2.5">
+          <img src="assets/logo-sinfondo.png" alt="J&M" class="h-7 w-auto object-contain flex-shrink-0">
+          <span class="text-slate-700 font-semibold">
+            &copy; <span id="year"></span>
+            <strong class="text-slate-800 font-bold">J&M</strong>
+            <span class="mx-1 text-slate-400">·</span>
+            <span data-i18n="footer.rights" class="text-slate-600">Todos los derechos reservados.</span>
+          </span>
+        </div>
+
+        <!-- Divider (mobile) -->
+        <div class="w-24 h-px bg-white/20 sm:hidden"></div>
+
+        <!-- Developer credit — lado oscuro (derecha) -->
+        <div class="flex items-center gap-1.5 text-white/70">
+          <span data-i18n="footer.by" class="font-semibold">Desarrollado por</span>
+          <a href="https://victecnology.com" target="_blank" rel="noopener"
+             class="inline-flex items-center gap-1 font-bold text-white hover:text-blue-200 transition-colors">
+            <i class="fa-solid fa-code text-[10px]"></i>
+            Victecnology Lda
+          </a>
+        </div>
+
+      </div>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script>
+    window.TURNSTILE_SITE_KEY = '%VITE_TURNSTILE_SITE_KEY%';
+    window.API_BASE_URL = '%VITE_API_URL%';
+  </script>
+  <script src="js/main.js"></script>
+</body>
+</html>
