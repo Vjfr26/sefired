@@ -1,0 +1,18 @@
+# Entorno y credenciales
+.env
+*.env
+
+# Binarios de Composer
+composer.phar
+
+# Dependencias
+node_modules/
+vendor/
+
+# Builds
+dist/
+build/
+
+# Logs y caché
+*.log
+.cache/

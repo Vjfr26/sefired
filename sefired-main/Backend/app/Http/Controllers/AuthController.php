@@ -1,0 +1,258 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\IpBloqueada;
+use App\Models\Usuario;
+use App\Traits\LogsActivity;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Validation\ValidationException;
+
+class AuthController extends Controller
+{
+    use LogsActivity;
+
+    // Patrones de ataques comunes detectados en los campos del formulario de login
+    private const ATTACK_PATTERNS = [
+        '/(\bOR\b|\bAND\b|\bUNION\b|\bSELECT\b|\bINSERT\b|\bDROP\b|\bDELETE\b|\bUPDATE\b|\bEXEC\b)/i',
+        '/(\bSLEEP\b|\bBENCHMARK\b|\bWAITFOR\b|\bDELAY\b)/i',
+        '/[\'\"]\s*(--|#|\/\*)/i',
+        '/<\s*script|javascript\s*:/i',
+        '/\bxp_cmdshell\b|\bSYSTEM\b\s*\(/i',
+    ];
+
+    public function login(Request $request)
+    {
+        // ── 0. Detección proactiva de patrones de ataque ─────────────────────────
+        $rawNick = $request->input('nick', '');
+        $rawPass = $request->input('password', '');
+
+        foreach (self::ATTACK_PATTERNS as $pattern) {
+            if (preg_match($pattern, $rawNick) || preg_match($pattern, $rawPass)) {
+                // Bloquear IP inmediatamente y registrar el incidente
+                IpBloqueada::firstOrCreate(
+                    ['ip' => $request->ip()],
+                    ['usuario_id' => null, 'motivo' => 'Patrón de ataque detectado en formulario de login']
+                );
+                $this->logActivity(
+                    'posible_hackeo',
+                    "⚠️ ATAQUE DETECTADO — IP: {$request->ip()} — Patrón malicioso en campos de login (nick o password)",
+                    'usuarios'
+                );
+                return response()->json(['message' => 'Solicitud rechazada.'], 403);
+            }
+        }
+
+        // ── 1. Validar formato del input ─────────────────────────────────────────
+        // Nick: solo alfanumérico + punto/guión/underscore, sin comillas ni caracteres especiales
+        // Password: máximo 255 caracteres para evitar DoS contra bcrypt con strings enormes
+        $request->validate([
+            'nick'            => 'required|string|max:50|regex:/^[a-zA-Z0-9._-]+$/',
+            'password'        => 'required|string|min:1|max:255',
+            'turnstile_token' => 'required|string|max:2048',
+        ], [
+            'nick.regex'         => 'El usuario no puede contener comillas ni caracteres especiales.',
+            'password.max'       => 'La contraseña introducida es demasiado larga.',
+            'turnstile_token.max'=> 'Token de verificación inválido.',
+        ]);
+
+        // ── 2a. Verificar si la IP está en la lista de IPs bloqueadas permanentemente ─
+        if (IpBloqueada::where('ip', $request->ip())->exists()) {
+            $this->logActivity('login_blocked', "IP bloqueada intentó acceder: {$request->ip()}", 'usuarios');
+            return response()->json(['message' => 'Acceso denegado.'], 403);
+        }
+
+        // ── 2b. Lockout progresivo por IP ────────────────────────────────────────
+        $lockoutKey     = 'login_lockout:'  . $request->ip();
+        $attemptsKey    = 'login_attempts:' . $request->ip();
+        $maxAttempts    = 3;   // 3 intentos antes del bloqueo
+        $lockoutMinutes = 30;  // bloqueo temporal de 30 minutos
+
+        if (Cache::has($lockoutKey)) {
+            $this->logActivity('login_blocked', "IP en lockout temporal intentó acceder: {$request->ip()}", 'usuarios');
+            return response()->json([
+                'message' => 'Acceso temporalmente bloqueado. Intenta de nuevo más tarde o contacta al administrador.',
+            ], 429);
+        }
+
+        // ── 3. Verificar Cloudflare Turnstile ────────────────────────────────────
+        // Si TURNSTILE_SECRET_KEY no está configurada (ej. entorno local/dev),
+        // se omite la verificación para no bloquear el desarrollo.
+        $turnstileSecret = config('services.turnstile.secret');
+        if ($turnstileSecret) {
+            $turnstile = Http::asForm()->post('https://challenges.cloudflare.com/turnstile/v0/siteverify', [
+                'secret'   => $turnstileSecret,
+                'response' => $request->turnstile_token,
+                'remoteip' => $request->ip(),
+            ]);
+
+            if (!$turnstile->successful() || !$turnstile->json('success')) {
+                $this->logActivity('login_failed', "Verificación Turnstile fallida desde IP: {$request->ip()}", 'usuarios');
+                return response()->json([
+                    'message' => 'La verificación de seguridad falló. Por favor, intenta de nuevo.',
+                    'errors'  => ['turnstile' => ['Captcha inválido']],
+                ], 422);
+            }
+        }
+
+        // ── 4. Verificar credenciales ─────────────────────────────────────────────
+        // Usamos Eloquent (prepared statements) → inmune a SQL injection por diseño
+        $usuario = Usuario::where('nick', $request->nick)->first();
+
+        if (!$usuario || !Hash::check($request->password, $usuario->password)) {
+            $attempts = Cache::increment($attemptsKey);
+            Cache::put($attemptsKey, $attempts, now()->addMinutes($lockoutMinutes));
+
+            if ($attempts >= $maxAttempts) {
+                // Bloqueo por tiempo (cache)
+                Cache::put($lockoutKey, true, now()->addMinutes($lockoutMinutes));
+                Cache::forget($attemptsKey);
+
+                // Bloquear la cuenta del usuario si fue identificado
+                if ($usuario) {
+                    $usuario->update([
+                        'activo'         => false,
+                        'motivo_bloqueo' => "Bloqueado automáticamente: {$maxAttempts} intentos fallidos desde IP {$request->ip()}",
+                    ]);
+                }
+
+                // Registrar IP en lista negra permanente
+                IpBloqueada::firstOrCreate(
+                    ['ip' => $request->ip()],
+                    [
+                        'usuario_id' => $usuario?->id,
+                        'motivo'     => "Bloqueada automáticamente tras {$maxAttempts} intentos fallidos de login",
+                    ]
+                );
+
+                // Alerta de seguridad en el log de auditoría
+                $this->logActivity(
+                    'posible_hackeo',
+                    "⚠️ POSIBLE INTENTO DE HACKEO — IP: {$request->ip()} bloqueada definitivamente tras {$maxAttempts} intentos fallidos" .
+                    ($usuario ? " — Cuenta objetivo: {$usuario->nick} (bloqueada)" : " — Nick inexistente: {$request->nick}"),
+                    'usuarios',
+                    $usuario?->id
+                );
+
+                return response()->json([
+                    'message' => 'Acceso bloqueado. Contacte al administrador.',
+                ], 429);
+            }
+
+            $restantes = $maxAttempts - $attempts;
+            $this->logActivity(
+                'login_failed',
+                "Credenciales inválidas desde IP: {$request->ip()} — Intento {$attempts}/{$maxAttempts}",
+                'usuarios'
+            );
+            return response()->json([
+                'message' => 'Usuario o contraseña incorrectos.',
+            ], 401);
+        }
+
+        if (!$usuario->activo) {
+            return response()->json(['message' => 'Esta cuenta se encuentra desactivada. Contacte al administrador.'], 403);
+        }
+
+        // ── 5. Verificar sesión única — rechazar si ya hay sesión activa válida ────
+        $sesionActiva = $usuario->api_token
+            && $usuario->token_expira_en
+            && now()->isBefore($usuario->token_expira_en)
+            && $usuario->token_created_at
+            && now()->isBefore($usuario->token_created_at->addHours(12));
+
+        if ($sesionActiva) {
+            $this->logActivity(
+                'login_bloqueado',
+                "Intento de sesión doble bloqueado para {$usuario->nick} desde IP: {$request->ip()}",
+                'usuarios',
+                $usuario->id
+            );
+            return response()->json([
+                'message' => 'Este usuario ya tiene una sesión activa en otro dispositivo. Cierra esa sesión antes de continuar.',
+            ], 409);
+        }
+
+        // ── 6. Login exitoso ──────────────────────────────────────────────────────
+        Cache::forget($attemptsKey);
+        Cache::forget($lockoutKey);
+
+        $token     = bin2hex(random_bytes(40));
+        $tokenHash = hash('sha256', $token);
+        $usuario->update([
+            'api_token'        => $tokenHash,
+            'token_expira_en'  => now()->addHours(8),
+            'token_created_at' => now(),
+        ]);
+
+        $this->logActivity('login', "Inicio de sesión exitoso — ID: {$usuario->id}", 'usuarios', $usuario->id);
+
+        return response()->json([
+            'access_token' => $token,
+            'token_type'   => 'Bearer',
+            'user'         => [
+                'nombre'   => $usuario->nombre,
+                'nick'     => $usuario->nick,
+                'cargo'    => $usuario->cargo,
+                'genero'   => $usuario->genero,
+                'tipo'     => $usuario->tipo,
+                'permisos' => $usuario->permisos,
+            ],
+        ]);
+    }
+
+    public function changePassword(Request $request)
+    {
+        $request->validate([
+            'current_password' => 'required|string',
+            'new_password' => 'required|string|min:8|confirmed',
+        ]);
+
+        $usuario = auth()->user();
+
+        if (!Hash::check($request->current_password, $usuario->password)) {
+            throw ValidationException::withMessages([
+                'current_password' => ['La contraseña actual es incorrecta.'],
+            ]);
+        }
+
+        $usuario->update([
+            'password' => Hash::make($request->new_password)
+        ]);
+
+        $this->logActivity('edit', "Usuario {$usuario->nick} cambió su contraseña", 'usuarios', $usuario->id);
+
+        return response()->json(['message' => 'Contraseña actualizada correctamente.']);
+    }
+
+    public function logout(Request $request)
+    {
+        $token   = str_replace('Bearer ', '', $request->header('Authorization'));
+        $usuario = Usuario::where('api_token', hash('sha256', $token))->first();
+
+        if ($usuario) {
+            $this->logActivity('logout', "Usuario {$usuario->nick} ha cerrado sesión", 'usuarios', $usuario->id);
+            $usuario->update(['api_token' => null, 'token_expira_en' => null, 'token_created_at' => null]);
+        }
+
+        return response()->json(['message' => 'Sesión cerrada correctamente.']);
+    }
+
+    /** Verifica que la contraseña ingresada coincide con la del usuario en sesión. */
+    public function verifyPassword(Request $request)
+    {
+        $request->validate(['password' => 'required|string']);
+
+        $token   = str_replace('Bearer ', '', $request->header('Authorization'));
+        $usuario = Usuario::where('api_token', hash('sha256', $token))->first();
+
+        if (!$usuario || !Hash::check($request->input('password'), $usuario->password)) {
+            return response()->json(['error' => 'Contraseña incorrecta'], 401);
+        }
+
+        return response()->json(['ok' => true]);
+    }
+}
