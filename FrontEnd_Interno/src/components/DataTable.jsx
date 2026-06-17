@@ -37,6 +37,7 @@
  */
 import { useState } from 'react'
 import { ChevronsUpDown, ChevronUp, ChevronDown } from 'lucide-react'
+import { Skel } from './Skeleton.jsx'
 
 // Clases CSS para ocultar columnas según el tamaño de pantalla
 const HIDE = {
@@ -71,7 +72,9 @@ function sortVal(v) {
   return v.toLowerCase()
 }
 
-export default function DataTable({ cols, rows, footer = null, id, searchable = false }) {
+const SKEL_WIDTHS = [48, 120, 90, 100, 80, 70, 60, 50]
+
+export default function DataTable({ cols, rows, footer = null, id, searchable = false, loading = false, skeletonRows = 6 }) {
   const [search,  setSearch]  = useState('')
   const [sortKey, setSortKey] = useState(null)   // clave de la columna activa para ordenar
   const [sortDir, setSortDir] = useState('asc')  // 'asc' o 'desc'
@@ -97,6 +100,43 @@ export default function DataTable({ cols, rows, footer = null, id, searchable = 
       if (va > vb) return sortDir === 'asc' ?  1 : -1
       return 0
     })
+  }
+
+  if (loading) {
+    return (
+      <div className="card overflow-hidden mx-2 sm:mx-0 px-3 sm:px-0" id={id} aria-busy="true">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-100 text-slate-600 text-xs font-semibold uppercase tracking-wider">
+              <tr>
+                {cols.map((c, i) => (
+                  <th key={c.k} className={`th-cell${c.hide ? ' ' + HIDE[c.hide] : ''}`}>
+                    <Skel className="h-3 rounded" style={{ width: SKEL_WIDTHS[i % SKEL_WIDTHS.length] }} />
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {Array.from({ length: skeletonRows }).map((_, ri) => (
+                <tr key={ri}>
+                  {cols.map((c, ci) => (
+                    <td key={c.k} className={tdCls(c)}>
+                      <Skel
+                        className="h-3.5 rounded"
+                        style={{ width: c.acc ? 72 : SKEL_WIDTHS[(ci + ri) % SKEL_WIDTHS.length] }}
+                      />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="px-5 py-3 border-t border-slate-100">
+          <Skel className="h-3 w-20 rounded" />
+        </div>
+      </div>
+    )
   }
 
   return (

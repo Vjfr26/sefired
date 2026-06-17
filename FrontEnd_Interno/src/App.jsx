@@ -59,9 +59,33 @@ export default function App() {
   if (loggedIn === null) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-jm-light">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-8 h-8 border-4 border-jm-blue/20 border-t-jm-blue rounded-full animate-spin" />
-          <p className="text-xs text-slate-400 font-medium tracking-wide">Verificando sesión…</p>
+        <div className="flex flex-col items-center gap-5">
+          {/* Logo con anillo giratorio */}
+          <div className="relative flex items-center justify-center">
+            {/* Anillo exterior */}
+            <svg className="absolute w-20 h-20 animate-spin" style={{ animationDuration: '2s' }} viewBox="0 0 80 80">
+              <circle cx="40" cy="40" r="36" fill="none" stroke="#001463" strokeWidth="2.5"
+                strokeDasharray="56 170" strokeLinecap="round" />
+            </svg>
+            {/* Badge de marca */}
+            <div className="w-14 h-14 rounded-2xl bg-jm-blue shadow-xl shadow-jm-blue/30 flex items-center justify-center">
+              <span className="text-white font-black text-2xl tracking-tighter select-none">J</span>
+            </div>
+          </div>
+          <div className="flex flex-col items-center gap-1">
+            <p className="text-sm font-bold text-jm-blue tracking-wide">J&amp;M Reaseguradora</p>
+            <p className="text-xs text-slate-400 font-medium">Verificando sesión…</p>
+          </div>
+          {/* Dots animados */}
+          <div className="flex gap-1.5">
+            {[0, 1, 2].map(i => (
+              <span
+                key={i}
+                className="w-1.5 h-1.5 rounded-full bg-jm-blue/40"
+                style={{ animation: `app-pulse 1.2s ease-in-out ${i * 0.2}s infinite` }}
+              />
+            ))}
+          </div>
         </div>
       </div>
     )

@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext.jsx'
 import { badge, rsbadge, UserAvatar } from '../utils/helpers.jsx'
 import SearchBar from '../components/SearchBar.jsx'
 import DataTable from '../components/DataTable.jsx'
+import { SkeletonStatCards } from '../components/Skeleton.jsx'
 import { fetchUsuarios, deleteUsuario, toggleUserStatus } from '../api/usuarios.js'
 
 const ROLES = ['Admin', 'Oficina', 'Vendedor Sucursal', 'Vendedor Calle']
@@ -85,14 +86,18 @@ export default function Usuarios() {
   const [chipActive, setChipActive] = useState(0)
   const [search,     setSearch]     = useState('')
   const [usuarios,   setUsuarios]   = useState([])
+  const [loading,    setLoading]    = useState(true)
 
   const loadUsuarios = useCallback(async () => {
+    setLoading(true)
     try {
       const res = await fetchUsuarios()
       setUsuarios(res.data)
       refreshUser()
     } catch (err) {
       showToast(err.message || 'Error al cargar usuarios', 'error')
+    } finally {
+      setLoading(false)
     }
   }, [showToast, refreshUser])
 
@@ -162,7 +167,7 @@ export default function Usuarios() {
   return (
     <div className="animate-in fade-in duration-500">
       {/* ── Cards ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      {loading ? <SkeletonStatCards count={4} /> : <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {[
           { l: 'Total Usuarios',    v: usuarios.length, sub: `${usuarios.length - blocked} activos`,      Icon: Users,      bg: 'bg-slate-100',  ic: 'text-slate-600'  },
           { l: 'Administradores',   v: byRole['Admin'], sub: 'Acceso total',                               Icon: ShieldCheck, bg: 'bg-indigo-100', ic: 'text-indigo-600' },
@@ -180,7 +185,7 @@ export default function Usuarios() {
             </div>
           </div>
         ))}
-      </div>
+      </div>}
 
       {/* ── Filtro por rol ── */}
       <div className="flex flex-wrap gap-2 mb-4">
@@ -214,7 +219,7 @@ export default function Usuarios() {
         }
       />
 
-      <DataTable cols={COLS_BASE.filter(c => c.k !== 'motivo' || filtered.some(u => !u.activo))} rows={dataRows} />
+      <DataTable cols={COLS_BASE.filter(c => c.k !== 'motivo' || filtered.some(u => !u.activo))} rows={dataRows} loading={loading} />
     </div>
   )
 }

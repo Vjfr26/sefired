@@ -117,7 +117,7 @@ class SolicitudController extends Controller
         }
 
         $data = $request->validate([
-            'status'            => 'sometimes|in:en_revision,aprobado,rechazado,pendiente',
+            'status'            => 'sometimes|in:en_revision,rechazado,pendiente',
             'persona_id'        => 'sometimes|integer|exists:persona,id',
             'bien_asegurado_id' => 'nullable|integer|exists:bien_asegurado,id',
             'producto_id'       => 'nullable|integer|exists:producto,id',

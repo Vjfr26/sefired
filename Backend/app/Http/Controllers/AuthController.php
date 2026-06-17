@@ -157,7 +157,7 @@ class AuthController extends Controller
             return response()->json(['message' => 'Esta cuenta se encuentra desactivada. Contacte al administrador.'], 403);
         }
 
-        // ── 5. Verificar sesión única — rechazar si ya hay sesión activa válida ────
+        // ── 5. Cerrar sesión anterior si existe una activa ───────────────────────
         $sesionActiva = $usuario->api_token
             && $usuario->token_expira_en
             && now()->isBefore($usuario->token_expira_en)
@@ -166,14 +166,11 @@ class AuthController extends Controller
 
         if ($sesionActiva) {
             $this->logActivity(
-                'login_bloqueado',
-                "Intento de sesión doble bloqueado para {$usuario->nick} desde IP: {$request->ip()}",
+                'sesion_forzada',
+                "Sesión anterior cerrada forzosamente para {$usuario->nick} — nueva sesión desde IP: {$request->ip()}",
                 'usuarios',
                 $usuario->id
             );
-            return response()->json([
-                'message' => 'Este usuario ya tiene una sesión activa en otro dispositivo. Cierra esa sesión antes de continuar.',
-            ], 409);
         }
 
         // ── 6. Login exitoso ──────────────────────────────────────────────────────

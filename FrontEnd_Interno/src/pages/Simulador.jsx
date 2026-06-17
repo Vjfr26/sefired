@@ -1612,11 +1612,6 @@ export default function Simulador() {
                           </button>
                         )}
                         {canEdit && q.status === 'en_revision' && (
-                          <button onClick={() => handleChangeStatus(q.id, 'aprobado')} className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition" title="Aprobar directo">
-                            <Check className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                        {canEdit && q.status === 'en_revision' && (
                           <button onClick={() => handleChangeStatus(q.id, 'rechazado')} className="p-1.5 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition" title="Rechazar directo">
                             <X className="w-3.5 h-3.5" />
                           </button>

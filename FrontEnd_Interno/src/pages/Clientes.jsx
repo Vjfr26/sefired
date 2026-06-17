@@ -25,6 +25,7 @@ import { useApp } from '../context/AppContext.jsx'
 import { rsbadge } from '../utils/helpers.jsx'
 import SearchBar from '../components/SearchBar.jsx'
 import DataTable from '../components/DataTable.jsx'
+import { SkeletonStatCards } from '../components/Skeleton.jsx'
 import { fetchClientes, createCliente, updateCliente, deleteCliente, toggleCliente } from '../api/clientes.js'
 
 // Convierte el ID numérico del backend al formato visual "CLI-0001"
@@ -279,7 +280,7 @@ export default function Clientes() {
   return (
     <div className="animate-in fade-in duration-500">
       {/* ── Cards de resumen ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      {loading ? <SkeletonStatCards count={4} /> : <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <div className="card p-4 flex items-start gap-3">
           <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
             <Users className="w-4 h-4 text-slate-600" />
@@ -320,7 +321,7 @@ export default function Clientes() {
             <p className="text-xs text-slate-400 mt-1">Sin cobertura</p>
           </div>
         </div>
-      </div>
+      </div>}
 
       <SearchBar
         placeholder="Buscar por nombre, CI/RIF o email…"
@@ -346,16 +347,10 @@ export default function Clientes() {
         }
       />
 
-      {loading && (
-        <div className="flex justify-center items-center py-16 text-slate-400 text-sm gap-2">
-          <div className="w-4 h-4 border-2 border-slate-300 border-t-jm-blue rounded-full animate-spin" />
-          Cargando clientes…
-        </div>
-      )}
       {error && !loading && (
         <div className="text-center py-12 text-rose-500 text-sm">{error}</div>
       )}
-      {!loading && !error && <DataTable cols={COLS} rows={dataRows} />}
+      {!error && <DataTable cols={COLS} rows={dataRows} loading={loading} />}
 
     </div>
   )

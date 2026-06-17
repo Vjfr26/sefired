@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\DocumentoClienteMail;
 use App\Models\ClienteDocumento;
+use App\Models\EmailLog;
 use App\Models\Persona;
 use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 
 class ClienteDocumentoController extends Controller
@@ -26,7 +29,7 @@ class ClienteDocumentoController extends Controller
 
     public function store(Request $request, $personaId)
     {
-        Persona::findOrFail($personaId);
+        $persona = Persona::findOrFail($personaId);
 
         $request->validate([
             'documento' => 'required|file|mimes:pdf,jpg,jpeg,png,doc,docx|max:10240',
@@ -52,22 +55,38 @@ class ClienteDocumentoController extends Controller
             auth()->id()
         );
 
+        if ($persona->correo) {
+            try {
+                Mail::to($persona->correo)->queue(new DocumentoClienteMail($persona->nombre, $doc->nombre, 'subido'));
+                EmailLog::registrar('documento_subido', $persona->correo, 'Nuevo documento en su expediente', $persona->id);
+            } catch (\Throwable) {}
+        }
+
         return response()->json($this->row($doc), 201);
     }
 
     public function destroy($personaId, $docId)
     {
-        $doc = ClienteDocumento::where('persona_id', $personaId)->findOrFail($docId);
+        $doc     = ClienteDocumento::where('persona_id', $personaId)->findOrFail($docId);
+        $persona = Persona::find($personaId);
 
         Storage::disk('public')->delete($doc->path);
+        $docNombre = $doc->nombre;
         $doc->delete();
 
         $this->logActivity(
             'Documento Eliminado',
-            "Doc \"{$doc->nombre}\" del cliente #{$personaId}",
+            "Doc \"{$docNombre}\" del cliente #{$personaId}",
             'cliente_documentos',
             auth()->id()
         );
+
+        if ($persona?->correo) {
+            try {
+                Mail::to($persona->correo)->queue(new DocumentoClienteMail($persona->nombre, $docNombre, 'eliminado'));
+                EmailLog::registrar('documento_eliminado', $persona->correo, 'Documento eliminado de su expediente', $persona->id);
+            } catch (\Throwable) {}
+        }
 
         return response()->json(['message' => 'Documento eliminado correctamente']);
     }

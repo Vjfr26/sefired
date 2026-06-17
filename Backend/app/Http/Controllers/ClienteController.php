@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Mail\BienvenidaMail;
 use App\Mail\CambioClienteMail;
 use App\Mail\ClienteBloqueadoMail;
+use App\Mail\ClienteEliminadoMail;
 use App\Models\BienAsegurado;
 use App\Models\ClienteDocumento;
 use App\Models\EmailLog;
@@ -405,6 +406,13 @@ class ClienteController extends Controller
                 ['error' => 'No se puede eliminar un cliente con solicitudes o pólizas activas.'],
                 409
             );
+        }
+
+        if ($persona->correo) {
+            try {
+                Mail::to($persona->correo)->queue(new ClienteEliminadoMail($persona->nombre, $persona->cedula));
+                EmailLog::registrar('cliente_eliminado', $persona->correo, 'Cuenta eliminada', $persona->id);
+            } catch (\Throwable) {}
         }
 
         $persona->delete();

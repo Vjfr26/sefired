@@ -189,17 +189,13 @@ export default function Renovaciones() {
       </div>
 
       {/* ── Tabla ── */}
-      {loading ? (
-        <div className="flex justify-center items-center py-16 text-slate-400 text-sm gap-2">
-          <div className="w-4 h-4 border-2 border-slate-300 border-t-jm-blue rounded-full animate-spin" />
-          Cargando solicitudes…
-        </div>
-      ) : rows.length === 0 ? (
+      {!loading && rows.length === 0 ? (
         <div className="text-center py-16 text-slate-400 text-sm">
           No hay solicitudes {filter.status ? `con estado ${filter.status}` : ''}.
         </div>
       ) : (
         <DataTable
+          loading={loading}
           cols={[
             { k: 'f',     l: 'Fecha',        nw: true, hide: 'md' },
             { k: 'pol',   l: 'Póliza',        nw: true, bold: true },

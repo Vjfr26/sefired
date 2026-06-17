@@ -5,6 +5,7 @@ import Header from '../layout/Header.jsx'
 import Modal from '../components/Modal.jsx'
 import Toast from '../components/Toast.jsx'
 import PdfViewer from '../components/PdfViewer.jsx'
+import { SkeletonPage } from '../components/Skeleton.jsx'
 
 const PAGE_MAP = {
   'home':          lazy(() => import('./Home.jsx')),
@@ -19,11 +20,7 @@ const PAGE_MAP = {
   'renovaciones':  lazy(() => import('./Renovaciones.jsx')),
 }
 
-const PageSpinner = () => (
-  <div className="flex justify-center items-center py-16 text-slate-400 text-sm gap-2">
-    <div className="w-4 h-4 border-2 border-slate-300 border-t-jm-blue rounded-full animate-spin" />
-  </div>
-)
+const PageSpinner = () => <SkeletonPage />
 
 export default function Layout() {
   const { currentView } = useApp()
