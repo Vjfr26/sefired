@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Solicitud;
 use App\Models\UnderwritingEvaluacion;
+use App\Rules\NoInjectionChars;
 use App\Services\WorkflowService;
 use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
@@ -50,12 +51,14 @@ class UnderwritingController extends Controller
             return response()->json(['error' => 'No se puede evaluar una cotización ya emitida.'], 409);
         }
 
+        $noInjection = new NoInjectionChars();
+
         $data = $request->validate([
             'tipo'                => 'sometimes|in:manual,automatica',
             'resultado'           => 'required|in:pendiente,aprobado,rechazado,observado',
             'score'               => 'nullable|numeric|min:0|max:100',
-            'observaciones'       => 'nullable|string',
-            'motivo_rechazo'      => 'nullable|string',
+            'observaciones'       => ['nullable', 'string', $noInjection],
+            'motivo_rechazo'      => ['nullable', 'string', $noInjection],
             'requiere_inspeccion' => 'boolean',
             'reglas_aplicadas'    => 'nullable|array',
         ]);
@@ -101,11 +104,13 @@ class UnderwritingController extends Controller
     {
         $evaluacion = UnderwritingEvaluacion::with('solicitud')->findOrFail($id);
 
+        $noInjection = new NoInjectionChars();
+
         $data = $request->validate([
             'resultado'           => 'sometimes|in:pendiente,aprobado,rechazado,observado',
             'score'               => 'nullable|numeric|min:0|max:100',
-            'observaciones'       => 'nullable|string',
-            'motivo_rechazo'      => 'nullable|string',
+            'observaciones'       => ['nullable', 'string', $noInjection],
+            'motivo_rechazo'      => ['nullable', 'string', $noInjection],
             'requiere_inspeccion' => 'sometimes|boolean',
             'reglas_aplicadas'    => 'nullable|array',
         ]);

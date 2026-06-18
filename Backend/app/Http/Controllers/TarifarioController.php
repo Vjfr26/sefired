@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Tarifario;
 use App\Models\Producto;
+use App\Rules\NoInjectionChars;
 use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
 
@@ -58,9 +59,11 @@ class TarifarioController extends Controller
     {
         Producto::findOrFail($productoId);
 
+        $noInjection = new NoInjectionChars();
+
         $data = $request->validate([
-            'nombre'  => 'required|string|max:100',
-            'subtipo' => 'nullable|string|max:50',
+            'nombre'  => ['required', 'string', 'max:100', $noInjection],
+            'subtipo' => ['nullable', 'string', 'max:50', $noInjection],
             'datos'   => 'required|array',
             'activo'  => 'boolean',
         ]);
@@ -89,9 +92,11 @@ class TarifarioController extends Controller
     {
         $tarifa = Tarifario::findOrFail($id);
 
+        $noInjection = new NoInjectionChars();
+
         $data = $request->validate([
-            'nombre'  => 'sometimes|required|string|max:100',
-            'subtipo' => 'nullable|string|max:50',
+            'nombre'  => ['sometimes', 'required', 'string', 'max:100', $noInjection],
+            'subtipo' => ['nullable', 'string', 'max:50', $noInjection],
             'datos'   => 'sometimes|required|array',
             'activo'  => 'sometimes|boolean',
         ]);

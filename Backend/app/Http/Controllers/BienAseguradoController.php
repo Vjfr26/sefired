@@ -7,6 +7,7 @@ use App\Models\BienAsegurado;
 use App\Models\BienPersonaRol;
 use App\Models\EmailLog;
 use App\Models\Persona;
+use App\Rules\NoInjectionChars;
 use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
@@ -58,12 +59,14 @@ class BienAseguradoController extends Controller
 
     public function store(Request $request)
     {
+        $noInjection = new NoInjectionChars();
+
         $data = $request->validate([
             'persona_id'      => 'nullable|integer|exists:persona,id',
-            'tipo'            => 'required|string|max:30',
+            'tipo'            => ['required', 'string', 'max:30', $noInjection],
             'atributos'       => 'nullable|array',
             'valor_declarado' => 'nullable|numeric|min:0',
-            'descripcion'     => 'nullable|string|max:200',
+            'descripcion'     => ['nullable', 'string', 'max:200', $noInjection],
         ]);
 
         $bien = BienAsegurado::create([
@@ -88,12 +91,14 @@ class BienAseguradoController extends Controller
     {
         $bien = BienAsegurado::findOrFail($id);
 
+        $noInjection = new NoInjectionChars();
+
         $data = $request->validate([
             'persona_id'      => 'sometimes|nullable|integer|exists:persona,id',
-            'tipo'            => 'sometimes|string|max:30',
+            'tipo'            => ['sometimes', 'string', 'max:30', $noInjection],
             'atributos'       => 'sometimes|nullable|array',
             'valor_declarado' => 'sometimes|nullable|numeric|min:0',
-            'descripcion'     => 'sometimes|nullable|string|max:200',
+            'descripcion'     => ['sometimes', 'nullable', 'string', 'max:200', $noInjection],
         ]);
 
         $bien->update($data);
@@ -126,9 +131,11 @@ class BienAseguradoController extends Controller
     {
         $bien = BienAsegurado::findOrFail($id);
 
+        $noInjection = new NoInjectionChars();
+
         $data = $request->validate([
             'persona_id' => 'required|integer|exists:persona,id',
-            'rol'        => 'required|string|max:30',
+            'rol'        => ['required', 'string', 'max:30', $noInjection],
             'datos'      => 'nullable|array',
         ]);
 

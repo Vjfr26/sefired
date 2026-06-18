@@ -7,6 +7,7 @@ use App\Models\Persona;
 use App\Models\Poliza;
 use App\Models\Producto;
 use App\Models\Solicitud;
+use App\Rules\NoInjectionChars;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
@@ -95,42 +96,48 @@ class PortalController extends Controller
         }
 
         // 2. Validar campos
+        // Nota: Eloquent/el query builder ya parametriza todas las consultas
+        // (no hay riesgo real de inyección SQL), pero igual se rechazan
+        // comillas, punto y coma, backtick, < >, backslash y "--" en los
+        // campos de texto libre por política explícita — mismo set de
+        // caracteres que ya filtra el frontend en sanitizeInput().
+        $noInjectionChars = new NoInjectionChars();
         $data = $request->validate([
             // Datos del cliente
-            'nombre_completo'     => 'required|string|max:200',
+            'nombre_completo'     => ['required', 'string', 'max:200', $noInjectionChars],
             'cedula'              => 'required|string|max:20',
-            'telefono'            => 'required|string|max:30',
+            'telefono'            => ['required', 'string', 'max:30', $noInjectionChars],
             'email'               => 'nullable|email|max:120',
-            'estado'              => 'nullable|string|max:60',
-            'ciudad'              => 'required|string|max:80',
-            'direccion'           => 'nullable|string|max:200',
+            'estado'              => ['nullable', 'string', 'max:60', $noInjectionChars],
+            'ciudad'              => ['required', 'string', 'max:80', $noInjectionChars],
+            'direccion'           => ['nullable', 'string', 'max:200', $noInjectionChars],
             'sexo'                => 'nullable|string|max:10',
-            'condicion'           => 'nullable|string|max:30',
+            'condicion'           => ['nullable', 'string', 'max:30', $noInjectionChars],
             'nacimiento'          => 'nullable|date|before_or_equal:' . now()->subYears(18)->toDateString(),
-            'nacionalidad'        => 'nullable|string|max:40',
+            'nacionalidad'        => ['nullable', 'string', 'max:40', $noInjectionChars],
             // Producto seleccionado
             'producto_id'         => 'nullable|integer|exists:producto,id',
             'subtipo_id'          => 'nullable|integer|exists:producto,id',
-            'tipo_seguro'         => 'nullable|string|max:100',
+            'tipo_seguro'         => ['nullable', 'string', 'max:100', $noInjectionChars],
             'prima_estimada'      => 'nullable|numeric|min:0',
             // Datos vehículo
-            'placa'               => 'nullable|string|max:15',
-            'marca'               => 'nullable|string|max:50',
-            'modelo'              => 'nullable|string|max:80',
+            'placa'               => ['nullable', 'string', 'max:15', $noInjectionChars],
+            'marca'               => ['nullable', 'string', 'max:50', $noInjectionChars],
+            'modelo'              => ['nullable', 'string', 'max:80', $noInjectionChars],
             'año'                 => 'nullable|string|max:4',
-            'color'               => 'nullable|string|max:40',
-            'uso'                 => 'nullable|string|max:50',
+            'color'               => ['nullable', 'string', 'max:40', $noInjectionChars],
+            'uso'                 => ['nullable', 'string', 'max:50', $noInjectionChars],
             'valor_mercado'       => 'nullable|numeric|min:0',
             // Datos bien genérico
-            'bien_tipo'           => 'nullable|string|max:60',
-            'bien_descripcion'    => 'nullable|string|max:200',
+            'bien_tipo'           => ['nullable', 'string', 'max:60', $noInjectionChars],
+            'bien_descripcion'    => ['nullable', 'string', 'max:200', $noInjectionChars],
             'bien_valor'          => 'nullable|numeric|min:0',
-            'bien_direccion'      => 'nullable|string|max:200',
+            'bien_direccion'      => ['nullable', 'string', 'max:200', $noInjectionChars],
             // Documentos adjuntos
             'documentos'          => 'nullable|array|max:10',
             'documentos.*'        => 'nullable|file|max:8192|mimes:pdf,jpg,jpeg,png,webp',
             'documentos_nombres'  => 'nullable|array',
-            'documentos_nombres.*'=> 'nullable|string|max:100',
+            'documentos_nombres.*'=> ['nullable', 'string', 'max:100', $noInjectionChars],
         ]);
 
         // 3. Normalizar cédula y nombre

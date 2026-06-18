@@ -6,6 +6,7 @@ use App\Mail\DocumentoClienteMail;
 use App\Models\ClienteDocumento;
 use App\Models\EmailLog;
 use App\Models\Persona;
+use App\Rules\NoInjectionChars;
 use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
@@ -31,9 +32,11 @@ class ClienteDocumentoController extends Controller
     {
         $persona = Persona::findOrFail($personaId);
 
+        $noInjection = new NoInjectionChars();
+
         $request->validate([
             'documento' => 'required|file|mimes:pdf,jpg,jpeg,png,doc,docx|max:10240',
-            'nombre'    => 'required|string|max:100',
+            'nombre'    => ['required', 'string', 'max:100', $noInjection],
         ]);
 
         $file     = $request->file('documento');

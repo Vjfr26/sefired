@@ -11,6 +11,7 @@ use App\Models\Solicitud;
 use App\Models\Persona;
 use App\Models\Poliza;
 use App\Models\Factura;
+use App\Rules\NoInjectionChars;
 use App\Services\WorkflowService;
 use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
@@ -57,6 +58,8 @@ class SolicitudController extends Controller
      */
     public function store(Request $request)
     {
+        $noInjection = new NoInjectionChars();
+
         $data = $request->validate([
             'persona_id'        => 'nullable|integer|exists:persona,id',
             'bien_asegurado_id' => 'nullable|integer|exists:bien_asegurado,id',
@@ -66,10 +69,10 @@ class SolicitudController extends Controller
             'total_bs'          => 'required|numeric|min:0',
             'fecha_solicitud'   => 'required|date',
             'coberturas'        => 'required|array',
-            'nombre_tomador'    => 'nullable|string|max:120',
-            'ci_tomador'        => 'nullable|string|max:20',
-            'asegurado_nombre'  => 'nullable|string|max:120',
-            'asegurado_ci'      => 'nullable|string|max:20',
+            'nombre_tomador'    => ['nullable', 'string', 'max:120', $noInjection],
+            'ci_tomador'        => ['nullable', 'string', 'max:20', $noInjection],
+            'asegurado_nombre'  => ['nullable', 'string', 'max:120', $noInjection],
+            'asegurado_ci'      => ['nullable', 'string', 'max:20', $noInjection],
         ]);
 
         $data['vendedor_id'] = auth()->id();
@@ -116,6 +119,8 @@ class SolicitudController extends Controller
             return response()->json(['error' => 'No se puede editar una cotización ya emitida.'], 409);
         }
 
+        $noInjection = new NoInjectionChars();
+
         $data = $request->validate([
             'status'            => 'sometimes|in:en_revision,rechazado,pendiente',
             'persona_id'        => 'sometimes|integer|exists:persona,id',
@@ -126,10 +131,10 @@ class SolicitudController extends Controller
             'total_bs'          => 'sometimes|numeric|min:0',
             'fecha_solicitud'   => 'sometimes|date',
             'coberturas'        => 'sometimes|array',
-            'nombre_tomador'    => 'nullable|string|max:120',
-            'ci_tomador'        => 'nullable|string|max:20',
-            'asegurado_nombre'  => 'nullable|string|max:120',
-            'asegurado_ci'      => 'nullable|string|max:20',
+            'nombre_tomador'    => ['nullable', 'string', 'max:120', $noInjection],
+            'ci_tomador'        => ['nullable', 'string', 'max:20', $noInjection],
+            'asegurado_nombre'  => ['nullable', 'string', 'max:120', $noInjection],
+            'asegurado_ci'      => ['nullable', 'string', 'max:20', $noInjection],
         ]);
 
         // Validar transición de estado antes de persistir
@@ -181,19 +186,21 @@ class SolicitudController extends Controller
             return response()->json(['error' => 'Esta cotización ya fue emitida.'], 409);
         }
 
+        $noInjection = new NoInjectionChars();
+
         $data = $request->validate([
             'tasa_bcv'          => 'required|numeric|min:0.0001',
             'tasa_eur'          => 'nullable|numeric|min:0.0001',
             'frecuencia_pago'   => 'nullable|string|in:Mensual,Anual',
             'pagos'             => 'required|array|min:1',
-            'pagos.*.forma'     => 'required|string|max:30',
+            'pagos.*.forma'     => ['required', 'string', 'max:30', $noInjection],
             'pagos.*.moneda'    => 'required|string|in:USD,EUR,Bs.',
             'pagos.*.monto'     => 'required|numeric|min:0.01',
-            'pagos.*.referencia'=> 'nullable|string|max:100',
+            'pagos.*.referencia'=> ['nullable', 'string', 'max:100', $noInjection],
             // campos legacy / fallback
-            'pago'      => 'nullable|string|max:30',
-            'moneda'    => 'nullable|string|max:10',
-            'referencia'=> 'nullable|string|max:50',
+            'pago'      => ['nullable', 'string', 'max:30', $noInjection],
+            'moneda'    => ['nullable', 'string', 'max:10', $noInjection],
+            'referencia'=> ['nullable', 'string', 'max:50', $noInjection],
         ]);
 
         $solicitud->load(['persona', 'producto', 'tarifario', 'bien']);

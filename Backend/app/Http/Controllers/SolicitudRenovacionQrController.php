@@ -7,6 +7,7 @@ use App\Models\EmailLog;
 use App\Models\Factura;
 use App\Models\Poliza;
 use App\Models\SolicitudRenovacionQr;
+use App\Rules\NoInjectionChars;
 use App\Services\WorkflowService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
@@ -186,8 +187,10 @@ class SolicitudRenovacionQrController extends Controller
             return response()->json(['error' => 'Esta solicitud ya fue procesada.'], 409);
         }
 
+        $noInjection = new NoInjectionChars();
+
         $data = $request->validate([
-            'nota' => 'nullable|string|max:500',
+            'nota' => ['nullable', 'string', 'max:500', $noInjection],
         ]);
 
         $solicitud->update([

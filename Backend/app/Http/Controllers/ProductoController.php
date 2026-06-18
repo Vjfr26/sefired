@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Producto;
+use App\Rules\NoInjectionChars;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -41,21 +42,23 @@ class ProductoController extends Controller
      */
     public function store(Request $request)
     {
+        $noInjection = new NoInjectionChars();
+
         $data = $request->validate([
             'parent_id'              => 'nullable|integer|exists:producto,id',
-            'nombre'                 => 'required|string|max:150',
-            'codigo'                 => 'nullable|string|max:20',
+            'nombre'                 => ['required', 'string', 'max:150', $noInjection],
+            'codigo'                 => ['nullable', 'string', 'max:20', $noInjection],
             'tipo'                   => 'required|string|in:rcv,apov,alpd,ec,ep,vida,salud,hogar,accidentes,funeraria,otro',
             'categoria'              => 'nullable|string|in:vehicular,bienes,personas',
             'tipo_bien'              => 'nullable|string|in:vehiculo,inmueble,vida,bien,ninguno',
             'tipo_calculo'           => 'required|string|in:fijo,por_plan,por_nivel,por_valor',
             'derecho_poliza'         => 'numeric|min:0',
-            'descripcion'            => 'nullable|string',
+            'descripcion'            => ['nullable', 'string', $noInjection],
             'prima'                  => 'numeric|min:0',
             'cobertura'              => 'numeric|min:0',
             'moneda'                 => 'required|string|in:USD,BS,EUR',
             'documentos_requeridos'  => 'nullable|array',
-            'documentos_requeridos.*.nombre'      => 'required|string|max:100',
+            'documentos_requeridos.*.nombre'      => ['required', 'string', 'max:100', $noInjection],
             'documentos_requeridos.*.obligatorio' => 'required|boolean',
         ]);
 
@@ -72,21 +75,23 @@ class ProductoController extends Controller
     {
         $producto = Producto::findOrFail($id);
 
+        $noInjection = new NoInjectionChars();
+
         $data = $request->validate([
             'parent_id'              => 'sometimes|nullable|integer|exists:producto,id',
-            'nombre'                 => 'sometimes|required|string|max:150',
-            'codigo'                 => 'nullable|string|max:20',
+            'nombre'                 => ['sometimes', 'required', 'string', 'max:150', $noInjection],
+            'codigo'                 => ['nullable', 'string', 'max:20', $noInjection],
             'tipo'                   => 'sometimes|required|string|in:rcv,apov,alpd,ec,ep,vida,salud,hogar,accidentes,funeraria,otro',
             'categoria'              => 'nullable|string|in:vehicular,bienes,personas',
             'tipo_bien'              => 'sometimes|nullable|string|in:vehiculo,inmueble,vida,bien,ninguno',
             'tipo_calculo'           => 'sometimes|required|string|in:fijo,por_plan,por_nivel,por_valor',
             'derecho_poliza'         => 'sometimes|numeric|min:0',
-            'descripcion'            => 'nullable|string',
+            'descripcion'            => ['nullable', 'string', $noInjection],
             'prima'                  => 'sometimes|numeric|min:0',
             'cobertura'              => 'sometimes|numeric|min:0',
             'moneda'                 => 'sometimes|required|string|in:USD,BS,EUR',
             'documentos_requeridos'  => 'nullable|array',
-            'documentos_requeridos.*.nombre'      => 'required_with:documentos_requeridos|string|max:100',
+            'documentos_requeridos.*.nombre'      => ['required_with:documentos_requeridos', 'string', 'max:100', $noInjection],
             'documentos_requeridos.*.obligatorio' => 'required_with:documentos_requeridos|boolean',
         ]);
 
@@ -127,9 +132,11 @@ class ProductoController extends Controller
     {
         $producto = Producto::findOrFail($id);
 
+        $noInjection = new NoInjectionChars();
+
         $request->validate([
             'documento' => 'required|file|mimes:pdf|max:10240',
-            'nombre'    => 'required|string|max:100',
+            'nombre'    => ['required', 'string', 'max:100', $noInjection],
         ]);
 
         $filename = uniqid('doc_') . '.pdf';

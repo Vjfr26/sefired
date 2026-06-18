@@ -12,6 +12,7 @@ use App\Models\EmailLog;
 use App\Models\IndicadorEconomico;
 use App\Models\Persona;
 use App\Models\Poliza;
+use App\Rules\NoInjectionChars;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
@@ -77,22 +78,23 @@ class ClienteController extends Controller
 
     public function store(Request $request)
     {
+        $noInjection = new NoInjectionChars();
         $data = $request->validate([
-            'nombre'        => 'required|string|max:120',
-            'cedula'        => 'required|string|max:20|unique:persona,cedula',
-            'condicion'     => 'required|string|max:40',
-            'sexo'          => 'required|string|max:15',
+            'nombre'        => ['required', 'string', 'max:120', $noInjection],
+            'cedula'        => ['required', 'string', 'max:20', 'unique:persona,cedula', $noInjection],
+            'condicion'     => ['required', 'string', 'max:40', $noInjection],
+            'sexo'          => ['required', 'string', 'max:15', $noInjection],
             'nacimiento'    => 'required|date',
-            'nacionalidad'  => 'required|string|max:30',
-            'telefono'      => 'nullable|string|max:20',
-            'celular'       => 'nullable|string|max:20',
+            'nacionalidad'  => ['required', 'string', 'max:30', $noInjection],
+            'telefono'      => ['nullable', 'string', 'max:20', $noInjection],
+            'celular'       => ['nullable', 'string', 'max:20', $noInjection],
             'correo'        => 'required|email|max:100',
-            'estado'        => 'required|string|max:70',
-            'ciudad'        => 'required|string|max:60',
-            'codigo_postal' => 'nullable|string|max:10',
-            'direccion'     => 'required|string',
-            'profesion'     => 'nullable|string|max:50',
-            'actividad'     => 'nullable|string|max:50',
+            'estado'        => ['required', 'string', 'max:70', $noInjection],
+            'ciudad'        => ['required', 'string', 'max:60', $noInjection],
+            'codigo_postal' => ['nullable', 'string', 'max:10', $noInjection],
+            'direccion'     => ['required', 'string', $noInjection],
+            'profesion'     => ['nullable', 'string', 'max:50', $noInjection],
+            'actividad'     => ['nullable', 'string', 'max:50', $noInjection],
         ]);
 
         foreach (['nombre','cedula','condicion','sexo','nacionalidad','estado','ciudad',
@@ -120,22 +122,23 @@ class ClienteController extends Controller
     {
         $persona = Persona::findOrFail($id);
 
+        $noInjection = new NoInjectionChars();
         $data = $request->validate([
-            'nombre'        => 'sometimes|required|string|max:120',
-            'cedula'        => 'sometimes|required|string|max:20|unique:persona,cedula,' . $persona->id,
-            'condicion'     => 'sometimes|required|string|max:40',
-            'sexo'          => 'sometimes|required|string|max:15',
+            'nombre'        => ['sometimes', 'required', 'string', 'max:120', $noInjection],
+            'cedula'        => ['sometimes', 'required', 'string', 'max:20', 'unique:persona,cedula,' . $persona->id, $noInjection],
+            'condicion'     => ['sometimes', 'required', 'string', 'max:40', $noInjection],
+            'sexo'          => ['sometimes', 'required', 'string', 'max:15', $noInjection],
             'nacimiento'    => 'sometimes|required|date',
-            'nacionalidad'  => 'sometimes|required|string|max:30',
-            'telefono'      => 'nullable|string|max:20',
-            'celular'       => 'nullable|string|max:20',
+            'nacionalidad'  => ['sometimes', 'required', 'string', 'max:30', $noInjection],
+            'telefono'      => ['nullable', 'string', 'max:20', $noInjection],
+            'celular'       => ['nullable', 'string', 'max:20', $noInjection],
             'correo'        => 'sometimes|required|email|max:100',
-            'estado'        => 'sometimes|required|string|max:70',
-            'ciudad'        => 'sometimes|required|string|max:60',
-            'codigo_postal' => 'nullable|string|max:10',
-            'direccion'     => 'sometimes|required|string',
-            'profesion'     => 'nullable|string|max:50',
-            'actividad'     => 'nullable|string|max:50',
+            'estado'        => ['sometimes', 'required', 'string', 'max:70', $noInjection],
+            'ciudad'        => ['sometimes', 'required', 'string', 'max:60', $noInjection],
+            'codigo_postal' => ['nullable', 'string', 'max:10', $noInjection],
+            'direccion'     => ['sometimes', 'required', 'string', $noInjection],
+            'profesion'     => ['nullable', 'string', 'max:50', $noInjection],
+            'actividad'     => ['nullable', 'string', 'max:50', $noInjection],
         ]);
 
         foreach (['nombre','cedula','condicion','sexo','nacionalidad','estado','ciudad',

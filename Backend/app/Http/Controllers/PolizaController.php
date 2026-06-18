@@ -10,6 +10,7 @@ use App\Models\Factura;
 use App\Models\Solicitud;
 use App\Models\SolicitudRenovacionQr;
 use App\Models\IndicadorEconomico;
+use App\Rules\NoInjectionChars;
 use App\Services\WorkflowService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
@@ -36,11 +37,13 @@ class PolizaController extends Controller
             return response()->json(['error' => "Una póliza {$poliza->status} no puede ser modificada."], 409);
         }
 
+        $noInjection = new NoInjectionChars();
+
         $data = $request->validate([
             'status'            => 'sometimes|in:ACTIVA,VENCIDA,ANULADA,SUSPENDIDA,RENOVADA',
             'fecha_vencimiento' => 'sometimes|date',
             'fecha_emision'     => 'sometimes|date',
-            'pago'              => 'sometimes|string|max:30',
+            'pago'              => ['sometimes', 'string', 'max:30', $noInjection],
             'total'             => 'sometimes|numeric|min:0',
             'total_bs'          => 'sometimes|numeric|min:0',
             'cobertura_dolares' => 'sometimes|numeric|min:0',
@@ -313,15 +316,17 @@ class PolizaController extends Controller
     {
         $polizaAnterior = Poliza::findOrFail($id);
 
+        $noInjection = new NoInjectionChars();
+
         $data = $request->validate([
             'tasa_bcv'          => 'required|numeric|min:0.0001',
             'tasa_eur'          => 'nullable|numeric|min:0.0001',
             'frecuencia_pago'   => 'nullable|string|in:Mensual,Anual',
             'pagos'             => 'required|array|min:1',
-            'pagos.*.forma'     => 'required|string|max:30',
+            'pagos.*.forma'     => ['required', 'string', 'max:30', $noInjection],
             'pagos.*.moneda'    => 'required|string|in:USD,EUR,Bs.',
             'pagos.*.monto'     => 'required|numeric|min:0.01',
-            'pagos.*.referencia'=> 'nullable|string|max:100',
+            'pagos.*.referencia'=> ['nullable', 'string', 'max:100', $noInjection],
         ]);
 
         $tasaBcv        = (float) $data['tasa_bcv'];

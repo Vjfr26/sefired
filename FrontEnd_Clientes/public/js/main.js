@@ -1020,13 +1020,11 @@ document.getElementById('btn-skip-docs')?.addEventListener('click', () => {
 });
 
 /* Paso 2 — validación en tiempo real + sanitización */
-['f-nombre','f-ciudad','f-direccion'].forEach(id =>
+['f-nombre','f-ciudad','f-direccion','f-email'].forEach(id =>
   document.getElementById(id)?.addEventListener('input', function () { sanitizeInput(this); checkStep2(); })
 );
 document.getElementById('f-telefono')?.addEventListener('input', function () { sanitizeTel(this); checkStep2(); });
-['f-cedula','f-email'].forEach(id =>
-  document.getElementById(id)?.addEventListener('input', checkStep2)
-);
+document.getElementById('f-cedula')?.addEventListener('input', checkStep2);
 document.getElementById('f-nacimiento')?.addEventListener('change', checkStep2);
 document.getElementById('f-sexo')?.addEventListener('change', () => { updateCondicionOpts(); checkStep2(); });
 ['f-condicion','f-estado','f-nacionalidad'].forEach(id =>

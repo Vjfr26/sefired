@@ -9,6 +9,7 @@ use App\Models\BienAsegurado;
 use App\Models\Poliza;
 use App\Models\Solicitud;
 use App\Models\UnderwritingEvaluacion;
+use App\Rules\NoInjectionChars;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -24,9 +25,11 @@ class ReportController extends Controller
 
     public function getLogs(Request $request)
     {
+        $noInjection = new NoInjectionChars();
+
         $request->validate([
             'usuario_id' => 'nullable|integer|exists:usuarios,id',
-            'accion'     => 'nullable|string|max:100',
+            'accion'     => ['nullable', 'string', 'max:100', $noInjection],
             'desde'      => 'nullable|date',
             'hasta'      => 'nullable|date|after_or_equal:desde',
         ]);
@@ -533,11 +536,13 @@ class ReportController extends Controller
             $request->merge(['usuario_id' => $user->id]);
         }
 
+        $noInjection = new NoInjectionChars();
+
         $request->validate([
             'fecha_inicio' => 'nullable|date',
             'fecha_fin'    => 'nullable|date|after_or_equal:fecha_inicio',
             'usuario_id'   => 'nullable|integer|exists:usuarios,id',
-            'search'       => 'nullable|string|max:100',
+            'search'       => ['nullable', 'string', 'max:100', $noInjection],
         ]);
 
         $fechaInicio = $request->filled('fecha_inicio') ? $request->fecha_inicio : now()->startOfMonth()->toDateString();
@@ -624,14 +629,16 @@ class ReportController extends Controller
 
     public function getClientesReport(Request $request)
     {
+        $noInjection = new NoInjectionChars();
+
         $request->validate([
             'fecha_inicio'   => 'nullable|date',
             'fecha_fin'      => 'nullable|date|after_or_equal:fecha_inicio',
             'persona_id'     => 'nullable|integer|exists:persona,id',
-            'search'         => 'nullable|string|max:100',
+            'search'         => ['nullable', 'string', 'max:100', $noInjection],
             'filtro'         => 'nullable|string|in:por_vencer,mas_polizas,por_vehiculos,activos,bloqueados',
-            'marca'          => 'nullable|string|max:100',
-            'modelo'         => 'nullable|string|max:100',
+            'marca'          => ['nullable', 'string', 'max:100', $noInjection],
+            'modelo'         => ['nullable', 'string', 'max:100', $noInjection],
             'min_vehiculos'  => 'nullable|integer|min:0',
             'max_vehiculos'  => 'nullable|integer|min:0',
             'estado_poliza'  => 'nullable|string|in:ACTIVA,VENCIDA,ANULADA',
@@ -838,11 +845,13 @@ class ReportController extends Controller
 
     public function getVehiculosReport(Request $request)
     {
+        $noInjection = new NoInjectionChars();
+
         $request->validate([
             'fecha_inicio' => 'nullable|date',
             'fecha_fin'    => 'nullable|date|after_or_equal:fecha_inicio',
-            'placa'        => 'nullable|string|max:20',
-            'search'       => 'nullable|string|max:100',
+            'placa'        => ['nullable', 'string', 'max:20', $noInjection],
+            'search'       => ['nullable', 'string', 'max:100', $noInjection],
         ]);
 
         $fechaInicio = $request->filled('fecha_inicio') ? $request->fecha_inicio : now()->startOfMonth()->toDateString();

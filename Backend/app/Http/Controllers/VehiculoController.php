@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Vehiculo;
+use App\Rules\NoInjectionChars;
 use Illuminate\Http\Request;
 
 /**
@@ -49,25 +50,27 @@ class VehiculoController extends Controller
     {
         $anioMax = (int) date('Y') + 1;
 
+        $noInjection = new NoInjectionChars();
+
         $data = $request->validate([
             'cliente_id'           => 'required|integer|exists:cliente,id',
-            'placa'                => 'required|string|max:10|unique:vehiculo,placa',
-            'marca'                => 'required|string|max:50',
-            'modelo'               => 'required|string|max:50',
+            'placa'                => ['required', 'string', 'max:10', 'unique:vehiculo,placa', $noInjection],
+            'marca'                => ['required', 'string', 'max:50', $noInjection],
+            'modelo'               => ['required', 'string', 'max:50', $noInjection],
             'anio'                 => "required|integer|min:1900|max:{$anioMax}",
-            'color'                => 'required|string|max:30',
-            'tipo'                 => 'required|string|max:80',
-            'clase'                => 'required|string|max:80',
-            'uso'                  => 'required|string|max:40',
+            'color'                => ['required', 'string', 'max:30', $noInjection],
+            'tipo'                 => ['required', 'string', 'max:80', $noInjection],
+            'clase'                => ['required', 'string', 'max:80', $noInjection],
+            'uso'                  => ['required', 'string', 'max:40', $noInjection],
             'peso'                 => 'required|integer|min:0',
             'puestos'              => 'required|integer|min:1|max:50',
-            'aparcamiento'         => 'required|string|max:30',
-            'serial_carroceria'    => 'required|string|max:40',
-            'serial_motor'         => 'required|string|max:40',
+            'aparcamiento'         => ['required', 'string', 'max:30', $noInjection],
+            'serial_carroceria'    => ['required', 'string', 'max:40', $noInjection],
+            'serial_motor'         => ['required', 'string', 'max:40', $noInjection],
             'fecha_adquisicion'    => 'required|date',
-            'certificado_transito' => 'required|string|max:20',
-            'certificado_origen'   => 'required|string|max:20',
-            'titulo'               => 'required|string|max:180',
+            'certificado_transito' => ['required', 'string', 'max:20', $noInjection],
+            'certificado_origen'   => ['required', 'string', 'max:20', $noInjection],
+            'titulo'               => ['required', 'string', 'max:180', $noInjection],
         ]);
 
         // Adaptación a la DB optimizada: Extraer marca/modelo a su tabla catálogo
@@ -106,25 +109,27 @@ class VehiculoController extends Controller
         $vehiculo = Vehiculo::findOrFail($id);
         $anioMax  = (int) date('Y') + 1;
 
+        $noInjection = new NoInjectionChars();
+
         $data = $request->validate([
             'cliente_id'           => 'sometimes|integer|exists:cliente,id',
-            'placa'                => "sometimes|string|max:10|unique:vehiculo,placa,{$vehiculo->id}",
-            'marca'                => 'sometimes|required|string|max:50',
-            'modelo'               => 'sometimes|required|string|max:50',
+            'placa'                => ['sometimes', 'string', 'max:10', "unique:vehiculo,placa,{$vehiculo->id}", $noInjection],
+            'marca'                => ['sometimes', 'required', 'string', 'max:50', $noInjection],
+            'modelo'               => ['sometimes', 'required', 'string', 'max:50', $noInjection],
             'anio'                 => "sometimes|required|integer|min:1900|max:{$anioMax}",
-            'color'                => 'nullable|string|max:30',
-            'tipo'                 => 'nullable|string|max:80',
-            'clase'                => 'nullable|string|max:80',
-            'uso'                  => 'nullable|string|max:40',
+            'color'                => ['nullable', 'string', 'max:30', $noInjection],
+            'tipo'                 => ['nullable', 'string', 'max:80', $noInjection],
+            'clase'                => ['nullable', 'string', 'max:80', $noInjection],
+            'uso'                  => ['nullable', 'string', 'max:40', $noInjection],
             'peso'                 => 'nullable|integer|min:0',
             'puestos'              => 'nullable|integer|min:1|max:50',
-            'aparcamiento'         => 'nullable|string|max:30',
-            'serial_carroceria'    => 'nullable|string|max:40',
-            'serial_motor'         => 'nullable|string|max:40',
+            'aparcamiento'         => ['nullable', 'string', 'max:30', $noInjection],
+            'serial_carroceria'    => ['nullable', 'string', 'max:40', $noInjection],
+            'serial_motor'         => ['nullable', 'string', 'max:40', $noInjection],
             'fecha_adquisicion'    => 'sometimes|nullable|date',
-            'certificado_transito' => 'nullable|string|max:20',
-            'certificado_origen'   => 'nullable|string|max:20',
-            'titulo'               => 'nullable|string|max:180',
+            'certificado_transito' => ['nullable', 'string', 'max:20', $noInjection],
+            'certificado_origen'   => ['nullable', 'string', 'max:20', $noInjection],
+            'titulo'               => ['nullable', 'string', 'max:180', $noInjection],
         ]);
 
         if (isset($data['marca']) || isset($data['modelo'])) {
