@@ -86,7 +86,8 @@ const T = {
     'chat.chip2':    '¿Qué seguros ofrecen?',
     'chat.chip3':    'Hablar con asesor',
     'footer.rights': 'Todos los derechos reservados.',
-    'footer.by':     'Desarrollado por',
+    'footer.by1':    'Desarrollado con',
+    'footer.by2':    'por',
     'soc.facebook':  'Facebook', 'soc.instagram': 'Instagram',
     'soc.twitter':   'Twitter / X', 'soc.linkedin': 'LinkedIn',
     'products.error':'No se pudieron cargar los productos. Recarga la página o contáctanos.',
@@ -139,7 +140,7 @@ const T = {
     'chat.greeting2': 'How can I help you today?',
     'chat.chip1': 'Get a quote', 'chat.chip2': 'What insurance do you offer?',
     'chat.chip3': 'Talk to an advisor',
-    'footer.rights': 'All rights reserved.', 'footer.by': 'Developed by',
+    'footer.rights': 'All rights reserved.', 'footer.by1': 'Made with', 'footer.by2': 'by',
     'soc.facebook': 'Facebook', 'soc.instagram': 'Instagram',
     'soc.twitter': 'Twitter / X', 'soc.linkedin': 'LinkedIn',
     'products.error': 'Could not load products. Reload the page or contact us.',
@@ -206,15 +207,14 @@ document.getElementById('veh-placa')?.addEventListener('input', function () {
   this.setSelectionRange(pos, pos);
 });
 
-/* Cédula: solo dígitos */
+/* Cédula: solo dígitos.
+   Nota: no se filtra en 'keydown' — en muchos navegadores móviles ese evento
+   llega con e.key === "Unidentified" para el teclado virtual, lo que bloqueaba
+   preventDefault() en TODA tecla (incluidos los números). La limpieza se hace
+   solo en 'input' y 'paste', igual que el resto de los campos del formulario. */
 (function () {
   const el = document.getElementById('f-cedula');
   if (!el) return;
-  const allowed = ['Backspace','Delete','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Tab','Home','End'];
-  el.addEventListener('keydown', e => {
-    if (allowed.includes(e.key) || e.ctrlKey || e.metaKey) return;
-    if (!/^\d$/.test(e.key)) e.preventDefault();
-  });
   el.addEventListener('paste', e => {
     e.preventDefault();
     const raw = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '');
@@ -813,7 +813,7 @@ function checkStep3() {
     const placa  = document.getElementById('veh-placa')?.value.trim()  || '';
     const modelo = document.getElementById('veh-modelo')?.value.trim() || '';
     const valor  = parseFloat(document.getElementById('veh-valor')?.value) || 0;
-    ok = placa.length >= 4 && modelo.length >= 1 && valor > 0;
+    ok = placa.length >= 4 && modelo.length >= 1 && valor >= 500;
   } else {
     const tipo  = document.getElementById('bien-tipo')?.value  || '';
     const valor = parseFloat(document.getElementById('bien-valor')?.value) || 0;
@@ -1295,12 +1295,16 @@ function handleSend() {
 chatbotBtn.addEventListener('click', () => {
   const isHidden = chatbotPanel.classList.contains('hidden');
   chatbotPanel.classList.toggle('hidden', !isHidden);
+  chatbotBtn.classList.toggle('hidden', isHidden);
   if (isHidden) {
     if (chatbotBadge) chatbotBadge.style.display = 'none';
     setTimeout(() => chatInput.focus(), 200);
   }
 });
-document.getElementById('chatbot-close').addEventListener('click', () => chatbotPanel.classList.add('hidden'));
+document.getElementById('chatbot-close').addEventListener('click', () => {
+  chatbotPanel.classList.add('hidden');
+  chatbotBtn.classList.remove('hidden');
+});
 chatSend.addEventListener('click', handleSend);
 chatInput.addEventListener('keydown', e => { if (e.key === 'Enter') handleSend(); });
 document.querySelectorAll('.chat-chip').forEach(chip => {
