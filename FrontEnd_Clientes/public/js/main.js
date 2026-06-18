@@ -55,15 +55,44 @@ const T = {
     'f.direccion':       'Dirección',
     'f.terms':           'Acepto que J&M procese mis datos para recibir información sobre seguros, de acuerdo con la',
     'f.privacy':         'Política de Privacidad',
+    'f.nombre_ph':       'Ej. María González',
+    'f.ciudad_ph':       'Ej. Caracas',
+    'f.direccion_ph':    'Av. Libertador, Edif. Centro, Piso 3...',
+    'f.email_ph':        'tu@correo.com',
+    'sel.placeholder':   'Seleccionar...',
     /* Bien */
     'bien.tipo':        'Tipo de bien',
+    'bien.subtipo':     'Subtipo de bien',
     'bien.valor':       'Valor (USD)',
     'bien.descripcion': 'Descripción',
+    'bien.descripcion_ph': 'Ej. Apartamento 3 habitaciones, piso 5',
     'bien.direccion':   'Dirección del bien',
+    'bien.direccion_ph': 'Av. Libertador, Edif. Centro...',
+    'bien.tipo.inmueble':   'Inmueble / Edificio',
+    'bien.tipo.equipo':     'Equipo / Maquinaria',
+    'bien.tipo.contenido':  'Contenido / Inventario',
+    'bien.tipo.vehiculoesp':'Vehículo Especial',
+    'bien.tipo.otro':       'Otro',
     /* Vehículo */
     'veh.placa':  'Placa', 'veh.anio': 'Año', 'veh.marca': 'Marca',
     'veh.modelo': 'Modelo','veh.color': 'Color', 'veh.uso': 'Uso',
     'veh.valor':  'Valor de mercado (USD)',
+    'veh.modelo_ph': 'Ej. Corolla XLi',
+    'veh.color_ph':  'Ej. Blanco',
+    'veh.marca.otro': 'Otro',
+    'veh.uso.particular':    'Particular',
+    'veh.uso.ejecutivo':     'Ejecutivo / Personal',
+    'veh.uso.carga_liviana': 'Carga liviana',
+    'veh.uso.carga_pesada':  'Carga pesada',
+    'veh.uso.colectivo':     'Colectivo / Minibús',
+    'veh.uso.rustico':       'Rústico / Pickup',
+    'veh.uso.oficial':       'Oficial',
+    /* Estado civil (las opciones se generan en JS según el sexo) */
+    'civil.soltero.m': 'Soltero', 'civil.soltero.f': 'Soltera',
+    'civil.casado.m':  'Casado',  'civil.casado.f':  'Casada',
+    'civil.viudo.m':   'Viudo',   'civil.viudo.f':   'Viuda',
+    'civil.divorciado.m': 'Divorciado', 'civil.divorciado.f': 'Divorciada',
+    'civil.concubino.m':  'Concubino',  'civil.concubino.f':  'Concubina',
     /* Botones */
     'btn.next':    'Continuar',
     'btn.back':    'Atrás',
@@ -77,22 +106,41 @@ const T = {
     'res.iva':        'IVA 16%',
     'res.derecho':    'Derecho',
     'res.monthly':    'Mensual estimado',
+    'res.cedula':     'Cédula',
     'res.tasa_bcv_pre': 'Tasa de cambio oficial del Banco Central de Venezuela (BCV):',
     'res.sin_precio': 'Este producto requiere una evaluación personalizada (valor del bien, ubicación, etc.) para calcular el costo exacto. Un asesor te lo confirmará al contactarte.',
     'res.incluye':    'Documentos a presentar',
     'res.titular':    'Titular',
     'res.disclaimer': 'Cotización referencial. Puede variar. Un asesor te contactará a la brevedad.',
+    /* Paso 1 — sub-tipos */
+    's1.loading_planes': 'Cargando planes...',
+    's1.planes_error':   'Error cargando planes. Intenta de nuevo.',
+    's1.planes_empty':   'No hay planes disponibles.',
+    /* Paso 4 — documentos */
+    's4.hint2':  'Puedes adjuntar los documentos ahora o enviarlos después por WhatsApp al asesor.',
+    's4.skip':   'Continuar sin documentos →',
+    'docs.none_required': 'Sin documentos requeridos.',
+    'docs.no_file':       'Sin archivo',
+    'docs.attach':        'Adjuntar',
+    'docs.change':        'Cambiar',
+    'docs.optional':      'opcional',
+    /* Errores */
+    'err.min_age': 'Debes ser mayor de 18 años para solicitar un seguro.',
     /* Chat / footer */
     'loading':       'Calculando...',
     'chat.title':    'Asistente J&M',
     'chat.online':   'En línea',
     'chat.ph':       'Escribe tu mensaje...',
     'chat.fab':      'Abrir chat',
+    'chat.close':    'Cerrar chat',
+    'chat.send_aria':'Enviar mensaje',
     'chat.greeting1':'¡Hola! 👋 Soy el asistente virtual de J&M.',
     'chat.greeting2':'¿En qué puedo ayudarte hoy?',
     'chat.chip1':    'Cotizar seguro',
     'chat.chip2':    '¿Qué seguros ofrecen?',
     'chat.chip3':    'Hablar con asesor',
+    'carousel.prev': 'Anterior',
+    'carousel.next': 'Siguiente',
     'footer.rights': 'Todos los derechos reservados.',
     'footer.by1':    'Desarrollado con',
     'footer.by2':    'por',
@@ -132,29 +180,71 @@ const T = {
     'f.estado':    'State', 'f.ciudad': 'City', 'f.direccion': 'Address',
     'f.terms':     'I accept that J&M processes my data to receive information about insurance, in accordance with the',
     'f.privacy':   'Privacy Policy',
-    'bien.tipo': 'Asset Type', 'bien.valor': 'Value (USD)',
-    'bien.descripcion': 'Description', 'bien.direccion': 'Asset Address',
+    'f.nombre_ph': 'E.g. Jane Smith',
+    'f.ciudad_ph': 'E.g. Caracas',
+    'f.direccion_ph': 'Main St, Center Building, 3rd Floor...',
+    'f.email_ph':  'you@email.com',
+    'sel.placeholder': 'Select...',
+    'bien.tipo': 'Asset Type', 'bien.subtipo': 'Asset Subtype', 'bien.valor': 'Value (USD)',
+    'bien.descripcion': 'Description', 'bien.descripcion_ph': 'E.g. 3-bedroom apartment, 5th floor',
+    'bien.direccion': 'Asset Address', 'bien.direccion_ph': 'Main St, Center Building...',
+    'bien.tipo.inmueble':    'Real Estate / Building',
+    'bien.tipo.equipo':      'Equipment / Machinery',
+    'bien.tipo.contenido':   'Contents / Inventory',
+    'bien.tipo.vehiculoesp': 'Special Vehicle',
+    'bien.tipo.otro':        'Other',
     'veh.placa': 'Plate', 'veh.anio': 'Year', 'veh.marca': 'Brand',
     'veh.modelo': 'Model', 'veh.color': 'Color', 'veh.uso': 'Usage',
     'veh.valor': 'Market Value (USD)',
+    'veh.modelo_ph': 'E.g. Corolla XLi',
+    'veh.color_ph':  'E.g. White',
+    'veh.marca.otro': 'Other',
+    'veh.uso.particular':    'Private',
+    'veh.uso.ejecutivo':     'Executive / Personal',
+    'veh.uso.carga_liviana': 'Light cargo',
+    'veh.uso.carga_pesada':  'Heavy cargo',
+    'veh.uso.colectivo':     'Collective / Minibus',
+    'veh.uso.rustico':       'Off-road / Pickup',
+    'veh.uso.oficial':       'Official',
+    'civil.soltero.m': 'Single', 'civil.soltero.f': 'Single',
+    'civil.casado.m':  'Married','civil.casado.f':  'Married',
+    'civil.viudo.m':   'Widowed','civil.viudo.f':   'Widowed',
+    'civil.divorciado.m': 'Divorced', 'civil.divorciado.f': 'Divorced',
+    'civil.concubino.m':  'Domestic partner', 'civil.concubino.f': 'Domestic partner',
     'btn.next': 'Continue', 'btn.back': 'Back',
     'btn.send': 'Submit Request', 'btn.restart': 'New Quote',
     'btn.whatsapp': 'Talk to Advisor',
     'res.tipo': 'Insurance type', 'res.total_label': 'Total Annual',
     'res.prima_neta': 'Net Premium', 'res.iva': 'VAT 16%',
     'res.derecho': 'Policy Fee', 'res.monthly': 'Monthly estimate',
+    'res.cedula': 'ID Number',
     'res.tasa_bcv_pre': 'Official exchange rate from the Central Bank of Venezuela (BCV):',
     'res.sin_precio': 'This product requires a personalized evaluation (asset value, location, etc.) to calculate the exact cost. An advisor will confirm it when they contact you.',
     'res.incluye': 'Documents to submit',
     'res.titular': 'Policyholder',
     'res.disclaimer': 'Referential quote. May vary. An advisor will contact you shortly.',
+    's1.loading_planes': 'Loading plans...',
+    's1.planes_error':   'Error loading plans. Please try again.',
+    's1.planes_empty':   'No plans available.',
+    's4.hint2': 'You can attach the documents now or send them later via WhatsApp to your advisor.',
+    's4.skip':  'Continue without documents →',
+    'docs.none_required': 'No documents required.',
+    'docs.no_file':       'No file',
+    'docs.attach':        'Attach',
+    'docs.change':        'Change',
+    'docs.optional':      'optional',
+    'err.min_age': 'You must be at least 18 years old to request insurance.',
     'loading': 'Processing...',
     'chat.title': 'J&M Assistant', 'chat.online': 'Online',
     'chat.ph': 'Type your message...', 'chat.fab': 'Open chat',
+    'chat.close': 'Close chat',
+    'chat.send_aria': 'Send message',
     'chat.greeting1': "Hello! 👋 I'm J&M's virtual assistant.",
     'chat.greeting2': 'How can I help you today?',
     'chat.chip1': 'Get a quote', 'chat.chip2': 'What insurance do you offer?',
     'chat.chip3': 'Talk to an advisor',
+    'carousel.prev': 'Previous',
+    'carousel.next': 'Next',
     'footer.rights': 'All rights reserved.', 'footer.by1': 'Made with', 'footer.by2': 'by',
     'soc.facebook': 'Facebook', 'soc.instagram': 'Instagram',
     'soc.twitter': 'Twitter / X', 'soc.linkedin': 'LinkedIn',
@@ -186,12 +276,22 @@ function setLanguage(lang) {
     const v = t(el.dataset.i18nTitle);
     if (v !== undefined) el.title = v;
   });
+  document.querySelectorAll('[data-i18n-aria]').forEach(el => {
+    const v = t(el.dataset.i18nAria);
+    if (v !== undefined) el.setAttribute('aria-label', v);
+  });
   document.querySelectorAll('.lang-btn').forEach(btn =>
     btn.classList.toggle('active', btn.dataset.lang === lang)
   );
   document.querySelectorAll('.chat-chip[data-msg-key]').forEach(chip =>
     { chip.textContent = t(`chat.${chip.dataset.msgKey}`); }
   );
+  /* Las opciones de estado civil se generan dinámicamente en JS (dependen del sexo)
+     y no llevan atributos [data-i18n], así que hay que regenerarlas aquí. */
+  if (document.getElementById('f-condicion')) updateCondicionOpts();
+  /* Si el mensaje de edad mínima ya está visible, refrescar su idioma. */
+  const s2err = document.getElementById('s2-error');
+  if (s2err && !s2err.classList.contains('hidden')) checkStep2();
 }
 
 /* ─────────────────────────────────────────────
@@ -595,13 +695,13 @@ async function seleccionarProducto(card) {
     renderSubtipoCards(subtipos, sgrid);
   } catch {
     loading.classList.add('hidden');
-    sgrid.innerHTML = `<p class="text-xs text-red-500 py-1">Error cargando planes. Intenta de nuevo.</p>`;
+    sgrid.innerHTML = `<p class="text-xs text-red-500 py-1">${esc(t('s1.planes_error'))}</p>`;
   }
 }
 
 function renderSubtipoCards(subtipos, container) {
   if (!subtipos.length) {
-    container.innerHTML = `<p class="text-xs text-gray-400 py-1">No hay planes disponibles.</p>`;
+    container.innerHTML = `<p class="text-xs text-gray-400 py-1">${esc(t('s1.planes_empty'))}</p>`;
     return;
   }
 
@@ -854,7 +954,7 @@ function checkStep2() {
 
   if (s2err) {
     if (!ageOk) {
-      s2err.textContent = 'Debes ser mayor de 18 años para solicitar un seguro.';
+      s2err.textContent = t('err.min_age');
       s2err.classList.remove('hidden');
     } else {
       s2err.classList.add('hidden');
@@ -937,7 +1037,7 @@ function renderDocsList() {
   if (!container) return;
 
   if (!sim.documentosFiles.length) {
-    container.innerHTML = `<p class="text-xs text-gray-400 py-2 text-center">Sin documentos requeridos.</p>`;
+    container.innerHTML = `<p class="text-xs text-gray-400 py-2 text-center">${esc(t('docs.none_required'))}</p>`;
     return;
   }
 
@@ -947,16 +1047,16 @@ function renderDocsList() {
         <span class="doc-name">
           ${esc(doc.nombre)}${doc.obligatorio ? ' <span class="text-red-500">*</span>' : ''}
         </span>
-        <span class="doc-status" id="doc-status-${i}">${doc.file ? `✓ ${esc(doc.file.name)}` : 'Sin archivo'}</span>
+        <span class="doc-status" id="doc-status-${i}">${doc.file ? `✓ ${esc(doc.file.name)}` : esc(t('docs.no_file'))}</span>
       </div>
       <label class="flex items-center gap-2 cursor-pointer">
         <input type="file" class="sr-only doc-file-input" data-idx="${i}"
                accept=".pdf,.jpg,.jpeg,.png,.webp">
         <span class="doc-upload-btn${doc.file ? ' uploaded' : ''}" id="doc-btn-${i}">
           <i class="fa-solid fa-paperclip text-[10px]"></i>
-          ${doc.file ? 'Cambiar' : 'Adjuntar'}
+          ${doc.file ? esc(t('docs.change')) : esc(t('docs.attach'))}
         </span>
-        ${!doc.obligatorio ? '<span class="text-[10px] text-gray-400">opcional</span>' : ''}
+        ${!doc.obligatorio ? `<span class="text-[10px] text-gray-400">${esc(t('docs.optional'))}</span>` : ''}
       </label>
     </div>
   `).join('');
@@ -977,13 +1077,13 @@ function renderDocsList() {
         status.classList.add('uploaded');
         status.textContent = `✓ ${file.name.substring(0, 22)}${file.name.length > 22 ? '…' : ''}`;
         btn.classList.add('uploaded');
-        btn.innerHTML = '<i class="fa-solid fa-check text-[10px]"></i> Cambiar';
+        btn.innerHTML = `<i class="fa-solid fa-check text-[10px]"></i> ${esc(t('docs.change'))}`;
       } else {
         card.classList.remove('has-file');
         status.classList.remove('uploaded');
-        status.textContent = 'Sin archivo';
+        status.textContent = t('docs.no_file');
         btn.classList.remove('uploaded');
-        btn.innerHTML = '<i class="fa-solid fa-paperclip text-[10px]"></i> Adjuntar';
+        btn.innerHTML = `<i class="fa-solid fa-paperclip text-[10px]"></i> ${esc(t('docs.attach'))}`;
       }
       checkStep4();
     });
@@ -1092,10 +1192,11 @@ function updateCondicionOpts() {
   const sel  = document.getElementById('f-condicion');
   if (!sel) return;
   const prev = sel.value;
-  const isFem = sexo === 'F';
-  const opts = isFem
-    ? [['','Selec...'],['Soltera','Soltera'],['Casada','Casada'],['Viuda','Viuda'],['Divorciada','Divorciada'],['Concubina','Concubina']]
-    : [['','Selec...'],['Soltero','Soltero'],['Casado','Casado'],['Viudo','Viudo'],['Divorciado','Divorciado'],['Concubino','Concubino']];
+  /* El value que se envía al backend se mantiene siempre en español
+     (es el dato que se persiste); solo la etiqueta visible se traduce. */
+  const opts = sexo === 'F'
+    ? [['',t('sel.placeholder')],['Soltera',t('civil.soltero.f')],['Casada',t('civil.casado.f')],['Viuda',t('civil.viudo.f')],['Divorciada',t('civil.divorciado.f')],['Concubina',t('civil.concubino.f')]]
+    : [['',t('sel.placeholder')],['Soltero',t('civil.soltero.m')],['Casado',t('civil.casado.m')],['Viudo',t('civil.viudo.m')],['Divorciado',t('civil.divorciado.m')],['Concubino',t('civil.concubino.m')]];
   sel.innerHTML = opts.map(([v,l]) => `<option value="${v}">${l}</option>`).join('');
   const mirror = {Soltero:'Soltera',Soltera:'Soltero',Casado:'Casada',Casada:'Casado',Viudo:'Viuda',Viuda:'Viudo',Divorciado:'Divorciada',Divorciada:'Divorciado',Concubino:'Concubina',Concubina:'Concubino'};
   sel.value = [...sel.options].some(o => o.value === prev) ? prev : (mirror[prev] || '');

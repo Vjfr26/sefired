@@ -121,11 +121,11 @@
               <div class="h-20 rounded-xl bg-gray-100 animate-pulse"></div>
             </div>
             <div class="carousel-row">
-              <button id="carousel-prev" type="button" class="carousel-btn hidden" aria-label="Anterior">
+              <button id="carousel-prev" type="button" class="carousel-btn hidden" aria-label="Anterior" data-i18n-aria="carousel.prev">
                 <i class="fa-solid fa-chevron-left"></i>
               </button>
               <div id="products-grid" class="grid grid-cols-3 gap-2 hidden"></div>
-              <button id="carousel-next" type="button" class="carousel-btn hidden" aria-label="Siguiente">
+              <button id="carousel-next" type="button" class="carousel-btn hidden" aria-label="Siguiente" data-i18n-aria="carousel.next">
                 <i class="fa-solid fa-chevron-right"></i>
               </button>
             </div>
@@ -138,7 +138,7 @@
                 <p data-i18n="s1.plan" class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Selecciona el plan</p>
               </div>
               <div id="subtipos-loading" class="hidden text-xs text-gray-400 py-2 text-center">
-                <i class="fa-solid fa-spinner fa-spin mr-1"></i> Cargando planes...
+                <i class="fa-solid fa-spinner fa-spin mr-1"></i> <span data-i18n="s1.loading_planes">Cargando planes...</span>
               </div>
               <div id="subtipos-grid" class="grid grid-cols-1 gap-1.5"></div>
             </div>
@@ -153,7 +153,7 @@
             <div class="grid grid-cols-2 xs:grid-cols-4 gap-x-2 gap-y-2">
               <div class="col-span-2">
                 <label class="field-label"><span data-i18n="f.nombre_completo">Nombre completo</span> <span class="text-red-500">*</span></label>
-                <input id="f-nombre" type="text" class="field-input" placeholder="Ej. María González" autocomplete="name" />
+                <input id="f-nombre" type="text" class="field-input" placeholder="Ej. María González" data-i18n-ph="f.nombre_ph" autocomplete="name" />
               </div>
               <div class="col-span-2">
                 <label class="field-label"><span data-i18n="f.cedula">Cédula de identidad</span> <span class="text-red-500">*</span></label>
@@ -172,11 +172,11 @@
               </div>
               <div class="col-span-2">
                 <label class="field-label"><span data-i18n="f.email">Correo electrónico</span> <span class="text-red-500">*</span></label>
-                <input id="f-email" type="email" class="field-input" placeholder="tu@correo.com" autocomplete="email" />
+                <input id="f-email" type="email" class="field-input" placeholder="tu@correo.com" data-i18n-ph="f.email_ph" autocomplete="email" />
               </div>
               <div class="col-span-2">
                 <label class="field-label"><span data-i18n="f.email_confirm">Confirmar correo</span> <span class="text-red-500">*</span></label>
-                <input id="f-email-confirm" type="email" class="field-input" placeholder="tu@correo.com" autocomplete="email" />
+                <input id="f-email-confirm" type="email" class="field-input" placeholder="tu@correo.com" data-i18n-ph="f.email_ph" autocomplete="email" />
                 <p id="email-mismatch" class="hidden text-[11px] text-red-500 mt-0.5" data-i18n="f.email_mismatch">Los correos no coinciden</p>
               </div>
               <div>
@@ -209,7 +209,7 @@
               <div class="col-span-2">
                 <label class="field-label"><span data-i18n="f.estado">Estado / Provincia</span> <span class="text-red-500">*</span></label>
                 <select id="f-estado" class="field-input">
-                  <option value="">Seleccionar...</option>
+                  <option value="" data-i18n="sel.placeholder">Seleccionar...</option>
                   <option>Amazonas</option><option>Anzoátegui</option><option>Apure</option>
                   <option>Aragua</option><option>Barinas</option><option>Bolívar</option>
                   <option>Carabobo</option><option>Cojedes</option><option>Delta Amacuro</option>
@@ -222,13 +222,13 @@
               </div>
               <div class="col-span-2">
                 <label class="field-label"><span data-i18n="f.ciudad">Ciudad</span> <span class="text-red-500">*</span></label>
-                <input id="f-ciudad" type="text" class="field-input" placeholder="Ej. Caracas" />
+                <input id="f-ciudad" type="text" class="field-input" placeholder="Ej. Caracas" data-i18n-ph="f.ciudad_ph" />
               </div>
               <div class="col-span-2 xs:col-span-4">
                 <label class="field-label">
                   <span data-i18n="f.direccion">Dirección</span> <span class="text-red-500">*</span>
                 </label>
-                <input id="f-direccion" type="text" class="field-input" placeholder="Av. Libertador, Edif. Centro, Piso 3..." />
+                <input id="f-direccion" type="text" class="field-input" placeholder="Av. Libertador, Edif. Centro, Piso 3..." data-i18n-ph="f.direccion_ph" />
               </div>
             </div>
             <div id="s2-error" class="hidden mt-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2"></div>
@@ -262,27 +262,27 @@
                     <option value="Chery">Chery</option><option value="BYD">BYD</option>
                     <option value="Fiat">Fiat</option><option value="Mercedes-Benz">Mercedes-Benz</option>
                     <option value="BMW">BMW</option><option value="Dodge">Dodge</option>
-                    <option value="Otro">Otro</option>
+                    <option value="Otro" data-i18n="veh.marca.otro">Otro</option>
                   </select>
                 </div>
                 <div>
                   <label class="field-label"><span data-i18n="veh.modelo">Modelo</span> <span class="text-red-500">*</span></label>
-                  <input id="veh-modelo" type="text" class="field-input" placeholder="Ej. Corolla XLi" />
+                  <input id="veh-modelo" type="text" class="field-input" placeholder="Ej. Corolla XLi" data-i18n-ph="veh.modelo_ph" />
                 </div>
                 <div>
                   <label class="field-label" data-i18n="veh.color">Color</label>
-                  <input id="veh-color" type="text" class="field-input" placeholder="Ej. Blanco" />
+                  <input id="veh-color" type="text" class="field-input" placeholder="Ej. Blanco" data-i18n-ph="veh.color_ph" />
                 </div>
                 <div>
                   <label class="field-label" data-i18n="veh.uso">Uso</label>
                   <select id="veh-uso" class="field-input">
-                    <option value="Particular">Particular</option>
-                    <option value="Ejecutivo">Ejecutivo / Personal</option>
-                    <option value="Carga liviana">Carga liviana</option>
-                    <option value="Carga pesada">Carga pesada</option>
-                    <option value="Colectivo">Colectivo / Minibús</option>
-                    <option value="Rustico">Rústico / Pickup</option>
-                    <option value="Oficial">Oficial</option>
+                    <option value="Particular" data-i18n="veh.uso.particular">Particular</option>
+                    <option value="Ejecutivo" data-i18n="veh.uso.ejecutivo">Ejecutivo / Personal</option>
+                    <option value="Carga liviana" data-i18n="veh.uso.carga_liviana">Carga liviana</option>
+                    <option value="Carga pesada" data-i18n="veh.uso.carga_pesada">Carga pesada</option>
+                    <option value="Colectivo" data-i18n="veh.uso.colectivo">Colectivo / Minibús</option>
+                    <option value="Rustico" data-i18n="veh.uso.rustico">Rústico / Pickup</option>
+                    <option value="Oficial" data-i18n="veh.uso.oficial">Oficial</option>
                   </select>
                 </div>
                 <div class="col-span-2">
@@ -301,30 +301,30 @@
               </div>
               <div class="grid grid-cols-2 xs:grid-cols-4 gap-x-2 gap-y-2">
                 <div id="bien-tipo-wrap" class="col-span-2">
-                  <label class="field-label">Subtipo de bien <span class="text-red-500">*</span></label>
+                  <label class="field-label"><span data-i18n="bien.subtipo">Subtipo de bien</span> <span class="text-red-500">*</span></label>
                   <select id="bien-tipo" class="field-input">
-                    <option value="">Seleccionar...</option>
-                    <option value="Inmueble">Inmueble / Edificio</option>
-                    <option value="Equipo">Equipo / Maquinaria</option>
-                    <option value="Contenido">Contenido / Inventario</option>
-                    <option value="Vehiculo_esp">Vehículo Especial</option>
-                    <option value="Otro">Otro</option>
+                    <option value="" data-i18n="sel.placeholder">Seleccionar...</option>
+                    <option value="Inmueble" data-i18n="bien.tipo.inmueble">Inmueble / Edificio</option>
+                    <option value="Equipo" data-i18n="bien.tipo.equipo">Equipo / Maquinaria</option>
+                    <option value="Contenido" data-i18n="bien.tipo.contenido">Contenido / Inventario</option>
+                    <option value="Vehiculo_esp" data-i18n="bien.tipo.vehiculoesp">Vehículo Especial</option>
+                    <option value="Otro" data-i18n="bien.tipo.otro">Otro</option>
                   </select>
                 </div>
                 <div class="col-span-2">
-                  <label class="field-label" data-i18n="bien.valor">Valor del bien (USD) <span class="text-red-500">*</span></label>
+                  <label class="field-label"><span data-i18n="bien.valor">Valor del bien (USD)</span> <span class="text-red-500">*</span></label>
                   <div class="relative">
                     <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xs pointer-events-none">$</span>
                     <input id="bien-valor" type="number" min="0" class="field-input pl-6" placeholder="0.00" />
                   </div>
                 </div>
                 <div class="col-span-2 xs:col-span-4">
-                  <label class="field-label" data-i18n="bien.descripcion">Descripción del bien <span class="text-red-500">*</span></label>
-                  <input id="bien-descripcion" type="text" class="field-input" placeholder="Ej. Apartamento 3 habitaciones, piso 5" />
+                  <label class="field-label"><span data-i18n="bien.descripcion">Descripción del bien</span> <span class="text-red-500">*</span></label>
+                  <input id="bien-descripcion" type="text" class="field-input" placeholder="Ej. Apartamento 3 habitaciones, piso 5" data-i18n-ph="bien.descripcion_ph" />
                 </div>
                 <div class="col-span-2 xs:col-span-4">
                   <label class="field-label"><span data-i18n="bien.direccion">Dirección / Ubicación</span> <span class="text-red-500">*</span></label>
-                  <input id="bien-direccion" type="text" class="field-input" placeholder="Av. Libertador, Edif. Centro..." />
+                  <input id="bien-direccion" type="text" class="field-input" placeholder="Av. Libertador, Edif. Centro..." data-i18n-ph="bien.direccion_ph" />
                 </div>
               </div>
             </div>
@@ -340,8 +340,9 @@
             <div id="docs-list" class="space-y-1.5"></div>
             <div class="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700 flex items-start gap-2">
               <i class="fa-solid fa-circle-info mt-0.5 shrink-0"></i>
-              <span>Puedes adjuntar los documentos ahora o enviarlos después por WhatsApp al asesor.
-                <button id="btn-skip-docs" type="button" class="underline font-semibold ml-1 hover:text-amber-900">Continuar sin documentos →</button>
+              <span>
+                <span data-i18n="s4.hint2">Puedes adjuntar los documentos ahora o enviarlos después por WhatsApp al asesor.</span>
+                <button id="btn-skip-docs" type="button" class="underline font-semibold ml-1 hover:text-amber-900" data-i18n="s4.skip">Continuar sin documentos →</button>
               </span>
             </div>
           </div>
@@ -426,7 +427,7 @@
                   <span id="s5-nombre" class="font-semibold text-gray-800 text-xs text-right ml-2 truncate max-w-[55%]">—</span>
                 </div>
                 <div class="flex justify-between py-1.5 border-b border-gray-100">
-                  <span class="text-gray-500 text-xs">Cédula</span>
+                  <span class="text-gray-500 text-xs" data-i18n="res.cedula">Cédula</span>
                   <span id="s5-cedula" class="font-semibold text-gray-800 text-xs font-mono">—</span>
                 </div>
                 <div class="flex justify-between py-1.5">
@@ -512,7 +513,7 @@
   <!-- ================================================================
        FAB BUTTONS — Chat (top) + WhatsApp (bottom)
        ================================================================ -->
-  <button id="chatbot-btn" class="chatbot-fab" aria-label="Chat" data-i18n-title="chat.fab">
+  <button id="chatbot-btn" class="chatbot-fab" aria-label="Chat" data-i18n-title="chat.fab" data-i18n-aria="chat.fab">
     <i class="fa-solid fa-comment-dots text-xl" id="chatbot-icon"></i>
     <span class="chatbot-badge">1</span>
   </button>
@@ -537,7 +538,7 @@
           </p>
         </div>
       </div>
-      <button id="chatbot-close" class="text-white/70 hover:text-white transition-colors p-1 rounded cursor-pointer" aria-label="Close">
+      <button id="chatbot-close" class="text-white/70 hover:text-white transition-colors p-1 rounded cursor-pointer" aria-label="Close" data-i18n-aria="chat.close">
         <i class="fa-solid fa-xmark text-lg"></i>
       </button>
     </div>
@@ -557,7 +558,7 @@
     <div class="chatbot-input-area">
       <input id="chat-input" type="text" class="chatbot-input"
              data-i18n-ph="chat.ph" placeholder="Escribe tu mensaje..." />
-      <button id="chat-send" class="chat-send-btn" aria-label="Send">
+      <button id="chat-send" class="chat-send-btn" aria-label="Send" data-i18n-aria="chat.send_aria">
         <i class="fa-solid fa-paper-plane text-sm"></i>
       </button>
     </div>
