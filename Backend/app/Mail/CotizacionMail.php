@@ -17,12 +17,28 @@ class CotizacionMail extends Mailable
 
     public function envelope(): Envelope
     {
-        $nro = 'COT-' . ($this->solicitud->fecha_solicitud?->format('Y') ?? now()->year)
-             . '-' . str_pad($this->solicitud->id, 5, '0', STR_PAD_LEFT);
-
         return new Envelope(
-            subject: 'Su simulación de seguro ' . $nro . ' | J&M Seguros',
+            subject: 'Su simulación de seguro ' . $this->nroCotizacion() . ' | J&M Seguros',
         );
+    }
+
+    private function nroCotizacion(): string
+    {
+        return 'COT-' . ($this->solicitud->fecha_solicitud?->format('Y') ?? now()->year)
+             . '-' . str_pad((string) $this->solicitud->id, 5, '0', STR_PAD_LEFT);
+    }
+
+    /** Traduce el status interno (pendiente|en_revision|aprobado|rechazado|emitida|...) a una etiqueta clara para el cliente. */
+    private function statusLabel(?string $status): array
+    {
+        $norm = strtolower(str_replace([' ', '-'], '_', (string) $status));
+        return match (true) {
+            str_contains($norm, 'emitid')   => ['Emitida',              '#16a34a'],
+            str_contains($norm, 'aprobad')  => ['Aprobada',             '#16a34a'],
+            str_contains($norm, 'rechazad') => ['Rechazada',            '#dc2626'],
+            str_contains($norm, 'anulad')   => ['Anulada',              '#dc2626'],
+            default                          => ['Pendiente de revisión', '#d97706'],
+        };
     }
 
     public function content(): Content
@@ -50,6 +66,8 @@ class CotizacionMail extends Mailable
             ?? $bien?->descripcion
             ?? '—';
 
+        [$statusLabel, $statusColor] = $this->statusLabel($sol->status);
+
         return new Content(
             view: 'emails.cotizacion',
             with: [
@@ -57,10 +75,19 @@ class CotizacionMail extends Mailable
                 'badgeColor'        => '#7c3aed',
                 'badgeText'         => 'Simulación de Seguro',
                 'logoUrl'           => url('logo-sinfondo.png'),
+                'nroCotizacion'     => $this->nroCotizacion(),
+                'statusLabel'       => $statusLabel,
+                'statusColor'       => $statusColor,
                 'tomadorNombre'     => $sol->nombre_tomador ?? $sol->persona?->nombre ?? '—',
                 'ciTomador'         => $sol->ci_tomador     ?? $sol->persona?->cedula  ?? '—',
                 'fecha'             => $sol->fecha_solicitud?->format('d/m/Y') ?? now()->format('d/m/Y'),
+                'telefono'          => $cobs['telefono']  ?? $sol->persona?->telefono ?? null,
+                'correoCliente'     => $cobs['email']     ?? $sol->persona?->correo   ?? null,
+                'ciudad'            => $cobs['ciudad']    ?? $sol->persona?->ciudad   ?? null,
+                'direccion'         => $cobs['direccion'] ?? $sol->persona?->direccion ?? null,
+                'estadoVe'          => $cobs['estado_ve'] ?? $sol->persona?->estado   ?? null,
                 'productoNombre'    => $sol->producto?->nombre ?? '—',
+                'productoDescripcion' => $sol->producto?->descripcion ?? null,
                 'bienRef'           => $bienRef,
                 'primaUsd'          => number_format((float) $sol->total, 2),
                 'primaBs'           => $primaBs,

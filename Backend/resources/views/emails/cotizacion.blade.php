@@ -11,9 +11,17 @@
 <h1 style="margin:0 0 8px;font-size:22px;font-weight:800;color:#1e293b;text-align:center;">
   Su simulación de seguro
 </h1>
-<p style="margin:0 0 24px;font-size:14px;color:#64748b;text-align:center;line-height:1.6;">
+<p style="margin:0 0 10px;font-size:14px;color:#64748b;text-align:center;line-height:1.6;">
   Estimado/a <strong>{{ $tomadorNombre }}</strong>, le enviamos el resumen<br>
   de la simulación realizada el <strong>{{ $fecha }}</strong>.
+</p>
+<p style="margin:0 0 24px;text-align:center;">
+  <span style="display:inline-block;font-size:12px;font-weight:700;color:#475569;background:#f1f5f9;border-radius:6px;padding:4px 10px;margin-right:6px;">
+    {{ $nroCotizacion }}
+  </span>
+  <span style="display:inline-block;font-size:12px;font-weight:700;color:#fff;background:{{ $statusColor }};border-radius:6px;padding:4px 10px;">
+    {{ $statusLabel }}
+  </span>
 </p>
 
 {{-- Tarjeta resultado --}}
@@ -59,10 +67,18 @@
     <p style="margin:0 0 12px;font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;">
       Detalle de la Simulación
     </p>
+    @if($productoDescripcion)
+    <p style="margin:0 0 12px;font-size:13px;color:#64748b;line-height:1.5;">{{ $productoDescripcion }}</p>
+    @endif
     <table width="100%" cellpadding="0" cellspacing="0">
       @foreach([
         ['Tomador',         $tomadorNombre],
         ['Cédula / RIF',    $ciTomador],
+        ['Teléfono',        $telefono],
+        ['Correo',          $correoCliente],
+        ['Ciudad',          $ciudad],
+        ['Estado',          $estadoVe],
+        ['Dirección',       $direccion],
         ['Producto',        $productoNombre],
         ['Bien asegurado',  $bienRef],
         ['Suma asegurada',  '$' . $cobertura . ' USD'],

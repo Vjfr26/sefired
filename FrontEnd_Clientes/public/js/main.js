@@ -705,15 +705,15 @@ function calcularPasos() {
 }
 
 function showPaso(n) {
-  const skipped = [1,2,3,4,5].filter(s => !sim._pasos.includes(s));
   [1,2,3,4,5].forEach(s => {
     document.getElementById(`step-${s}`)?.classList.add('hidden');
     const tab = document.querySelector(`.step-tab[data-step="${s}"]`);
     if (!tab) return;
     tab.classList.remove('active','done','skipped');
-    if (skipped.includes(s))  tab.classList.add('skipped');
-    else if (s < n)           tab.classList.add('done');
-    else if (s === n)         tab.classList.add('active');
+    /* Un paso saltado (no aplica para este producto) cuenta como "hecho"
+       igual que uno completado — para el usuario, ambos quedan atrás. */
+    if (s < n)        tab.classList.add('done');
+    else if (s === n) tab.classList.add('active');
   });
   document.getElementById(`step-${n}`)?.classList.remove('hidden');
   document.querySelector('.form-scroll-area')?.scrollTo({ top: 0, behavior: 'smooth' });
