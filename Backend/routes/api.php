@@ -22,6 +22,7 @@ use App\Http\Controllers\SolicitudRenovacionQrController;
 Route::prefix('portal')->middleware('throttle:60,1')->group(function () {
     Route::get('/productos',                         [PortalController::class, 'productos']);
     Route::get('/productos/{id}/subtipos',           [PortalController::class, 'subtipos']);
+    Route::get('/tasas',                             [PortalController::class, 'tasas']);
     Route::post('/verificar',                        [PortalController::class, 'verificarCliente'])->middleware('throttle:20,1');
     Route::post('/cotizacion',                       [PortalController::class, 'cotizar'])->middleware('throttle:10,1');
 });

@@ -45,6 +45,8 @@ const T = {
     'f.nac.ext':         'Extranjero/a',
     'f.telefono':        'Teléfono',
     'f.email':           'Correo',
+    'f.email_confirm':   'Confirmar correo',
+    'f.email_mismatch':  'Los correos no coinciden',
     'f.estado':          'Estado',
     'f.ciudad':          'Ciudad',
     'f.direccion':       'Dirección',
@@ -72,6 +74,7 @@ const T = {
     'res.iva':        'IVA 16%',
     'res.derecho':    'Derecho',
     'res.monthly':    'Mensual estimado',
+    'res.tasa_bcv_pre': 'Tasa de cambio oficial del Banco Central de Venezuela (BCV):',
     'res.titular':    'Titular',
     'res.disclaimer': 'Cotización referencial. Puede variar. Un asesor te contactará a la brevedad.',
     /* Chat / footer */
@@ -117,6 +120,7 @@ const T = {
     'f.condicion': 'Civil Status', 'f.nacimiento': 'Date of Birth',
     'f.nacionalidad': 'Nationality', 'f.nac.ve': 'Venezuelan', 'f.nac.ext': 'Foreign',
     'f.telefono':  'Phone', 'f.email': 'Email',
+    'f.email_confirm': 'Confirm email', 'f.email_mismatch': 'Emails do not match',
     'f.estado':    'State', 'f.ciudad': 'City', 'f.direccion': 'Address',
     'f.terms':     'I accept that J&M processes my data to receive information about insurance, in accordance with the',
     'f.privacy':   'Privacy Policy',
@@ -131,6 +135,7 @@ const T = {
     'res.tipo': 'Insurance type', 'res.total_label': 'Total Annual',
     'res.prima_neta': 'Net Premium', 'res.iva': 'VAT 16%',
     'res.derecho': 'Policy Fee', 'res.monthly': 'Monthly estimate',
+    'res.tasa_bcv_pre': 'Official exchange rate from the Central Bank of Venezuela (BCV):',
     'res.titular': 'Policyholder',
     'res.disclaimer': 'Referential quote. May vary. An advisor will contact you shortly.',
     'loading': 'Processing...',
@@ -273,6 +278,11 @@ const sim = {
   /* Turnstile */
   turnstileToken: '',
 
+  /* Tasa BCV (USD/EUR → Bs.) — se carga al iniciar, ver loadTasas() */
+  tasaUsd:   0,
+  tasaEur:   0,
+  tasaFecha: '',
+
   /* Navegación */
   _pasos:     [1, 2, 5],  /* calculado dinámicamente */
   _pasoActual: 1,
@@ -344,6 +354,22 @@ function initTurnstileWidget() {
   });
 }
 initTurnstileWidget();
+
+/* ─────────────────────────────────────────────
+   TASA BCV — para mostrar el precio en Bs./USD/EUR (paso 5)
+   ───────────────────────────────────────────── */
+async function loadTasas() {
+  try {
+    const res = await fetch(API_BASE + '/api/portal/tasas', { headers: { Accept: 'application/json' } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    sim.tasaUsd   = Number(data.usd) || 0;
+    sim.tasaEur   = Number(data.eur) || 0;
+    sim.tasaFecha = data.fecha || '';
+  } catch {
+    sim.tasaUsd = sim.tasaEur = 0;
+  }
+}
 
 /* ─────────────────────────────────────────────
    PASO 1 — cargar productos
@@ -775,13 +801,17 @@ function checkStep1() {
 }
 
 function checkStep2() {
-  const s2err  = document.getElementById('s2-error');
-  const nombre = document.getElementById('f-nombre')?.value.trim()   || '';
-  const cedula = document.getElementById('f-cedula')?.value.trim()   || '';
-  const tel    = document.getElementById('f-telefono')?.value.trim() || '';
-  const email  = document.getElementById('f-email')?.value.trim()    || '';
-  const ciudad = document.getElementById('f-ciudad')?.value.trim()   || '';
-  const terms  = document.getElementById('acepto_terminos')?.checked ?? false;
+  const s2err     = document.getElementById('s2-error');
+  const nombre    = document.getElementById('f-nombre')?.value.trim()        || '';
+  const cedula    = document.getElementById('f-cedula')?.value.trim()        || '';
+  const tel       = document.getElementById('f-telefono')?.value.trim()      || '';
+  const email     = document.getElementById('f-email')?.value.trim()         || '';
+  const emailConf = document.getElementById('f-email-confirm')?.value.trim() || '';
+  const estado    = document.getElementById('f-estado')?.value               || '';
+  const ciudad    = document.getElementById('f-ciudad')?.value.trim()        || '';
+  const direccion = document.getElementById('f-direccion')?.value.trim()     || '';
+  const condicion = document.getElementById('f-condicion')?.value            || '';
+  const terms     = document.getElementById('acepto_terminos')?.checked ?? false;
 
   /* Validación de edad mínima 18 años */
   const nacStr = document.getElementById('f-nacimiento')?.value || '';
@@ -793,6 +823,11 @@ function checkStep2() {
     ageOk = nac <= minAge;
   }
 
+  /* Los correos deben coincidir */
+  const emailsMatch = email !== '' && emailConf !== '' && email.toLowerCase() === emailConf.toLowerCase();
+  const mismatchEl  = document.getElementById('email-mismatch');
+  if (mismatchEl) mismatchEl.classList.toggle('hidden', emailConf === '' || emailsMatch);
+
   if (s2err) {
     if (!ageOk) {
       s2err.textContent = 'Debes ser mayor de 18 años para solicitar un seguro.';
@@ -803,7 +838,9 @@ function checkStep2() {
   }
 
   const ok = nombre.length >= 2 && cedula.length >= 6
-          && tel.length >= 7 && email.includes('@') && ciudad && terms && ageOk;
+          && tel.length >= 7 && email.includes('@') && emailsMatch
+          && estado && ciudad && direccion && condicion && nacStr
+          && terms && ageOk;
   document.getElementById('btn-next').disabled = !ok;
 }
 
@@ -815,10 +852,11 @@ function checkStep3() {
     const valor  = parseFloat(document.getElementById('veh-valor')?.value) || 0;
     ok = placa.length >= 4 && modelo.length >= 1 && valor >= 500;
   } else {
-    const tipo  = document.getElementById('bien-tipo')?.value  || '';
-    const valor = parseFloat(document.getElementById('bien-valor')?.value) || 0;
-    const desc  = document.getElementById('bien-descripcion')?.value.trim() || '';
-    ok = !!tipo && valor > 0 && desc.length >= 2;
+    const tipo      = document.getElementById('bien-tipo')?.value  || '';
+    const valor     = parseFloat(document.getElementById('bien-valor')?.value) || 0;
+    const desc      = document.getElementById('bien-descripcion')?.value.trim() || '';
+    const direccion = document.getElementById('bien-direccion')?.value.trim()   || '';
+    ok = !!tipo && valor > 0 && desc.length >= 2 && direccion.length >= 3;
   }
   document.getElementById('btn-next').disabled = !ok;
 }
@@ -959,6 +997,25 @@ function setupStep5() {
   document.getElementById('s5-derecho').textContent = tienePrecio ? `$ ${fmt(derecho)}` : '$ 0.00';
   document.getElementById('s5-mensual').textContent = tienePrecio ? `$ ${fmt(total / 12)}` : nc;
 
+  /* Equivalente en Bs. y EUR según la tasa BCV vigente */
+  const totalOtrasEl = document.getElementById('s5-total-otras');
+  const tasaBcvEl     = document.getElementById('s5-tasa-bcv');
+  const tasaBcvValorEl = document.getElementById('s5-tasa-bcv-valor');
+  if (tienePrecio && sim.tasaUsd > 0) {
+    const totalBs  = total * sim.tasaUsd;
+    const partes   = [`Bs. ${fmt(totalBs)}`];
+    if (sim.tasaEur > 0) partes.push(`€ ${fmt(total * sim.tasaUsd / sim.tasaEur)}`);
+    if (totalOtrasEl) totalOtrasEl.textContent = partes.join(' · ');
+    if (tasaBcvEl) {
+      tasaBcvEl.classList.remove('hidden');
+      const tasaTxt = `USD/Bs. ${fmt(sim.tasaUsd)}` + (sim.tasaEur > 0 ? ` · EUR/Bs. ${fmt(sim.tasaEur)}` : '') + (sim.tasaFecha ? ` (${sim.tasaFecha})` : '');
+      if (tasaBcvValorEl) tasaBcvValorEl.textContent = tasaTxt;
+    }
+  } else {
+    if (totalOtrasEl) totalOtrasEl.textContent = '';
+    if (tasaBcvEl) tasaBcvEl.classList.add('hidden');
+  }
+
   const nombre = document.getElementById('f-nombre')?.value.trim() || '—';
   const tipo   = document.getElementById('f-cedula-tipo')?.value || 'V';
   const cedula = document.getElementById('f-cedula')?.value.trim() || '—';
@@ -1020,7 +1077,7 @@ document.getElementById('btn-skip-docs')?.addEventListener('click', () => {
 });
 
 /* Paso 2 — validación en tiempo real + sanitización */
-['f-nombre','f-ciudad','f-direccion','f-email'].forEach(id =>
+['f-nombre','f-ciudad','f-direccion','f-email','f-email-confirm'].forEach(id =>
   document.getElementById(id)?.addEventListener('input', function () { sanitizeInput(this); checkStep2(); })
 );
 document.getElementById('f-telefono')?.addEventListener('input', function () { sanitizeTel(this); checkStep2(); });
@@ -1061,6 +1118,7 @@ async function submitForm() {
   fd.append('cedula',          `${tipo}-${numero}`);
   fd.append('telefono',        document.getElementById('f-telefono').value.trim());
   fd.append('email',           document.getElementById('f-email').value.trim()      || '');
+  fd.append('email_confirmation', document.getElementById('f-email-confirm').value.trim() || '');
   fd.append('estado',          document.getElementById('f-estado').value            || '');
   fd.append('ciudad',          document.getElementById('f-ciudad').value.trim()     || '');
   fd.append('direccion',       document.getElementById('f-direccion').value.trim()  || '');
@@ -1162,7 +1220,7 @@ function resetAll() {
   document.getElementById('subtipos-grid')?.replaceChildren();
 
   /* Formulario paso 2 */
-  ['f-nombre','f-cedula','f-telefono','f-email','f-ciudad','f-direccion','f-nacimiento']
+  ['f-nombre','f-cedula','f-telefono','f-email','f-email-confirm','f-ciudad','f-direccion','f-nacimiento']
     .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   ['f-cedula-tipo','f-sexo','f-condicion','f-estado','f-nacionalidad']
     .forEach(id => { const el = document.getElementById(id); if (el) el.selectedIndex = 0; });
@@ -1320,3 +1378,4 @@ document.querySelectorAll('.chat-chip').forEach(chip => {
 
 /* ─── Arranque ─────────────────────────────── */
 loadProductos();
+loadTasas();

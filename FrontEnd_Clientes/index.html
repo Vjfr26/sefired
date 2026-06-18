@@ -174,15 +174,20 @@
                 <label class="field-label"><span data-i18n="f.email">Correo electrónico</span> <span class="text-red-500">*</span></label>
                 <input id="f-email" type="email" class="field-input" placeholder="tu@correo.com" autocomplete="email" />
               </div>
+              <div class="col-span-2">
+                <label class="field-label"><span data-i18n="f.email_confirm">Confirmar correo</span> <span class="text-red-500">*</span></label>
+                <input id="f-email-confirm" type="email" class="field-input" placeholder="tu@correo.com" autocomplete="email" />
+                <p id="email-mismatch" class="hidden text-[11px] text-red-500 mt-0.5" data-i18n="f.email_mismatch">Los correos no coinciden</p>
+              </div>
               <div>
-                <label class="field-label" data-i18n="f.sexo">Sexo</label>
+                <label class="field-label"><span data-i18n="f.sexo">Sexo</span> <span class="text-red-500">*</span></label>
                 <select id="f-sexo" class="field-input">
                   <option value="M" data-i18n="f.sexo.m">Masculino</option>
                   <option value="F" data-i18n="f.sexo.f">Femenino</option>
                 </select>
               </div>
               <div>
-                <label class="field-label" data-i18n="f.condicion">Estado civil</label>
+                <label class="field-label"><span data-i18n="f.condicion">Estado civil</span> <span class="text-red-500">*</span></label>
                 <select id="f-condicion" class="field-input">
                   <option value="">—</option>
                   <option value="Soltero">Soltero/a</option><option value="Casado">Casado/a</option>
@@ -191,18 +196,18 @@
                 </select>
               </div>
               <div>
-                <label class="field-label" data-i18n="f.nacimiento">Nacimiento</label>
+                <label class="field-label"><span data-i18n="f.nacimiento">Nacimiento</span> <span class="text-red-500">*</span></label>
                 <input id="f-nacimiento" type="date" class="field-input" />
               </div>
               <div>
-                <label class="field-label" data-i18n="f.nacionalidad">Nacionalidad</label>
+                <label class="field-label"><span data-i18n="f.nacionalidad">Nacionalidad</span> <span class="text-red-500">*</span></label>
                 <select id="f-nacionalidad" class="field-input">
                   <option data-i18n="f.nac.ve">Venezolano/a</option>
                   <option data-i18n="f.nac.ext">Extranjero/a</option>
                 </select>
               </div>
               <div class="col-span-2">
-                <label class="field-label" data-i18n="f.estado">Estado / Provincia</label>
+                <label class="field-label"><span data-i18n="f.estado">Estado / Provincia</span> <span class="text-red-500">*</span></label>
                 <select id="f-estado" class="field-input">
                   <option value="">Seleccionar...</option>
                   <option>Amazonas</option><option>Anzoátegui</option><option>Apure</option>
@@ -221,8 +226,7 @@
               </div>
               <div class="col-span-2 xs:col-span-4">
                 <label class="field-label">
-                  <span data-i18n="f.direccion">Dirección</span>
-                  <span class="font-normal text-gray-400 text-[10px] ml-1">(opcional)</span>
+                  <span data-i18n="f.direccion">Dirección</span> <span class="text-red-500">*</span>
                 </label>
                 <input id="f-direccion" type="text" class="field-input" placeholder="Av. Libertador, Edif. Centro, Piso 3..." />
               </div>
@@ -319,7 +323,7 @@
                   <input id="bien-descripcion" type="text" class="field-input" placeholder="Ej. Apartamento 3 habitaciones, piso 5" />
                 </div>
                 <div class="col-span-2 xs:col-span-4">
-                  <label class="field-label" data-i18n="bien.direccion">Dirección / Ubicación <span class="font-normal text-gray-400 text-[10px] ml-1">(opcional)</span></label>
+                  <label class="field-label"><span data-i18n="bien.direccion">Dirección / Ubicación</span> <span class="text-red-500">*</span></label>
                   <input id="bien-direccion" type="text" class="field-input" placeholder="Av. Libertador, Edif. Centro..." />
                 </div>
               </div>
@@ -380,6 +384,7 @@
                   <div class="text-right shrink-0">
                     <p class="text-[10px] text-white/65" data-i18n="res.total_label">Total Anual</p>
                     <p id="s5-total" class="text-xl font-extrabold text-gold-400">$ —</p>
+                    <p id="s5-total-otras" class="text-[11px] text-white/70 mt-0.5">—</p>
                   </div>
                 </div>
                 <div class="border-t border-white/10 pt-2 grid grid-cols-3 gap-x-2 text-xs">
@@ -392,6 +397,11 @@
                   <span id="s5-mensual" class="font-semibold text-white/75">$ —</span>
                 </p>
               </div>
+              <p id="s5-tasa-bcv" class="hidden text-[10px] text-gray-400 text-center leading-relaxed mb-2 px-1">
+                <span data-i18n="res.tasa_bcv_pre">Tasa de cambio oficial del Banco Central de Venezuela (BCV):</span>
+                <span id="s5-tasa-bcv-valor" class="font-semibold text-gray-500"></span>
+                — <a href="https://www.bcv.org.ve/" target="_blank" rel="noopener" class="underline">www.bcv.org.ve</a>
+              </p>
               <div class="bg-gray-50 rounded-xl border border-gray-100 px-3 py-1 mb-2">
                 <div class="flex justify-between py-1.5 border-b border-gray-100">
                   <span class="text-gray-500 text-xs" data-i18n="res.titular">Titular</span>

@@ -26,16 +26,31 @@
     <p style="margin:0;font-size:36px;font-weight:900;color:#4c1d95;line-height:1.1;">
       ${{ $primaUsd }} <span style="font-size:16px;font-weight:600;color:#7c3aed;">USD</span>
     </p>
-    @if($primaBs)
-    <p style="margin:4px 0 0;font-size:14px;color:#6d28d9;">
-      Equivalente a Bs. {{ $primaBs }}
-      @if($tasaBcv)
-        <span style="font-size:11px;color:#8b5cf6;">(Tasa BCV: {{ $tasaBcv }})</span>
+    @if($primaBs || $primaEur)
+    <p style="margin:6px 0 0;font-size:14px;color:#6d28d9;">
+      @if($primaBs)
+        Bs. {{ $primaBs }}
+      @endif
+      @if($primaBs && $primaEur)
+        &nbsp;·&nbsp;
+      @endif
+      @if($primaEur)
+        € {{ $primaEur }}
       @endif
     </p>
     @endif
   </td></tr>
 </table>
+
+@if($tasaBcv)
+<p style="margin:0 0 24px;font-size:11px;color:#94a3b8;text-align:center;line-height:1.5;">
+  Tasa de cambio oficial del Banco Central de Venezuela (BCV) del {{ $fecha }}:
+  USD/Bs. {{ $tasaBcv }}@if($tasaEur) · EUR/Bs. {{ $tasaEur }}@endif.
+  Consulte la tasa vigente en
+  <a href="https://www.bcv.org.ve/" style="color:#7c3aed;">www.bcv.org.ve</a>,
+  conforme a la normativa cambiaria venezolana.
+</p>
+@endif
 
 {{-- Detalle del producto --}}
 <table width="100%" cellpadding="0" cellspacing="0"

@@ -30,9 +30,11 @@ class CotizacionMail extends Mailable
         $sol  = $this->solicitud;
         $cobs = is_array($sol->coberturas) ? $sol->coberturas : [];
 
-        // Tasa y monto en Bs.
-        $tasa    = (float) ($cobs['tasaBCV'] ?? 0);
-        $primaBs = $tasa > 1 ? number_format((float) $sol->total * $tasa, 2) : null;
+        // Tasas BCV y montos en Bs. y EUR
+        $tasaUsd = (float) ($cobs['tasaBCV'] ?? 0);
+        $tasaEur = (float) ($cobs['tasaEUR'] ?? 0);
+        $primaBs  = $tasaUsd > 1 ? number_format((float) $sol->total * $tasaUsd, 2) : null;
+        $primaEur = ($tasaEur > 1 && $tasaUsd > 0) ? number_format((float) $sol->total * $tasaUsd / $tasaEur, 2) : null;
 
         // Suma asegurada
         $cobertura = number_format((float) ($cobs['valor_mercado'] ?? $sol->producto?->cobertura ?? 0), 2);
@@ -62,7 +64,9 @@ class CotizacionMail extends Mailable
                 'bienRef'           => $bienRef,
                 'primaUsd'          => number_format((float) $sol->total, 2),
                 'primaBs'           => $primaBs,
-                'tasaBcv'           => $tasa > 1 ? number_format($tasa, 2) : null,
+                'primaEur'          => $primaEur,
+                'tasaBcv'           => $tasaUsd > 1 ? number_format($tasaUsd, 2) : null,
+                'tasaEur'           => $tasaEur > 1 ? number_format($tasaEur, 2) : null,
                 'cobertura'         => $cobertura,
                 'coberturasDetalle' => $coberturasDetalle,
             ],

@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\CotizacionMail;
 use App\Models\BienAsegurado;
+use App\Models\IndicadorEconomico;
 use App\Models\Persona;
 use App\Models\Poliza;
 use App\Models\Producto;
@@ -10,6 +12,7 @@ use App\Models\Solicitud;
 use App\Rules\NoInjectionChars;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 
 class PortalController extends Controller
@@ -43,6 +46,24 @@ class PortalController extends Controller
                 ->get()
                 ->map(fn($p) => $this->mapProducto($p, false))
         );
+    }
+
+    /* ─────────────────────────────────────────────────────────────
+       GET /api/portal/tasas
+       Tasa BCV (USD/EUR) vigente — para mostrar el precio en Bs/USD/EUR
+       en el simulador, tal como lo exige la normativa cambiaria venezolana.
+    ───────────────────────────────────────────────────────────── */
+    public function tasas()
+    {
+        $usd = IndicadorEconomico::usd()->orderByDesc('fecha')->orderByDesc('fecha_registro')->first();
+        $eur = IndicadorEconomico::eur()->orderByDesc('fecha')->orderByDesc('fecha_registro')->first();
+
+        return response()->json([
+            'usd'    => $usd ? (float) $usd->valor : null,
+            'eur'    => $eur ? (float) $eur->valor : null,
+            'fecha'  => $usd?->fecha?->format('d/m/Y'),
+            'fuente' => 'https://www.bcv.org.ve/',
+        ]);
     }
 
     /* ─────────────────────────────────────────────────────────────
@@ -107,14 +128,14 @@ class PortalController extends Controller
             'nombre_completo'     => ['required', 'string', 'max:200', $noInjectionChars],
             'cedula'              => 'required|string|max:20',
             'telefono'            => ['required', 'string', 'max:30', $noInjectionChars],
-            'email'               => 'nullable|email|max:120',
-            'estado'              => ['nullable', 'string', 'max:60', $noInjectionChars],
+            'email'               => 'required|email|max:120|confirmed',
+            'estado'              => ['required', 'string', 'max:60', $noInjectionChars],
             'ciudad'              => ['required', 'string', 'max:80', $noInjectionChars],
-            'direccion'           => ['nullable', 'string', 'max:200', $noInjectionChars],
-            'sexo'                => 'nullable|string|max:10',
-            'condicion'           => ['nullable', 'string', 'max:30', $noInjectionChars],
-            'nacimiento'          => 'nullable|date|before_or_equal:' . now()->subYears(18)->toDateString(),
-            'nacionalidad'        => ['nullable', 'string', 'max:40', $noInjectionChars],
+            'direccion'           => ['required', 'string', 'max:200', $noInjectionChars],
+            'sexo'                => 'required|string|max:10',
+            'condicion'           => ['required', 'string', 'max:30', $noInjectionChars],
+            'nacimiento'          => 'required|date|before_or_equal:' . now()->subYears(18)->toDateString(),
+            'nacionalidad'        => ['required', 'string', 'max:40', $noInjectionChars],
             // Producto seleccionado
             'producto_id'         => 'nullable|integer|exists:producto,id',
             'subtipo_id'          => 'nullable|integer|exists:producto,id',
@@ -140,16 +161,24 @@ class PortalController extends Controller
             'documentos_nombres.*'=> ['nullable', 'string', 'max:100', $noInjectionChars],
         ]);
 
-        // 3. Normalizar cédula y nombre
-        $cedula = strtoupper(preg_replace('/[^A-Z0-9]/i', '', trim($data['cedula'])));
-        $nombre = trim($data['nombre_completo']);
+        // 3. Normalizar cédula, nombre, teléfono y correo para comparar duplicados
+        $cedula      = strtoupper(preg_replace('/[^A-Z0-9]/i', '', trim($data['cedula'])));
+        $nombre      = trim($data['nombre_completo']);
+        $telefono    = preg_replace('/\D/', '', $data['telefono']);
+        $correoNorm  = strtolower(trim($data['email']));
 
-        // 4. Verificar si ya existe como cliente
-        $persona = Persona::where(function ($q) use ($cedula, $nombre) {
+        // 4. No se permiten solicitudes de alguien que ya es cliente — se
+        // verifica por cédula, nombre, teléfono O correo (cualquier
+        // coincidencia cuenta, no solo todas a la vez).
+        $persona = Persona::where(function ($q) use ($cedula, $nombre, $telefono, $correoNorm) {
             $q->whereRaw(
                 "UPPER(REPLACE(REPLACE(REPLACE(cedula, '-', ''), '.', ''), ' ', '')) = ?",
                 [$cedula]
-            )->orWhereRaw("LOWER(TRIM(nombre)) = LOWER(TRIM(?))", [$nombre]);
+            )
+            ->orWhereRaw("LOWER(TRIM(nombre)) = LOWER(TRIM(?))", [$nombre])
+            ->orWhereRaw("REGEXP_REPLACE(telefono, '[^0-9]', '') = ?", [$telefono])
+            ->orWhereRaw("REGEXP_REPLACE(celular, '[^0-9]', '') = ?", [$telefono])
+            ->orWhereRaw('LOWER(correo) = ?', [$correoNorm]);
         })->first();
 
         if ($persona) {
@@ -164,11 +193,16 @@ class PortalController extends Controller
             ]);
         }
 
-        // 4b. Deduplicación por cédula en leads existentes
-        $leadExistente = Solicitud::whereRaw(
-            "UPPER(REPLACE(REPLACE(REPLACE(ci_tomador, '-', ''), '.', ''), ' ', '')) = ?",
-            [$cedula]
-        )->exists();
+        // 4b. Deduplicación por cédula, nombre, teléfono o correo en leads existentes
+        $leadExistente = Solicitud::where(function ($q) use ($cedula, $nombre, $telefono, $correoNorm) {
+            $q->whereRaw(
+                "UPPER(REPLACE(REPLACE(REPLACE(ci_tomador, '-', ''), '.', ''), ' ', '')) = ?",
+                [$cedula]
+            )
+            ->orWhereRaw("LOWER(TRIM(nombre_tomador)) = LOWER(TRIM(?))", [$nombre])
+            ->orWhereRaw("REGEXP_REPLACE(JSON_UNQUOTE(JSON_EXTRACT(coberturas, '$.telefono')), '[^0-9]', '') = ?", [$telefono])
+            ->orWhereRaw("LOWER(JSON_UNQUOTE(JSON_EXTRACT(coberturas, '$.email'))) = ?", [$correoNorm]);
+        })->exists();
 
         if ($leadExistente) {
             return response()->json([
@@ -198,6 +232,14 @@ class PortalController extends Controller
         $productoEfectivoId = $data['subtipo_id'] ?? $data['producto_id'] ?? null;
         $producto   = $productoEfectivoId ? Producto::find($productoEfectivoId) : null;
         $tipoBien   = $producto?->tipo_bien ?? 'ninguno';
+
+        // 6b. La dirección del bien es obligatoria cuando el producto la requiere
+        // (no aplica a vehículo, que usa placa/marca/modelo en vez de dirección)
+        if (in_array($tipoBien, ['inmueble', 'bien'], true) && empty($data['bien_direccion'] ?? null)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'bien_direccion' => 'La dirección del bien es obligatoria.',
+            ]);
+        }
 
         // 7. Crear bien_asegurado según tipo del producto
         $bienId = null;
@@ -230,8 +272,13 @@ class PortalController extends Controller
             $bienId = $bien->id;
         }
 
+        // 7b. Tasa BCV vigente (USD/EUR) — se guarda junto al lead para que el
+        // correo de confirmación muestre el monto también en Bs. y EUR.
+        $tasaUsd = (float) (IndicadorEconomico::usd()->orderByDesc('fecha')->orderByDesc('fecha_registro')->first()?->valor ?? 0);
+        $tasaEur = (float) (IndicadorEconomico::eur()->orderByDesc('fecha')->orderByDesc('fecha_registro')->first()?->valor ?? 0);
+
         // 8. Crear lead (Solicitud pendiente)
-        Solicitud::create([
+        $solicitud = Solicitud::create([
             'nombre_tomador'    => $nombre,
             'ci_tomador'        => $data['cedula'],
             'bien_asegurado_id' => $bienId,
@@ -239,9 +286,10 @@ class PortalController extends Controller
             'status'            => 'pendiente',
             'fuente'            => 'portal',
             'fecha_solicitud'   => now()->toDateString(),
-            'coberturas'        => [[
+            'total'             => $data['prima_estimada'] ?? 0,
+            'coberturas'        => [
                 'telefono'        => $data['telefono'],
-                'email'           => $data['email']          ?? null,
+                'email'           => $data['email'],
                 'estado_ve'       => $data['estado']         ?? null,
                 'ciudad'          => $data['ciudad'],
                 'direccion'       => $data['direccion']      ?? null,
@@ -253,8 +301,19 @@ class PortalController extends Controller
                 'prima_estimada'  => $data['prima_estimada'] ?? null,
                 'documentos'      => $docPaths,
                 'subtipo_id'      => $data['subtipo_id']     ?? null,
-            ]],
+                'tasaBCV'         => $tasaUsd,
+                'tasaEUR'         => $tasaEur,
+                'valor_mercado'   => $data['valor_mercado']  ?? ($data['bien_valor'] ?? null),
+            ],
         ]);
+
+        // 9. Enviar correo de confirmación al cliente — si falla, no debe
+        // tumbar la solicitud (el lead ya quedó guardado de todas formas).
+        try {
+            Mail::to($data['email'])->queue(new CotizacionMail($solicitud));
+        } catch (\Throwable $e) {
+            report($e);
+        }
 
         return response()->json(['match' => false], 201);
     }
