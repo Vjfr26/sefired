@@ -3,14 +3,18 @@
 namespace App\Http\Controllers;
 
 use App\Mail\CotizacionMail;
+use App\Mail\SolicitudContactoInternaMail;
+use App\Mail\SolicitudContactoMail;
 use App\Models\BienAsegurado;
 use App\Models\IndicadorEconomico;
 use App\Models\Persona;
 use App\Models\Poliza;
 use App\Models\Producto;
 use App\Models\Solicitud;
+use App\Models\SolicitudContacto;
 use App\Rules\NoInjectionChars;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
@@ -316,6 +320,61 @@ class PortalController extends Controller
         }
 
         return response()->json(['match' => false], 201);
+    }
+
+    /* ─────────────────────────────────────────────────────────────
+       POST /api/portal/contacto
+       El chatbot del portal usa esto cuando el cliente pide ser
+       contactado: envía confirmación al cliente + aviso interno
+       al asesor o técnico, según el motivo elegido.
+    ───────────────────────────────────────────────────────────── */
+    public function contacto(Request $request)
+    {
+        $data = $request->validate([
+            'email'  => 'required|email|max:120',
+            'motivo' => 'required|string|in:' . implode(',', SolicitudContacto::MOTIVOS),
+        ]);
+
+        // Anti-spam: evita que el mismo correo reciba confirmaciones repetidas
+        // en pocos minutos (además del throttle por IP de la ruta).
+        $correoNorm = strtolower(trim($data['email']));
+        $cooldownKey = 'contacto_cooldown:' . $correoNorm;
+        if (Cache::has($cooldownKey)) {
+            return response()->json([
+                'message' => 'Ya recibimos una solicitud con este correo hace muy poco. Espera unos minutos antes de enviar otra.',
+            ], 429);
+        }
+        Cache::put($cooldownKey, true, now()->addMinutes(2));
+
+        $destino = SolicitudContacto::destinoParaMotivo($data['motivo']);
+
+        $solicitud = SolicitudContacto::create([
+            'email'   => $data['email'],
+            'motivo'  => $data['motivo'],
+            'destino' => $destino,
+            'ip'      => $request->ip(),
+        ]);
+
+        // El correo al cliente y al staff no debe tumbar la respuesta si falla.
+        try {
+            Mail::to($data['email'])->queue(new SolicitudContactoMail($solicitud));
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        try {
+            $destinatarios = $destino === 'tecnico'
+                ? config('mail.soporte_destinatarios', [])
+                : config('mail.asesor_destinatarios', []);
+
+            foreach ($destinatarios as $correoInterno) {
+                Mail::to($correoInterno)->queue(new SolicitudContactoInternaMail($solicitud));
+            }
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        return response()->json(['ok' => true], 201);
     }
 
     /* ─── helper privado ─────────────────────────────────────── */

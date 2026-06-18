@@ -130,15 +130,27 @@ const T = {
     'loading':       'Calculando...',
     'chat.title':    'Asistente J&M',
     'chat.online':   'En línea',
-    'chat.ph':       'Escribe tu mensaje...',
     'chat.fab':      'Abrir chat',
     'chat.close':    'Cerrar chat',
     'chat.send_aria':'Enviar mensaje',
+    'chat.email_ph': 'tu@correo.com',
     'chat.greeting1':'¡Hola! 👋 Soy el asistente virtual de J&M.',
     'chat.greeting2':'¿En qué puedo ayudarte hoy?',
-    'chat.chip1':    'Cotizar seguro',
-    'chat.chip2':    '¿Qué seguros ofrecen?',
-    'chat.chip3':    'Hablar con asesor',
+    'chat.opt.cotizar':  'Cotizar un seguro',
+    'chat.opt.seguros':  '¿Qué seguros ofrecen?',
+    'chat.opt.contacto': 'Quiero ser contactado',
+    'chat.opt.whatsapp': 'Hablar por WhatsApp',
+    'chat.opt.back':     'Volver al menú',
+    'chat.seguros.reply': 'En J&M ofrecemos: 🚗 Vehículos, 🏠 Hogar, ❤️ Vida, 🏥 HCM/Salud, 🏢 Empresarial y 📋 Fianzas.',
+    'chat.contacto.intro':      '¿Sobre qué te gustaría que te contactemos?',
+    'chat.motivo.cotizar':      'Cotizar un seguro nuevo',
+    'chat.motivo.poliza':       'Consultar sobre mi póliza',
+    'chat.motivo.siniestro':    'Reportar un siniestro',
+    'chat.motivo.tecnico':      'Problema técnico con el sitio',
+    'chat.contacto.ask_email':  'Perfecto. ¿A qué correo te contactamos?',
+    'chat.contacto.invalid_email': 'Ese correo no parece válido. Intenta de nuevo.',
+    'chat.contacto.ok':    '¡Listo! Tu solicitud fue recibida. En breve nos pondremos en contacto contigo a ese correo.',
+    'chat.contacto.error': 'No pudimos enviar tu solicitud. Intenta de nuevo o escríbenos por WhatsApp.',
     'carousel.prev': 'Anterior',
     'carousel.next': 'Siguiente',
     'footer.rights': 'Todos los derechos reservados.',
@@ -236,13 +248,27 @@ const T = {
     'err.min_age': 'You must be at least 18 years old to request insurance.',
     'loading': 'Processing...',
     'chat.title': 'J&M Assistant', 'chat.online': 'Online',
-    'chat.ph': 'Type your message...', 'chat.fab': 'Open chat',
+    'chat.fab': 'Open chat',
     'chat.close': 'Close chat',
     'chat.send_aria': 'Send message',
+    'chat.email_ph': 'you@email.com',
     'chat.greeting1': "Hello! 👋 I'm J&M's virtual assistant.",
     'chat.greeting2': 'How can I help you today?',
-    'chat.chip1': 'Get a quote', 'chat.chip2': 'What insurance do you offer?',
-    'chat.chip3': 'Talk to an advisor',
+    'chat.opt.cotizar':  'Get an insurance quote',
+    'chat.opt.seguros':  'What insurance do you offer?',
+    'chat.opt.contacto': 'I want to be contacted',
+    'chat.opt.whatsapp': 'Talk on WhatsApp',
+    'chat.opt.back':     'Back to menu',
+    'chat.seguros.reply': 'At J&M we offer: 🚗 Vehicle, 🏠 Home, ❤️ Life, 🏥 Health, 🏢 Business and 📋 Bonds.',
+    'chat.contacto.intro':      'What would you like us to contact you about?',
+    'chat.motivo.cotizar':      'Get a new insurance quote',
+    'chat.motivo.poliza':       'A question about my policy',
+    'chat.motivo.siniestro':    'Report a claim',
+    'chat.motivo.tecnico':      'A technical issue with the site',
+    'chat.contacto.ask_email':  'Great. What email should we contact you at?',
+    'chat.contacto.invalid_email': "That email doesn't look valid. Please try again.",
+    'chat.contacto.ok':    "Done! We received your request. We'll be in touch at that email shortly.",
+    'chat.contacto.error': "We couldn't send your request. Try again or message us on WhatsApp.",
     'carousel.prev': 'Previous',
     'carousel.next': 'Next',
     'footer.rights': 'All rights reserved.', 'footer.by1': 'Made with', 'footer.by2': 'by',
@@ -282,9 +308,6 @@ function setLanguage(lang) {
   });
   document.querySelectorAll('.lang-btn').forEach(btn =>
     btn.classList.toggle('active', btn.dataset.lang === lang)
-  );
-  document.querySelectorAll('.chat-chip[data-msg-key]').forEach(chip =>
-    { chip.textContent = t(`chat.${chip.dataset.msgKey}`); }
   );
   /* Las opciones de estado civil se generan dinámicamente en JS (dependen del sexo)
      y no llevan atributos [data-i18n], así que hay que regenerarlas aquí. */
@@ -350,7 +373,10 @@ document.getElementById('veh-placa')?.addEventListener('input', function () {
 
 setLanguage(currentLang);
 document.querySelectorAll('.lang-btn').forEach(btn =>
-  btn.addEventListener('click', () => setLanguage(btn.dataset.lang))
+  btn.addEventListener('click', () => {
+    setLanguage(btn.dataset.lang);
+    refreshChatMenu();
+  })
 );
 
 /* ─────────────────────────────────────────────
@@ -1430,57 +1456,27 @@ document.querySelectorAll('.whatsapp-btn').forEach(btn => {
 });
 
 /* ─────────────────────────────────────────────
-   CHATBOT
+   CHATBOT — menú guiado por botones (sin texto libre,
+   salvo el correo cuando el cliente pide ser contactado)
    ───────────────────────────────────────────── */
 const chatbotBtn    = document.getElementById('chatbot-btn');
 const chatbotPanel  = document.getElementById('chatbot-panel');
 const chatMessages  = document.getElementById('chat-messages');
+const chatMenu      = document.getElementById('chat-menu');
+const chatInputArea = document.getElementById('chat-input-area');
 const chatInput     = document.getElementById('chat-input');
 const chatSend      = document.getElementById('chat-send');
 const chatbotBadge  = document.querySelector('.chatbot-badge');
+const whatsappFab   = document.getElementById('whatsapp-fab-btn');
 
-const BOT_RESPONSES = {
-  es: [
-    { triggers: ['cotizar','cotizacion','cotización','precio','costo'],
-      reply: 'Puedes usar nuestro <a href="#cotizador" class="underline font-semibold" onclick="closeChat()">simulador</a>. ¡Es gratuito y rápido! 😊' },
-    { triggers: ['seguro','seguros','ofrecen','tipos','poliza','póliza'],
-      reply: 'En J&M ofrecemos: 🚗 Vehículos, 🏠 Hogar, ❤️ Vida, 🏥 HCM/Salud, 🏢 Empresarial y 📋 Fianzas.' },
-    { triggers: ['asesor','hablar','contacto','whatsapp','llamar','humano'],
-      reply: 'Con gusto te conectamos. Escríbenos al WhatsApp o usa el botón "Hablar con asesor". 📞' },
-    { triggers: ['hola','buenas','buenos','buen'],
-      reply: '¡Hola! 👋 Bienvenido/a a J&M. ¿En qué te puedo ayudar?' },
-    { triggers: ['gracias','perfecto','genial','excelente'],
-      reply: '¡Con mucho gusto! 😊 ¿Necesitas algo más?' },
-  ],
-  en: [
-    { triggers: ['quote','quotation','price','cost'],
-      reply: 'Use our <a href="#cotizador" class="underline font-semibold" onclick="closeChat()">simulator</a>. It\'s free and instant! 😊' },
-    { triggers: ['insurance','offer','types','policy'],
-      reply: 'At J&M we offer: 🚗 Vehicle, 🏠 Home, ❤️ Life, 🏥 Health, 🏢 Business and 📋 Bonds.' },
-    { triggers: ['advisor','agent','human','contact','whatsapp'],
-      reply: "We'd love to connect you! Use WhatsApp or the 'Contact Advisor' button. 📞" },
-    { triggers: ['hello','hi','hey'],
-      reply: 'Hello! 👋 Welcome to J&M. How can I help you today?' },
-    { triggers: ['thanks','thank','great','perfect'],
-      reply: "You're welcome! 😊 Anything else I can do for you?" },
-  ],
+const MOTIVO_LABEL_KEY = {
+  cotizar:   'chat.motivo.cotizar',
+  poliza:    'chat.motivo.poliza',
+  siniestro: 'chat.motivo.siniestro',
+  tecnico:   'chat.motivo.tecnico',
 };
 
-const DEFAULT_REPLY = {
-  es: 'Un asesor de J&M estará disponible pronto. También puedes usar el <a href="#cotizador" class="underline font-semibold" onclick="closeChat()">simulador</a>.',
-  en: 'A J&M advisor will be available shortly. You can also use our <a href="#cotizador" class="underline font-semibold" onclick="closeChat()">simulator</a>.',
-};
-
-window.closeChat = () => chatbotPanel.classList.add('hidden');
-
-function getBotReply(text) {
-  const lower     = text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-  const responses = BOT_RESPONSES[currentLang] || BOT_RESPONSES.es;
-  for (const item of responses) {
-    if (item.triggers.some(tr => lower.includes(tr))) return item.reply;
-  }
-  return DEFAULT_REPLY[currentLang] || DEFAULT_REPLY.es;
-}
+const chatState = { step: 'root', motivo: null, sending: false };
 
 function addMessage(html, sender = 'bot') {
   const div = document.createElement('div');
@@ -1490,46 +1486,184 @@ function addMessage(html, sender = 'bot') {
   chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-function handleSend() {
-  const text = chatInput.value.trim();
-  if (!text) return;
-  addMessage(esc(text), 'user');
-  chatInput.value = '';
+function showTyping(thenFn, delay = 700) {
+  // Oculta el menú mientras "escribe" para que no se pueda pulsar una opción
+  // vieja mientras el bot está respondiendo a la anterior.
+  chatMenu.innerHTML = '';
   const typing = document.createElement('div');
   typing.className = 'chat-msg bot';
   typing.innerHTML = '<span style="letter-spacing:3px;opacity:0.5">●●●</span>';
   chatMessages.appendChild(typing);
   chatMessages.scrollTop = chatMessages.scrollHeight;
-  setTimeout(() => { typing.remove(); addMessage(getBotReply(text), 'bot'); }, 750 + Math.random() * 600);
+  setTimeout(() => { typing.remove(); thenFn(); }, delay + Math.random() * 400);
 }
 
-const whatsappFab = document.getElementById('whatsapp-fab-btn');
+/** Pinta los botones del menú actual. `buttons`: [{ key, icon, onClick, back }] */
+function renderMenu(buttons) {
+  chatMenu.innerHTML = '';
+  buttons.forEach(b => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'chat-menu-btn' + (b.back ? ' is-back' : '');
+    btn.innerHTML = `<span>${esc(t(b.key))}</span>` +
+      (b.back ? '<i class="fa-solid fa-arrow-left"></i>' : '<i class="fa-solid fa-chevron-right"></i>');
+    btn.addEventListener('click', b.onClick);
+    chatMenu.appendChild(btn);
+  });
+  chatMenu.classList.remove('hidden');
+  chatInputArea.classList.add('hidden');
+}
+
+function closeChatPanel() {
+  chatbotPanel.classList.add('hidden');
+  chatbotBtn.classList.remove('hidden');
+  whatsappFab?.classList.remove('hidden');
+}
+
+function openWhatsApp(messageKeyEs, messageKeyEn) {
+  const msg = currentLang === 'es' ? messageKeyEs : messageKeyEn;
+  window.open(`https://wa.me/584148299562?text=${encodeURIComponent(msg)}`, '_blank');
+}
+
+/* Cada "renderXButtons" sólo pinta botones (re-utilizable al refrescar idioma);
+   las funciones "showX" cambian de paso y añaden el mensaje del bot al historial. */
+function renderRootButtons() {
+  renderMenu([
+    { key: 'chat.opt.cotizar', onClick: () => {
+      addMessage(esc(t('chat.opt.cotizar')), 'user');
+      closeChatPanel();
+      document.getElementById('cotizador')?.scrollIntoView({ behavior: 'smooth' });
+    }},
+    { key: 'chat.opt.seguros', onClick: () => {
+      addMessage(esc(t('chat.opt.seguros')), 'user');
+      showTyping(() => {
+        addMessage(esc(t('chat.seguros.reply')), 'bot');
+        renderRootButtons();
+      });
+    }},
+    { key: 'chat.opt.contacto', onClick: () => {
+      addMessage(esc(t('chat.opt.contacto')), 'user');
+      showTyping(showContactoMotivoMenu);
+    }},
+    { key: 'chat.opt.whatsapp', onClick: () => {
+      addMessage(esc(t('chat.opt.whatsapp')), 'user');
+      openWhatsApp(
+        'Hola, me gustaría hablar con un asesor de J&M.',
+        'Hello, I would like to speak with a J&M advisor.'
+      );
+    }},
+  ]);
+}
+
+function renderContactoMotivoButtons() {
+  renderMenu([
+    { key: 'chat.motivo.cotizar',   onClick: () => seleccionarMotivoContacto('cotizar') },
+    { key: 'chat.motivo.poliza',    onClick: () => seleccionarMotivoContacto('poliza') },
+    { key: 'chat.motivo.siniestro', onClick: () => seleccionarMotivoContacto('siniestro') },
+    { key: 'chat.motivo.tecnico',   onClick: () => seleccionarMotivoContacto('tecnico') },
+    { key: 'chat.opt.back', back: true, onClick: () => {
+      addMessage(esc(t('chat.opt.back')), 'user');
+      showRootMenu();
+    }},
+  ]);
+}
+
+function renderBackOnly() {
+  renderMenu([
+    { key: 'chat.opt.back', back: true, onClick: () => {
+      addMessage(esc(t('chat.opt.back')), 'user');
+      showRootMenu();
+    }},
+  ]);
+}
+
+function showRootMenu() {
+  chatState.step = 'root';
+  chatState.motivo = null;
+  renderRootButtons();
+}
+
+function showContactoMotivoMenu() {
+  chatState.step = 'contacto_motivo';
+  addMessage(esc(t('chat.contacto.intro')), 'bot');
+  renderContactoMotivoButtons();
+}
+
+function seleccionarMotivoContacto(motivo) {
+  chatState.motivo = motivo;
+  addMessage(esc(t(MOTIVO_LABEL_KEY[motivo])), 'user');
+  showTyping(askContactoEmail);
+}
+
+function askContactoEmail() {
+  chatState.step = 'contacto_email';
+  addMessage(esc(t('chat.contacto.ask_email')), 'bot');
+  renderBackOnly();
+  chatInputArea.classList.remove('hidden');
+  chatInput.value = '';
+  setTimeout(() => chatInput.focus(), 150);
+}
+
+const EMAIL_RE = /^[^\s@'";`<>\\]+@[^\s@'";`<>\\]+\.[^\s@'";`<>\\]+$/;
+
+async function handleContactoEmailSubmit() {
+  if (chatState.step !== 'contacto_email' || chatState.sending) return;
+  const email = chatInput.value.trim();
+  if (!EMAIL_RE.test(email)) {
+    addMessage(esc(t('chat.contacto.invalid_email')), 'bot');
+    return;
+  }
+
+  chatState.sending = true;
+  chatInputArea.classList.add('hidden');
+  addMessage(esc(email), 'user');
+  chatInput.value = '';
+
+  const typing = document.createElement('div');
+  typing.className = 'chat-msg bot';
+  typing.innerHTML = '<span style="letter-spacing:3px;opacity:0.5">●●●</span>';
+  chatMessages.appendChild(typing);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+
+  try {
+    const res = await fetch(API_BASE + '/api/portal/contacto', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ email, motivo: chatState.motivo }),
+    });
+    typing.remove();
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    addMessage(esc(t('chat.contacto.ok')), 'bot');
+  } catch {
+    typing.remove();
+    addMessage(esc(t('chat.contacto.error')), 'bot');
+  } finally {
+    chatState.sending = false;
+    renderBackOnly();
+  }
+}
+
+/** Re-pinta los botones del paso actual cuando cambia el idioma (no toca el historial ya enviado). */
+function refreshChatMenu() {
+  switch (chatState.step) {
+    case 'contacto_motivo': renderContactoMotivoButtons(); break;
+    case 'contacto_email':  renderBackOnly(); break;
+    default:                renderRootButtons();
+  }
+}
 
 chatbotBtn.addEventListener('click', () => {
   const isHidden = chatbotPanel.classList.contains('hidden');
   chatbotPanel.classList.toggle('hidden', !isHidden);
   chatbotBtn.classList.toggle('hidden', isHidden);
   whatsappFab?.classList.toggle('hidden', isHidden);
-  if (isHidden) {
-    if (chatbotBadge) chatbotBadge.style.display = 'none';
-    setTimeout(() => chatInput.focus(), 200);
-  }
+  if (isHidden && chatbotBadge) chatbotBadge.style.display = 'none';
 });
-document.getElementById('chatbot-close').addEventListener('click', () => {
-  chatbotPanel.classList.add('hidden');
-  chatbotBtn.classList.remove('hidden');
-  whatsappFab?.classList.remove('hidden');
-});
-chatSend.addEventListener('click', handleSend);
-chatInput.addEventListener('keydown', e => { if (e.key === 'Enter') handleSend(); });
-document.querySelectorAll('.chat-chip').forEach(chip => {
-  chip.addEventListener('click', () => {
-    const text = chip.textContent.trim();
-    addMessage(esc(text), 'user');
-    chip.closest('.chat-suggestions')?.remove();
-    setTimeout(() => addMessage(getBotReply(text), 'bot'), 750);
-  });
-});
+document.getElementById('chatbot-close').addEventListener('click', closeChatPanel);
+chatSend.addEventListener('click', handleContactoEmailSubmit);
+chatInput.addEventListener('keydown', e => { if (e.key === 'Enter') handleContactoEmailSubmit(); });
+
+showRootMenu();
 
 /* ─── Arranque ─────────────────────────────── */
 loadProductos();

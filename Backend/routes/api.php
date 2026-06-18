@@ -25,6 +25,7 @@ Route::prefix('portal')->middleware('throttle:60,1')->group(function () {
     Route::get('/tasas',                             [PortalController::class, 'tasas']);
     Route::post('/verificar',                        [PortalController::class, 'verificarCliente'])->middleware('throttle:20,1');
     Route::post('/cotizacion',                       [PortalController::class, 'cotizar'])->middleware('throttle:10,1');
+    Route::post('/contacto',                         [PortalController::class, 'contacto'])->middleware('throttle:5,1');
 });
 
 // El brute force lo maneja AuthController (3 fallos → lockout → IP ban).

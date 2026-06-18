@@ -115,4 +115,21 @@ return [
         'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel')),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Destinatarios de notificaciones internas
+    |--------------------------------------------------------------------------
+    |
+    | Listas separadas por coma de correos que reciben la notificación interna
+    | cuando un cliente pide ser contactado desde el chatbot del portal,
+    | según el motivo (comercial → asesor, técnico → soporte).
+    |
+    */
+
+    'asesor_destinatarios' => array_filter(array_map('trim',
+        explode(',', env('MAIL_ASESOR_DESTINATARIOS', env('MAIL_FROM_ADDRESS', ''))))),
+
+    'soporte_destinatarios' => array_filter(array_map('trim',
+        explode(',', env('MAIL_SOPORTE_DESTINATARIOS', env('MAIL_FROM_ADDRESS', ''))))),
+
 ];

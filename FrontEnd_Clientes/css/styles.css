@@ -934,6 +934,56 @@ footer  { position: relative; z-index: 1; }
   transform: translateY(-1px);
 }
 
+/* Menú guiado del chatbot — el cliente solo elige opciones, no escribe */
+.chat-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 14px 12px;
+  flex-shrink: 0;
+}
+
+.chat-menu-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  background: #fff;
+  color: #1e293b;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.chat-menu-btn:hover {
+  border-color: #1d4ed8;
+  background: #eff6ff;
+  color: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+.chat-menu-btn i {
+  font-size: 11px;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.chat-menu-btn:hover i { color: #1d4ed8; }
+
+.chat-menu-btn.is-back {
+  background: transparent;
+  border-style: dashed;
+  color: #64748b;
+  justify-content: flex-start;
+}
+
 .chatbot-input-area {
   padding: 10px 12px;
   border-top: 1px solid #f1f5f9;

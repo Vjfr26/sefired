@@ -548,16 +548,13 @@
         <p data-i18n="chat.greeting1">¡Hola! 👋 Soy el asistente virtual de <strong>J&M</strong>.</p>
         <p data-i18n="chat.greeting2" class="mt-1">¿En qué puedo ayudarte hoy?</p>
       </div>
-      <div class="chat-suggestions">
-        <button class="chat-chip" data-msg-key="chip1" data-i18n="chat.chip1">Cotizar seguro</button>
-        <button class="chat-chip" data-msg-key="chip2" data-i18n="chat.chip2">¿Qué seguros ofrecen?</button>
-        <button class="chat-chip" data-msg-key="chip3" data-i18n="chat.chip3">Hablar con asesor</button>
-      </div>
     </div>
 
-    <div class="chatbot-input-area">
-      <input id="chat-input" type="text" class="chatbot-input"
-             data-i18n-ph="chat.ph" placeholder="Escribe tu mensaje..." />
+    <div id="chat-menu" class="chat-menu"></div>
+
+    <div id="chat-input-area" class="chatbot-input-area hidden">
+      <input id="chat-input" type="email" class="chatbot-input"
+             data-i18n-ph="chat.email_ph" placeholder="tu@correo.com" autocomplete="email" inputmode="email" />
       <button id="chat-send" class="chat-send-btn" aria-label="Send" data-i18n-aria="chat.send_aria">
         <i class="fa-solid fa-paper-plane text-sm"></i>
       </button>
