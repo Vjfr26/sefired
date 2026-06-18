@@ -35,7 +35,7 @@
     <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2">
 
       <!-- Logo (estático, no es un enlace) -->
-      <div class="flex items-center flex-shrink-0">
+      <div class="flex items-center shrink-0">
         <img src="assets/logo-sinfondo.png" alt="J&M"
              class="h-10 sm:h-12 w-auto object-contain">
       </div>
@@ -60,7 +60,7 @@
         </div>
 
         <!-- Language Switcher -->
-        <div id="lang-switcher" class="flex items-center bg-gray-100 rounded-lg p-0.5 ml-2 sm:ml-3 flex-shrink-0">
+        <div id="lang-switcher" class="flex items-center bg-gray-100 rounded-lg p-0.5 ml-2 sm:ml-3 shrink-0">
           <button class="lang-btn active" data-lang="es">ES</button>
           <button class="lang-btn"        data-lang="en">EN</button>
         </div>
@@ -158,7 +158,7 @@
               <div class="col-span-2">
                 <label class="field-label"><span data-i18n="f.cedula">Cédula de identidad</span> <span class="text-red-500">*</span></label>
                 <div class="flex gap-1.5">
-                  <select id="f-cedula-tipo" class="field-input w-14 flex-shrink-0 px-1.5">
+                  <select id="f-cedula-tipo" class="field-input w-14 shrink-0 px-1.5">
                     <option value="V">V-</option><option value="E">E-</option>
                     <option value="J">J-</option><option value="P">P-</option>
                   </select>
@@ -350,7 +350,7 @@
             </div>
             <div id="s5-match" class="hidden">
               <div class="flex items-center gap-3 mb-3 p-3 bg-blue-50 border border-blue-200 rounded-xl">
-                <div class="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                <div class="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
                   <i class="fa-solid fa-shield-check text-blue-600 text-lg"></i>
                 </div>
                 <div>
@@ -377,7 +377,7 @@
                     <p class="text-[11px] font-semibold text-white/65 uppercase tracking-wider" data-i18n="res.tipo">Tipo de seguro</p>
                     <p id="s5-producto-nombre" class="font-bold text-sm mt-0.5 leading-tight truncate">—</p>
                   </div>
-                  <div class="text-right flex-shrink-0">
+                  <div class="text-right shrink-0">
                     <p class="text-[10px] text-white/65" data-i18n="res.total_label">Total Anual</p>
                     <p id="s5-total" class="text-xl font-extrabold text-gold-400">$ —</p>
                   </div>
@@ -407,7 +407,7 @@
                 </div>
               </div>
               <div class="bg-amber-50 border border-amber-200 rounded-xl p-2 text-xs text-amber-800 flex gap-1.5">
-                <i class="fa-solid fa-triangle-exclamation mt-0.5 flex-shrink-0 text-[11px]"></i>
+                <i class="fa-solid fa-triangle-exclamation mt-0.5 shrink-0 text-[11px]"></i>
                 <p data-i18n="res.disclaimer">Cotización <strong>referencial</strong>. Puede variar. Un asesor te contactará a la brevedad.</p>
               </div>
             </div><!-- /s5-confirm -->
@@ -429,7 +429,7 @@
           <div id="action-terms" class="hidden">
             <label class="flex items-start gap-3 cursor-pointer bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5">
               <input type="checkbox" id="acepto_terminos"
-                     class="mt-0.5 w-4 h-4 accent-blue-700 flex-shrink-0 cursor-pointer" />
+                     class="mt-0.5 w-4 h-4 accent-blue-700 shrink-0 cursor-pointer" />
               <span class="text-xs text-gray-600 leading-relaxed">
                 <span data-i18n="f.terms">Acepto que J&M procese mis datos para recibir información sobre seguros, de acuerdo con la</span>
                 <a href="#" data-i18n="f.privacy" class="text-blue-600 underline font-semibold ml-1">Política de Privacidad</a>.
@@ -439,7 +439,7 @@
 
           <!-- Hint documentos (paso 4) -->
           <div id="action-docs-hint" class="hidden items-start gap-2 bg-sky-50 border border-sky-100 rounded-xl px-3 py-2">
-            <i class="fa-solid fa-circle-info text-sky-500 text-xs mt-0.5 flex-shrink-0"></i>
+            <i class="fa-solid fa-circle-info text-sky-500 text-xs mt-0.5 shrink-0"></i>
             <p class="text-xs text-gray-500" data-i18n="s4.hint">Los opcionales puedes enviarlos también por WhatsApp al asesor.</p>
           </div>
 
@@ -494,7 +494,7 @@
   <div id="chatbot-panel" class="chatbot-panel hidden" role="dialog" aria-modal="true">
     <div class="chatbot-header">
       <div class="flex items-center gap-3">
-        <div class="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
+        <div class="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center shrink-0">
           <i class="fa-solid fa-robot text-white text-base"></i>
         </div>
         <div>
@@ -540,7 +540,7 @@
 
         <!-- Logo + copyright — lado claro (izquierda) -->
         <div class="flex items-center gap-2.5">
-          <img src="assets/logo-sinfondo.png" alt="J&M" class="h-7 w-auto object-contain flex-shrink-0">
+          <img src="assets/logo-sinfondo.png" alt="J&M" class="h-7 w-auto object-contain shrink-0">
           <span class="text-slate-700 font-semibold">
             &copy; <span id="year"></span>
             <strong class="text-slate-800 font-bold">J&M</strong>
