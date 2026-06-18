@@ -31,6 +31,9 @@ const T = {
     's5.ok.title':  '¡Solicitud enviada!',
     's5.ok.sub':    'Un asesor revisará tu información y te contactará para confirmar tu póliza.',
     's5.match.msg': 'Para gestionar tu póliza o contratar un nuevo seguro, contacta a un asesor.',
+    's5.match.next':  '¿Qué sigue?',
+    's5.match.step1': 'Escríbenos por WhatsApp y un asesor te atenderá directamente.',
+    's5.match.step2': 'Tu información ya está en nuestro sistema, así que la gestión será más rápida.',
     's5.docs':      'Documentos',
     /* Campos */
     'f.nombre_completo': 'Nombre completo',
@@ -75,6 +78,8 @@ const T = {
     'res.derecho':    'Derecho',
     'res.monthly':    'Mensual estimado',
     'res.tasa_bcv_pre': 'Tasa de cambio oficial del Banco Central de Venezuela (BCV):',
+    'res.sin_precio': 'Este producto requiere una evaluación personalizada (valor del bien, ubicación, etc.) para calcular el costo exacto. Un asesor te lo confirmará al contactarte.',
+    'res.incluye':    'Documentos a presentar',
     'res.titular':    'Titular',
     'res.disclaimer': 'Cotización referencial. Puede variar. Un asesor te contactará a la brevedad.',
     /* Chat / footer */
@@ -113,6 +118,9 @@ const T = {
     's5.ok.title':  'Request Submitted!',
     's5.ok.sub':    'An advisor will review your information and contact you to confirm your policy.',
     's5.match.msg': 'To manage your policy or take out a new one, contact an advisor.',
+    's5.match.next':  "What's next?",
+    's5.match.step1': 'Message us on WhatsApp and an advisor will assist you directly.',
+    's5.match.step2': 'Your information is already in our system, so the process will be faster.',
     's5.docs':      'Documents',
     'f.nombre_completo': 'Full Name',
     'f.cedula':    'ID Number', 'f.sexo': 'Gender',
@@ -136,6 +144,8 @@ const T = {
     'res.prima_neta': 'Net Premium', 'res.iva': 'VAT 16%',
     'res.derecho': 'Policy Fee', 'res.monthly': 'Monthly estimate',
     'res.tasa_bcv_pre': 'Official exchange rate from the Central Bank of Venezuela (BCV):',
+    'res.sin_precio': 'This product requires a personalized evaluation (asset value, location, etc.) to calculate the exact cost. An advisor will confirm it when they contact you.',
+    'res.incluye': 'Documents to submit',
     'res.titular': 'Policyholder',
     'res.disclaimer': 'Referential quote. May vary. An advisor will contact you shortly.',
     'loading': 'Processing...',
@@ -264,6 +274,9 @@ const sim = {
   /* Producto efectivo (parent o sub-tipo) */
   productoEfectivoId: null,
   productoCat:        '',   /* vehicular | bienes | personas */
+  productoTipo:        '',
+  productoDescripcion:  '',
+  productoCategoria:    '',
   tipoBien:           'ninguno', /* vehiculo | inmueble | vida | bien | ninguno */
   requiereVehiculo:   false,
   primaBase:          0,
@@ -468,6 +481,8 @@ function _renderCarouselPage(page) {
         data-id="${p.id}"
         data-nombre="${esc(p.nombre).replace(/"/g,'&quot;')}"
         data-cat="${esc(p.categoria)}"
+        data-tipo="${esc(p.tipo)}"
+        data-descripcion='${JSON.stringify(p.descripcion ?? '')}'
         data-prima="${p.prima ?? 0}"
         data-derecho="${p.derecho_poliza ?? 0}"
         data-calculo="${p.tipo_calculo || 'fijo'}"
@@ -542,6 +557,8 @@ async function seleccionarProducto(card) {
       id:                   sim.productoParentId,
       nombre:               sim.productoParentNombre,
       categoria:            card.dataset.cat,
+      tipo:                 card.dataset.tipo,
+      descripcion:          JSON.parse(card.dataset.descripcion || '""'),
       prima:                parseFloat(card.dataset.prima) || 0,
       derecho_poliza:       parseFloat(card.dataset.derecho) || 0,
       tipo_calculo:         card.dataset.calculo || 'fijo',
@@ -597,6 +614,8 @@ function renderSubtipoCards(subtipos, container) {
         data-id="${p.id}"
         data-nombre="${esc(p.nombre).replace(/"/g,'&quot;')}"
         data-cat="${esc(p.categoria)}"
+        data-tipo="${esc(p.tipo)}"
+        data-descripcion='${JSON.stringify(p.descripcion ?? '')}'
         data-prima="${p.prima ?? 0}"
         data-derecho="${p.derecho_poliza ?? 0}"
         data-calculo="${p.tipo_calculo || 'fijo'}"
@@ -629,6 +648,8 @@ function seleccionarSubtipo(card) {
     id:                    sim.subtipoId,
     nombre:                sim.subtipoNombre,
     categoria:             card.dataset.cat,
+    tipo:                  card.dataset.tipo,
+    descripcion:           JSON.parse(card.dataset.descripcion || '""'),
     prima:                 parseFloat(card.dataset.prima) || 0,
     derecho_poliza:        parseFloat(card.dataset.derecho) || 0,
     tipo_calculo:          card.dataset.calculo || 'fijo',
@@ -647,6 +668,9 @@ function aplicarProductoEfectivo(p) {
   sim.derechoPoliza        = p.derecho_poliza || 0;
   sim.tipoCalculo          = p.tipo_calculo || 'fijo';
   sim.documentosRequeridos = p.documentos_requeridos || [];
+  sim.productoTipo         = p.tipo || '';
+  sim.productoDescripcion  = p.descripcion || '';
+  sim.productoCategoria    = p.categoria || '';
 
   /* Determinar categoría del paso 3 a partir de tipo_bien */
   if (sim.tipoBien === 'vehiculo') {
@@ -997,6 +1021,35 @@ function setupStep5() {
   document.getElementById('s5-derecho').textContent = tienePrecio ? `$ ${fmt(derecho)}` : '$ 0.00';
   document.getElementById('s5-mensual').textContent = tienePrecio ? `$ ${fmt(total / 12)}` : nc;
 
+  /* Icono + descripción del producto — para que el resumen no se vea vacío */
+  const meta   = getMeta({ categoria: sim.productoCategoria, tipo: sim.productoTipo });
+  const iconEl = document.getElementById('s5-producto-icon-i');
+  if (iconEl) iconEl.className = `fa-solid ${meta.icon} text-gold-400 text-sm`;
+  const descEl = document.getElementById('s5-producto-desc');
+  if (descEl) {
+    descEl.textContent = sim.productoDescripcion || '';
+    descEl.classList.toggle('hidden', !sim.productoDescripcion);
+  }
+
+  /* Explicar por qué no hay precio fijo en vez de dejarlo vacío */
+  document.getElementById('s5-sin-precio-nota')?.classList.toggle('hidden', tienePrecio);
+
+  /* Documentos requeridos por el producto, no solo el conteo de subidos */
+  const docsListWrap = document.getElementById('s5-docs-list-wrap');
+  const docsListEl   = document.getElementById('s5-docs-list');
+  if (docsListWrap && docsListEl) {
+    if (sim.documentosRequeridos.length > 0) {
+      docsListEl.innerHTML = sim.documentosRequeridos.map(d =>
+        `<span class="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-full ${d.obligatorio ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-gray-100 text-gray-600 border border-gray-200'}">
+          <i class="fa-solid fa-file-lines text-[10px]"></i>${esc(d.nombre)}
+        </span>`
+      ).join('');
+      docsListWrap.classList.remove('hidden');
+    } else {
+      docsListWrap.classList.add('hidden');
+    }
+  }
+
   /* Equivalente en Bs. y EUR según la tasa BCV vigente */
   const totalOtrasEl = document.getElementById('s5-total-otras');
   const tasaBcvEl     = document.getElementById('s5-tasa-bcv');
@@ -1255,6 +1308,7 @@ function resetAll() {
     productoParentId: null, productoParentNombre: '', productoTieneSubtipos: false,
     subtipoId: null, subtipoNombre: '',
     productoEfectivoId: null, productoCat: '', requiereVehiculo: false,
+    productoTipo: '', productoDescripcion: '', productoCategoria: '',
     primaBase: 0, derechoPoliza: 0, tipoCalculo: 'fijo', documentosRequeridos: [],
     documentosFiles: [], turnstileToken: '',
     _pasos: [1,2,5], _pasoActual: 1,
@@ -1270,7 +1324,7 @@ document.querySelectorAll('.whatsapp-btn').forEach(btn => {
     const msg = currentLang === 'es'
       ? `Hola J&M, soy ${document.getElementById('f-nombre')?.value.trim() || 'un cliente'} y me interesa: ${sim.productoParentNombre}${sim.subtipoNombre ? ' — '+sim.subtipoNombre : ''}.`
       : `Hello J&M, I'm ${document.getElementById('f-nombre')?.value.trim() || 'a client'} and I'm interested in: ${sim.productoParentNombre}${sim.subtipoNombre ? ' — '+sim.subtipoNombre : ''}.`;
-    window.open(`https://wa.me/58?text=${encodeURIComponent(msg)}`, '_blank');
+    window.open(`https://wa.me/584148299562?text=${encodeURIComponent(msg)}`, '_blank');
   });
 });
 
