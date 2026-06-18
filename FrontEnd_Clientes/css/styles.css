@@ -31,6 +31,11 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 
+/* Los navegadores usan flecha normal en <button> por defecto (a diferencia
+   de los enlaces); sin esto, botones sin una regla de cursor explícita
+   (cerrar chat, tabs, flechas de carrusel, etc.) no muestran la manito. */
+button:not(:disabled) { cursor: pointer; }
+
 /* ── Full-viewport background ──────────────────────────────
    img element + object-fit:cover is the most reliable
    cross-device approach (iOS Safari, Android, all desktops). */
@@ -776,6 +781,7 @@ footer  { position: relative; z-index: 1; }
   box-shadow: 0 8px 32px rgba(22, 163, 74, 0.62);
 }
 .whatsapp-fab:active { transform: scale(0.95); }
+.whatsapp-fab.hidden { display: none !important; }
 
 .chatbot-badge {
   position: absolute;

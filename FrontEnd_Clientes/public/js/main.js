@@ -1292,10 +1292,13 @@ function handleSend() {
   setTimeout(() => { typing.remove(); addMessage(getBotReply(text), 'bot'); }, 750 + Math.random() * 600);
 }
 
+const whatsappFab = document.getElementById('whatsapp-fab-btn');
+
 chatbotBtn.addEventListener('click', () => {
   const isHidden = chatbotPanel.classList.contains('hidden');
   chatbotPanel.classList.toggle('hidden', !isHidden);
   chatbotBtn.classList.toggle('hidden', isHidden);
+  whatsappFab?.classList.toggle('hidden', isHidden);
   if (isHidden) {
     if (chatbotBadge) chatbotBadge.style.display = 'none';
     setTimeout(() => chatInput.focus(), 200);
@@ -1304,6 +1307,7 @@ chatbotBtn.addEventListener('click', () => {
 document.getElementById('chatbot-close').addEventListener('click', () => {
   chatbotPanel.classList.add('hidden');
   chatbotBtn.classList.remove('hidden');
+  whatsappFab?.classList.remove('hidden');
 });
 chatSend.addEventListener('click', handleSend);
 chatInput.addEventListener('keydown', e => { if (e.key === 'Enter') handleSend(); });
