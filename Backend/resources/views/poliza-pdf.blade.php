@@ -300,6 +300,11 @@
     </tr>
 
     <tr>
+        <td style="padding:3px 5px 1px; font-size:8px; color:#555; text-align:justify;" colspan="6">
+            El Asegurador entregará al Tomador este Cuadro Póliza, junto con las condiciones generales, las condiciones particulares, los anexos, si los hubiere, copia de la solicitud de seguro y demás documentos que formen parte del contrato. En las renovaciones la obligación se mantendrá si se modifican las condiciones originalmente contratadas. El Asegurador se obliga a atender y resolver cualquier denuncia, queja, reclamo o sugerencia que presente el Tomador, Asegurado o Beneficiario, con ocasión de las controversias derivadas de la ejecución del presente contrato de seguro, a través de la figura del Defensor del Tomador, Asegurado o Beneficiario. A tales fines, el Tomador, Asegurado o Beneficiario, podrá acudir a la respectiva Unidad de Defensa, o comunicarse a través de los mecanismos dispuestos para ello.
+        </td>
+    </tr>
+    <tr>
         <td style="padding:3px 5px 1px; font-size:8px; color:#555;" colspan="6">
             El presente documento será entregado a El Tomador conjuntamente con las Condiciones Generales, Condiciones Particulares, anexos y demás documentos que formen parte de la póliza.
         </td>
@@ -341,7 +346,7 @@
     <tr>
         <!-- Carnet Frontal -->
         <td style="width:290px; height:182px; border:2px solid #127481; font-size:9px; vertical-align:top; position:relative; overflow:hidden;">
-            <img src="{{ $imgCarnet }}" style="position:absolute; z-index:-1; width:100%; height:100%; top:0; left:0; opacity:0.65;"/>
+            <img src="{{ $imgCarnet }}" style="position:absolute; z-index:-1; width:100%; height:100%; top:0; left:0; opacity:0.07;"/>
             <img src="{{ $imgIcono }}"  style="position:absolute; z-index:-1; width:1.6cm; height:1.1cm; top:2px; left:5px; opacity:0.45;"/>
             <table style="text-align:center; width:100%; margin-top:8px;">
                 <!-- N° esquina superior derecha -->
@@ -397,7 +402,7 @@
 
         <!-- Carnet Reverso: EMISIÓN | QR | VENCIMIENTO -->
         <td style="width:290px; height:182px; border:2px solid #127481; font-size:9px; vertical-align:top; position:relative; overflow:hidden;">
-            <img src="{{ $imgCarnet }}" style="position:absolute; z-index:-1; width:100%; height:100%; top:0; left:0; opacity:0.65;"/>
+            <img src="{{ $imgCarnet }}" style="position:absolute; z-index:-1; width:100%; height:100%; top:0; left:0; opacity:0.07;"/>
             <img src="{{ $imgIcono }}"  style="position:absolute; z-index:-1; width:1.6cm; height:1.1cm; top:2px; left:5px; opacity:0.45;"/>
             <table width="100%" cellspacing="0" cellpadding="0" style="margin-top:15px;">
                 <!-- Providencia -->

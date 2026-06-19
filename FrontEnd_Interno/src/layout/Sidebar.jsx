@@ -46,27 +46,9 @@ export default function Sidebar({ onClose, sidebarOpen = false }) {
     <aside className={`sidebar-container${sidebarOpen ? ' sidebar-open' : ''}`}>
 
       {/* ── Logo ── */}
-      <div className="px-4 lg:px-5 pt-6 pb-5 shrink-0 border-b border-white/10">
-        {/* Versión horizontal para móvil y tablet */}
-        <div className="flex lg:hidden items-center gap-3.5 px-1">
-          <div className="w-14 h-14 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-center shrink-0 p-1">
-            <img src="/logo-sinfondo.png" alt="Logo" className="w-full h-full object-contain" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-base font-black text-white leading-tight tracking-tight">J&M</p>
-            <p className="text-xs font-semibold text-white/60 leading-tight mt-0.5">Cooperativa de Seguros<br />de Vehículos R.L.</p>
-          </div>
-        </div>
-        {/* Versión centrada vertical para escritorio */}
-        <div className="hidden lg:flex flex-col items-center text-center gap-3">
-          <div className="w-28 h-28 rounded-3xl bg-white/10 border border-white/15 flex items-center justify-center p-1.5 shadow-lg">
-            <img src="/logo-sinfondo.png" alt="Logo" className="w-full h-full object-contain" />
-          </div>
-          <div>
-            <p className="text-xl font-black text-white tracking-tight">J&M</p>
-            <p className="text-xs font-semibold text-white/55 mt-1 leading-snug">Cooperativa de Seguros<br />de Vehículos R.L.</p>
-          </div>
-        </div>
+      <div className="px-4 lg:px-5 pt-12 pb-10 shrink-0 border-b border-white/10 flex flex-col items-center text-center gap-7">
+        <img src="/logo-sinfondo.png" alt="Logo" className="w-full h-auto object-contain [filter:drop-shadow(-4px_4px_10px_rgba(255,255,255,0.45))_drop-shadow(-10px_10px_22px_rgba(255,255,255,0.3))]" />
+        <p className="text-xs font-semibold text-white/55 leading-snug">Cooperativa de Seguros<br />de Vehículos R.L.</p>
       </div>
 
       {/* ── Menú de navegación ── */}
@@ -90,7 +72,7 @@ export default function Sidebar({ onClose, sidebarOpen = false }) {
         {/* ── Widget de tasas BCV ── */}
         {/* Muestra la tasa del dólar y el euro del día actual.
             Si el backend no respondió aún, muestra '—'. */}
-        <div className="mt-8 pt-5 border-t border-white/15">
+        <div className="mt-16 pt-5 border-t border-white/15">
           <p className="text-xs font-bold text-white/45 uppercase tracking-widest px-3 mb-3">Tasas BCV · Hoy</p>
           <div className="space-y-2 px-1">
             <div className="flex items-center justify-between px-3 py-3 rounded-xl bg-emerald-500/15 border border-emerald-500/15">
