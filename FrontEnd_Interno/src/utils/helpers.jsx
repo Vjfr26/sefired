@@ -274,6 +274,7 @@ export const PERMS_CATALOG = {
     actions: [
       { id: 'view',   label: 'Ver y generar reportes' },
       { id: 'export', label: 'Exportar e imprimir reportes' },
+      { id: 'manage', label: 'Gestionar programaciones automáticas y envíos por correo' },
     ],
   },
   config: {
@@ -308,7 +309,7 @@ export const PERMISOS_POR_ROL = {
     productos:    ['view', 'create', 'edit', 'delete', 'manage_docs'],
     tasas:        ['view', 'create', 'edit', 'delete'],
     usuarios:     ['view', 'create', 'edit', 'delete', 'block', 'perms', 'change_role'],
-    reportes:     ['view', 'export'],
+    reportes:     ['view', 'export', 'manage'],
     config:       ['view', 'change_password', 'view_audit'],
   },
   'Oficina': {

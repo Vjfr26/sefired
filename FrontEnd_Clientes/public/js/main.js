@@ -125,7 +125,17 @@ const T = {
     'docs.change':        'Cambiar',
     'docs.optional':      'opcional',
     /* Errores */
-    'err.min_age': 'Debes ser mayor de 18 años para solicitar un seguro.',
+    'err.min_age':           'Debes ser mayor de 18 años para solicitar un seguro.',
+    'err.http_fallback':     'Error {status}. Intenta nuevamente.',
+    'err.connection_failed': 'No se pudo conectar con el servidor. Revisa tu conexión e intenta nuevamente, o contacta a un asesor.',
+    /* Paso 5 — coincidencia con cliente existente */
+    's5.match.title.has_policy': '¡Tienes una póliza activa!',
+    's5.match.title.found':      '¡Encontramos tu registro!',
+    's5.match.sub.has_policy':   'Ya cuentas con una póliza activa. Para renovar o añadir cobertura, habla con un asesor.',
+    's5.match.sub.found':        'Estás en nuestro sistema. Un asesor puede cotizarte un nuevo seguro.',
+    /* WhatsApp */
+    'whatsapp.default_name':   'un cliente',
+    'whatsapp.advisor_preset': 'Hola, me gustaría hablar con un asesor de J&M.',
     /* Chat / footer */
     'loading':       'Calculando...',
     'chat.title':    'Asistente J&M',
@@ -245,7 +255,15 @@ const T = {
     'docs.attach':        'Attach',
     'docs.change':        'Change',
     'docs.optional':      'optional',
-    'err.min_age': 'You must be at least 18 years old to request insurance.',
+    'err.min_age':           'You must be at least 18 years old to request insurance.',
+    'err.http_fallback':     'Error {status}. Please try again.',
+    'err.connection_failed': 'Could not connect to the server. Check your connection and try again, or contact an advisor.',
+    's5.match.title.has_policy': 'You already have an active policy!',
+    's5.match.title.found':      'We found your record!',
+    's5.match.sub.has_policy':   'You already have an active policy with us. To renew or add coverage, talk to an advisor.',
+    's5.match.sub.found':        'You are in our system. An advisor can give you a new quote.',
+    'whatsapp.default_name':   'a customer',
+    'whatsapp.advisor_preset': "Hi, I'd like to speak with a J&M advisor.",
     'loading': 'Processing...',
     'chat.title': 'J&M Assistant', 'chat.online': 'Online',
     'chat.fab': 'Open chat',
@@ -1352,7 +1370,7 @@ async function submitForm() {
       showS5State('confirm');
       const errMsg = data.message || data.error
         || Object.values(data.errors || {}).flat().join(' · ')
-        || `Error ${res.status}. Intenta nuevamente.`;
+        || t('err.http_fallback').replace('{status}', res.status);
       document.getElementById('s5-confirm').insertAdjacentHTML('afterbegin',
         `<div class="mb-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
           ${esc(errMsg)}
@@ -1363,11 +1381,11 @@ async function submitForm() {
 
     if (data.match) {
       const titulo = data.tiene_poliza
-        ? (currentLang === 'es' ? '¡Tienes una póliza activa!' : 'You have an active policy!')
-        : (currentLang === 'es' ? '¡Encontramos tu registro!'  : 'We found your record!');
+        ? t('s5.match.title.has_policy')
+        : t('s5.match.title.found');
       const sub = data.tiene_poliza
-        ? (currentLang === 'es' ? 'Ya cuentas con una póliza activa. Para renovar o añadir cobertura, habla con un asesor.' : 'You already have an active policy. Talk to an advisor to renew or add coverage.')
-        : (currentLang === 'es' ? 'Estás en nuestro sistema. Un asesor puede cotizarte un nuevo seguro.' : 'You are in our system. An advisor can provide a new quote.');
+        ? t('s5.match.sub.has_policy')
+        : t('s5.match.sub.found');
       document.getElementById('s5-match-title').textContent  = titulo;
       document.getElementById('s5-match-nombre').textContent = data.nombre || '';
       document.getElementById('s5-match-sub').textContent    = sub;
@@ -1378,9 +1396,7 @@ async function submitForm() {
 
   } catch (err) {
     showS5State('confirm');
-    const errText = currentLang === 'es'
-      ? 'No se pudo conectar con el servidor. Revisa tu conexión e intenta nuevamente, o contacta a un asesor.'
-      : 'Could not connect to the server. Check your connection and try again, or contact an advisor.';
+    const errText = t('err.connection_failed');
     document.getElementById('s5-confirm').insertAdjacentHTML('afterbegin',
       `<div class="mb-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
         <i class="fa-solid fa-triangle-exclamation mr-1"></i>${errText}
@@ -1448,9 +1464,10 @@ function resetAll() {
 /* WhatsApp */
 document.querySelectorAll('.whatsapp-btn').forEach(btn => {
   btn.addEventListener('click', () => {
+    const nombreCliente = document.getElementById('f-nombre')?.value.trim() || t('whatsapp.default_name');
     const msg = currentLang === 'es'
-      ? `Hola J&M, soy ${document.getElementById('f-nombre')?.value.trim() || 'un cliente'} y me interesa: ${sim.productoParentNombre}${sim.subtipoNombre ? ' — '+sim.subtipoNombre : ''}.`
-      : `Hello J&M, I'm ${document.getElementById('f-nombre')?.value.trim() || 'a client'} and I'm interested in: ${sim.productoParentNombre}${sim.subtipoNombre ? ' — '+sim.subtipoNombre : ''}.`;
+      ? `Hola J&M, soy ${nombreCliente} y me interesa: ${sim.productoParentNombre}${sim.subtipoNombre ? ' — '+sim.subtipoNombre : ''}.`
+      : `Hello J&M, I'm ${nombreCliente} and I'm interested in: ${sim.productoParentNombre}${sim.subtipoNombre ? ' — '+sim.subtipoNombre : ''}.`;
     window.open(`https://wa.me/584148299562?text=${encodeURIComponent(msg)}`, '_blank');
   });
 });
@@ -1547,10 +1564,7 @@ function renderRootButtons() {
     }},
     { key: 'chat.opt.whatsapp', onClick: () => {
       addMessage(esc(t('chat.opt.whatsapp')), 'user');
-      openWhatsApp(
-        'Hola, me gustaría hablar con un asesor de J&M.',
-        'Hello, I would like to speak with a J&M advisor.'
-      );
+      openWhatsApp(T.es['whatsapp.advisor_preset'], T.en['whatsapp.advisor_preset']);
     }},
   ]);
 }

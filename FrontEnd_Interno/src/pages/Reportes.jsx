@@ -456,7 +456,8 @@ function TabPersonal() {
 
 // ── Tab: Automáticos ─────────────────────────────────────────
 function TabAutomaticos() {
-  const { showToast } = useApp()
+  const { showToast, canAct } = useApp()
+  const canManage = canAct('reportes', 'manage')
   const [schedules, setSchedules] = useState([])
   const [loadingSchedules, setLoadingSchedules] = useState(false)
   const [savingSchedules, setSavingSchedules] = useState(false)
@@ -489,7 +490,7 @@ function TabAutomaticos() {
   }
 
   useEffect(() => {
-    loadSchedules()
+    if (canManage) loadSchedules()
     loadHistory()
   }, [])
 
@@ -588,26 +589,30 @@ function TabAutomaticos() {
                     type="time"
                     value={sched.hora}
                     onChange={e => handleTimeChange(sched.id, e.target.value)}
-                    className="px-2 py-1 text-xs border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                    disabled={!canManage}
+                    className="px-2 py-1 text-xs border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 bg-white disabled:opacity-50"
                   />
-                  <button
-                    onClick={() => handleRunNow(sched.id)}
-                    disabled={runningSchedId === sched.id}
-                    className="text-xs btn-secondary px-2.5 py-1.5 flex items-center gap-1"
-                  >
-                    {runningSchedId === sched.id ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Play className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600" />
-                    )}
-                    Ejecutar
-                  </button>
+                  {canManage && (
+                    <button
+                      onClick={() => handleRunNow(sched.id)}
+                      disabled={runningSchedId === sched.id}
+                      className="text-xs btn-secondary px-2.5 py-1.5 flex items-center gap-1"
+                    >
+                      {runningSchedId === sched.id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Play className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600" />
+                      )}
+                      Ejecutar
+                    </button>
+                  )}
                   <div className="toggle-wrap">
-                    <input 
-                      type="checkbox" 
-                      checked={!!sched.activo} 
+                    <input
+                      type="checkbox"
+                      checked={!!sched.activo}
                       onChange={() => handleToggleSchedule(sched.id)}
-                      className="toggle-input" 
+                      disabled={!canManage}
+                      className="toggle-input"
                       id={`toggle-internal-${sched.id}`}
                     />
                     <label htmlFor={`toggle-internal-${sched.id}`} className="toggle-track" />
@@ -615,14 +620,16 @@ function TabAutomaticos() {
                 </div>
               </div>
             ))}
-            <button 
-              onClick={handleSaveSchedules} 
-              disabled={savingSchedules}
-              className="btn-primary mt-5 flex items-center gap-1.5"
-            >
-              {savingSchedules ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-              Guardar Configuración
-            </button>
+            {canManage && (
+              <button
+                onClick={handleSaveSchedules}
+                disabled={savingSchedules}
+                className="btn-primary mt-5 flex items-center gap-1.5"
+              >
+                {savingSchedules ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                Guardar Configuración
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -663,7 +670,8 @@ function TabAutomaticos() {
 
 // ── Tab: Reportes Externos (Carga Masiva) ───────────────────
 function TabExternos() {
-  const { showToast, API_BASE_URL } = useApp()
+  const { showToast, API_BASE_URL, canAct } = useApp()
+  const canManage = canAct('reportes', 'manage')
   const [policies, setPolicies] = useState([])
   const [loadingPolicies, setLoadingPolicies] = useState(false)
   
@@ -727,7 +735,7 @@ function TabExternos() {
   }, [fechaInicio, fechaFin])
 
   useEffect(() => {
-    loadSchedules()
+    if (canManage) loadSchedules()
     loadHistory()
   }, [])
 
@@ -1011,7 +1019,8 @@ function TabExternos() {
                             type="text"
                             value={sched.nombre}
                             onChange={e => handleNameChange(sched.id, e.target.value)}
-                            className="w-full px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                            disabled={!canManage}
+                            className="w-full px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 bg-white disabled:opacity-50"
                           />
                         </div>
                         <div>
@@ -1019,7 +1028,8 @@ function TabExternos() {
                           <select
                             value={sched.frecuencia}
                             onChange={e => handleFrecuenciaChange(sched.id, e.target.value)}
-                            className="w-full px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                            disabled={!canManage}
+                            className="w-full px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 bg-white disabled:opacity-50"
                           >
                             <option value="diario">Diario</option>
                             <option value="semanal">Semanal</option>
@@ -1028,13 +1038,15 @@ function TabExternos() {
                           </select>
                         </div>
                       </div>
-                      <button
-                        onClick={() => handleDeleteSchedule(sched.id)}
-                        className="mt-5 p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0"
-                        title="Eliminar programación"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {canManage && (
+                        <button
+                          onClick={() => handleDeleteSchedule(sched.id)}
+                          className="mt-5 p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+                          title="Eliminar programación"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3 pt-1 border-t border-slate-100">
@@ -1044,7 +1056,8 @@ function TabExternos() {
                           type="time"
                           value={sched.hora}
                           onChange={e => handleTimeChange(sched.id, e.target.value)}
-                          className="px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                          disabled={!canManage}
+                          className="px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 bg-white disabled:opacity-50"
                         />
                       </div>
                       {sched.ultimo_envio && (
@@ -1053,23 +1066,26 @@ function TabExternos() {
                         </p>
                       )}
                       <div className="ml-auto flex items-center gap-3 self-end pb-0.5">
-                        <button
-                          onClick={() => handleRunNow(sched.id)}
-                          disabled={runningSchedId === sched.id}
-                          className="text-xs btn-secondary px-2.5 py-1.5 flex items-center gap-1"
-                        >
-                          {runningSchedId === sched.id ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            <Play className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600" />
-                          )}
-                          Ejecutar ahora
-                        </button>
+                        {canManage && (
+                          <button
+                            onClick={() => handleRunNow(sched.id)}
+                            disabled={runningSchedId === sched.id}
+                            className="text-xs btn-secondary px-2.5 py-1.5 flex items-center gap-1"
+                          >
+                            {runningSchedId === sched.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Play className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600" />
+                            )}
+                            Ejecutar ahora
+                          </button>
+                        )}
                         <div className="toggle-wrap">
                           <input
                             type="checkbox"
                             checked={!!sched.activo}
                             onChange={() => handleToggleSchedule(sched.id)}
+                            disabled={!canManage}
                             className="toggle-input"
                             id={`ext-toggle-${sched.id}`}
                           />
@@ -1081,22 +1097,24 @@ function TabExternos() {
                 ))
               )}
 
-              <div className="flex items-center gap-3 pt-1">
-                <button
-                  onClick={handleAddSchedule}
-                  className="btn-secondary flex items-center gap-1.5 text-sm"
-                >
-                  <span className="text-base leading-none">+</span> Agregar Programación
-                </button>
-                <button
-                  onClick={handleSaveSchedules}
-                  disabled={savingSchedules || schedules.length === 0}
-                  className="btn-primary flex items-center gap-1.5"
-                >
-                  {savingSchedules ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                  Guardar Configuración
-                </button>
-              </div>
+              {canManage && (
+                <div className="flex items-center gap-3 pt-1">
+                  <button
+                    onClick={handleAddSchedule}
+                    className="btn-secondary flex items-center gap-1.5 text-sm"
+                  >
+                    <span className="text-base leading-none">+</span> Agregar Programación
+                  </button>
+                  <button
+                    onClick={handleSaveSchedules}
+                    disabled={savingSchedules || schedules.length === 0}
+                    className="btn-primary flex items-center gap-1.5"
+                  >
+                    {savingSchedules ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                    Guardar Configuración
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

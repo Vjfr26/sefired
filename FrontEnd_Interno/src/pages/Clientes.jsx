@@ -188,7 +188,7 @@ export default function Clientes() {
       vigCell,
       est: rsbadge(c.est),
       acc: (
-        <div className="flex flex-nowrap gap-1 items-center justify-center">
+        <div className="flex flex-wrap gap-1.5 items-center justify-center">
 
           <button
             onClick={() => showModal('clienteDetail', { c })}

@@ -27,6 +27,14 @@ return Application::configure(basePath: dirname(__DIR__))
             'perm' => \App\Http\Middleware\CheckPermission::class,
         ]);
 
+        // El backend recibe tráfico tanto detrás del nginx interno (que sí
+        // reenvía X-Forwarded-For con la IP real) como directo en el puerto
+        // expuesto del contenedor. Solo se confía en el rango de red interno
+        // de Docker — así Request::ip() usa la IP real del cliente cuando
+        // pasa por el proxy, pero no se puede falsificar pegándole directo
+        // al puerto del backend con un X-Forwarded-For inventado.
+        $middleware->trustProxies(at: explode(',', env('TRUSTED_PROXIES', '172.16.0.0/12')));
+
         // Middlewares aplicados a TODAS las rutas API (api/*):
         //  - LimitRequestSize:  rechaza body > 25 MB antes de parsearlo
         //  - throttle:api_global: 200 req/min por IP/usuario — barrera contra flooding

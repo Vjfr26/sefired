@@ -181,6 +181,7 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
   const isEdit  = !!producto?.id
   const [form, setForm] = useState({
     es_nuevo:              true,
+    publicado:             producto?.publicado    ?? true,
     nombre:                producto?.nombre       || '',
     codigo:                producto?.codigo       || '',
     tipo:                  producto?.tipo         || '',
@@ -333,6 +334,13 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
                   <label className={lbl}>Nombre de la póliza <span className="text-rose-500">*</span></label>
                   <input className={inp('nombre')} value={form.nombre} onChange={e => set('nombre', e.target.value)} placeholder="Ej. RCV Particular Privado" />
                   {errors.nombre && <p className="text-[10px] text-rose-500 mt-0.5">{errors.nombre}</p>}
+                </div>
+                <div className="col-span-2 flex items-center gap-2 -mt-1">
+                  <input type="checkbox" id="prod_publicado" checked={form.publicado} onChange={e => set('publicado', e.target.checked)} className="w-4 h-4 accent-jm-blue" />
+                  <label htmlFor="prod_publicado" className="text-xs text-slate-600 cursor-pointer">
+                    Publicado en el cotizador público
+                    <span className="block text-[10px] text-slate-400">Si lo desactivas, este producto deja de mostrarse a los clientes pero sigue visible aquí.</span>
+                  </label>
                 </div>
                 <div>
                   <label className={lbl}>Código interno</label>
@@ -886,6 +894,7 @@ const COLS = [
   { k: 'primab',    l: 'Prima base',  r: true, nw: true },
   { k: 'cob',       l: 'Cobertura',   r: true, nw: true },
   { k: 'mon',       l: 'Moneda',      nw: true },
+  { k: 'est',       l: 'Estado',      nw: true, hide: 'sm' },
   { k: 'acc',       l: '',            acc: true },
 ]
 
@@ -980,8 +989,11 @@ export default function Productos() {
       primab: fmtMonto(p.prima,     p.moneda),
       cob:    fmtMonto(p.cobertura, p.moneda),
       mon:    <span className={`badge badge-${monColor}`}>{p.moneda}</span>,
+      est: p.publicado
+        ? <span className="inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-700">Publicado</span>
+        : <span className="inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-500">Borrador</span>,
       acc: (
-        <div className="flex gap-1 justify-center flex-nowrap items-center">
+        <div className="flex gap-1 justify-center flex-wrap items-center">
           <button onClick={() => showModal('productoDetail', { p })} className="p-2 rounded-lg bg-slate-50 text-slate-500 hover:bg-slate-100 transition inline-flex items-center justify-center" title="Ver detalles">
             <Eye className="w-4 h-4" />
           </button>

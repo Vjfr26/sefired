@@ -63,14 +63,14 @@ Route::middleware([\App\Http\Middleware\ApiTokenMiddleware::class, 'throttle:120
     Route::get('/bienes/{id}',                       [BienAseguradoController::class,'show']);
     Route::get('/productos',                         [ProductoController::class,     'index']);
     Route::get('/productos/{id}/tarifario',          [TarifarioController::class,    'index']);
-    Route::get('/tasas',                             [TasaController::class,         'index'])->middleware('perm:tasas,view');
+    Route::get('/tasas',                             [TasaController::class,         'index']);
     Route::get('/cotizaciones',                      [SolicitudController::class,    'index'])->middleware('perm:cotizaciones,view');
     Route::get('/cotizaciones/{id}/underwriting',    [UnderwritingController::class, 'index'])->middleware('perm:cotizaciones,view');
     Route::get('/reports/stats',                     [ReportController::class,       'getStats'])->middleware('perm:home,view');
 
     // Reportes — lectura (URLs que coinciden con el frontend)
     Route::get('/reportes/externos/politicas',       [ReportController::class, 'getExternalReportPolicies']);
-    Route::get('/reportes/externos/programaciones',  [ReportController::class, 'getExternalReportSchedules']);
+    Route::get('/reportes/externos/programaciones',  [ReportController::class, 'getExternalReportSchedules'])->middleware('perm:reportes,manage');
     Route::get('/reportes/externos/historial',       [ReportController::class, 'getExternalReportHistory']);
     Route::get('/reportes/externos/descargar/{id}',  [ReportController::class, 'downloadExternalReport']);
     Route::get('/reports/ventas-comisiones',         [ReportController::class, 'getVentasComisiones']);
@@ -79,7 +79,7 @@ Route::middleware([\App\Http\Middleware\ApiTokenMiddleware::class, 'throttle:120
     Route::get('/reports/usuarios',                  [ReportController::class, 'getUsuariosReport']);
     Route::get('/reports/clientes',                  [ReportController::class, 'getClientesReport']);
     Route::get('/reports/vehiculos',                 [ReportController::class, 'getVehiculosReport']);
-    Route::get('/reports/automaticos/programaciones',[ReportController::class, 'getInternalSchedules']);
+    Route::get('/reports/automaticos/programaciones',[ReportController::class, 'getInternalSchedules'])->middleware('perm:reportes,manage');
     Route::get('/reports/automaticos/historial',     [ReportController::class, 'getInternalHistory']);
     Route::get('/reports/automaticos/descargar/{id}',[ReportController::class, 'downloadInternalReport']);
 
@@ -111,13 +111,13 @@ Route::middleware([\App\Http\Middleware\ApiTokenMiddleware::class, 'throttle:120
 
         // Reportes — exportaciones (URLs que coinciden con el frontend)
         Route::post('/reportes/externos/exportar',            [ReportController::class, 'exportExternalReport']);
-        Route::post('/reportes/externos/programaciones',      [ReportController::class, 'saveExternalReportSchedules']);
-        Route::post('/reportes/externos/historial/ejecutar',  [ReportController::class, 'runExternalReportSchedule']);
+        Route::post('/reportes/externos/programaciones',      [ReportController::class, 'saveExternalReportSchedules'])->middleware('perm:reportes,manage');
+        Route::post('/reportes/externos/historial/ejecutar',  [ReportController::class, 'runExternalReportSchedule'])->middleware('perm:reportes,manage');
         Route::post('/reports/ventas-comisiones/exportar',    [ReportController::class, 'exportVentas']);
         Route::post('/reports/oficinas/exportar',             [ReportController::class, 'exportOficinas']);
         Route::post('/reports/personal/exportar',             [ReportController::class, 'exportPersonal']);
-        Route::post('/reports/automaticos/programaciones',    [ReportController::class, 'saveInternalSchedules']);
-        Route::post('/reports/automaticos/historial/ejecutar',[ReportController::class, 'runInternalSchedule']);
+        Route::post('/reports/automaticos/programaciones',    [ReportController::class, 'saveInternalSchedules'])->middleware('perm:reportes,manage');
+        Route::post('/reports/automaticos/historial/ejecutar',[ReportController::class, 'runInternalSchedule'])->middleware('perm:reportes,manage');
     });
 
     // ── Rutas exclusivas para Admin ───────────────────────────────────────────

@@ -74,10 +74,15 @@ function sortVal(v) {
 
 const SKEL_WIDTHS = [48, 120, 90, 100, 80, 70, 60, 50]
 
+// Opciones del selector de "filas por página", disponible en todas las listas.
+const PAGE_SIZES = [10, 20, 50, 100, 200]
+
 export default function DataTable({ cols, rows, footer = null, id, searchable = false, loading = false, skeletonRows = 6 }) {
-  const [search,  setSearch]  = useState('')
-  const [sortKey, setSortKey] = useState(null)   // clave de la columna activa para ordenar
-  const [sortDir, setSortDir] = useState('asc')  // 'asc' o 'desc'
+  const [search,   setSearch]   = useState('')
+  const [sortKey,  setSortKey]  = useState(null)   // clave de la columna activa para ordenar
+  const [sortDir,  setSortDir]  = useState('asc')  // 'asc' o 'desc'
+  const [pageSize, setPageSize] = useState(20)
+  const [page,     setPage]     = useState(0)
 
   // Alterna la dirección si se hace clic en la columna ya activa;
   // si es una columna nueva, la activa y empieza en ascendente.
@@ -101,6 +106,14 @@ export default function DataTable({ cols, rows, footer = null, id, searchable = 
       return 0
     })
   }
+
+  // 3. Paginar el resultado ya filtrado/ordenado. Si el set de datos se
+  // achica (ej. una búsqueda) y la página actual queda fuera de rango,
+  // se recalcula sin necesidad de un efecto aparte.
+  const totalPages = Math.max(1, Math.ceil(visible.length / pageSize))
+  const safePage   = Math.min(page, totalPages - 1)
+  const start      = safePage * pageSize
+  const paged      = visible.slice(start, start + pageSize)
 
   if (loading) {
     return (
@@ -172,12 +185,12 @@ export default function DataTable({ cols, rows, footer = null, id, searchable = 
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {visible.length === 0 ? (
+            {paged.length === 0 ? (
               <tr>
                 <td colSpan={99} className="td-cell text-center text-slate-400">Sin registros</td>
               </tr>
             ) : (
-              visible.map((r, i) => (
+              paged.map((r, i) => (
                 <tr key={i} className="hover:bg-slate-50/80 transition-colors">
                   {cols.map(c => (
                     <td key={c.k} className={tdCls(c)}>
@@ -191,9 +204,46 @@ export default function DataTable({ cols, rows, footer = null, id, searchable = 
           </tbody>
         </table>
       </div>
-      {/* Pie de tabla: contador de registros visibles + contenido extra opcional */}
-      <div className="px-5 py-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
-        <span>{visible.length} registros</span>
+      {/* Pie de tabla: contador + selector de filas por página + paginación + contenido extra opcional */}
+      <div className="px-5 py-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400">
+        <div className="flex flex-wrap items-center gap-3">
+          <span>
+            {visible.length === 0
+              ? '0 registros'
+              : `${start + 1}–${Math.min(start + pageSize, visible.length)} de ${visible.length}`}
+          </span>
+          <label className="flex items-center gap-1.5">
+            Mostrar
+            <select
+              value={pageSize}
+              onChange={e => { setPageSize(Number(e.target.value)); setPage(0) }}
+              className="border border-slate-200 rounded-lg px-1.5 py-0.5 text-xs bg-white text-slate-600 outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              {PAGE_SIZES.map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </label>
+        </div>
+        {totalPages > 1 && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage(p => Math.max(0, p - 1))}
+              disabled={safePage === 0}
+              className="px-2 py-1 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50 transition"
+            >
+              Anterior
+            </button>
+            <span>Página {safePage + 1} de {totalPages}</span>
+            <button
+              type="button"
+              onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+              disabled={safePage >= totalPages - 1}
+              className="px-2 py-1 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50 transition"
+            >
+              Siguiente
+            </button>
+          </div>
+        )}
         {footer}
       </div>
     </div>

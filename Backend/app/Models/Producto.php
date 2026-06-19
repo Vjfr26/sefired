@@ -17,6 +17,7 @@ class Producto extends Model
     protected $fillable = [
         'parent_id',
         'nombre',
+        'publicado',
         'codigo',
         'tipo',
         'tipo_bien',
@@ -37,6 +38,7 @@ class Producto extends Model
     protected function casts(): array
     {
         return [
+            'publicado'             => 'boolean',
             'derecho_poliza'        => 'decimal:2',
             'cobertura'             => 'decimal:2',
             'prima'                 => 'decimal:2',

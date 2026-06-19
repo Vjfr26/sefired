@@ -47,6 +47,7 @@ class ProductoController extends Controller
         $data = $request->validate([
             'parent_id'              => 'nullable|integer|exists:producto,id',
             'nombre'                 => ['required', 'string', 'max:150', $noInjection],
+            'publicado'              => 'boolean',
             'codigo'                 => ['nullable', 'string', 'max:20', $noInjection],
             'tipo'                   => 'required|string|in:rcv,apov,alpd,ec,ep,vida,salud,hogar,accidentes,funeraria,otro',
             'categoria'              => 'nullable|string|in:vehicular,bienes,personas',
@@ -80,6 +81,7 @@ class ProductoController extends Controller
         $data = $request->validate([
             'parent_id'              => 'sometimes|nullable|integer|exists:producto,id',
             'nombre'                 => ['sometimes', 'required', 'string', 'max:150', $noInjection],
+            'publicado'              => 'sometimes|boolean',
             'codigo'                 => ['nullable', 'string', 'max:20', $noInjection],
             'tipo'                   => 'sometimes|required|string|in:rcv,apov,alpd,ec,ep,vida,salud,hogar,accidentes,funeraria,otro',
             'categoria'              => 'nullable|string|in:vehicular,bienes,personas',
@@ -254,6 +256,7 @@ class ProductoController extends Controller
             'parent_id'             => $p->parent_id,
             'codigo'                => $p->codigo,
             'nombre'                => $p->nombre,
+            'publicado'             => (bool) $p->publicado,
             'tipo'                  => $p->tipo ?? 'otro',
             'tipo_bien'             => $p->tipo_bien ?? 'ninguno',
             'categoria'             => $p->categoria,

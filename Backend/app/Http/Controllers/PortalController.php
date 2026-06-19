@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\ClienteExistenteMail;
 use App\Mail\CotizacionMail;
 use App\Mail\SolicitudContactoInternaMail;
 use App\Mail\SolicitudContactoMail;
@@ -30,6 +31,7 @@ class PortalController extends Controller
     {
         return response()->json(
             Producto::whereNull('parent_id')
+                ->where('publicado', true)
                 ->orderBy('nombre')
                 ->get()
                 ->map(fn($p) => $this->mapProducto($p, true))
@@ -46,6 +48,7 @@ class PortalController extends Controller
 
         return response()->json(
             $producto->subtipos()
+                ->where('publicado', true)
                 ->orderBy('nombre')
                 ->get()
                 ->map(fn($p) => $this->mapProducto($p, false))
@@ -191,6 +194,12 @@ class PortalController extends Controller
                 fn($q) => $q->where('persona_id', $persona->id)
             )->where('status', 'ACTIVA')->exists();
 
+            try {
+                Mail::to($data['email'])->queue(new ClienteExistenteMail($nombre, $tienePoliza));
+            } catch (\Throwable $e) {
+                report($e);
+            }
+
             return response()->json([
                 'match'        => true,
                 'tiene_poliza' => $tienePoliza,
@@ -209,6 +218,12 @@ class PortalController extends Controller
         })->exists();
 
         if ($leadExistente) {
+            try {
+                Mail::to($data['email'])->queue(new ClienteExistenteMail($nombre, false));
+            } catch (\Throwable $e) {
+                report($e);
+            }
+
             return response()->json([
                 'match'        => true,
                 'tiene_poliza' => false,

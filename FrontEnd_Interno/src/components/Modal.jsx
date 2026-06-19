@@ -51,13 +51,46 @@ import { fetchTasas } from '../api/tasas.js'
 function ModalShell({ title, children, footer, wide = false, maxW }) {
   const { closeModal } = useApp()
   const sizeClass = maxW || (wide ? 'max-w-2xl' : 'max-w-xl')
+  const panelRef = useRef(null)
+
+  // Mientras el modal está abierto: el fondo no debe scrollear ni recibir
+  // foco por teclado (Tab no debe poder "escapar" hacia botones de atrás).
+  useEffect(() => {
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    panelRef.current?.focus()
+
+    const handleKeyDown = (e) => {
+      if (e.key !== 'Tab') return
+      const focusables = panelRef.current?.querySelectorAll(
+        'a[href], button:not([disabled]), textarea, input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )
+      if (!focusables || focusables.length === 0) return
+      const first = focusables[0]
+      const last  = focusables[focusables.length - 1]
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.body.style.overflow = prevOverflow
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [])
+
   return (
     // Fondo oscuro; clic en él cierra el modal
     <div
       className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4 sm:p-6 backdrop-blur-sm"
       onClick={e => { if (e.target === e.currentTarget) closeModal() }}
     >
-      <div className={`bg-white rounded-3xl shadow-2xl w-full ${sizeClass} max-h-[90vh] overflow-y-auto animate-in zoom-in duration-200`}>
+      <div ref={panelRef} tabIndex={-1} className={`bg-white rounded-3xl shadow-2xl w-full ${sizeClass} max-h-[90vh] overflow-y-auto animate-in zoom-in duration-200 outline-none`}>
         <div className="p-6 sm:p-8">
           <div className="flex items-center justify-between mb-5">
             <h3 className="text-lg font-bold text-slate-800">{title}</h3>
@@ -93,8 +126,8 @@ function ConfirmDeleteModal({ name, onConfirm }) {
     setSaving(true); setPassErr('')
     try {
       await verifyPassword(password)
-    } catch {
-      setPassErr('Contraseña incorrecta.')
+    } catch (err) {
+      setPassErr(err.message || 'Contraseña incorrecta.')
       setSaving(false)
       return
     }
@@ -697,7 +730,7 @@ function NewUserModal({ onSave }) {
         </button>
       </>
     }>
-      <div className="grid grid-cols-2 gap-x-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
         {/* ── Izquierda: identidad ── */}
         <div>
           <SecHdr Icon={User}>Datos del usuario</SecHdr>
@@ -706,7 +739,7 @@ function NewUserModal({ onSave }) {
               <label className="field-label">Nombre completo <span className="text-rose-500">*</span></label>
               <input className="input-field" value={form.nombre} onChange={f('nombre')} placeholder="Nombre y Apellido" />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="field-label">Usuario / Nick <span className="text-rose-500">*</span></label>
                 <input className="input-field font-mono" value={form.nick} onChange={f('nick')} placeholder="jdoe" />
@@ -723,7 +756,7 @@ function NewUserModal({ onSave }) {
         </div>
 
         {/* ── Derecha: rol + contraseña ── */}
-        <div className="space-y-5 pl-6 border-l border-slate-100">
+        <div className="space-y-5 sm:pl-6 sm:border-l border-slate-100">
           <div>
             <SecHdr Icon={Shield}>Rol y acceso</SecHdr>
             <div className="space-y-3">
@@ -744,7 +777,7 @@ function NewUserModal({ onSave }) {
 
           <div>
             <SecHdr Icon={Lock}>Contraseña de acceso</SecHdr>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="field-label">Contraseña <span className="text-rose-500">*</span></label>
                 <input type="password" className="input-field" value={form.password} onChange={f('password')} placeholder="••••••••" />
@@ -802,7 +835,7 @@ function EditUserModal({ user, onSave }) {
         </button>
       </>
     }>
-      <div className="grid grid-cols-2 gap-x-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
         {/* ── Izquierda: identidad ── */}
         <div>
           <SecHdr Icon={User}>Datos del usuario</SecHdr>
@@ -811,7 +844,7 @@ function EditUserModal({ user, onSave }) {
               <label className="field-label">Nombre completo <span className="text-rose-500">*</span></label>
               <input className="input-field" value={form.nombre} onChange={f('nombre')} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="field-label">Usuario / Nick</label>
                 <input className="input-field font-mono" value={form.nick} onChange={f('nick')} />
@@ -828,7 +861,7 @@ function EditUserModal({ user, onSave }) {
         </div>
 
         {/* ── Derecha: rol + contraseña ── */}
-        <div className="space-y-5 pl-6 border-l border-slate-100">
+        <div className="space-y-5 sm:pl-6 sm:border-l border-slate-100">
           <div>
             <SecHdr Icon={Shield}>Rol y acceso</SecHdr>
             <div className="space-y-3">
@@ -1526,8 +1559,8 @@ function BlockClienteModal({ nom, activo, onConfirm }) {
     setSaving(true)
     try {
       await verifyPassword(password)
-    } catch {
-      setPassErr('Contraseña incorrecta.')
+    } catch (e) {
+      setPassErr(e.message || 'Contraseña incorrecta.')
       setSaving(false)
       return
     }
@@ -1699,25 +1732,33 @@ function ClienteDetailModal({ c }) {
 function BlockUserModal({ nom, est, onConfirm }) {
   const { closeModal, showToast } = useApp()
   const isBlocked = est === 'Bloqueado'
-  
+  const [motivo,   setMotivo]   = useState('')
+  const [password, setPassword] = useState('')
+  const [err,      setErr]      = useState('')
+  const [passErr,  setPassErr]  = useState('')
+  const [saving,   setSaving]   = useState(false)
+
   const handleConfirm = async () => {
+    if (!isBlocked && !motivo.trim()) { setErr('Debe ingresar un motivo para bloquear al usuario.'); return }
+    if (!password.trim()) { setPassErr('Ingresa tu contraseña para confirmar.'); return }
+    if (saving) return
+    setErr(''); setPassErr('')
+    setSaving(true)
+    try {
+      await verifyPassword(password)
+    } catch (e) {
+      setPassErr(e.message || 'Contraseña incorrecta.')
+      setSaving(false)
+      return
+    }
     if (onConfirm) {
       try {
-        let motivo = null
-        if (!isBlocked) {
-          const textarea = document.getElementById('motivo-bloqueo')
-          if (!textarea.value.trim()) {
-            showToast('Debe ingresar un motivo para bloquear al usuario', 'error')
-            return
-          }
-          motivo = textarea.value.trim()
-        }
-        
-        await onConfirm(motivo)
+        await onConfirm(isBlocked ? null : motivo.trim())
         closeModal()
         showToast(isBlocked ? 'Usuario desbloqueado' : 'Usuario bloqueado', isBlocked ? 'success' : 'error')
-      } catch (err) {
-        showToast(err.message || 'Error al cambiar estado', 'error')
+      } catch (e) {
+        showToast(e.message || 'Error al cambiar estado', 'error')
+        setSaving(false)
       }
     } else {
       closeModal()
@@ -1727,17 +1768,17 @@ function BlockUserModal({ nom, est, onConfirm }) {
   return (
     <ModalShell title={isBlocked ? 'Desbloquear usuario' : 'Bloquear usuario'} footer={
       <>
-        <button onClick={closeModal} className="btn-secondary">Cancelar</button>
-        <button
-          onClick={handleConfirm}
-          className={isBlocked ? 'btn-success' : 'btn-danger'}
-        >
-          {isBlocked ? <LockOpen className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
-          {isBlocked ? 'Desbloquear' : 'Bloquear'}
+        <button onClick={closeModal} disabled={saving} className="btn-secondary">Cancelar</button>
+        <button onClick={handleConfirm} disabled={saving} className={`${isBlocked ? 'btn-success' : 'btn-danger'} disabled:opacity-50`}>
+          {saving
+            ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+            : isBlocked ? <LockOpen className="w-4 h-4" /> : <Lock className="w-4 h-4" />
+          }
+          {saving ? 'Procesando…' : isBlocked ? 'Desbloquear' : 'Bloquear'}
         </button>
       </>
     }>
-      <div className="flex items-start gap-4">
+      <div className="flex items-start gap-4 mb-4">
         <div className={`w-12 h-12 rounded-full ${isBlocked ? 'bg-emerald-100' : 'bg-orange-100'} flex items-center justify-center shrink-0`}>
           {isBlocked ? <LockOpen className="w-6 h-6 text-emerald-600" /> : <Lock className="w-6 h-6 text-orange-600" />}
         </div>
@@ -1748,13 +1789,34 @@ function BlockUserModal({ nom, est, onConfirm }) {
               ? 'El usuario recuperará el acceso al sistema con su rol y permisos actuales.'
               : 'El usuario no podrá iniciar sesión. Sus datos, cotizaciones y pólizas se conservarán intactos.'}
           </p>
-          {!isBlocked && (
-            <div className="mt-4">
-              <label className="field-label">Motivo del bloqueo <span className="text-rose-500">*</span></label>
-              <textarea id="motivo-bloqueo" rows={2} maxLength={255} className="input-field resize-none" placeholder="Describe el motivo del bloqueo…" />
-            </div>
-          )}
         </div>
+      </div>
+      {!isBlocked && (
+        <div>
+          <label className="field-label">Motivo del bloqueo <span className="text-rose-500">*</span></label>
+          <textarea
+            rows={3}
+            maxLength={255}
+            className={`input-field resize-none ${err ? 'border-rose-400 focus:ring-rose-300' : ''}`}
+            placeholder="Describe el motivo del bloqueo…"
+            value={motivo}
+            onChange={e => { setMotivo(e.target.value); setErr('') }}
+          />
+          {err && <p className="text-xs text-rose-600 mt-1">{err}</p>}
+        </div>
+      )}
+      {/* Confirmación con contraseña — siempre requerida */}
+      <div className="mt-2">
+        <label className="field-label">Tu contraseña <span className="text-rose-500">*</span></label>
+        <input
+          type="password"
+          className={`input-field ${passErr ? 'border-rose-400' : ''}`}
+          placeholder="Ingresa tu contraseña para confirmar"
+          value={password}
+          onChange={e => { setPassword(e.target.value); setPassErr('') }}
+          onKeyDown={e => e.key === 'Enter' && handleConfirm()}
+        />
+        {passErr && <p className="text-xs text-rose-600 mt-1">{passErr}</p>}
       </div>
     </ModalShell>
   )

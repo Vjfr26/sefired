@@ -1380,6 +1380,7 @@ export default function Simulador() {
   const canEdit   = canAct('cotizaciones', 'edit')
   const canDelete = canAct('cotizaciones', 'delete')
   const canEmit   = canAct('cotizaciones', 'emit')
+  const hasAnyAction = canEdit || canEmit || canDelete
 
   const [sim,     setSim]     = useState(freshState())
   const [step,    setStep]    = useState(0)
@@ -1392,6 +1393,8 @@ export default function Simulador() {
   const [chipActive,   setChipActive]   = useState(0)
   const [search,       setSearch]       = useState('')
   const [uwModal,      setUwModal]      = useState(null) // cotización para underwriting
+  const [cotPage,      setCotPage]      = useState(0)
+  const [cotPageSize,  setCotPageSize]  = useState(20)
 
   const loadData = useCallback(async () => {
     setLoadingCot(true)
@@ -1434,6 +1437,11 @@ export default function Simulador() {
           || placaRef.toLowerCase().includes(sq) || q.nro.toLowerCase().includes(sq)
       })
     : byChip
+
+  const cotTotalPages = Math.max(1, Math.ceil(visibleCots.length / cotPageSize))
+  const cotSafePage   = Math.min(cotPage, cotTotalPages - 1)
+  const cotStart      = cotSafePage * cotPageSize
+  const pagedCots      = visibleCots.slice(cotStart, cotStart + cotPageSize)
 
   const simEmitidas   = cotizaciones.filter(q => q.status === 'emitida').length
   const simEnRevision = cotizaciones.filter(q => q.status === 'en_revision').length
@@ -1574,22 +1582,22 @@ export default function Simulador() {
                   <th className="th-cell text-right hidden sm:table-cell">Total USD</th>
                   <th className="th-cell text-left hidden lg:table-cell">Fecha</th>
                   <th className="th-cell text-left">Estado</th>
-                  <th className="th-cell text-center">Acciones</th>
+                  {hasAnyAction && <th className="th-cell text-center">Acciones</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {loadingCot ? (
-                  <tr><td colSpan={8} className="td-cell text-center py-10 text-slate-400">
+                  <tr><td colSpan={hasAnyAction ? 8 : 7} className="td-cell text-center py-10 text-slate-400">
                     <div className="flex items-center justify-center gap-2">
                       <div className="w-4 h-4 border-2 border-slate-300 border-t-jm-blue rounded-full animate-spin" />
                       Cargando cotizaciones…
                     </div>
                   </td></tr>
                 ) : visibleCots.length === 0 ? (
-                  <tr><td colSpan={8} className="td-cell text-center py-10 text-slate-400">
+                  <tr><td colSpan={hasAnyAction ? 8 : 7} className="td-cell text-center py-10 text-slate-400">
                     {search ? `Sin resultados para "${search}"` : 'No hay cotizaciones registradas.'}
                   </td></tr>
-                ) : visibleCots.map(q => (
+                ) : pagedCots.map(q => (
                   <tr key={q.id} className="hover:bg-slate-50/60 transition-colors">
                     <td className="td-cell hidden md:table-cell"><span className="font-mono font-bold text-xs text-slate-700">{q.nro}</span></td>
                     <td className="td-cell">
@@ -1604,42 +1612,81 @@ export default function Simulador() {
                     <td className="td-cell text-right font-bold text-sm text-slate-800 hidden sm:table-cell">{usd(q.total)}</td>
                     <td className="td-cell text-xs text-slate-500 hidden lg:table-cell">{q.fecha}</td>
                     <td className="td-cell"><StatusBadge status={q.status} /></td>
-                    <td className="px-2 sm:px-3 py-2">
-                      <div className="flex flex-wrap gap-1 justify-center">
-                        {canEdit && (q.status === 'en_revision' || q.status === 'aprobado') && (
-                          <button onClick={() => setUwModal(q)} className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition" title="Evaluación de Underwriting">
-                            <ClipboardList className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                        {canEdit && q.status === 'en_revision' && (
-                          <button onClick={() => handleChangeStatus(q.id, 'rechazado')} className="p-1.5 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition" title="Rechazar directo">
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                        {canEmit && q.status === 'aprobado' && (
-                          <button onClick={() => showModal('emitirCotizacion', { cot: q, onSaved: loadData })} className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition" title="Emitir póliza">
-                            <FileCheck className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                        {canEdit && q.status !== 'emitida' && (
-                          <button onClick={() => openEditSim(q)} className="p-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition" title="Editar">
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                        {canDelete && (
-                          <button onClick={() => handleDelete(q.id, q.nro)} className="p-1.5 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition" title="Eliminar">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
+                    {hasAnyAction && (
+                      <td className="px-2 sm:px-3 py-2">
+                        <div className="flex flex-wrap gap-1 justify-center">
+                          {canEdit && (q.status === 'en_revision' || q.status === 'aprobado') && (
+                            <button onClick={() => setUwModal(q)} className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition" title="Evaluación de Underwriting">
+                              <ClipboardList className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {canEdit && q.status === 'en_revision' && (
+                            <button onClick={() => handleChangeStatus(q.id, 'rechazado')} className="p-1.5 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition" title="Rechazar directo">
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {canEmit && q.status === 'aprobado' && (
+                            <button onClick={() => showModal('emitirCotizacion', { cot: q, onSaved: loadData })} className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition" title="Emitir póliza">
+                              <FileCheck className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {canEdit && q.status !== 'emitida' && (
+                            <button onClick={() => openEditSim(q)} className="p-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition" title="Editar">
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button onClick={() => handleDelete(q.id, q.nro)} className="p-1.5 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition" title="Eliminar">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <div className="px-4 py-3 border-t border-slate-100 flex items-center gap-2 text-xs text-slate-400">
-            <span>{visibleCots.length} cotizacion{visibleCots.length !== 1 ? 'es' : ''} visible{visibleCots.length !== 1 ? 's' : ''}</span>
+          <div className="px-4 py-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400">
+            <div className="flex flex-wrap items-center gap-3">
+              <span>
+                {visibleCots.length === 0
+                  ? '0 cotizaciones'
+                  : `${cotStart + 1}–${Math.min(cotStart + cotPageSize, visibleCots.length)} de ${visibleCots.length}`}
+              </span>
+              <label className="flex items-center gap-1.5">
+                Mostrar
+                <select
+                  value={cotPageSize}
+                  onChange={e => { setCotPageSize(Number(e.target.value)); setCotPage(0) }}
+                  className="border border-slate-200 rounded-lg px-1.5 py-0.5 text-xs bg-white text-slate-600 outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  {[10, 20, 50, 100, 200].map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </label>
+            </div>
+            {cotTotalPages > 1 && (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCotPage(p => Math.max(0, p - 1))}
+                  disabled={cotSafePage === 0}
+                  className="px-2 py-1 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50 transition"
+                >
+                  Anterior
+                </button>
+                <span>Página {cotSafePage + 1} de {cotTotalPages}</span>
+                <button
+                  type="button"
+                  onClick={() => setCotPage(p => Math.min(cotTotalPages - 1, p + 1))}
+                  disabled={cotSafePage >= cotTotalPages - 1}
+                  className="px-2 py-1 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50 transition"
+                >
+                  Siguiente
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

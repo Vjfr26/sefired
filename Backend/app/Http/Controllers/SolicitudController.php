@@ -35,16 +35,26 @@ class SolicitudController extends Controller
     use LogsActivity;
 
     /**
-     * Lista todas las cotizaciones ordenadas de más reciente a más antigua.
+     * Lista las cotizaciones ordenadas de más reciente a más antigua.
      * Incluye datos del cliente (nombre, cédula) y del vendedor.
+     *
+     * Admin y Oficina ven todas las cotizaciones (gestionan la cartera
+     * completa). Los demás roles (vendedores) solo ven las que ellos
+     * mismos crearon — nunca las de otros vendedores ni los leads del
+     * portal público (que no tienen vendedor_id asignado).
      */
     public function index()
     {
-        $solicitudes = Solicitud::with(['persona', 'producto'])
+        $user  = auth()->user();
+        $query = Solicitud::with(['persona', 'producto'])
             ->orderByDesc('fecha_solicitud')
-            ->orderByDesc('id')
-            ->get()
-            ->map(fn($s) => $this->formatRow($s));
+            ->orderByDesc('id');
+
+        if (!in_array($user->tipo, ['Admin', 'Oficina'], true)) {
+            $query->where('vendedor_id', $user->id);
+        }
+
+        $solicitudes = $query->get()->map(fn($s) => $this->formatRow($s));
 
         return response()->json($solicitudes);
     }
