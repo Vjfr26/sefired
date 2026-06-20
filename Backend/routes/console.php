@@ -12,4 +12,5 @@ Artisan::command('inspire', function () {
 Schedule::command('correos:renovacion')  ->dailyAt('09:00')->timezone('America/Caracas');
 Schedule::command('correos:cumpleanios') ->dailyAt('08:00')->timezone('America/Caracas');
 Schedule::command('correos:reporte-interno')->weeklyOn(1, '08:00')->timezone('America/Caracas');
+Schedule::command('reportes:enviar-programados')->everyFifteenMinutes()->timezone('America/Caracas')->withoutOverlapping();
 Schedule::command('queue:work --stop-when-empty')->everyMinute()->withoutOverlapping();

@@ -124,16 +124,27 @@
             <strong style="font-size:17px; color:#127481;">Cuadro Póliza — Recibo de Prima</strong><br/>
             <span style="font-size:12px; color:#444;">Automóvil · {{ $poliza->tipo ?? 'Individual' }}</span>
         </td>
-        <td style="width:190px; vertical-align:top;">
-            <div class="cuadro">
-                <table>
-                    <tr><td>Póliza:</td>       <td><strong>{{ $poliza->nro_contrato }}</strong></td></tr>
-                    <tr><td>Certificado:</td>   <td><strong>{{ $asegCi }}</strong></td></tr>
-                    <tr><td>Fecha:</td>         <td><strong>{{ $poliza->fecha_emision?->format('d-m-Y') }}</strong></td></tr>
-                    <tr><td>Páginas:</td>       <td><strong>1</strong></td></tr>
-                    <tr><td>Inicio Póliza:</td> <td><strong>{{ $poliza->fecha_emision?->format('Y') }}</strong></td></tr>
-                </table>
-            </div>
+        <td style="width:225px; vertical-align:top;">
+            <table width="100%" cellspacing="0" cellpadding="0">
+                <tr>
+                    @if($qrCode)
+                    <td style="width:55px; vertical-align:top; padding-right:6px;">
+                        <img src="{{ $qrCode }}" style="width:50px; height:50px;" alt="QR"/>
+                    </td>
+                    @endif
+                    <td style="vertical-align:top;">
+                        <div class="cuadro">
+                            <table>
+                                <tr><td>Póliza:</td>       <td><strong>{{ $poliza->nro_contrato }}</strong></td></tr>
+                                <tr><td>Certificado:</td>   <td><strong>{{ $asegCi }}</strong></td></tr>
+                                <tr><td>Fecha:</td>         <td><strong>{{ $poliza->fecha_emision?->format('d-m-Y') }}</strong></td></tr>
+                                <tr><td>Páginas:</td>       <td><strong>1</strong></td></tr>
+                                <tr><td>Inicio Póliza:</td> <td><strong>{{ $poliza->fecha_emision?->format('Y') }}</strong></td></tr>
+                            </table>
+                        </div>
+                    </td>
+                </tr>
+            </table>
         </td>
     </tr>
 </table>

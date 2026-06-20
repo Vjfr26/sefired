@@ -455,6 +455,222 @@ function TabPersonal() {
 }
 
 // ── Tab: Automáticos ─────────────────────────────────────────
+const FRECUENCIAS = [
+  { v: 'diario',     l: 'Diario' },
+  { v: 'semanal',    l: 'Semanal' },
+  { v: 'mensual',    l: 'Mensual' },
+  { v: 'trimestral', l: 'Trimestral' },
+]
+
+/**
+ * Tarjeta reutilizable para gestionar programaciones de envío automático
+ * de reportes (usada por TabAutomaticos y TabExternos). Cada programación
+ * agrupa varios destinatarios, y cada destinatario tiene su PROPIA
+ * frecuencia — el mismo reporte puede llegarle a uno todos los días y a
+ * otro solo una vez al mes.
+ */
+function SchedulesManager({ title, hint, schedules, setSchedules, canManage, saving, onSave, runningSchedId, onRun }) {
+  const [nuevoEmail, setNuevoEmail] = useState({})       // { [scheduleId]: 'texto en el input' }
+  const [nuevaFrecuencia, setNuevaFrecuencia] = useState({}) // { [scheduleId]: 'diario' }
+
+  const updateSchedule = (id, field, value) => {
+    setSchedules(prev => prev.map(s => s.id === id ? { ...s, [field]: value } : s))
+  }
+
+  const addSchedule = () => {
+    setSchedules(prev => [...prev, { id: `tmp-${Date.now()}`, nombre: 'Nuevo Reporte', hora: '08:00', activo: true, destinatarios: [] }])
+  }
+
+  const deleteSchedule = (id) => {
+    setSchedules(prev => prev.filter(s => s.id !== id))
+  }
+
+  const addDestinatario = (schedId) => {
+    const email = (nuevoEmail[schedId] || '').trim()
+    if (!email) return
+    const frecuencia = nuevaFrecuencia[schedId] || 'diario'
+    setSchedules(prev => prev.map(s => s.id === schedId
+      ? { ...s, destinatarios: [...(s.destinatarios || []), { id: `tmp-${Date.now()}`, email, frecuencia, activo: true }] }
+      : s
+    ))
+    setNuevoEmail(p => ({ ...p, [schedId]: '' }))
+  }
+
+  const updateDestinatario = (schedId, destId, field, value) => {
+    setSchedules(prev => prev.map(s => s.id !== schedId ? s : {
+      ...s,
+      destinatarios: s.destinatarios.map(d => d.id === destId ? { ...d, [field]: value } : d),
+    }))
+  }
+
+  const deleteDestinatario = (schedId, destId) => {
+    setSchedules(prev => prev.map(s => s.id !== schedId ? s : {
+      ...s,
+      destinatarios: s.destinatarios.filter(d => d.id !== destId),
+    }))
+  }
+
+  return (
+    <div className="card p-6">
+      <h4 className="font-semibold text-slate-800 mb-1 text-sm">{title}</h4>
+      {hint && <p className="text-xs text-slate-400 mb-5">{hint}</p>}
+
+      <div className="space-y-4">
+        {schedules.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-8 text-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+            <Calendar className="w-8 h-8 text-slate-300 mb-2" />
+            <p className="text-sm font-medium text-slate-500">Sin programaciones configuradas</p>
+          </div>
+        )}
+
+        {schedules.map(sched => (
+          <div key={sched.id} className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 space-y-3">
+            {/* ── Cabecera: nombre, hora, activo, eliminar ── */}
+            <div className="flex items-start justify-between gap-2 flex-wrap">
+              <div className="flex-1 min-w-[160px] grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 mb-1">Nombre</label>
+                  <input
+                    type="text"
+                    value={sched.nombre}
+                    onChange={e => updateSchedule(sched.id, 'nombre', e.target.value)}
+                    disabled={!canManage}
+                    className="w-full px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 bg-white disabled:opacity-50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 mb-1">Hora de revisión</label>
+                  <input
+                    type="time"
+                    value={sched.hora}
+                    onChange={e => updateSchedule(sched.id, 'hora', e.target.value)}
+                    disabled={!canManage}
+                    className="w-full px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 bg-white disabled:opacity-50"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-3 mt-5">
+                {canManage && (
+                  <button
+                    onClick={() => onRun(sched.id)}
+                    disabled={runningSchedId === sched.id || String(sched.id).startsWith('tmp-')}
+                    title={String(sched.id).startsWith('tmp-') ? 'Guarda primero para poder ejecutar' : 'Enviar ahora a todos los destinatarios activos'}
+                    className="text-xs btn-secondary px-2.5 py-1.5 flex items-center gap-1 disabled:opacity-40"
+                  >
+                    {runningSchedId === sched.id
+                      ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      : <Play className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600" />}
+                    Ejecutar ahora
+                  </button>
+                )}
+                <div className="toggle-wrap">
+                  <input
+                    type="checkbox"
+                    checked={!!sched.activo}
+                    onChange={() => updateSchedule(sched.id, 'activo', !sched.activo)}
+                    disabled={!canManage}
+                    className="toggle-input"
+                    id={`toggle-${sched.id}`}
+                  />
+                  <label htmlFor={`toggle-${sched.id}`} className="toggle-track" />
+                </div>
+                {canManage && (
+                  <button
+                    onClick={() => deleteSchedule(sched.id)}
+                    className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    title="Eliminar programación"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* ── Destinatarios: cada uno con su propia frecuencia ── */}
+            <div className="pt-2 border-t border-slate-100">
+              <p className="text-xs font-semibold text-slate-500 mb-2">Destinatarios</p>
+              {(sched.destinatarios || []).length === 0 && (
+                <p className="text-xs text-slate-400 mb-2">Aún no hay correos asignados a este reporte.</p>
+              )}
+              <div className="space-y-1.5">
+                {(sched.destinatarios || []).map(d => (
+                  <div key={d.id} className="flex items-center gap-2 bg-white rounded-lg border border-slate-200 px-2.5 py-1.5">
+                    <span className="flex-1 text-xs font-mono text-slate-700 truncate">{d.email}</span>
+                    <select
+                      value={d.frecuencia}
+                      onChange={e => updateDestinatario(sched.id, d.id, 'frecuencia', e.target.value)}
+                      disabled={!canManage}
+                      className="text-xs border border-slate-200 rounded-lg px-1.5 py-1 bg-white disabled:opacity-50"
+                    >
+                      {FRECUENCIAS.map(f => <option key={f.v} value={f.v}>{f.l}</option>)}
+                    </select>
+                    {d.ultimo_envio && (
+                      <span className="text-[10px] text-blue-600 font-medium whitespace-nowrap hidden sm:inline">
+                        Últ: {fmtDT(d.ultimo_envio)}
+                      </span>
+                    )}
+                    <div className="toggle-wrap shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={!!d.activo}
+                        onChange={() => updateDestinatario(sched.id, d.id, 'activo', !d.activo)}
+                        disabled={!canManage}
+                        className="toggle-input"
+                        id={`dest-toggle-${d.id}`}
+                      />
+                      <label htmlFor={`dest-toggle-${d.id}`} className="toggle-track" />
+                    </div>
+                    {canManage && (
+                      <button onClick={() => deleteDestinatario(sched.id, d.id)} className="p-1 text-slate-400 hover:text-red-500 shrink-0">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {canManage && (
+                <div className="flex flex-wrap items-center gap-2 mt-2">
+                  <input
+                    type="email"
+                    placeholder="correo@empresa.com"
+                    value={nuevoEmail[sched.id] || ''}
+                    onChange={e => setNuevoEmail(p => ({ ...p, [sched.id]: e.target.value }))}
+                    onKeyDown={e => e.key === 'Enter' && addDestinatario(sched.id)}
+                    className="flex-1 min-w-[160px] px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                  />
+                  <select
+                    value={nuevaFrecuencia[sched.id] || 'diario'}
+                    onChange={e => setNuevaFrecuencia(p => ({ ...p, [sched.id]: e.target.value }))}
+                    className="text-xs border border-slate-200 rounded-lg px-1.5 py-1.5 bg-white"
+                  >
+                    {FRECUENCIAS.map(f => <option key={f.v} value={f.v}>{f.l}</option>)}
+                  </select>
+                  <button onClick={() => addDestinatario(sched.id)} className="btn-secondary text-xs px-2.5 py-1.5 flex items-center gap-1">
+                    <span className="text-base leading-none">+</span> Agregar correo
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+
+        {canManage && (
+          <div className="flex items-center gap-3 pt-1">
+            <button onClick={addSchedule} className="btn-secondary flex items-center gap-1.5 text-sm">
+              <span className="text-base leading-none">+</span> Agregar Programación
+            </button>
+            <button onClick={onSave} disabled={saving} className="btn-primary flex items-center gap-1.5">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+              Guardar Configuración
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function TabAutomaticos() {
   const { showToast, canAct } = useApp()
   const canManage = canAct('reportes', 'manage')
@@ -494,29 +710,26 @@ function TabAutomaticos() {
     loadHistory()
   }, [])
 
-  const handleToggleSchedule = (id) => {
-    setSchedules(prev => prev.map(s => s.id === id ? { ...s, activo: s.activo ? 0 : 1 } : s))
-  }
-
-  const handleTimeChange = (id, time) => {
-    setSchedules(prev => prev.map(s => s.id === id ? { ...s, hora: time } : s))
-  }
-
   const handleSaveSchedules = async () => {
     setSavingSchedules(true)
     try {
       const payload = schedules.map(s => ({
-        id: s.id,
+        id: String(s.id).startsWith('tmp-') ? undefined : s.id,
         activo: !!s.activo,
         hora: s.hora,
         nombre: s.nombre,
-        frecuencia: s.frecuencia
+        destinatarios: (s.destinatarios || []).map(d => ({
+          id: String(d.id).startsWith('tmp-') ? undefined : d.id,
+          email: d.email,
+          frecuencia: d.frecuencia,
+          activo: !!d.activo,
+        })),
       }))
       await saveInternalReportSchedules(payload)
       showToast('Programaciones guardadas con éxito', 'success')
       loadSchedules()
     } catch (err) {
-      showToast('Error al guardar programaciones', 'error')
+      showToast(err.message || 'Error al guardar programaciones', 'error')
     } finally {
       setSavingSchedules(false)
     }
@@ -526,8 +739,8 @@ function TabAutomaticos() {
     setRunningSchedId(id)
     showToast('Ejecutando reporte interno...', 'info')
     try {
-      await runInternalReportSchedule(id)
-      showToast('Reporte interno ejecutado con éxito', 'success')
+      const res = await runInternalReportSchedule(id)
+      showToast(`Reporte interno enviado a ${res.enviados ?? 0} destinatario(s)`, 'success')
       loadHistory()
       loadSchedules()
     } catch (err) {
@@ -555,84 +768,25 @@ function TabAutomaticos() {
     }
   }
 
-  const formatSize = (bytes) => {
-    if (!bytes) return '0 B'
-    const k = 1024
-    const sizes = ['B', 'KB', 'MB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
-  }
-
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <div className="card p-6">
-        <h4 className="font-semibold text-slate-800 mb-5 text-sm">Reportes Programados</h4>
-        {loadingSchedules ? (
-          <div className="flex items-center justify-center py-6">
-            <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {schedules.map(sched => (
-              <div key={sched.id} className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50/50">
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-slate-700">{sched.nombre}</p>
-                  <p className="text-xs text-slate-400 mt-0.5 capitalize">{sched.frecuencia}</p>
-                  {sched.ultimo_envio && (
-                    <p className="text-xs text-blue-600 font-medium mt-1">
-                      Último envío: {fmtDT(sched.ultimo_envio)}
-                    </p>
-                  )}
-                </div>
-                <div className="flex items-center gap-3 ml-4">
-                  <input
-                    type="time"
-                    value={sched.hora}
-                    onChange={e => handleTimeChange(sched.id, e.target.value)}
-                    disabled={!canManage}
-                    className="px-2 py-1 text-xs border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 bg-white disabled:opacity-50"
-                  />
-                  {canManage && (
-                    <button
-                      onClick={() => handleRunNow(sched.id)}
-                      disabled={runningSchedId === sched.id}
-                      className="text-xs btn-secondary px-2.5 py-1.5 flex items-center gap-1"
-                    >
-                      {runningSchedId === sched.id ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <Play className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600" />
-                      )}
-                      Ejecutar
-                    </button>
-                  )}
-                  <div className="toggle-wrap">
-                    <input
-                      type="checkbox"
-                      checked={!!sched.activo}
-                      onChange={() => handleToggleSchedule(sched.id)}
-                      disabled={!canManage}
-                      className="toggle-input"
-                      id={`toggle-internal-${sched.id}`}
-                    />
-                    <label htmlFor={`toggle-internal-${sched.id}`} className="toggle-track" />
-                  </div>
-                </div>
-              </div>
-            ))}
-            {canManage && (
-              <button
-                onClick={handleSaveSchedules}
-                disabled={savingSchedules}
-                className="btn-primary mt-5 flex items-center gap-1.5"
-              >
-                {savingSchedules ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                Guardar Configuración
-              </button>
-            )}
-          </div>
-        )}
-      </div>
+      {loadingSchedules ? (
+        <div className="card p-6 flex items-center justify-center py-6">
+          <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+        </div>
+      ) : (
+        <SchedulesManager
+          title="Reportes Programados"
+          hint="Reportes de ventas internos que se generan y envían automáticamente."
+          schedules={schedules}
+          setSchedules={setSchedules}
+          canManage={canManage}
+          saving={savingSchedules}
+          onSave={handleSaveSchedules}
+          runningSchedId={runningSchedId}
+          onRun={handleRunNow}
+        />
+      )}
 
       <div className="card p-6">
         <h4 className="font-semibold text-slate-800 mb-5 text-sm">Últimos Reportes Generados</h4>
@@ -653,8 +807,8 @@ function TabAutomaticos() {
               fecha: fmtDT(r.fecha_generacion),
               est: rsbadge('Generado'),
               acc: (
-                <button 
-                  onClick={() => handleDownloadHistoryFile(r.id, r.archivo_path.split('/').pop())} 
+                <button
+                  onClick={() => handleDownloadHistoryFile(r.id, r.archivo_path.split('/').pop())}
                   className="text-xs text-blue-600 hover:underline font-semibold flex items-center gap-1 bg-transparent border-none p-0 cursor-pointer"
                 >
                   <Download className="w-4 h-4" />Descargar
@@ -790,53 +944,34 @@ function TabExternos() {
   const handleSaveSchedules = async () => {
     setSavingSchedules(true)
     try {
-      await saveExternalReportSchedules(schedules)
+      const payload = schedules.map(s => ({
+        id: String(s.id).startsWith('tmp-') ? undefined : s.id,
+        activo: !!s.activo,
+        hora: s.hora,
+        nombre: s.nombre,
+        destinatarios: (s.destinatarios || []).map(d => ({
+          id: String(d.id).startsWith('tmp-') ? undefined : d.id,
+          email: d.email,
+          frecuencia: d.frecuencia,
+          activo: !!d.activo,
+        })),
+      }))
+      await saveExternalReportSchedules(payload)
       showToast('Programaciones guardadas con éxito', 'success')
       loadSchedules()
     } catch (err) {
-      showToast('Error al guardar programaciones', 'error')
+      showToast(err.message || 'Error al guardar programaciones', 'error')
     } finally {
       setSavingSchedules(false)
     }
-  }
-
-  const handleToggleSchedule = (id) => {
-    setSchedules(prev => prev.map(s => s.id === id ? { ...s, activo: s.activo ? 0 : 1 } : s))
-  }
-
-  const handleTimeChange = (id, time) => {
-    setSchedules(prev => prev.map(s => s.id === id ? { ...s, hora: time } : s))
-  }
-
-  const handleNameChange = (id, nombre) => {
-    setSchedules(prev => prev.map(s => s.id === id ? { ...s, nombre } : s))
-  }
-
-  const handleFrecuenciaChange = (id, frecuencia) => {
-    setSchedules(prev => prev.map(s => s.id === id ? { ...s, frecuencia } : s))
-  }
-
-  const handleDeleteSchedule = (id) => {
-    setSchedules(prev => prev.filter(s => s.id !== id))
-  }
-
-  const handleAddSchedule = () => {
-    setSchedules(prev => [...prev, {
-      id: Date.now(),
-      nombre: 'Reporte Mensual',
-      frecuencia: 'mensual',
-      hora: '08:00',
-      activo: 1,
-      ultimo_envio: null
-    }])
   }
 
   const handleRunNow = async (id) => {
     setRunningSchedId(id)
     showToast('Ejecutando programación de reporte...', 'info')
     try {
-      await runExternalReportSchedule(id)
-      showToast('Reporte ejecutado y guardado en historial', 'success')
+      const res = await runExternalReportSchedule(id)
+      showToast(`Reporte enviado a ${res.enviados ?? 0} destinatario(s)`, 'success')
       loadHistory()
       loadSchedules()
     } catch (err) {
@@ -988,136 +1123,23 @@ function TabExternos() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Scheduling Configurations */}
-        <div className="card p-6">
-          <h3 className="text-base font-semibold text-slate-800 mb-2 flex items-center gap-2">
-            <span>⚙️</span> Programación de Reportes Externos
-          </h3>
-          <p className="text-xs text-slate-400 mb-5">
-            Configura las reglas para la generación automática de los reportes masivos por período.
-          </p>
-
-          {loadingSchedules ? (
-            <div className="flex items-center justify-center py-6">
-              <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {schedules.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-8 text-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50">
-                  <Calendar className="w-8 h-8 text-slate-300 mb-2" />
-                  <p className="text-sm font-medium text-slate-500">Sin programaciones configuradas</p>
-                  <p className="text-xs text-slate-400 mt-1">Agrega una regla para generar reportes automáticamente.</p>
-                </div>
-              ) : (
-                schedules.map(sched => (
-                  <div key={sched.id} className="p-3.5 rounded-xl border border-slate-100 bg-slate-50/50 space-y-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-500 mb-1">Nombre</label>
-                          <input
-                            type="text"
-                            value={sched.nombre}
-                            onChange={e => handleNameChange(sched.id, e.target.value)}
-                            disabled={!canManage}
-                            className="w-full px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 bg-white disabled:opacity-50"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-500 mb-1">Frecuencia</label>
-                          <select
-                            value={sched.frecuencia}
-                            onChange={e => handleFrecuenciaChange(sched.id, e.target.value)}
-                            disabled={!canManage}
-                            className="w-full px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 bg-white disabled:opacity-50"
-                          >
-                            <option value="diario">Diario</option>
-                            <option value="semanal">Semanal</option>
-                            <option value="mensual">Mensual</option>
-                            <option value="trimestral">Trimestral</option>
-                          </select>
-                        </div>
-                      </div>
-                      {canManage && (
-                        <button
-                          onClick={() => handleDeleteSchedule(sched.id)}
-                          className="mt-5 p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0"
-                          title="Eliminar programación"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-3 pt-1 border-t border-slate-100">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-500 mb-1">Hora de ejecución</label>
-                        <input
-                          type="time"
-                          value={sched.hora}
-                          onChange={e => handleTimeChange(sched.id, e.target.value)}
-                          disabled={!canManage}
-                          className="px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 bg-white disabled:opacity-50"
-                        />
-                      </div>
-                      {sched.ultimo_envio && (
-                        <p className="text-xs text-blue-600 font-medium self-end pb-1.5">
-                          Última corrida: {fmtDT(sched.ultimo_envio)}
-                        </p>
-                      )}
-                      <div className="ml-auto flex items-center gap-3 self-end pb-0.5">
-                        {canManage && (
-                          <button
-                            onClick={() => handleRunNow(sched.id)}
-                            disabled={runningSchedId === sched.id}
-                            className="text-xs btn-secondary px-2.5 py-1.5 flex items-center gap-1"
-                          >
-                            {runningSchedId === sched.id ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <Play className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600" />
-                            )}
-                            Ejecutar ahora
-                          </button>
-                        )}
-                        <div className="toggle-wrap">
-                          <input
-                            type="checkbox"
-                            checked={!!sched.activo}
-                            onChange={() => handleToggleSchedule(sched.id)}
-                            disabled={!canManage}
-                            className="toggle-input"
-                            id={`ext-toggle-${sched.id}`}
-                          />
-                          <label htmlFor={`ext-toggle-${sched.id}`} className="toggle-track" />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-
-              {canManage && (
-                <div className="flex items-center gap-3 pt-1">
-                  <button
-                    onClick={handleAddSchedule}
-                    className="btn-secondary flex items-center gap-1.5 text-sm"
-                  >
-                    <span className="text-base leading-none">+</span> Agregar Programación
-                  </button>
-                  <button
-                    onClick={handleSaveSchedules}
-                    disabled={savingSchedules || schedules.length === 0}
-                    className="btn-primary flex items-center gap-1.5"
-                  >
-                    {savingSchedules ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                    Guardar Configuración
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+        {loadingSchedules ? (
+          <div className="card p-6 flex items-center justify-center py-6">
+            <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+          </div>
+        ) : (
+          <SchedulesManager
+            title="Programación de Reportes Externos"
+            hint="Reportes masivos de pólizas que se generan y envían automáticamente por período."
+            schedules={schedules}
+            setSchedules={setSchedules}
+            canManage={canManage}
+            saving={savingSchedules}
+            onSave={handleSaveSchedules}
+            runningSchedId={runningSchedId}
+            onRun={handleRunNow}
+          />
+        )}
 
         {/* Historic logs */}
         <div className="card p-6">

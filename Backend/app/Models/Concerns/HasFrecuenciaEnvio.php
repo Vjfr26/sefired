@@ -32,8 +32,8 @@ trait HasFrecuenciaEnvio
         return match ($this->frecuencia) {
             'diario'      => !$ultimo->isToday(),
             'semanal'     => $ultimo->diffInDays($ahora) >= 7,
-            'mensual'     => $ultimo->diffInMonthsPrecise($ahora) >= 1,
-            'trimestral'  => $ultimo->diffInMonthsPrecise($ahora) >= 3,
+            'mensual'     => $ultimo->diffInMonths($ahora) >= 1,
+            'trimestral'  => $ultimo->diffInMonths($ahora) >= 3,
             default       => !$ultimo->isToday(),
         };
     }

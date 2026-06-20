@@ -2,16 +2,22 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\ReporteAdjuntoMail;
+use App\Models\EmailLog;
 use App\Models\Log;
 use App\Models\Usuario;
 use App\Models\Persona;
 use App\Models\BienAsegurado;
 use App\Models\Poliza;
+use App\Models\ReporteExternoProgramacion;
+use App\Models\ReporteInternoProgramacion;
 use App\Models\Solicitud;
 use App\Models\UnderwritingEvaluacion;
 use App\Rules\NoInjectionChars;
+use App\Services\ReporteGeneratorService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use App\Exports\ExternalReportExport;
 use App\Exports\VentasExport;
@@ -178,25 +184,22 @@ class ReportController extends Controller
     public function getExternalReportSchedules()
     {
         return response()->json(
-            DB::table('reportes_externos_programaciones')->orderBy('id')->get()
+            ReporteExternoProgramacion::with('destinatarios')->orderBy('id')->get()
         );
     }
 
     public function saveExternalReportSchedules(Request $request)
     {
-        $schedules = $request->input('schedules', []);
-        DB::table('reportes_externos_programaciones')->truncate();
-        foreach ($schedules as $s) {
-            DB::table('reportes_externos_programaciones')->insert([
-                'nombre'       => $s['nombre'] ?? 'Reporte',
-                'frecuencia'   => $s['frecuencia'] ?? 'diario',
-                'hora'         => $s['hora'] ?? '08:00',
-                'activo'       => isset($s['activo']) ? (int) $s['activo'] : 1,
-                'ultimo_envio' => null,
-                'created_at'   => now(),
-                'updated_at'   => now(),
-            ]);
-        }
+        $request->validate([
+            'schedules'                          => 'array',
+            'schedules.*.nombre'                 => 'required|string|max:100',
+            'schedules.*.hora'                    => 'required|string',
+            'schedules.*.destinatarios.*.email'      => 'required|email|max:150',
+            'schedules.*.destinatarios.*.frecuencia' => 'required|string|in:diario,semanal,mensual,trimestral',
+        ]);
+
+        $this->upsertProgramaciones($request->input('schedules', []), ReporteExternoProgramacion::class);
+
         return response()->json(['message' => 'OK']);
     }
 
@@ -209,36 +212,27 @@ class ReportController extends Controller
         );
     }
 
-    public function runExternalReportSchedule(Request $request)
+    public function runExternalReportSchedule(Request $request, ReporteGeneratorService $generator)
     {
+        $archivo = $generator->generarExterno();
         $scheduleId = $request->input('schedule_id');
-        $schedule   = $scheduleId ? DB::table('reportes_externos_programaciones')->find($scheduleId) : null;
-
-        $policies = Poliza::with(['solicitud.persona', 'solicitud.bien', 'producto'])
-            ->orderBy('fecha_emision', 'desc')
-            ->get();
-
-        $filename = 'reporte_externo_' . now()->format('Ymd_His') . '.xlsx';
-        $path     = 'reportes_externos/' . $filename;
-        $content  = (new ExternalReportExport($policies))->store($path);
+        $schedule   = $scheduleId ? ReporteExternoProgramacion::find($scheduleId) : null;
 
         $nombre = $schedule ? $schedule->nombre : 'Reporte Externo';
         $id = DB::table('reportes_externos_historial')->insertGetId([
             'nombre_reporte'   => $nombre . ' — ' . now()->format('d/m/Y H:i'),
             'fecha_generacion' => now(),
-            'archivo_path'     => $path,
-            'size'             => strlen($content),
+            'archivo_path'     => $archivo['path'],
+            'size'             => $archivo['size'],
             'created_at'       => now(),
             'updated_at'       => now(),
         ]);
 
-        if ($schedule) {
-            DB::table('reportes_externos_programaciones')
-                ->where('id', $scheduleId)
-                ->update(['ultimo_envio' => now(), 'updated_at' => now()]);
-        }
+        $enviados = $schedule
+            ? $this->enviarADestinatarios($schedule, $archivo, 'reporte_externo')
+            : 0;
 
-        return response()->json(['message' => 'OK', 'id' => $id]);
+        return response()->json(['message' => 'OK', 'id' => $id, 'enviados' => $enviados]);
     }
 
     public function downloadExternalReport($id)
@@ -251,6 +245,72 @@ class ReportController extends Controller
             return response()->json(['error' => 'Archivo no disponible en servidor'], 404);
         }
         return Storage::disk('public')->download($record->archivo_path);
+    }
+
+    /**
+     * Crea/actualiza/elimina las programaciones y sus destinatarios a partir
+     * del arreglo completo enviado por el frontend (reemplaza al antiguo
+     * TRUNCATE + reinsert, que borraba los destinatarios en cada guardado).
+     */
+    private function upsertProgramaciones(array $schedules, string $modelClass): void
+    {
+        DB::transaction(function () use ($schedules, $modelClass) {
+            $incomingIds = [];
+
+            foreach ($schedules as $s) {
+                $prog = !empty($s['id']) ? $modelClass::find($s['id']) : null;
+                if (!$prog) $prog = new $modelClass();
+
+                $prog->nombre = $s['nombre'] ?? 'Reporte';
+                $prog->hora   = $s['hora']   ?? '08:00';
+                $prog->activo = (bool) ($s['activo'] ?? true);
+                $prog->save();
+                $incomingIds[] = $prog->id;
+
+                $destIncomingIds = [];
+                foreach (($s['destinatarios'] ?? []) as $d) {
+                    if (empty($d['email'])) continue;
+
+                    $dest = !empty($d['id']) ? $prog->destinatarios()->find($d['id']) : null;
+                    if (!$dest) $dest = $prog->destinatarios()->make();
+
+                    $dest->email      = $d['email'];
+                    $dest->frecuencia = $d['frecuencia'] ?? 'diario';
+                    $dest->activo     = (bool) ($d['activo'] ?? true);
+                    $dest->save();
+                    $destIncomingIds[] = $dest->id;
+                }
+                $prog->destinatarios()->whereNotIn('id', $destIncomingIds)->delete();
+            }
+
+            $modelClass::whereNotIn('id', $incomingIds)->delete();
+        });
+    }
+
+    /**
+     * Envía de inmediato el reporte ya generado a todos los destinatarios
+     * activos de la programación (usado por el botón "Ejecutar ahora" —
+     * a diferencia del envío automático, ignora si su frecuencia ya estaba
+     * cumplida o no).
+     *
+     * @param array{path: string, filename: string, size: int} $archivo
+     */
+    private function enviarADestinatarios($schedule, array $archivo, string $tipoEmailLog): int
+    {
+        $enviados = 0;
+        foreach ($schedule->destinatarios()->where('activo', true)->get() as $destinatario) {
+            try {
+                Mail::to($destinatario->email)->send(
+                    new ReporteAdjuntoMail($schedule->nombre, $archivo['path'], $archivo['filename'], $destinatario->frecuencia)
+                );
+                $destinatario->update(['ultimo_envio' => now()]);
+                EmailLog::registrar(tipo: $tipoEmailLog, destinatario: $destinatario->email, asunto: $schedule->nombre);
+                $enviados++;
+            } catch (\Throwable $e) {
+                EmailLog::registrar(tipo: $tipoEmailLog, destinatario: $destinatario->email, asunto: $schedule->nombre, status: 'error', errorMsg: $e->getMessage());
+            }
+        }
+        return $enviados;
     }
 
     // ── VENTAS Y COMISIONES ───────────────────────────────────────────────────────
@@ -452,25 +512,22 @@ class ReportController extends Controller
     public function getInternalSchedules()
     {
         return response()->json(
-            DB::table('reportes_internos_programaciones')->orderBy('id')->get()
+            ReporteInternoProgramacion::with('destinatarios')->orderBy('id')->get()
         );
     }
 
     public function saveInternalSchedules(Request $request)
     {
-        $schedules = $request->input('schedules', []);
-        DB::table('reportes_internos_programaciones')->truncate();
-        foreach ($schedules as $s) {
-            DB::table('reportes_internos_programaciones')->insert([
-                'nombre'       => $s['nombre'] ?? 'Reporte',
-                'frecuencia'   => $s['frecuencia'] ?? 'diario',
-                'hora'         => $s['hora'] ?? '08:00',
-                'activo'       => isset($s['activo']) ? (int) $s['activo'] : 1,
-                'ultimo_envio' => null,
-                'created_at'   => now(),
-                'updated_at'   => now(),
-            ]);
-        }
+        $request->validate([
+            'schedules'                              => 'array',
+            'schedules.*.nombre'                     => 'required|string|max:100',
+            'schedules.*.hora'                        => 'required|string',
+            'schedules.*.destinatarios.*.email'      => 'required|email|max:150',
+            'schedules.*.destinatarios.*.frecuencia' => 'required|string|in:diario,semanal,mensual,trimestral',
+        ]);
+
+        $this->upsertProgramaciones($request->input('schedules', []), ReporteInternoProgramacion::class);
+
         return response()->json(['message' => 'OK']);
     }
 
@@ -483,36 +540,27 @@ class ReportController extends Controller
         );
     }
 
-    public function runInternalSchedule(Request $request)
+    public function runInternalSchedule(Request $request, ReporteGeneratorService $generator)
     {
+        $archivo = $generator->generarInterno();
         $scheduleId = $request->input('schedule_id');
-        $schedule   = $scheduleId ? DB::table('reportes_internos_programaciones')->find($scheduleId) : null;
-
-        $policies = Poliza::with(['vendedor', 'producto'])
-            ->orderBy('fecha_emision', 'desc')
-            ->get();
-
-        $filename = 'reporte_interno_' . now()->format('Ymd_His') . '.xlsx';
-        $path     = 'reportes_internos/' . $filename;
-        $content  = (new VentasExport($policies))->store($path);
+        $schedule   = $scheduleId ? ReporteInternoProgramacion::find($scheduleId) : null;
 
         $nombre = $schedule ? $schedule->nombre : 'Reporte Interno';
         $id = DB::table('reportes_internos_historial')->insertGetId([
             'nombre_reporte'   => $nombre . ' — ' . now()->format('d/m/Y H:i'),
             'fecha_generacion' => now(),
-            'archivo_path'     => $path,
-            'size'             => strlen($content),
+            'archivo_path'     => $archivo['path'],
+            'size'             => $archivo['size'],
             'created_at'       => now(),
             'updated_at'       => now(),
         ]);
 
-        if ($schedule) {
-            DB::table('reportes_internos_programaciones')
-                ->where('id', $scheduleId)
-                ->update(['ultimo_envio' => now(), 'updated_at' => now()]);
-        }
+        $enviados = $schedule
+            ? $this->enviarADestinatarios($schedule, $archivo, 'reporte_interno')
+            : 0;
 
-        return response()->json(['message' => 'OK', 'id' => $id]);
+        return response()->json(['message' => 'OK', 'id' => $id, 'enviados' => $enviados]);
     }
 
     public function downloadInternalReport($id)
