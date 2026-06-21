@@ -842,12 +842,14 @@ function Step3({ sim, setSim, onNext, onBack, onClose }) {
         </>
       )}
 
-      <div className="mt-4">
-        <label className="field-label">Otros / Observaciones del bien</label>
-        <textarea className="input-field resize-none" rows={2} placeholder="Detalles adicionales sobre el bien asegurado…"
-          value={sim.bien_observaciones} onChange={e => setSim(p => ({ ...p, bien_observaciones: e.target.value }))} />
-        <p className="text-[10px] text-slate-400 mt-1">Aparece en el campo "Otros" del cuadro póliza.</p>
-      </div>
+      {tipoBien !== 'ninguno' && (
+        <div className="mt-4">
+          <label className="field-label">Otros / Observaciones del bien</label>
+          <textarea className="input-field resize-none" rows={2} placeholder="Detalles adicionales sobre el bien asegurado…"
+            value={sim.bien_observaciones} onChange={e => setSim(p => ({ ...p, bien_observaciones: e.target.value }))} />
+          <p className="text-[10px] text-slate-400 mt-1">Aparece en el campo "Otros" del cuadro póliza.</p>
+        </div>
+      )}
     </SimShell>
   )
 }
@@ -1149,6 +1151,7 @@ function Step5({ sim, tasaBcv, editId, onBack, onClose, onSaved, showToast, curr
           },
           valor_declarado: sim.valor || null,
           descripcion: `${sim.marca} ${sim.modelo} ${sim.año}`.trim(),
+          observaciones: sim.bien_observaciones || null,
         }
         if (bienId) {
           await updateBien(bienId, bienData)
@@ -1168,6 +1171,7 @@ function Step5({ sim, tasaBcv, editId, onBack, onClose, onSaved, showToast, curr
           atributos: Object.keys(campos).length > 0 ? campos : null,
           valor_declarado: sim.valor_declarado || null,
           descripcion: prod?.nombre || tipoBien,
+          observaciones: sim.bien_observaciones || null,
         }
         if (bienId) {
           await updateBien(bienId, bienData)
@@ -1187,8 +1191,10 @@ function Step5({ sim, tasaBcv, editId, onBack, onClose, onSaved, showToast, curr
         coberturas,
         nombre_tomador:    sim.nombre,
         ci_tomador:        sim.ci,
-        asegurado_nombre:  sim.asegurado_nombre || null,
-        asegurado_ci:      sim.asegurado_ci     || null,
+        asegurado_nombre:    sim.asegurado_nombre    || null,
+        asegurado_ci:        sim.asegurado_ci        || null,
+        asegurado_telefono:  sim.asegurado_telefono  || null,
+        asegurado_direccion: sim.asegurado_direccion || null,
       }
       if (isEdit) await updateCotizacion(editId, payload)
       else        await createCotizacion(payload)

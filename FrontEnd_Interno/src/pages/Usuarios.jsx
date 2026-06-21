@@ -105,6 +105,20 @@ export default function Usuarios() {
 
   useEffect(() => { loadUsuarios() }, [loadUsuarios])
 
+  // El estado "Activo ahora" antes solo se cargaba una vez al entrar a la
+  // página y se quedaba congelado — un usuario que cerraba sesión seguía
+  // viéndose activo hasta que alguien recargara la página a mano. Se
+  // refresca en silencio (sin spinner) cada 20s mientras la página está abierta.
+  useEffect(() => {
+    const id = setInterval(async () => {
+      try {
+        const res = await fetchUsuarios()
+        setUsuarios(res.data)
+      } catch { /* silencioso: un fallo puntual no debe interrumpir la vista */ }
+    }, 20_000)
+    return () => clearInterval(id)
+  }, [])
+
   // ── Estadísticas ──
   const byRole  = ROLES.reduce((a, r) => ({ ...a, [r]: usuarios.filter(u => u.tipo === r).length }), {})
   const blocked = usuarios.filter(u => !u.activo).length

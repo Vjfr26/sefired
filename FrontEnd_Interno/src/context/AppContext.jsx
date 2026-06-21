@@ -73,9 +73,13 @@ export function AppProvider({ children, onLogout }) {
   const [activeNavId, setActiveNavId]   = useState(() => localStorage.getItem('nav_id')   || 'home')
 
   // ── Modal y notificaciones ───────────────────────────────────────────────────
-  // modal: null cuando no hay modal, o { type, props } cuando hay uno abierto.
+  // modalStack: pila de modales abiertos ({ type, props } cada uno). Antes
+  // era un único valor que showModal() reemplazaba sin memoria — si un
+  // modal abría un segundo modal encima, cerrar el segundo con la X cerraba
+  // TODO en vez de volver a mostrar el primero. Con la pila, closeModal()
+  // solo quita el de arriba y revela el anterior automáticamente.
   // toasts: lista de notificaciones activas. Se van eliminando solos a los 3.5 s.
-  const [modal, setModal]               = useState(null)
+  const [modalStack, setModalStack]     = useState([])
   const [toasts, setToasts]             = useState([])
 
   // ── Visor de PDF ─────────────────────────────────────────────────────────────
@@ -202,12 +206,18 @@ export function AppProvider({ children, onLogout }) {
    * @param {Object} props  Datos que recibe el modal (campos, callbacks, etc.)
    */
   const showModal = useCallback((type, props = {}) => {
-    setModal({ type, props })
+    setModalStack(stack => [...stack, { type, props }])
   }, [])
 
-  /** Cierra el modal activo. */
+  /** Cierra el modal activo. Si había uno debajo en la pila (lo abrió ese
+   * modal), vuelve a mostrarlo — "ir atrás" en vez de cerrar todo. */
   const closeModal = useCallback(() => {
-    setModal(null)
+    setModalStack(stack => stack.slice(0, -1))
+  }, [])
+
+  /** Cierra TODA la pila de modales de una vez (ej. tras terminar un flujo completo). */
+  const closeAllModals = useCallback(() => {
+    setModalStack([])
   }, [])
 
   // ── Visor de PDF ──────────────────────────────────────────────────────────────
@@ -292,12 +302,12 @@ export function AppProvider({ children, onLogout }) {
   // Todos los valores y funciones que estarán disponibles para los componentes hijos.
   const value = {
     currentView, activeNavId,
-    modal, toasts, pdfViewer,
+    modal: modalStack[modalStack.length - 1] ?? null, modalStack, toasts, pdfViewer,
     simState, simStep, setSimStep,
     tasas, refreshTasas,
     currentUser, refreshUser, userPerms, canAct,
     navigateTo,
-    showToast, showModal, closeModal,
+    showToast, showModal, closeModal, closeAllModals,
     showPdfViewer, closePdfViewer,
     resetSimState, updateSimState, updateSimCoverage,
     onLogout: handleLogout,

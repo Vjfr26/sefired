@@ -38,7 +38,11 @@ class UsuarioController extends Controller
             // El frontend repite GET /usuario cada 30s mientras la sesión está
             // abierta (ver AppContext.refreshUser) — 2 min de margen es de sobra
             // para considerar la sesión "activa ahora" y no solo "vista hace poco".
-            $usuario->activo_ahora    = $usuario->ultimo_visto?->gt(now()->subMinutes(2)) ?? false;
+            // También exige api_token vigente: sin esto, cerrar sesión no
+            // bajaba "Activo ahora" hasta que pasaran los 2 minutos completos,
+            // aunque el token ya estuviera invalidado desde el logout.
+            $reciente = $usuario->ultimo_visto?->gt(now()->subMinutes(2)) ?? false;
+            $usuario->activo_ahora    = !empty($usuario->api_token) && $reciente;
             return $usuario->makeVisible(['temp', 'temp_expira_en']);
         });
 

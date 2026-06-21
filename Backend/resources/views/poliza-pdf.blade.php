@@ -31,6 +31,27 @@
     ] : []);
     $attrs            = $bien['atributos'] ?? [];
     $bienObservaciones = $bien['observaciones'] ?? $poliza->solicitud?->bien?->observaciones ?? '—';
+    // Antes el encabezado decía "Automóvil" siempre, sin importar el tipo de
+    // bien real (inmueble, vida, mascota…) — se deriva del bien asegurado,
+    // y si la póliza no asegura un bien físico (vida, accidentes…) del ramo.
+    $ramoLabel = match ($bien['tipo'] ?? null) {
+        'vehiculo'           => 'Automóvil',
+        'inmueble'           => 'Inmueble',
+        'bicicleta'          => 'Bicicleta',
+        'mascota'            => 'Mascota',
+        'embarcacion'        => 'Embarcación',
+        'equipo_electronico' => 'Equipo Electrónico',
+        'joya'               => 'Joyas',
+        'vida'               => 'Vida',
+        default              => match ($prodSnap['tipo'] ?? null) {
+            'vida'       => 'Vida',
+            'salud'      => 'Salud',
+            'hogar'      => 'Hogar',
+            'accidentes' => 'Accidentes Personales',
+            'funeraria'  => 'Asistencia Funeraria',
+            default      => $prodSnap['nombre'] ?? 'Póliza',
+        },
+    };
     $cobs        = $snap['coberturas'] ?? [];
     $tipoCal     = $prodSnap['tipo_calculo'] ?? $poliza->producto?->tipo_calculo ?? 'fijo';
     $tarifaDatos = $cobs['tarifa']['datos'] ?? ($snap['tarifario']['datos'] ?? []);
@@ -73,7 +94,11 @@
 
     $cobertura_items = [];
     if ($tipoCal === 'por_valor') {
-        $cobertura_items[] = ['Responsabilidad Civil Obligatoria', number_format((float)$poliza->cobertura_dolares, 2)];
+        // "por_valor" no es exclusivo de vehículos (ej. Póliza Muebles también
+        // lo usa) — antes decía "Responsabilidad Civil Obligatoria" siempre,
+        // aunque el bien fuera un inmueble o cualquier otro bien de valor.
+        $labelPorValor = ($bien['tipo'] ?? null) === 'vehiculo' ? 'Responsabilidad Civil Obligatoria' : 'Suma Asegurada';
+        $cobertura_items[] = [$labelPorValor, number_format((float)$poliza->cobertura_dolares, 2)];
     } elseif ($tipoCal === 'por_plan' && is_array($tarifaDatos)) {
         // Las coberturas de un plan son un mapa de claves nombradas (ver
         // TarifarioController) — antes solo se reconocían 4 claves fijas que
@@ -178,7 +203,7 @@
         </td>
         <td style="text-align:center; vertical-align:middle; padding:0 12px;">
             <strong style="font-size:17px; color:#127481;">Cuadro Póliza — Recibo de Prima</strong><br/>
-            <span style="font-size:12px; color:#444;">Automóvil · {{ $poliza->tipo ?? 'Individual' }}</span>
+            <span style="font-size:12px; color:#444;">{{ $ramoLabel }} · {{ $poliza->tipo ?? 'Individual' }}</span>
         </td>
         <td style="width:280px; vertical-align:top;">
             <table width="100%" cellspacing="0" cellpadding="0">
@@ -498,7 +523,7 @@
                         {{ $asegPartes['nombres'] ?: '—' }}<br/>{{ $asegPartes['apellidos'] ?: '—' }}
                     </td>
                     <td style="width:33.3%; font-size:8.5px; font-weight:600; padding:1px 4px; vertical-align:top;">{{ $asegCi }}</td>
-                    <td style="width:33.3%; font-size:8.5px; font-weight:600; padding:1px 4px; vertical-align:top;">{{ $tomadorTel }}</td>
+                    <td style="width:33.3%; font-size:8.5px; font-weight:600; padding:1px 4px; vertical-align:top;">{{ $asegTel }}</td>
                 </tr>
                 @if(($bien['tipo'] ?? null) === 'vehiculo')
                 <!-- VEHÍCULO ASEGURADO -->

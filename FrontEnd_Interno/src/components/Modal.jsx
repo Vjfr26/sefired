@@ -3591,7 +3591,6 @@ function ClienteHistorialModal({ c, onSaved }) {
                               client: { ...c, poliza_id: pol.id },
                               diasVencimiento: dias,
                               onSaved: () => { loadPolizas(); onSaved?.() },
-                              onCancel: () => showModal('clienteHistorial', { c, onSaved }),
                             })
                           }}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-xs font-semibold text-emerald-600 hover:bg-emerald-100 transition whitespace-nowrap"
@@ -3605,7 +3604,6 @@ function ClienteHistorialModal({ c, onSaved }) {
                             c,
                             polizaId: pol.id,
                             onSave: () => { loadPolizas(); onSaved?.() },
-                            onCancel: () => showModal('clienteHistorial', { c, onSaved }),
                           })}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-50 text-xs font-semibold text-violet-600 hover:bg-violet-100 transition whitespace-nowrap"
                         >
@@ -3614,10 +3612,7 @@ function ClienteHistorialModal({ c, onSaved }) {
                       )}
                       {pol.id && canManageBeneficiarios && pol.status !== 'RECHAZADA' && (
                         <button
-                          onClick={() => showModal('polizaBeneficiarios', {
-                            poliza: pol,
-                            onClose: () => showModal('clienteHistorial', { c, onSaved }),
-                          })}
+                          onClick={() => showModal('polizaBeneficiarios', { poliza: pol })}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-fuchsia-50 text-xs font-semibold text-fuchsia-600 hover:bg-fuchsia-100 transition whitespace-nowrap"
                         >
                           <Users className="w-4 h-4 shrink-0" /> Beneficiarios
@@ -3625,11 +3620,7 @@ function ClienteHistorialModal({ c, onSaved }) {
                       )}
                       {pol.id && canManageBienes && pol.status !== 'RECHAZADA' && (
                         <button
-                          onClick={() => showModal('polizaBienes', {
-                            poliza: pol,
-                            personaId: c.id,
-                            onClose: () => showModal('clienteHistorial', { c, onSaved }),
-                          })}
+                          onClick={() => showModal('polizaBienes', { poliza: pol, personaId: c.id })}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-50 text-xs font-semibold text-sky-600 hover:bg-sky-100 transition whitespace-nowrap"
                         >
                           <Package className="w-4 h-4 shrink-0" /> Bienes

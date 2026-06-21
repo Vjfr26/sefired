@@ -39,7 +39,7 @@ class ClienteController extends Controller
      */
     public function index()
     {
-        $query = Persona::with(['solicitudes.polizas', 'bienes', 'vendedor'])->withCount('documentos');
+        $query = Persona::with(['solicitudes.polizas', 'solicitudes.producto', 'bienes', 'vendedor', 'documentos'])->withCount('documentos');
         $this->whereVendedorPropio($query);
 
         $personas = $query->get()
@@ -83,6 +83,7 @@ class ClienteController extends Controller
                     ? (int) now()->diffInDays($ultima->fecha_vencimiento, false)
                     : null;
                 $row['poliza_status']         = $ultima?->status;
+                $row['documentos_faltantes']  = $this->tieneDocumentosFaltantes($p);
                 return $row;
             });
 
@@ -522,6 +523,34 @@ class ClienteController extends Controller
         }
 
         return [$usd, $eur];
+    }
+
+    /**
+     * Antes el ícono de "faltan documentos" se mostraba con solo mirar si
+     * documentos_count era 0 — aparecía incluso en clientes cuyo producto no
+     * pide ningún documento. Ahora compara los documentos que el/los
+     * producto(s) de sus solicitudes realmente exigen (obligatorio=true)
+     * contra los que ya subió, por nombre. Las solicitudes rechazadas no
+     * cuentan (no llegaron a generar una obligación real de subir nada).
+     */
+    private function tieneDocumentosFaltantes(Persona $p): bool
+    {
+        $requeridos = $p->solicitudes
+            ->where('status', '!=', 'rechazado')
+            ->pluck('producto.documentos_requeridos')
+            ->filter()
+            ->flatten(1)
+            ->filter(fn($d) => !empty($d['obligatorio']))
+            ->pluck('nombre')
+            ->unique();
+
+        if ($requeridos->isEmpty()) {
+            return false;
+        }
+
+        $subidos = $p->documentos->pluck('nombre');
+
+        return $requeridos->contains(fn($nombre) => !$subidos->contains($nombre));
     }
 
     private function formatRow(Persona $p, string $est, string $pol, string $vig, string $prima, ?int $polizaId): array

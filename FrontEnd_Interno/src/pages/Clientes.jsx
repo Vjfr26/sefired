@@ -162,7 +162,11 @@ export default function Clientes() {
       </span>
     )
 
-    const sinDocumentos = !c.documentos_count
+    // Antes se basaba solo en "no subió ningún documento" (documentos_count
+    // === 0), así que un cliente cuyo producto no pide documentos también
+    // se veía con la advertencia. Ahora el backend ya compara contra los
+    // documentos que el producto realmente exige (ver tieneDocumentosFaltantes).
+    const sinDocumentos = !!c.documentos_faltantes
 
     const vendCell = c.vendedor_nombre
       ? <span className="text-xs sm:text-sm font-medium text-slate-600">{c.vendedor_nombre}</span>
@@ -189,7 +193,7 @@ export default function Clientes() {
       <span className="inline-flex items-center gap-1.5 min-w-0">
         <span className="break-words">{c.nom}</span>
         {sinDocumentos && (
-          <span title="Sin documentos cargados" className="inline-flex shrink-0">
+          <span title="Faltan documentos obligatorios por subir" className="inline-flex shrink-0">
             <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
           </span>
         )}
@@ -209,7 +213,7 @@ export default function Clientes() {
         const actions = [
           { icon: Eye, label: 'Ver detalles', color: 'slate', onClick: () => showModal('clienteDetail', { c }) },
           canViewPolizas && { icon: ClipboardList, label: 'Ver pólizas', color: 'indigo', onClick: () => showModal('clienteHistorial', { c, onSaved: loadClientes }) },
-          canViewDocs && { icon: FolderOpen, label: sinDocumentos ? 'Documentos (sin documentos cargados)' : 'Documentos del cliente', color: 'amber', onClick: () => showModal('clienteDocumentos', { c, onSaved: loadClientes }) },
+          canViewDocs && { icon: FolderOpen, label: sinDocumentos ? 'Documentos (faltan obligatorios)' : 'Documentos del cliente', color: 'amber', onClick: () => showModal('clienteDocumentos', { c, onSaved: loadClientes }) },
           tienePoliza && canViewFacturas && { icon: Receipt, label: 'Ver facturas', color: 'amber', onClick: () => showModal('clienteFacturas', { c }) },
           canEditClientes && { icon: Pencil, label: 'Editar datos', color: 'blue', onClick: () => showModal('clienteForm', {
             cliente: c,
