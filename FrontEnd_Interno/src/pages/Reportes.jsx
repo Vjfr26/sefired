@@ -6,7 +6,7 @@ const fmtDT = (s) => {
   return d.toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
     ' ' + d.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: false })
 }
-import { TrendingUp, Building2, Users, RefreshCw, Search, Download, Check, Calendar, Loader2, Play, CheckCircle2, Car, Filter, ChevronDown, ChevronUp, AlertTriangle, X, Clock, Bookmark, Trash2 } from 'lucide-react'
+import { TrendingUp, Building2, Users, Search, Download, Check, Calendar, Loader2, Play, CheckCircle2, Car, Package, Filter, ChevronDown, ChevronUp, AlertTriangle, X, Clock, Bookmark, Trash2 } from 'lucide-react'
 import {
   fetchExternalReportPolicies,
   exportExternalReport,
@@ -24,15 +24,15 @@ import {
   fetchUsuariosReport,
   fetchClientesReport,
   fetchVehiculosReport,
-  fetchInternalReportSchedules,
-  saveInternalReportSchedules,
-  fetchInternalReportHistory,
-  runInternalReportSchedule,
-  downloadInternalReportFile
+  uploadReporteAdjunto
 } from '../api/reportes.js'
+import { fetchClientes } from '../api/clientes.js'
+import { fetchDocumentosCliente } from '../api/clienteDocumentos.js'
+import { fetchSolicitudesContacto, actualizarSolicitudContacto } from '../api/solicitudesContacto.js'
 import { useApp } from '../context/AppContext.jsx'
 import { usd, bs, badge, rsbadge, sbadge } from '../utils/helpers.jsx'
 import DataTable from '../components/DataTable.jsx'
+import { Paperclip, FileText, UserSearch, MessageCircle } from 'lucide-react'
 
 // ── Shared report filter bar ─────────────────────────────────
 function ReportBar({ children, onExport }) {
@@ -464,21 +464,32 @@ const FRECUENCIAS = [
 
 /**
  * Tarjeta reutilizable para gestionar programaciones de envío automático
- * de reportes (usada por TabAutomaticos y TabExternos). Cada programación
- * agrupa varios destinatarios, y cada destinatario tiene su PROPIA
- * frecuencia — el mismo reporte puede llegarle a uno todos los días y a
- * otro solo una vez al mes.
+ * de reportes externos. Cada programación agrupa varios destinatarios, y
+ * cada destinatario tiene su PROPIA frecuencia — el mismo reporte puede
+ * llegarle a uno todos los días y a otro solo una vez al mes.
  */
-function SchedulesManager({ title, hint, schedules, setSchedules, canManage, saving, onSave, runningSchedId, onRun }) {
+function SchedulesManager({ title, hint, schedules, setSchedules, canManage, saving, onSave, runningSchedId, onRun, tipoOptions = null }) {
+  const { showToast } = useApp()
   const [nuevoEmail, setNuevoEmail] = useState({})       // { [scheduleId]: 'texto en el input' }
   const [nuevaFrecuencia, setNuevaFrecuencia] = useState({}) // { [scheduleId]: 'diario' }
+  const [uploadingId, setUploadingId] = useState(null)
 
   const updateSchedule = (id, field, value) => {
     setSchedules(prev => prev.map(s => s.id === id ? { ...s, [field]: value } : s))
   }
 
   const addSchedule = () => {
-    setSchedules(prev => [...prev, { id: `tmp-${Date.now()}`, nombre: 'Nuevo Reporte', hora: '08:00', activo: true, destinatarios: [] }])
+    setSchedules(prev => [...prev, {
+      id: `tmp-${Date.now()}`,
+      nombre: 'Nuevo Reporte',
+      hora: '08:00',
+      tipo: 'ventas',
+      activo: true,
+      destinatarios: [],
+      documentos_adicionales: [],
+      cliente_documento_ids: [],
+      cliente_documentos_info: [],
+    }])
   }
 
   const deleteSchedule = (id) => {
@@ -510,6 +521,50 @@ function SchedulesManager({ title, hint, schedules, setSchedules, canManage, sav
     }))
   }
 
+  const handleUpload = async (schedId, file) => {
+    if (!file) return
+    setUploadingId(schedId)
+    try {
+      const subido = await uploadReporteAdjunto(file)
+      setSchedules(prev => prev.map(s => s.id !== schedId ? s : {
+        ...s,
+        documentos_adicionales: [...(s.documentos_adicionales || []), subido],
+      }))
+      showToast('Documento adjuntado. Recuerda Guardar Configuración.', 'success')
+    } catch (err) {
+      showToast(err.message || 'Error al subir el documento', 'error')
+    } finally {
+      setUploadingId(null)
+    }
+  }
+
+  const removeAdjunto = (schedId, idx) => {
+    setSchedules(prev => prev.map(s => s.id !== schedId ? s : {
+      ...s,
+      documentos_adicionales: (s.documentos_adicionales || []).filter((_, i) => i !== idx),
+    }))
+  }
+
+  const addClienteDocumento = (schedId, doc, clienteNombre) => {
+    setSchedules(prev => prev.map(s => {
+      if (s.id !== schedId) return s
+      if ((s.cliente_documento_ids || []).includes(doc.id)) return s
+      return {
+        ...s,
+        cliente_documento_ids: [...(s.cliente_documento_ids || []), doc.id],
+        cliente_documentos_info: [...(s.cliente_documentos_info || []), { id: doc.id, nombre: doc.nombre, cliente_nombre: clienteNombre }],
+      }
+    }))
+  }
+
+  const removeClienteDocumento = (schedId, docId) => {
+    setSchedules(prev => prev.map(s => s.id !== schedId ? s : {
+      ...s,
+      cliente_documento_ids: (s.cliente_documento_ids || []).filter(id => id !== docId),
+      cliente_documentos_info: (s.cliente_documentos_info || []).filter(d => d.id !== docId),
+    }))
+  }
+
   return (
     <div className="card p-6">
       <h4 className="font-semibold text-slate-800 mb-1 text-sm">{title}</h4>
@@ -527,7 +582,7 @@ function SchedulesManager({ title, hint, schedules, setSchedules, canManage, sav
           <div key={sched.id} className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 space-y-3">
             {/* ── Cabecera: nombre, hora, activo, eliminar ── */}
             <div className="flex items-start justify-between gap-2 flex-wrap">
-              <div className="flex-1 min-w-[160px] grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className={`flex-1 min-w-[160px] grid grid-cols-1 sm:grid-cols-2 gap-2 ${tipoOptions ? 'lg:grid-cols-3' : ''}`}>
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 mb-1">Nombre</label>
                   <input
@@ -548,6 +603,19 @@ function SchedulesManager({ title, hint, schedules, setSchedules, canManage, sav
                     className="w-full px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 bg-white disabled:opacity-50"
                   />
                 </div>
+                {tipoOptions && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 mb-1">Contenido a reportar</label>
+                    <select
+                      value={sched.tipo || 'ventas'}
+                      onChange={e => updateSchedule(sched.id, 'tipo', e.target.value)}
+                      disabled={!canManage}
+                      className="w-full px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 bg-white disabled:opacity-50"
+                    >
+                      {tipoOptions.map(t => <option key={t.v} value={t.v}>{t.l}</option>)}
+                    </select>
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-3 mt-5">
                 {canManage && (
@@ -652,6 +720,61 @@ function SchedulesManager({ title, hint, schedules, setSchedules, canManage, sav
                 </div>
               )}
             </div>
+
+            {/* ── Documentos adicionales: archivos sueltos para esta programación ── */}
+            <div className="pt-2 border-t border-slate-100">
+              <p className="text-xs font-semibold text-slate-500 mb-2">Documentos adicionales a enviar</p>
+              {(sched.documentos_adicionales || []).length === 0 && (
+                <p className="text-xs text-slate-400 mb-2">Sin documentos adicionales.</p>
+              )}
+              <div className="space-y-1.5 mb-2">
+                {(sched.documentos_adicionales || []).map((doc, idx) => (
+                  <div key={idx} className="flex items-center gap-2 bg-white rounded-lg border border-slate-200 px-2.5 py-1.5">
+                    <Paperclip className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <span className="flex-1 text-xs text-slate-700 truncate">{doc.nombre}</span>
+                    {canManage && (
+                      <button onClick={() => removeAdjunto(sched.id, idx)} className="p-1 text-slate-400 hover:text-red-500 shrink-0">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {canManage && (
+                <label className={`btn-secondary text-xs px-2.5 py-1.5 inline-flex items-center gap-1 cursor-pointer ${uploadingId === sched.id ? 'opacity-50 pointer-events-none' : ''}`}>
+                  {uploadingId === sched.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <span className="text-base leading-none">+</span>}
+                  Adjuntar documento
+                  <input type="file" className="hidden" onChange={e => handleUpload(sched.id, e.target.files?.[0])} />
+                </label>
+              )}
+            </div>
+
+            {/* ── Documentos de un cliente: adjunta algo ya subido al perfil de un cliente ── */}
+            <div className="pt-2 border-t border-slate-100">
+              <p className="text-xs font-semibold text-slate-500 mb-2">Documentos de un cliente a enviar</p>
+              {(sched.cliente_documentos_info || []).length === 0 && (
+                <p className="text-xs text-slate-400 mb-2">Sin documentos de clientes seleccionados.</p>
+              )}
+              <div className="space-y-1.5 mb-2">
+                {(sched.cliente_documentos_info || []).map(doc => (
+                  <div key={doc.id} className="flex items-center gap-2 bg-white rounded-lg border border-slate-200 px-2.5 py-1.5">
+                    <FileText className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <span className="flex-1 text-xs text-slate-700 truncate">{doc.nombre} <span className="text-slate-400">— {doc.cliente_nombre}</span></span>
+                    {canManage && (
+                      <button onClick={() => removeClienteDocumento(sched.id, doc.id)} className="p-1 text-slate-400 hover:text-red-500 shrink-0">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {canManage && (
+                <ClienteDocPicker
+                  excludeIds={sched.cliente_documento_ids || []}
+                  onPick={(doc, clienteNombre) => addClienteDocumento(sched.id, doc, clienteNombre)}
+                />
+              )}
+            </div>
           </div>
         ))}
 
@@ -671,153 +794,185 @@ function SchedulesManager({ title, hint, schedules, setSchedules, canManage, sav
   )
 }
 
-function TabAutomaticos() {
-  const { showToast, canAct } = useApp()
-  const canManage = canAct('reportes', 'manage')
-  const [schedules, setSchedules] = useState([])
-  const [loadingSchedules, setLoadingSchedules] = useState(false)
-  const [savingSchedules, setSavingSchedules] = useState(false)
-  const [history, setHistory] = useState([])
-  const [loadingHistory, setLoadingHistory] = useState(false)
-  const [runningSchedId, setRunningSchedId] = useState(null)
+/**
+ * Busca un cliente por nombre/CI y muestra sus documentos ya subidos para
+ * poder elegir cuáles adjuntar a una programación de reportes.
+ */
+function ClienteDocPicker({ excludeIds, onPick }) {
+  const [clientes, setClientes] = useState([])
+  const [query, setQuery] = useState('')
+  const [cliente, setCliente] = useState(null)
+  const [docs, setDocs] = useState([])
+  const [loadingDocs, setLoadingDocs] = useState(false)
 
-  const loadSchedules = async () => {
-    setLoadingSchedules(true)
+  useEffect(() => { fetchClientes().then(setClientes).catch(() => {}) }, [])
+
+  const results = query.trim()
+    ? clientes.filter(c =>
+        c.nom.toLowerCase().includes(query.toLowerCase()) || c.ci.toLowerCase().includes(query.toLowerCase())
+      ).slice(0, 6)
+    : []
+
+  const selectCliente = async (c) => {
+    setCliente(c); setQuery(''); setLoadingDocs(true)
     try {
-      const data = await fetchInternalReportSchedules()
-      setSchedules(data || [])
-    } catch (err) {
-      showToast('Error al cargar programaciones internas', 'error')
+      setDocs(await fetchDocumentosCliente(c.id))
+    } catch {
+      setDocs([])
     } finally {
-      setLoadingSchedules(false)
-    }
-  }
-
-  const loadHistory = async () => {
-    setLoadingHistory(true)
-    try {
-      const data = await fetchInternalReportHistory()
-      setHistory(data || [])
-    } catch (err) {
-      showToast('Error al cargar historial interno', 'error')
-    } finally {
-      setLoadingHistory(false)
-    }
-  }
-
-  useEffect(() => {
-    if (canManage) loadSchedules()
-    loadHistory()
-  }, [])
-
-  const handleSaveSchedules = async () => {
-    setSavingSchedules(true)
-    try {
-      const payload = schedules.map(s => ({
-        id: String(s.id).startsWith('tmp-') ? undefined : s.id,
-        activo: !!s.activo,
-        hora: s.hora,
-        nombre: s.nombre,
-        destinatarios: (s.destinatarios || []).map(d => ({
-          id: String(d.id).startsWith('tmp-') ? undefined : d.id,
-          email: d.email,
-          frecuencia: d.frecuencia,
-          activo: !!d.activo,
-        })),
-      }))
-      await saveInternalReportSchedules(payload)
-      showToast('Programaciones guardadas con éxito', 'success')
-      loadSchedules()
-    } catch (err) {
-      showToast(err.message || 'Error al guardar programaciones', 'error')
-    } finally {
-      setSavingSchedules(false)
-    }
-  }
-
-  const handleRunNow = async (id) => {
-    setRunningSchedId(id)
-    showToast('Ejecutando reporte interno...', 'info')
-    try {
-      const res = await runInternalReportSchedule(id)
-      showToast(`Reporte interno enviado a ${res.enviados ?? 0} destinatario(s)`, 'success')
-      loadHistory()
-      loadSchedules()
-    } catch (err) {
-      showToast('Error al ejecutar reporte', 'error')
-    } finally {
-      setRunningSchedId(null)
-    }
-  }
-
-  const handleDownloadHistoryFile = async (id, filename) => {
-    showToast('Descargando archivo...', 'info')
-    try {
-      const blob = await downloadInternalReportFile(id)
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = filename || `reporte_interno_${id}.xlsx`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      window.URL.revokeObjectURL(url)
-      showToast('Archivo descargado con éxito', 'success')
-    } catch (err) {
-      showToast('El archivo no está disponible. Use "Ejecutar" para regenerarlo.', 'error')
+      setLoadingDocs(false)
     }
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {loadingSchedules ? (
-        <div className="card p-6 flex items-center justify-center py-6">
-          <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+    <div className="space-y-2">
+      {!cliente ? (
+        <div className="relative">
+          <UserSearch className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Buscar cliente por nombre o cédula…"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            className="w-full pl-8 pr-2.5 py-1.5 text-xs border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+          />
+          {results.length > 0 && (
+            <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden">
+              {results.map(c => (
+                <button key={c.id} type="button" onClick={() => selectCliente(c)}
+                  className="w-full flex items-center justify-between gap-2 px-3 py-2 text-xs hover:bg-slate-50 text-left border-b border-slate-50 last:border-0">
+                  <span className="font-medium text-slate-700 truncate">{c.nom}</span>
+                  <span className="text-slate-400 font-mono shrink-0">{c.ci}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       ) : (
-        <SchedulesManager
-          title="Reportes Programados"
-          hint="Reportes de ventas internos que se generan y envían automáticamente."
-          schedules={schedules}
-          setSchedules={setSchedules}
-          canManage={canManage}
-          saving={savingSchedules}
-          onSave={handleSaveSchedules}
-          runningSchedId={runningSchedId}
-          onRun={handleRunNow}
-        />
-      )}
-
-      <div className="card p-6">
-        <h4 className="font-semibold text-slate-800 mb-5 text-sm">Últimos Reportes Generados</h4>
-        {loadingHistory ? (
-          <div className="flex items-center justify-center py-6">
-            <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+        <div className="bg-white border border-slate-200 rounded-lg p-2.5">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <span className="text-xs font-semibold text-slate-700 truncate">{cliente.nom}</span>
+            <button type="button" onClick={() => { setCliente(null); setDocs([]) }} className="text-slate-400 hover:text-red-500">
+              <X className="w-3.5 h-3.5" />
+            </button>
           </div>
-        ) : (
-          <DataTable
-            cols={[
-              { k: 'rep',   l: 'Reporte',   tr: true },
-              { k: 'fecha', l: 'Fecha/Hora', hide: 'sm' },
-              { k: 'est',   l: 'Estado' },
-              { k: 'acc',   l: '',          acc: true },
-            ]}
-            rows={history.map(r => ({
-              rep: r.nombre_reporte,
-              fecha: fmtDT(r.fecha_generacion),
-              est: rsbadge('Generado'),
-              acc: (
-                <button
-                  onClick={() => handleDownloadHistoryFile(r.id, r.archivo_path.split('/').pop())}
-                  className="text-xs text-blue-600 hover:underline font-semibold flex items-center gap-1 bg-transparent border-none p-0 cursor-pointer"
-                >
-                  <Download className="w-4 h-4" />Descargar
-                </button>
-              ),
-            }))}
-          />
-        )}
+          {loadingDocs ? (
+            <div className="flex items-center gap-2 text-xs text-slate-400 py-1">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Cargando documentos…
+            </div>
+          ) : docs.length === 0 ? (
+            <p className="text-xs text-slate-400">Este cliente no tiene documentos subidos.</p>
+          ) : (
+            <div className="space-y-1">
+              {docs.map(d => {
+                const yaElegido = excludeIds.includes(d.id)
+                return (
+                  <button
+                    key={d.id}
+                    type="button"
+                    disabled={yaElegido}
+                    onClick={() => onPick(d, cliente.nom)}
+                    className="w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed text-left"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <span className="flex-1 truncate">{d.nombre}</span>
+                    {yaElegido && <span className="text-[10px] text-emerald-600 font-semibold shrink-0">Agregado</span>}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Tab: Solicitudes de Contacto (leads del chatbot del portal) ─────────────
+/**
+ * El chatbot del portal público (FrontEnd_Clientes) captura el correo y
+ * motivo (cotizar/póliza/siniestro/técnico) de quien quiere ser contactado,
+ * pero hasta ahora esas solicitudes solo quedaban en la tabla
+ * solicitudes_contacto sin ninguna vista — nadie las veía ni las marcaba
+ * como atendidas.
+ */
+const MOTIVO_LABEL = { cotizar: 'Cotizar', poliza: 'Consulta de póliza', siniestro: 'Siniestro', tecnico: 'Soporte técnico' }
+
+function TabLeads() {
+  const { showToast, canAct } = useApp()
+  const canManage = canAct('reportes', 'manage_leads')
+  const [items, setItems]     = useState([])
+  const [loading, setLoading] = useState(true)
+  const [filtro, setFiltro]   = useState('pendiente')
+
+  const load = async () => {
+    setLoading(true)
+    try {
+      const data = await fetchSolicitudesContacto(filtro ? { status: filtro } : {})
+      setItems(data.data || [])
+    } catch (err) {
+      showToast(err.message, 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { load() }, [filtro])
+
+  const marcar = async (id, status) => {
+    try {
+      await actualizarSolicitudContacto(id, status)
+      showToast(status === 'atendido' ? 'Marcada como atendida' : 'Reabierta', 'success')
+      load()
+    } catch (err) {
+      showToast(err.message, 'error')
+    }
+  }
+
+  const rows = items.map(s => ({
+    id: s.id,
+    fecha: fmtDT(s.created_at),
+    email: s.email,
+    motivo: badge(MOTIVO_LABEL[s.motivo] ?? s.motivo, s.motivo === 'siniestro' ? 'red' : s.motivo === 'tecnico' ? 'amber' : 'blue'),
+    destino: s.destino === 'tecnico' ? 'Soporte técnico' : 'Asesor comercial',
+    status: s.status === 'atendido' ? badge('Atendido', 'green') : badge('Pendiente', 'amber'),
+    accion: canManage && (
+      <button
+        onClick={() => marcar(s.id, s.status === 'atendido' ? 'pendiente' : 'atendido')}
+        className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition ${s.status === 'atendido' ? 'bg-slate-100 text-slate-500 hover:bg-slate-200' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'}`}
+        title={s.status === 'atendido' ? 'Reabrir solicitud' : 'Marcar como atendida'}
+      >
+        {s.status === 'atendido' ? 'Reabrir' : 'Marcar atendida'}
+      </button>
+    ),
+  }))
+
+  return (
+    <div>
+      <div className="flex flex-wrap gap-2 mb-4">
+        {[['pendiente', 'Pendientes'], ['atendido', 'Atendidas'], ['', 'Todas']].map(([val, label]) => (
+          <button
+            key={label}
+            onClick={() => setFiltro(val)}
+            className={`text-xs font-semibold px-3 py-1.5 rounded-xl border transition ${filtro === val ? 'bg-jm-blue text-white border-jm-blue' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}
+          >
+            {label}
+          </button>
+        ))}
       </div>
+      <DataTable
+        searchable
+        loading={loading}
+        cols={[
+          { k: 'fecha',   l: 'Fecha/Hora', nw: true },
+          { k: 'email',   l: 'Correo',     tr: true },
+          { k: 'motivo',  l: 'Motivo' },
+          { k: 'destino', l: 'Se dirige a', hide: 'sm' },
+          { k: 'status',  l: 'Estado' },
+          { k: 'accion',  l: '', acc: true },
+        ]}
+        rows={rows}
+      />
     </div>
   )
 }
@@ -825,7 +980,7 @@ function TabAutomaticos() {
 // ── Tab: Reportes Externos (Carga Masiva) ───────────────────
 function TabExternos() {
   const { showToast, API_BASE_URL, canAct } = useApp()
-  const canManage = canAct('reportes', 'manage')
+  const canManage = canAct('reportes', 'manage_schedules')
   const [policies, setPolicies] = useState([])
   const [loadingPolicies, setLoadingPolicies] = useState(false)
   
@@ -949,6 +1104,8 @@ function TabExternos() {
         activo: !!s.activo,
         hora: s.hora,
         nombre: s.nombre,
+        documentos_adicionales: s.documentos_adicionales || [],
+        cliente_documento_ids: s.cliente_documento_ids || [],
         destinatarios: (s.destinatarios || []).map(d => ({
           id: String(d.id).startsWith('tmp-') ? undefined : d.id,
           email: d.email,
@@ -1012,7 +1169,7 @@ function TabExternos() {
     { k: 'nro_contrato', l: 'Póliza', m: true, nw: true },
     { k: 'tomador',      l: 'Tomador' },
     { k: 'ci_tomador',   l: 'Cédula Tomador', m: true, nw: true },
-    { k: 'vehiculo',     l: 'Vehículo' },
+    { k: 'bien',         l: 'Bienes' },
     { k: 'placa',        l: 'Placa', m: true, nw: true },
     { k: 'vigencia',     l: 'Vigencia', nw: true },
     { k: 'total',        l: 'Monto', r: true, nw: true },
@@ -1032,7 +1189,7 @@ function TabExternos() {
     nro_contrato: p.nro_contrato,
     tomador: p.tomador,
     ci_tomador: p.ci_tomador,
-    vehiculo: p.vehiculo,
+    bien: p.bien,
     placa: p.placa,
     vigencia: p.vigencia,
     total: usd(p.total),
@@ -1410,8 +1567,8 @@ function TabClientesMetrics() {
   const [marca, setMarca] = useState('')
   const [modelo, setModelo] = useState('')
   const [estadoPoliza, setEstadoPoliza] = useState('')
-  const [minVehiculos, setMinVehiculos] = useState('')
-  const [maxVehiculos, setMaxVehiculos] = useState('')
+  const [minBienes, setMinVehiculos] = useState('')
+  const [maxBienes, setMaxVehiculos] = useState('')
   const [minPrima, setMinPrima] = useState('')
   const [maxPrima, setMaxPrima] = useState('')
 
@@ -1440,8 +1597,8 @@ function TabClientesMetrics() {
       marca: overrides.marca ?? marca,
       modelo: overrides.modelo ?? modelo,
       estado_poliza: overrides.estado_poliza ?? estadoPoliza,
-      min_vehiculos: overrides.min_vehiculos ?? minVehiculos,
-      max_vehiculos: overrides.max_vehiculos ?? maxVehiculos,
+      min_bienes: overrides.min_bienes ?? minBienes,
+      max_bienes: overrides.max_bienes ?? maxBienes,
       min_prima: overrides.min_prima ?? minPrima,
       max_prima: overrides.max_prima ?? maxPrima,
     }
@@ -1502,7 +1659,7 @@ function TabClientesMetrics() {
     setMaxVehiculos('')
     setMinPrima('')
     setMaxPrima('')
-    loadData({ filtro: '', marca: '', modelo: '', estado_poliza: '', min_vehiculos: '', max_vehiculos: '', min_prima: '', max_prima: '' })
+    loadData({ filtro: '', marca: '', modelo: '', estado_poliza: '', min_bienes: '', max_bienes: '', min_prima: '', max_prima: '' })
   }
 
   const handleSearchSubmit = (e) => {
@@ -1522,8 +1679,8 @@ function TabClientesMetrics() {
       marca,
       modelo,
       estadoPoliza,
-      minVehiculos,
-      maxVehiculos,
+      minBienes,
+      maxBienes,
       minPrima,
       maxPrima,
     }
@@ -1555,8 +1712,8 @@ function TabClientesMetrics() {
     setMarca(f.marca || '')
     setModelo(f.modelo || '')
     setEstadoPoliza(f.estadoPoliza || '')
-    setMinVehiculos(f.minVehiculos || '')
-    setMaxVehiculos(f.maxVehiculos || '')
+    setMinVehiculos(f.minBienes || '')
+    setMaxVehiculos(f.maxBienes || '')
     setMinPrima(f.minPrima || '')
     setMaxPrima(f.maxPrima || '')
     
@@ -1565,37 +1722,39 @@ function TabClientesMetrics() {
       marca: f.marca || '',
       modelo: f.modelo || '',
       estado_poliza: f.estadoPoliza || '',
-      min_vehiculos: f.minVehiculos || '',
-      max_vehiculos: f.maxVehiculos || '',
+      min_bienes: f.minBienes || '',
+      max_bienes: f.maxBienes || '',
       min_prima: f.minPrima || '',
       max_prima: f.maxPrima || '',
     })
   }
 
-  const hasActiveFilters = activeFilter || marca || modelo || estadoPoliza || minVehiculos || maxVehiculos || minPrima || maxPrima
+  const hasActiveFilters = activeFilter || marca || modelo || estadoPoliza || minBienes || maxBienes || minPrima || maxPrima
 
   // Modelos disponibles según marca seleccionada
   const availableModelos = marca && filterOptions.modelos?.[marca] ? filterOptions.modelos[marca] : []
 
   // ── DETALLE DE CLIENTE ────────────────────────────────────
-  if (selectedClient && clientDetail) {
-    const { cliente, vehiculos, polizas } = clientDetail
+  if (selectedClient) {
+    const cliente   = clientDetail?.cliente
+    const vehiculos = clientDetail?.vehiculos ?? []
+    const polizas   = clientDetail?.polizas ?? []
     return (
-      <div>
+      <div className="animate-in fade-in duration-300">
         <div className="card p-3.5 mb-4 flex items-center gap-3">
           <button onClick={() => { setSelectedClient(null); setClientDetail(null) }} className="btn-secondary">
             ← Volver a la lista
           </button>
-          <span className="text-sm font-semibold text-slate-700 ml-2">Historial de {cliente.nombre}</span>
-          <span className="text-xs text-slate-400 font-mono ml-auto">Cédula: {cliente.cedula}</span>
+          <span className="text-sm font-semibold text-slate-700 ml-2">{cliente ? `Historial de ${cliente.nombre}` : 'Cargando historial…'}</span>
+          {cliente && <span className="text-xs text-slate-400 font-mono ml-auto">Cédula: {cliente.cedula}</span>}
         </div>
 
-        {loadingDetail ? (
-          <div className="flex items-center justify-center py-12">
+        {loadingDetail || !clientDetail ? (
+          <div className="flex items-center justify-center py-20 animate-in fade-in duration-200">
             <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
           </div>
         ) : (
-          <>
+          <div className="animate-in fade-in duration-300">
             <div className="card p-4 mb-5 border border-slate-100 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm bg-white rounded-xl">
               <div><strong className="text-slate-500">Correo Electrónico:</strong> <p className="font-semibold text-slate-800">{cliente.correo}</p></div>
               <div><strong className="text-slate-500">Teléfono / Celular:</strong> <p className="font-semibold text-slate-800">{cliente.telefono} / {cliente.celular}</p></div>
@@ -1635,7 +1794,7 @@ function TabClientesMetrics() {
                 status: rsbadge(p.status)
               }))}
             />
-          </>
+          </div>
         )}
       </div>
     )
@@ -1645,7 +1804,7 @@ function TabClientesMetrics() {
   const quickFilters = [
     { key: 'por_vencer',    label: 'Pólizas por Vencer', Icon: AlertTriangle, color: 'red',     count: stats.polizas_por_vencer },
     { key: 'mas_polizas',   label: 'Más Pólizas',       Icon: TrendingUp,    color: 'blue'    },
-    { key: 'por_vehiculos', label: 'Por Vehículos',      Icon: Car,           color: 'indigo'  },
+    { key: 'por_bienes', label: 'Por Bienes',         Icon: Package,       color: 'indigo'  },
     { key: 'activos',       label: 'Activos',            Icon: CheckCircle2,  color: 'emerald' },
     { key: 'bloqueados',    label: 'Bloqueados',         Icon: X,             color: 'slate'   },
   ]
@@ -1664,7 +1823,7 @@ function TabClientesMetrics() {
 
   // ── RENDER ─────────────────────────────────────────────────
   return (
-    <div className="w-full max-w-full overflow-hidden">
+    <div className="w-full max-w-full">
       {/* Search + Date bar */}
       <form onSubmit={handleSearchSubmit} className="card p-3.5 mb-4 flex flex-col md:flex-row items-stretch md:items-center gap-3">
         <div className="relative flex-1 min-w-0">
@@ -1771,11 +1930,11 @@ function TabClientesMetrics() {
               </select>
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-slate-500 mb-1 uppercase tracking-wide">Rango Vehículos</label>
+              <label className="block text-[11px] font-semibold text-slate-500 mb-1 uppercase tracking-wide">Rango Bienes</label>
               <div className="flex gap-1.5">
-                <input type="number" min="0" placeholder="Mín" value={minVehiculos} onChange={e => setMinVehiculos(e.target.value)}
+                <input type="number" min="0" placeholder="Mín" value={minBienes} onChange={e => setMinVehiculos(e.target.value)}
                   className="w-1/2 text-sm bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 outline-none focus:ring-2 focus:ring-blue-500" />
-                <input type="number" min="0" placeholder="Máx" value={maxVehiculos} onChange={e => setMaxVehiculos(e.target.value)}
+                <input type="number" min="0" placeholder="Máx" value={maxBienes} onChange={e => setMaxVehiculos(e.target.value)}
                   className="w-1/2 text-sm bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
             </div>
@@ -1796,7 +1955,7 @@ function TabClientesMetrics() {
         )}
 
         {/* Guardar Filtro Personalizado */}
-        {showAdvanced && (marca || modelo || estadoPoliza || minVehiculos || maxVehiculos || minPrima || maxPrima) && (
+        {showAdvanced && (marca || modelo || estadoPoliza || minBienes || maxBienes || minPrima || maxPrima) && (
           <div className="mt-4 pt-3 border-t border-slate-100/60 flex flex-wrap items-center justify-between gap-3">
             {!isSavingFilter ? (
               <button
@@ -1834,7 +1993,7 @@ function TabClientesMetrics() {
       ) : (
         <>
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 mb-5">
             {[
               { label: 'Nuevos Clientes', val: stats.nuevos_clientes, sub: 'En período seleccionado', cls: 'border-t-blue-500', vcls: 'text-slate-800' },
               { label: 'Total Clientes', val: stats.total_clientes, sub: 'En el sistema', cls: 'border-t-emerald-500', vcls: 'text-emerald-700' },
@@ -1842,7 +2001,7 @@ function TabClientesMetrics() {
               { label: 'Pólizas Emitidas', val: stats.total_polizas, sub: 'En período seleccionado', cls: 'border-t-amber-500', vcls: 'text-amber-700' },
               { label: 'Por Vencer', val: stats.polizas_por_vencer, sub: 'Próximos 30 días', cls: 'border-t-red-500', vcls: 'text-red-700' },
             ].map(c => (
-              <div key={c.label} className={`card p-4 text-center border-t-4 ${c.cls}`}>
+              <div key={c.label} className={`card p-4 text-center border-t-4 min-w-0 ${c.cls}`}>
                 <p className="text-xs text-slate-600 uppercase tracking-wide">{c.label}</p>
                 <p className={`text-2xl font-black mt-1 ${c.vcls}`}>{c.val}</p>
                 <p className="text-xs text-slate-400">{c.sub}</p>
@@ -1855,9 +2014,7 @@ function TabClientesMetrics() {
             cols={[
               { k: 'ced', l: 'Cédula', m: true, nw: true },
               { k: 'nom', l: 'Nombre Completo', tr: true },
-              { k: 'cor', l: 'Correo', hide: 'lg', tr: true },
-              { k: 'tel', l: 'Teléfono', hide: 'md', nw: true },
-              { k: 'veh', l: 'Vehículos', r: true, hide: 'sm' },
+              { k: 'bienes', l: 'Bienes', r: true, hide: 'sm' },
               { k: 'marcas', l: 'Marcas', hide: 'xl', tr: true },
               { k: 'pol', l: 'Pólizas', r: true },
               { k: 'pol_act', l: 'Activas', r: true, hide: 'sm' },
@@ -1950,24 +2107,26 @@ function TabVehiculosMetrics() {
     if (!selectedPlaca) loadData()
   }
 
-  if (selectedPlaca && vehiculoDetail) {
-    const { vehiculo, propietario, historial } = vehiculoDetail
+  if (selectedPlaca) {
+    const vehiculo    = vehiculoDetail?.vehiculo
+    const propietario = vehiculoDetail?.propietario
+    const historial    = vehiculoDetail?.historial ?? []
     return (
-      <div>
+      <div className="animate-in fade-in duration-300">
         <div className="card p-3.5 mb-4 flex items-center gap-3">
           <button onClick={() => { setSelectedPlaca(null); setVehiculoDetail(null) }} className="btn-secondary">
             ← Volver a la lista
           </button>
-          <span className="text-sm font-semibold text-slate-700 ml-2">Historial de Vehículo Placa: {vehiculo.placa}</span>
-          <span className="text-xs text-slate-400 font-mono ml-auto">Propietario: {propietario.nombre} ({propietario.cedula})</span>
+          <span className="text-sm font-semibold text-slate-700 ml-2">{vehiculo ? `Historial de Vehículo Placa: ${vehiculo.placa}` : 'Cargando historial…'}</span>
+          {propietario && <span className="text-xs text-slate-400 font-mono ml-auto">Propietario: {propietario.nombre} ({propietario.cedula})</span>}
         </div>
 
-        {loadingDetail ? (
-          <div className="flex items-center justify-center py-12">
+        {loadingDetail || !vehiculoDetail ? (
+          <div className="flex items-center justify-center py-20 animate-in fade-in duration-200">
             <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
           </div>
         ) : (
-          <>
+          <div className="animate-in fade-in duration-300">
             <div className="card p-4 mb-5 border border-slate-100 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm bg-white rounded-xl">
               <div><strong className="text-slate-500">Marca / Modelo:</strong> <p className="font-semibold text-slate-800">{vehiculo.marca} / {vehiculo.modelo}</p></div>
               <div><strong className="text-slate-500">Año / Color:</strong> <p className="font-semibold text-slate-800">{vehiculo.anio} / {vehiculo.color}</p></div>
@@ -1994,7 +2153,7 @@ function TabVehiculosMetrics() {
                 status: rsbadge(h.status)
               }))}
             />
-          </>
+          </div>
         )}
       </div>
     )
@@ -2095,27 +2254,29 @@ function TabVehiculosMetrics() {
 }
 
 // ── Main Reportes page ───────────────────────────────────────
+// Cada pestaña tiene su propio permiso view_* — el admin puede mostrar/ocultar
+// cada una individualmente por usuario desde el modal de Permisos, en vez de
+// que 'reportes.view' revele las 9 de golpe (algunas, como Ventas/Comisiones
+// o Personal, exponen datos de desempeño de otros empleados).
 const TABS = [
-  { key: 'ventas',           label: 'Ventas / Comisiones', Icon: TrendingUp,  Component: TabVentas },
-  { key: 'oficinas',         label: 'Oficinas',            Icon: Building2,   Component: TabOficinas },
-  { key: 'personal',         label: 'Personal',            Icon: Users,       Component: TabPersonal },
-  { key: 'usuarios_metrics', label: 'Métricas de Personal',Icon: Users,       Component: TabUsuariosMetrics },
-  { key: 'clientes_metrics', label: 'Métricas de Clientes',Icon: Users,       Component: TabClientesMetrics },
-  { key: 'vehiculos_metrics',label: 'Métricas de Vehículos',Icon: Car,        Component: TabVehiculosMetrics },
-  { key: 'externos',         label: 'Reportes Externos',   Icon: Download,    Component: TabExternos },
-  { key: 'automaticos',      label: 'Automáticos',         Icon: RefreshCw,   Component: TabAutomaticos },
+  { key: 'ventas',           label: 'Ventas / Comisiones', Icon: TrendingUp,  Component: TabVentas,           viewPerm: 'view_ventas' },
+  { key: 'oficinas',         label: 'Oficinas',            Icon: Building2,   Component: TabOficinas,         viewPerm: 'view_oficinas' },
+  { key: 'personal',         label: 'Personal',            Icon: Users,       Component: TabPersonal,         viewPerm: 'view_personal' },
+  { key: 'usuarios_metrics', label: 'Métricas de Personal',Icon: Users,       Component: TabUsuariosMetrics,  viewPerm: 'view_metrics_personal' },
+  { key: 'clientes_metrics', label: 'Métricas de Clientes',Icon: Users,       Component: TabClientesMetrics,  viewPerm: 'view_metrics_clientes' },
+  { key: 'vehiculos_metrics',label: 'Métricas de Vehículos',Icon: Car,        Component: TabVehiculosMetrics, viewPerm: 'view_metrics_vehiculos' },
+  { key: 'leads',            label: 'Solicitudes de Contacto', Icon: MessageCircle, Component: TabLeads,      viewPerm: 'view_leads' },
+  { key: 'externos',         label: 'Reportes Externos',   Icon: Download,    Component: TabExternos,        viewPerm: 'view_externos' },
 ]
 
 export default function Reportes() {
   const { canAct, currentUser } = useApp()
   const isVendedor = currentUser?.tipo?.startsWith('Vendedor') || currentUser?.tipo === 'Vendedor' || currentUser?.cargo === 'Agente'
 
-  const activeTabs = isVendedor
-    ? TABS.filter(t => t.key === 'ventas')
-    : TABS
+  const activeTabs = TABS.filter(t => canAct('reportes', t.viewPerm))
 
   const [active, setActive] = useState('ventas')
-  const ActiveTab = activeTabs.find(t => t.key === active)?.Component ?? TabVentas
+  const ActiveTab = (activeTabs.find(t => t.key === active) ?? activeTabs[0])?.Component
 
   if (!canAct('reportes', 'view')) {
     return (
@@ -2129,8 +2290,20 @@ export default function Reportes() {
     )
   }
 
+  if (!ActiveTab) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
+        <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center">
+          <span className="text-2xl">📊</span>
+        </div>
+        <p className="font-semibold text-slate-600">Sin pestañas habilitadas</p>
+        <p className="text-xs text-slate-400">Tu cuenta no tiene acceso a ninguna pestaña de este módulo. Pide a un administrador que te asigne al menos una.</p>
+      </div>
+    )
+  }
+
   return (
-    <div>
+    <div className="animate-in fade-in duration-500">
       {activeTabs.length > 1 && (
         <div className="flex flex-wrap gap-2 mb-5">
           {activeTabs.map(t => (
@@ -2142,7 +2315,9 @@ export default function Reportes() {
           ))}
         </div>
       )}
-      <ActiveTab />
+      <div key={active} className="animate-in fade-in duration-300">
+        <ActiveTab />
+      </div>
     </div>
   )
 }

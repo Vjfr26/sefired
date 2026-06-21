@@ -1,6 +1,8 @@
-import { Users, Calculator, BarChart3 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Users, Calculator, BarChart3, FileCheck, ShieldCheck, TrendingUp, ClipboardList } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { UserAvatar } from '../utils/helpers.jsx'
+import { fetchStats } from '../api/reportes.js'
 
 const QUICK_ITEMS = [
   {
@@ -40,6 +42,16 @@ export default function Home() {
 
   const quickItems = QUICK_ITEMS.filter(item => userPerms.includes(item.perm))
 
+  // Resumen general — solo para roles con acceso a reportes (Admin/Oficina);
+  // un vendedor no debe ver totales agregados de toda la cartera.
+  const verResumen = userPerms.includes('reportes')
+  const [stats, setStats] = useState(null)
+
+  useEffect(() => {
+    if (!verResumen) return
+    fetchStats().then(setStats).catch(() => {})
+  }, [verResumen])
+
   return (
     <div className="animate-in fade-in duration-700 pt-4 sm:pt-6">
       <div className="card w-full max-w-xl mx-auto overflow-hidden">
@@ -73,6 +85,25 @@ export default function Home() {
           </div>
         )}
       </div>
+
+      {/* Resumen general del sistema */}
+      {verResumen && stats && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 max-w-4xl mx-auto mt-6">
+          {[
+            { label: 'Pólizas Activas',  val: stats.polizas_activas,         Icon: ShieldCheck,    cls: 'border-t-emerald-500', vcls: 'text-emerald-700' },
+            { label: 'Cotiz. en Revisión', val: stats.cotizaciones_en_revision, Icon: ClipboardList, cls: 'border-t-amber-500',  vcls: 'text-amber-700' },
+            { label: 'Cotiz. Emitidas',  val: stats.cotizaciones_emitidas,   Icon: FileCheck,      cls: 'border-t-blue-500',   vcls: 'text-blue-700' },
+            { label: 'Ventas este Mes',  val: stats.ventas_este_mes,         Icon: TrendingUp,     cls: 'border-t-indigo-500', vcls: 'text-indigo-700' },
+            { label: 'Clientes',         val: stats.total_clientes,          Icon: Users,          cls: 'border-t-slate-400',  vcls: 'text-slate-700' },
+          ].map(c => (
+            <div key={c.label} className={`card p-4 text-center border-t-4 ${c.cls}`}>
+              <c.Icon className={`w-4 h-4 mx-auto mb-1 ${c.vcls}`} />
+              <p className={`text-xl font-black ${c.vcls}`}>{c.val ?? 0}</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">{c.label}</p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

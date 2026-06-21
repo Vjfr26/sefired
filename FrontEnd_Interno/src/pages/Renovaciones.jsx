@@ -112,23 +112,23 @@ export default function Renovaciones() {
     ),
     est:    statusBadge(r.status),
     acc: r.status === 'PENDIENTE' ? (
-      <div className="flex gap-1 justify-center">
+      <div className="flex gap-1.5 justify-center">
         {canEmit && (
           <button
             onClick={() => handleAutorizar(r)}
-            className="p-2 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition"
+            className="p-2.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition"
             title="Autorizar renovación"
           >
-            <CheckCircle className="w-4 h-4" />
+            <CheckCircle className="w-[18px] h-[18px]" />
           </button>
         )}
         {canEdit && (
           <button
             onClick={() => handleRechazar(r)}
-            className="p-2 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition"
+            className="p-2.5 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition"
             title="Rechazar solicitud"
           >
-            <XCircle className="w-4 h-4" />
+            <XCircle className="w-[18px] h-[18px]" />
           </button>
         )}
       </div>
@@ -152,7 +152,7 @@ export default function Renovaciones() {
   const pendientes = rows.filter(r => r.status === 'PENDIENTE').length
 
   return (
-    <div>
+    <div className="animate-in fade-in duration-500">
       {/* ── Alerta de pendientes ── */}
       {filter.status === 'PENDIENTE' && !loading && pendientes > 0 && (
         <div className="mb-5 flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">

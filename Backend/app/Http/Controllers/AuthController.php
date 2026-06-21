@@ -157,6 +157,11 @@ class AuthController extends Controller
             return response()->json(['message' => 'Esta cuenta se encuentra desactivada. Contacte al administrador.'], 403);
         }
 
+        if ($usuario->temp && $usuario->temp_expira_en && now()->isAfter($usuario->temp_expira_en)) {
+            $usuario->update(['activo' => false]);
+            return response()->json(['message' => 'El acceso temporal de esta cuenta ha vencido. Contacte al administrador.'], 403);
+        }
+
         // ── 5. Cerrar sesión anterior si existe una activa ───────────────────────
         $sesionActiva = $usuario->api_token
             && $usuario->token_expira_en

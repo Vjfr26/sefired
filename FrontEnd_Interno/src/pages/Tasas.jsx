@@ -24,13 +24,14 @@ const varText = (texto, color) => (
 
 export default function Tasas() {
   const { showModal, showToast, refreshTasas, canAct } = useApp()
-  const canCreate = canAct('tasas', 'create')
-  const canEdit   = canAct('tasas', 'edit')
-  const canDelete = canAct('tasas', 'delete')
+  const canCreate    = canAct('tasas', 'create')
+  const canEdit      = canAct('tasas', 'edit')
+  const canDelete    = canAct('tasas', 'delete')
+  const canViewCards = canAct('tasas', 'view_cards')
+  const canViewList  = canAct('tasas', 'view_list')
 
   const [data, setData]       = useState({ usd: null, eur: null, historial: [] })
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving]   = useState(false)
   const [form, setForm]       = useState({ fecha: hoy(), usd: '', eur: '' })
 
   // Convierte yyyy-mm-dd → dd/mm/yyyy para comparar con el historial
@@ -54,21 +55,24 @@ export default function Tasas() {
   useEffect(() => { loadTasas() }, [loadTasas])
 
   // ── Registrar tasas del día ─────────────────────────────────────────────────
-  const handleRegistrar = async (e) => {
+  // Pide confirmación + contraseña antes de aplicar el cambio, ya que afecta
+  // todos los cálculos del sistema a partir de este momento.
+  const handleRegistrar = (e) => {
     e.preventDefault()
     if (!form.usd || !form.eur) { showToast('Ingresa ambas tasas (USD y EUR)', 'error'); return }
-    setSaving(true)
-    try {
-      await storeTasas({ fecha: form.fecha, usd: parseFloat(form.usd), eur: parseFloat(form.eur) })
-      showToast(fechaYaRegistrada ? 'Tasas actualizadas correctamente' : 'Tasas del día registradas y aplicadas', 'success')
-      setForm({ fecha: hoy(), usd: '', eur: '' })
-      await loadTasas()
-      await refreshTasas()
-    } catch (err) {
-      showToast(err.message, 'error')
-    } finally {
-      setSaving(false)
-    }
+    showModal('confirmTasa', {
+      fecha: fechaFormDDMMYYYY,
+      usd: form.usd,
+      eur: form.eur,
+      isUpdate: fechaYaRegistrada,
+      onConfirm: async () => {
+        await storeTasas({ fecha: form.fecha, usd: parseFloat(form.usd), eur: parseFloat(form.eur) })
+        showToast(fechaYaRegistrada ? 'Tasas actualizadas correctamente' : 'Tasas del día registradas y aplicadas', 'success')
+        setForm({ fecha: hoy(), usd: '', eur: '' })
+        await loadTasas()
+        await refreshTasas()
+      },
+    })
   }
 
   // ── Filas del historial ─────────────────────────────────────────────────────
@@ -79,7 +83,7 @@ export default function Tasas() {
     t:   <span className="font-bold">{fmtTasa(r.valor)}</span>,
     v:   varText(r.variacion, r.var_color),
     acc: (
-      <div className="flex gap-1 justify-center flex-nowrap">
+      <div className="flex gap-1.5 justify-center flex-nowrap">
         {canEdit && (
           <button
             onClick={() => showModal('editForm', {
@@ -93,10 +97,10 @@ export default function Tasas() {
                 await refreshTasas()
               },
             })}
-            className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition"
+            className="p-2.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition"
             title="Editar"
           >
-            <Pencil className="w-4 h-4" />
+            <Pencil className="w-[18px] h-[18px]" />
           </button>
         )}
         {canDelete && (
@@ -109,10 +113,10 @@ export default function Tasas() {
                 await refreshTasas()
               },
             })}
-            className="p-2 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition"
+            className="p-2.5 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition"
             title="Eliminar"
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className="w-[18px] h-[18px]" />
           </button>
         )}
       </div>
@@ -171,23 +175,25 @@ export default function Tasas() {
   }
 
   return (
-    <div>
+    <div className="animate-in fade-in duration-500">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
 
         {/* ── Cards de tasas actuales ── */}
-        <div className="space-y-4">
-          {loading ? (
-            <div className="flex justify-center items-center py-16 text-slate-400 text-sm gap-2">
-              <div className="w-4 h-4 border-2 border-slate-300 border-t-jm-blue rounded-full animate-spin" />
-              Cargando tasas…
-            </div>
-          ) : (
-            <>
-              <CardTasa simbolo="$" label="Dólar USD" color="emerald" dato={data.usd} />
-              <CardTasa simbolo="€" label="Euro EUR"  color="amber"   dato={data.eur} />
-            </>
-          )}
-        </div>
+        {canViewCards && (
+          <div className="space-y-4">
+            {loading ? (
+              <div className="flex justify-center items-center py-16 text-slate-400 text-sm gap-2">
+                <div className="w-4 h-4 border-2 border-slate-300 border-t-jm-blue rounded-full animate-spin" />
+                Cargando tasas…
+              </div>
+            ) : (
+              <>
+                <CardTasa simbolo="$" label="Dólar USD" color="emerald" dato={data.usd} />
+                <CardTasa simbolo="€" label="Euro EUR"  color="amber"   dato={data.eur} />
+              </>
+            )}
+          </div>
+        )}
 
         {/* ── Formulario de registro ── */}
         <div className="card p-6">
@@ -196,7 +202,7 @@ export default function Tasas() {
             <p className="text-xs text-slate-400 text-center py-6">Sin permiso para registrar tasas.</p>
           ) : (
           <form onSubmit={handleRegistrar} className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="field-label">Dólar USD (Bs) <span className="text-rose-500">*</span></label>
                 <div className="relative">
@@ -235,15 +241,8 @@ export default function Tasas() {
                 required
               />
             </div>
-            <button type="submit" disabled={saving} className="btn-primary w-full disabled:opacity-70">
-              {saving ? (
-                <div className="flex items-center justify-center gap-2">
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  {fechaYaRegistrada ? 'Actualizando…' : 'Registrando…'}
-                </div>
-              ) : (
-                <><Check className="w-4 h-4" />{fechaYaRegistrada ? 'Actualizar Tasas' : 'Registrar Tasas'}</>
-              )}
+            <button type="submit" className="btn-primary w-full">
+              <Check className="w-4 h-4" />{fechaYaRegistrada ? 'Actualizar Tasas' : 'Registrar Tasas'}
             </button>
           </form>
           )}
@@ -251,21 +250,31 @@ export default function Tasas() {
       </div>
 
       {/* ── Historial ── */}
-      <h4 className="font-semibold text-slate-700 mb-3">Historial de Tasas Registradas</h4>
-      {!loading && data.historial.length === 0 && (
-        <p className="text-sm text-slate-400 text-center py-8">No hay tasas registradas aún.</p>
-      )}
-      {data.historial.length > 0 && (
-        <DataTable
-          cols={[
-            { k: 'f',   l: 'Fecha',     nw: true },
-            { k: 'mon', l: 'Moneda',    nw: true },
-            { k: 't',   l: 'Tasa Bs',   r: true, nw: true },
-            { k: 'v',   l: 'Variación', hide: 'sm', nw: true },
-            { k: 'acc', l: '',          acc: true },
-          ]}
-          rows={dataRows}
-        />
+      {canViewList ? (
+        <>
+          <h4 className="font-semibold text-slate-700 mb-3">Historial de Tasas Registradas</h4>
+          {!loading && data.historial.length === 0 && (
+            <p className="text-sm text-slate-400 text-center py-8">No hay tasas registradas aún.</p>
+          )}
+          {(loading || data.historial.length > 0) && (
+            <DataTable
+              cols={[
+                { k: 'f',   l: 'Fecha',     nw: true },
+                { k: 'mon', l: 'Moneda',    nw: true },
+                { k: 't',   l: 'Tasa Bs',   r: true, nw: true },
+                { k: 'v',   l: 'Variación', hide: 'sm', nw: true },
+                { k: 'acc', l: '',          acc: true },
+              ]}
+              rows={dataRows}
+              loading={loading}
+            />
+          )}
+        </>
+      ) : (
+        <div className="card flex flex-col items-center justify-center py-16 gap-2 text-center">
+          <span className="text-2xl">💵</span>
+          <p className="text-xs text-slate-400">No tienes permiso para ver el historial de tasas.</p>
+        </div>
       )}
     </div>
   )

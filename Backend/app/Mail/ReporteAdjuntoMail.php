@@ -18,11 +18,18 @@ class ReporteAdjuntoMail extends Mailable
 {
     use Queueable, SerializesModels;
 
+    /**
+     * @param array<int, array{path: string, nombre: string, mime?: ?string}> $adjuntosExtra
+     *        Documentos adicionales a incluir junto al reporte: archivos
+     *        sueltos subidos para esta programación y/o documentos ya
+     *        existentes de un cliente (cliente_documentos).
+     */
     public function __construct(
         public string $nombreReporte,
         public string $archivoPath,
         public string $archivoNombre,
         public string $frecuencia,
+        public array $adjuntosExtra = [],
     ) {}
 
     public function envelope(): Envelope
@@ -50,11 +57,27 @@ class ReporteAdjuntoMail extends Mailable
 
     public function attachments(): array
     {
-        return [
+        $attachments = [
             Attachment::fromData(
                 fn() => Storage::disk('public')->get($this->archivoPath),
                 $this->archivoNombre,
             )->withMime('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
         ];
+
+        foreach ($this->adjuntosExtra as $extra) {
+            if (!Storage::disk('public')->exists($extra['path'])) {
+                continue;
+            }
+            $attachment = Attachment::fromData(
+                fn() => Storage::disk('public')->get($extra['path']),
+                $extra['nombre'],
+            );
+            if (!empty($extra['mime'])) {
+                $attachment = $attachment->withMime($extra['mime']);
+            }
+            $attachments[] = $attachment;
+        }
+
+        return $attachments;
     }
 }

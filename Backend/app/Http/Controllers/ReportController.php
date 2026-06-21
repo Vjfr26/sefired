@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Mail\ReporteAdjuntoMail;
+use App\Models\AuditLog;
 use App\Models\EmailLog;
+use App\Models\IpBloqueada;
 use App\Models\Log;
 use App\Models\Usuario;
 use App\Models\Persona;
@@ -13,6 +15,7 @@ use App\Models\ReporteExternoProgramacion;
 use App\Models\ReporteInternoProgramacion;
 use App\Models\Solicitud;
 use App\Models\UnderwritingEvaluacion;
+use App\Models\Venta;
 use App\Rules\NoInjectionChars;
 use App\Services\ReporteGeneratorService;
 use Illuminate\Http\Request;
@@ -23,10 +26,11 @@ use App\Exports\ExternalReportExport;
 use App\Exports\VentasExport;
 use App\Exports\OficinasExport;
 use App\Exports\PersonalExport;
-use App\Exports\InternalReportExport;
 
 class ReportController extends Controller
 {
+    use \App\Traits\ResuelveAdjuntosReporte, \App\Traits\LogsActivity;
+
     // ── LOGS ─────────────────────────────────────────────────────────────────────
 
     public function getLogs(Request $request)
@@ -55,7 +59,104 @@ class ReportController extends Controller
             $query->whereDate('created_at', '<=', $request->hasta);
         }
 
-        return response()->json($query->paginate(20));
+        // Sin paginar server-side: el listado de auditoría usa el mismo patrón
+        // que el resto de las listas (DataTable pagina/filtra del lado del
+        // cliente). Se limita a los 2000 más recientes como tope de seguridad.
+        return response()->json(['data' => $query->limit(2000)->get()]);
+    }
+
+    /**
+     * Historial de cambios campo a campo (creating/updated/deleted) que se
+     * registra automáticamente vía AuditObserver para Solicitud, Póliza,
+     * Factura y Producto — complementa los logs descriptivos de getLogs()
+     * con el detalle exacto de qué cambió en cada registro.
+     */
+    public function getAuditLog(Request $request)
+    {
+        $noInjection = new NoInjectionChars();
+
+        $request->validate([
+            'modelo'     => ['nullable', 'string', 'max:80', $noInjection],
+            'usuario_id' => 'nullable|integer|exists:usuarios,id',
+            'desde'      => 'nullable|date',
+            'hasta'      => 'nullable|date|after_or_equal:desde',
+        ]);
+
+        $query = AuditLog::with('usuario:id,nombre')->orderBy('created_at', 'desc');
+
+        if ($request->filled('modelo')) {
+            $query->where('modelo', $request->modelo);
+        }
+        if ($request->filled('usuario_id')) {
+            $query->where('usuario_id', (int) $request->usuario_id);
+        }
+        if ($request->filled('desde')) {
+            $query->whereDate('created_at', '>=', $request->desde);
+        }
+        if ($request->filled('hasta')) {
+            $query->whereDate('created_at', '<=', $request->hasta);
+        }
+
+        return response()->json(['data' => $query->limit(2000)->get()]);
+    }
+
+    /**
+     * IPs bloqueadas (intentos de login fallidos, patrones de ataque
+     * detectados, o bloqueo manual al desactivar un usuario). Existían en BD
+     * y bloqueaban accesos reales, pero no había forma de verlas ni de
+     * desbloquear una IP bloqueada por error (ej. IP de oficina compartida).
+     */
+    public function getIpsBloqueadas()
+    {
+        $ips = IpBloqueada::with('usuario:id,nombre')->orderByDesc('created_at')->get();
+
+        return response()->json(['data' => $ips]);
+    }
+
+    public function unbloquearIp($id)
+    {
+        $ip = IpBloqueada::findOrFail($id);
+        $direccion = $ip->ip;
+        $ip->delete();
+
+        $this->logActivity('IP Desbloqueada', "IP {$direccion} desbloqueada manualmente", 'ip_bloqueada', auth()->id());
+
+        return response()->json(['message' => 'IP desbloqueada correctamente']);
+    }
+
+    /**
+     * Historial de correos enviados por el sistema (bienvenida, pólizas,
+     * facturas, recordatorios, reportes programados, etc.). Se registra vía
+     * EmailLog::registrar() en cada Mail::queue(), pero hasta ahora no tenía
+     * ningún endpoint que lo expusiera al panel.
+     */
+    public function getEmailLogs(Request $request)
+    {
+        $noInjection = new NoInjectionChars();
+
+        $request->validate([
+            'tipo'   => ['nullable', 'string', 'max:60', $noInjection],
+            'status' => 'nullable|string|in:enviado,error',
+            'desde'  => 'nullable|date',
+            'hasta'  => 'nullable|date|after_or_equal:desde',
+        ]);
+
+        $query = EmailLog::with(['persona:id,nombre', 'poliza:id,nro_contrato'])->orderBy('sent_at', 'desc');
+
+        if ($request->filled('tipo')) {
+            $query->where('tipo', $request->tipo);
+        }
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+        if ($request->filled('desde')) {
+            $query->whereDate('sent_at', '>=', $request->desde);
+        }
+        if ($request->filled('hasta')) {
+            $query->whereDate('sent_at', '<=', $request->hasta);
+        }
+
+        return response()->json(['data' => $query->limit(2000)->get()]);
     }
 
     // ── STATS ────────────────────────────────────────────────────────────────────
@@ -96,6 +197,7 @@ class ReportController extends Controller
             'polizas_anuladas'         => (int) $polCounts->anuladas,
             'underwriting_pendiente'   => (int) $uwCounts->pendiente,
             'underwriting_observado'   => (int) $uwCounts->observado,
+            'ventas_este_mes'          => Venta::whereMonth('fecha_venta', now()->month)->whereYear('fecha_venta', now()->year)->count(),
         ]);
     }
 
@@ -134,11 +236,18 @@ class ReportController extends Controller
             $sol  = $p->solicitud;
             $bien = $sol?->bien;
             $attr = $bien?->atributos ?? [];
-            $marca    = $attr['marca'] ?? '—';
-            $modelo   = $attr['modelo'] ?? '—';
-            $anio     = $attr['anio'] ?? '—';
-            $vehiculo = $marca !== '—' ? "{$marca} {$modelo} ({$anio})" : '—';
-            $placa    = $bien?->placa_idx ?? $attr['placa'] ?? '—';
+            $placa = $bien?->placa_idx ?? $attr['placa'] ?? '—';
+
+            // No toda póliza cubre un vehículo (puede ser inmueble u otro
+            // bien, o ninguno — vida, salud, accidentes, funeraria). Antes
+            // esta columna solo sabía describir vehículos y quedaba en "—"
+            // para todo lo demás, aunque sí hubiera un bien real asociado.
+            $bienDesc = match ($bien?->tipo) {
+                'vehiculo' => 'Vehículo — ' . ($attr['marca'] ?? '—') . ' ' . ($attr['modelo'] ?? '—') . ' (' . ($attr['anio'] ?? '—') . ')',
+                'inmueble' => 'Inmueble' . (!empty($attr['direccion']) ? " — {$attr['direccion']}" : ''),
+                null       => '—',
+                default    => ucfirst($bien->tipo) . (!empty($bien->descripcion) ? " — {$bien->descripcion}" : ''),
+            };
 
             $inicio = $p->fecha_emision ? $p->fecha_emision->format('d/m/Y') : '—';
             $fin    = $p->fecha_vencimiento ? $p->fecha_vencimiento->format('d/m/Y') : '—';
@@ -148,7 +257,7 @@ class ReportController extends Controller
                 'nro_contrato'      => $p->nro_contrato,
                 'tomador'           => $sol?->nombre_tomador ?? $sol?->persona?->nombre ?? '—',
                 'ci_tomador'        => $sol?->ci_tomador ?? $sol?->persona?->cedula ?? '—',
-                'vehiculo'          => $vehiculo,
+                'bien'              => $bienDesc,
                 'placa'             => $placa,
                 'fecha_emision'     => $inicio,
                 'fecha_vencimiento' => $fin,
@@ -183,19 +292,23 @@ class ReportController extends Controller
 
     public function getExternalReportSchedules()
     {
-        return response()->json(
-            ReporteExternoProgramacion::with('destinatarios')->orderBy('id')->get()
-        );
+        $programaciones = ReporteExternoProgramacion::with('destinatarios')->orderBy('id')->get();
+        return response()->json($this->decorarConDocumentosInfo($programaciones));
     }
 
     public function saveExternalReportSchedules(Request $request)
     {
         $request->validate([
-            'schedules'                          => 'array',
-            'schedules.*.nombre'                 => 'required|string|max:100',
-            'schedules.*.hora'                    => 'required|string',
+            'schedules'                              => 'array',
+            'schedules.*.nombre'                     => 'required|string|max:100',
+            'schedules.*.hora'                        => 'required|string',
             'schedules.*.destinatarios.*.email'      => 'required|email|max:150',
             'schedules.*.destinatarios.*.frecuencia' => 'required|string|in:diario,semanal,mensual,trimestral',
+            'schedules.*.documentos_adicionales'           => 'nullable|array',
+            'schedules.*.documentos_adicionales.*.path'    => 'required_with:schedules.*.documentos_adicionales|string',
+            'schedules.*.documentos_adicionales.*.nombre'  => 'required_with:schedules.*.documentos_adicionales|string',
+            'schedules.*.cliente_documento_ids'            => 'nullable|array',
+            'schedules.*.cliente_documento_ids.*'          => 'integer|exists:cliente_documentos,id',
         ]);
 
         $this->upsertProgramaciones($request->input('schedules', []), ReporteExternoProgramacion::class);
@@ -264,6 +377,11 @@ class ReportController extends Controller
                 $prog->nombre = $s['nombre'] ?? 'Reporte';
                 $prog->hora   = $s['hora']   ?? '08:00';
                 $prog->activo = (bool) ($s['activo'] ?? true);
+                if ($modelClass === ReporteInternoProgramacion::class) {
+                    $prog->tipo = $s['tipo'] ?? 'ventas';
+                }
+                $prog->documentos_adicionales = $s['documentos_adicionales'] ?? [];
+                $prog->cliente_documento_ids  = $s['cliente_documento_ids'] ?? [];
                 $prog->save();
                 $incomingIds[] = $prog->id;
 
@@ -283,7 +401,20 @@ class ReportController extends Controller
                 $prog->destinatarios()->whereNotIn('id', $destIncomingIds)->delete();
             }
 
+            // whereNotIn(...)->delete() es un reemplazo completo: cualquier
+            // programación que no venga en el payload se borra sin soft-delete.
+            // Se deja registro de cuántas se mantuvieron/borraron para poder
+            // reconstruir qué pasó si algún día se guarda un payload incompleto.
+            $eliminadas = $modelClass::whereNotIn('id', $incomingIds)->count();
             $modelClass::whereNotIn('id', $incomingIds)->delete();
+
+            $tipoLabel = $modelClass === ReporteInternoProgramacion::class ? 'internas' : 'externas';
+            $this->logActivity(
+                'Programaciones de Reportes Guardadas',
+                "Programaciones {$tipoLabel}: " . count($incomingIds) . " guardadas, {$eliminadas} eliminadas (reemplazo completo)",
+                'reportes_programaciones',
+                auth()->id()
+            );
         });
     }
 
@@ -297,11 +428,12 @@ class ReportController extends Controller
      */
     private function enviarADestinatarios($schedule, array $archivo, string $tipoEmailLog): int
     {
+        $adjuntosExtra = $this->resolverAdjuntosExtra($schedule);
         $enviados = 0;
         foreach ($schedule->destinatarios()->where('activo', true)->get() as $destinatario) {
             try {
                 Mail::to($destinatario->email)->send(
-                    new ReporteAdjuntoMail($schedule->nombre, $archivo['path'], $archivo['filename'], $destinatario->frecuencia)
+                    new ReporteAdjuntoMail($schedule->nombre, $archivo['path'], $archivo['filename'], $destinatario->frecuencia, $adjuntosExtra)
                 );
                 $destinatario->update(['ultimo_envio' => now()]);
                 EmailLog::registrar(tipo: $tipoEmailLog, destinatario: $destinatario->email, asunto: $schedule->nombre);
@@ -311,6 +443,27 @@ class ReportController extends Controller
             }
         }
         return $enviados;
+    }
+
+    /**
+     * Sube un archivo suelto para adjuntarlo a una programación de reportes
+     * (interna o externa). Devuelve {nombre, path} para guardarlo en
+     * documentos_adicionales al hacer Guardar Configuración.
+     */
+    public function uploadReporteAdjunto(Request $request)
+    {
+        $request->validate([
+            'archivo' => 'required|file|max:10240',
+        ]);
+
+        $file = $request->file('archivo');
+        $path = $file->store('reportes_adjuntos', 'public');
+
+        return response()->json([
+            'nombre' => $file->getClientOriginalName(),
+            'path'   => $path,
+            'mime'   => $file->getClientMimeType(),
+        ]);
     }
 
     // ── VENTAS Y COMISIONES ───────────────────────────────────────────────────────
@@ -507,74 +660,6 @@ class ReportController extends Controller
             ->download('reporte_personal_' . now()->format('Ymd_His') . '.xlsx');
     }
 
-    // ── PROGRAMACIONES INTERNAS ───────────────────────────────────────────────────
-
-    public function getInternalSchedules()
-    {
-        return response()->json(
-            ReporteInternoProgramacion::with('destinatarios')->orderBy('id')->get()
-        );
-    }
-
-    public function saveInternalSchedules(Request $request)
-    {
-        $request->validate([
-            'schedules'                              => 'array',
-            'schedules.*.nombre'                     => 'required|string|max:100',
-            'schedules.*.hora'                        => 'required|string',
-            'schedules.*.destinatarios.*.email'      => 'required|email|max:150',
-            'schedules.*.destinatarios.*.frecuencia' => 'required|string|in:diario,semanal,mensual,trimestral',
-        ]);
-
-        $this->upsertProgramaciones($request->input('schedules', []), ReporteInternoProgramacion::class);
-
-        return response()->json(['message' => 'OK']);
-    }
-
-    public function getInternalHistory()
-    {
-        return response()->json(
-            DB::table('reportes_internos_historial')
-                ->orderBy('fecha_generacion', 'desc')
-                ->get()
-        );
-    }
-
-    public function runInternalSchedule(Request $request, ReporteGeneratorService $generator)
-    {
-        $archivo = $generator->generarInterno();
-        $scheduleId = $request->input('schedule_id');
-        $schedule   = $scheduleId ? ReporteInternoProgramacion::find($scheduleId) : null;
-
-        $nombre = $schedule ? $schedule->nombre : 'Reporte Interno';
-        $id = DB::table('reportes_internos_historial')->insertGetId([
-            'nombre_reporte'   => $nombre . ' — ' . now()->format('d/m/Y H:i'),
-            'fecha_generacion' => now(),
-            'archivo_path'     => $archivo['path'],
-            'size'             => $archivo['size'],
-            'created_at'       => now(),
-            'updated_at'       => now(),
-        ]);
-
-        $enviados = $schedule
-            ? $this->enviarADestinatarios($schedule, $archivo, 'reporte_interno')
-            : 0;
-
-        return response()->json(['message' => 'OK', 'id' => $id, 'enviados' => $enviados]);
-    }
-
-    public function downloadInternalReport($id)
-    {
-        $record = DB::table('reportes_internos_historial')->find($id);
-        if (!$record) {
-            return response()->json(['error' => 'Archivo no encontrado'], 404);
-        }
-        if (!Storage::disk('public')->exists($record->archivo_path)) {
-            return response()->json(['error' => 'Archivo no disponible en servidor'], 404);
-        }
-        return Storage::disk('public')->download($record->archivo_path);
-    }
-
     // ── REPORTE DE USUARIOS ───────────────────────────────────────────────────────
 
     public function getUsuariosReport(Request $request)
@@ -684,11 +769,11 @@ class ReportController extends Controller
             'fecha_fin'      => 'nullable|date|after_or_equal:fecha_inicio',
             'persona_id'     => 'nullable|integer|exists:persona,id',
             'search'         => ['nullable', 'string', 'max:100', $noInjection],
-            'filtro'         => 'nullable|string|in:por_vencer,mas_polizas,por_vehiculos,activos,bloqueados',
+            'filtro'         => 'nullable|string|in:por_vencer,mas_polizas,por_bienes,activos,bloqueados',
             'marca'          => ['nullable', 'string', 'max:100', $noInjection],
             'modelo'         => ['nullable', 'string', 'max:100', $noInjection],
-            'min_vehiculos'  => 'nullable|integer|min:0',
-            'max_vehiculos'  => 'nullable|integer|min:0',
+            'min_bienes'     => 'nullable|integer|min:0',
+            'max_bienes'     => 'nullable|integer|min:0',
             'estado_poliza'  => 'nullable|string|in:ACTIVA,VENCIDA,ANULADA',
             'min_prima'      => 'nullable|numeric|min:0',
             'max_prima'      => 'nullable|numeric|min:0',
@@ -782,7 +867,7 @@ class ReportController extends Controller
 
         // ── Listado con filtros ───────────────────────────────────────────────────
         $clientesQuery = Persona::with([
-            'bienes'  => fn ($q) => $q->where('tipo', 'vehiculo'),
+            'bienes',
             'solicitudes.polizas',
         ]);
 
@@ -829,7 +914,7 @@ class ReportController extends Controller
 
         $rows = $clientes->map(function ($c) {
             $polizas       = $c->solicitudes->flatMap->polizas;
-            $bienes        = $c->bienes; // ya filtrado por tipo='vehiculo' en eager load
+            $bienes        = $c->bienes; // todos los tipos de bien (vehículo, inmueble, etc.)
             $polizasActivas = $polizas->where('status', 'ACTIVA');
 
             $proxVenc     = $polizasActivas->filter(fn ($p) => $p->fecha_vencimiento !== null)->sortBy('fecha_vencimiento')->first();
@@ -847,7 +932,7 @@ class ReportController extends Controller
                 'tel'            => $c->celular ?? $c->telefono ?? '—',
                 'dir'            => $dir ?: '—',
                 'reg'            => $c->fecha_creacion ? $c->fecha_creacion->format('d/m/Y') : '—',
-                'veh'            => $bienes->count(),
+                'bienes'         => $bienes->count(),
                 'marcas'         => $marcasCliente ?: '—',
                 'pol'            => $polizas->count(),
                 'pol_act'        => $polizasActivas->count(),
@@ -859,11 +944,11 @@ class ReportController extends Controller
         });
 
         // Filtros post-query sobre conteos calculados
-        if ($request->filled('min_vehiculos')) {
-            $rows = $rows->filter(fn ($r) => $r['veh'] >= (int) $request->min_vehiculos);
+        if ($request->filled('min_bienes')) {
+            $rows = $rows->filter(fn ($r) => $r['bienes'] >= (int) $request->min_bienes);
         }
-        if ($request->filled('max_vehiculos')) {
-            $rows = $rows->filter(fn ($r) => $r['veh'] <= (int) $request->max_vehiculos);
+        if ($request->filled('max_bienes')) {
+            $rows = $rows->filter(fn ($r) => $r['bienes'] <= (int) $request->max_bienes);
         }
         if ($request->filled('min_prima')) {
             $rows = $rows->filter(fn ($r) => $r['prima'] >= (float) $request->min_prima);
@@ -876,8 +961,8 @@ class ReportController extends Controller
             $rows = $rows->sortBy('prox_venc_sort')->values();
         } elseif ($filtro === 'mas_polizas') {
             $rows = $rows->sortByDesc('pol')->values();
-        } elseif ($filtro === 'por_vehiculos') {
-            $rows = $rows->sortByDesc('veh')->values();
+        } elseif ($filtro === 'por_bienes') {
+            $rows = $rows->sortByDesc('bienes')->values();
         } else {
             $rows = $rows->values();
         }

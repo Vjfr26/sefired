@@ -169,56 +169,22 @@ export async function fetchVehiculosReport(params = {}) {
   return res.json()
 }
 
-export async function fetchInternalReportSchedules() {
-  const res = await fetch(`${API_BASE_URL}/api/reports/automaticos/programaciones`, { headers: getAuthHeaders() })
-  if (!res.ok) throw new Error('Error al cargar programaciones internas')
-  return res.json()
-}
-
-export async function saveInternalReportSchedules(schedules) {
+/**
+ * Sube un archivo suelto para adjuntarlo a una programación de reportes
+ * (interna o externa). Devuelve {nombre, path, mime} para guardarlo en
+ * documentos_adicionales al hacer "Guardar Configuración".
+ */
+export async function uploadReporteAdjunto(file) {
   const token = localStorage.getItem('auth_token')
-  const res = await fetch(`${API_BASE_URL}/api/reports/automaticos/programaciones`, {
+  const form = new FormData()
+  form.append('archivo', file)
+
+  const res = await fetch(`${API_BASE_URL}/api/reportes/adjuntos`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
-    body: JSON.stringify({ schedules })
+    headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+    body: form,
   })
-  if (!res.ok) throw new Error('Error al guardar programaciones internas')
-  return res.json()
-}
-
-export async function fetchInternalReportHistory() {
-  const res = await fetch(`${API_BASE_URL}/api/reports/automaticos/historial`, { headers: getAuthHeaders() })
-  if (!res.ok) throw new Error('Error al cargar historial interno')
-  return res.json()
-}
-
-export async function runInternalReportSchedule(scheduleId) {
-  const token = localStorage.getItem('auth_token')
-  const res = await fetch(`${API_BASE_URL}/api/reports/automaticos/historial/ejecutar`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
-    body: JSON.stringify({ schedule_id: scheduleId })
-  })
-  if (!res.ok) throw new Error('Error al ejecutar programación interna')
-  return res.json()
-}
-
-export async function downloadInternalReportFile(id) {
-  const token = localStorage.getItem('auth_token')
-  const res = await fetch(`${API_BASE_URL}/api/reports/automaticos/descargar/${id}`, {
-    headers: {
-      'Accept': '*/*',
-      'Authorization': `Bearer ${token}`
-    }
-  })
-  if (!res.ok) throw new Error('Error al descargar el archivo')
-  return res.blob()
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json.message || 'Error al subir el adjunto')
+  return json
 }

@@ -18,7 +18,11 @@ class UsuarioController extends Controller
     {
         $usuarios = Usuario::all();
 
-        // Una sola query para todos los últimos logins (evita N+1)
+        // ultimo_visto se actualiza en cada request autenticado (ver
+        // ApiTokenMiddleware), así que refleja actividad real y no solo el
+        // momento del login — evita que se vea "desactualizado" mientras el
+        // usuario sigue trabajando con la misma sesión. El IP sigue tomándose
+        // del último login registrado en el log de auditoría.
         $lastLogins = \App\Models\Log::where('accion', 'login')
             ->whereIn('usuario_id', $usuarios->pluck('id'))
             ->orderByDesc('created_at')
@@ -28,15 +32,35 @@ class UsuarioController extends Controller
 
         $usuarios = $usuarios->map(function ($usuario) use ($lastLogins) {
             $lastLogin = $lastLogins->get($usuario->id);
-            $usuario->ultima_conexion = $lastLogin ? $lastLogin->created_at->format('Y-m-d H:i') : null;
+            $usuario->ultima_conexion = $usuario->ultimo_visto?->format('Y-m-d H:i')
+                ?? $lastLogin?->created_at->format('Y-m-d H:i');
             $usuario->ultimo_ip       = $lastLogin ? $lastLogin->ip : null;
-            return $usuario;
+            // El frontend repite GET /usuario cada 30s mientras la sesión está
+            // abierta (ver AppContext.refreshUser) — 2 min de margen es de sobra
+            // para considerar la sesión "activa ahora" y no solo "vista hace poco".
+            $usuario->activo_ahora    = $usuario->ultimo_visto?->gt(now()->subMinutes(2)) ?? false;
+            return $usuario->makeVisible(['temp', 'temp_expira_en']);
         });
 
         return response()->json([
             'status' => 'success',
             'data' => $usuarios
         ]);
+    }
+
+    /**
+     * Lista liviana de usuarios activos para reasignar el vendedor de una
+     * póliza/cotización. Expone solo id/nombre/tipo (no el listado completo
+     * de usuarios.view) para no exigir ese permiso en el flujo de "Ajustar
+     * póliza", que ya está controlado por clientes.adjust.
+     */
+    public function vendedoresDisponibles()
+    {
+        $usuarios = Usuario::where('activo', true)
+            ->orderBy('nombre')
+            ->get(['id', 'nombre', 'tipo']);
+
+        return response()->json($usuarios);
     }
 
     public function getUser(Request $request)
@@ -119,11 +143,14 @@ class UsuarioController extends Controller
             'nro_sede' => 'required|integer',
             'tipo'     => 'required|in:Admin,Oficina,Vendedor Sucursal,Vendedor Calle',
             'permisos' => 'nullable|array',
+            'temp'           => 'sometimes|boolean',
+            'temp_expira_en' => 'nullable|required_if:temp,true|date|after_or_equal:today',
         ], [
             'password.min'   => 'La contraseña debe tener al menos 8 caracteres.',
             'password.regex' => 'La contraseña debe contener al menos una mayúscula, una minúscula y un número.',
             'nick.regex'     => 'El usuario solo puede contener letras, números, puntos, guiones y guiones bajos.',
             'tipo.in'        => 'El rol seleccionado no es válido.',
+            'temp_expira_en.required_if' => 'Una cuenta temporal necesita una fecha de vencimiento.',
         ]);
 
         if ($validator->fails()) {
@@ -141,11 +168,13 @@ class UsuarioController extends Controller
             'tipo'     => $request->tipo,
             'permisos' => $request->permisos,
             'activo'   => true,
+            'temp'           => $request->boolean('temp'),
+            'temp_expira_en' => $request->temp ? $request->temp_expira_en : null,
         ]);
 
         $this->logActivity(
             'Creación de Usuario',
-            "Se creó el usuario {$usuario->nick}",
+            "Se creó el usuario {$usuario->nick}" . ($usuario->temp ? " (cuenta temporal, vence {$usuario->temp_expira_en})" : ''),
             'usuarios',
             auth()->id()
         );
@@ -153,7 +182,7 @@ class UsuarioController extends Controller
         return response()->json([
             'status' => 'success',
             'message' => 'Usuario creado correctamente',
-            'data' => $usuario
+            'data' => $usuario->makeVisible(['temp', 'temp_expira_en'])
         ], 201);
     }
 
@@ -176,18 +205,24 @@ class UsuarioController extends Controller
             'tipo'     => 'sometimes|in:Admin,Oficina,Vendedor Sucursal,Vendedor Calle',
             'permisos' => 'nullable|array',
             'activo'   => 'sometimes|boolean',
+            'temp'           => 'sometimes|boolean',
+            'temp_expira_en' => 'nullable|required_if:temp,true|date|after_or_equal:today',
         ], [
             'password.min'   => 'La contraseña debe tener al menos 8 caracteres.',
             'password.regex' => 'La contraseña debe contener al menos una mayúscula, una minúscula y un número.',
             'nick.regex'     => 'El usuario solo puede contener letras, números, puntos, guiones y guiones bajos.',
             'tipo.in'        => 'El rol seleccionado no es válido.',
+            'temp_expira_en.required_if' => 'Una cuenta temporal necesita una fecha de vencimiento.',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['status' => 'error', 'errors' => $validator->errors()], 400);
         }
 
-        $data = $request->only(['nombre', 'genero', 'cargo', 'nick', 'sede', 'nro_sede', 'tipo', 'permisos', 'activo']);
+        $data = $request->only(['nombre', 'genero', 'cargo', 'nick', 'sede', 'nro_sede', 'tipo', 'permisos', 'activo', 'temp', 'temp_expira_en']);
+        if (isset($data['temp']) && !$data['temp']) {
+            $data['temp_expira_en'] = null;
+        }
 
         foreach (['nombre', 'cargo', 'sede'] as $field) {
             if (isset($data[$field])) {
@@ -199,11 +234,12 @@ class UsuarioController extends Controller
             $data['password'] = Hash::make($request->password);
         }
 
+        $antes = $this->snapshotAntes($usuario);
         $usuario->update($data);
 
         $this->logActivity(
             'Edición de Usuario',
-            "Se actualizó el usuario {$usuario->nick}",
+            "Usuario {$usuario->nick} — " . $this->describirCambios($usuario, $antes),
             'usuarios',
             auth()->id()
         );
@@ -211,7 +247,7 @@ class UsuarioController extends Controller
         return response()->json([
             'status' => 'success',
             'message' => 'Usuario actualizado correctamente',
-            'data' => $usuario
+            'data' => $usuario->makeVisible(['temp', 'temp_expira_en'])
         ]);
     }
 

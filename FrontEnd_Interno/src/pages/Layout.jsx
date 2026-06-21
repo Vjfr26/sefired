@@ -5,6 +5,7 @@ import Header from '../layout/Header.jsx'
 import Modal from '../components/Modal.jsx'
 import Toast from '../components/Toast.jsx'
 import PdfViewer from '../components/PdfViewer.jsx'
+import ErrorBoundary from '../components/ErrorBoundary.jsx'
 import { SkeletonPage } from '../components/Skeleton.jsx'
 
 const PAGE_MAP = {
@@ -23,7 +24,7 @@ const PAGE_MAP = {
 const PageSpinner = () => <SkeletonPage />
 
 export default function Layout() {
-  const { currentView } = useApp()
+  const { currentView, navigateTo } = useApp()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const PageComponent = PAGE_MAP[currentView]
@@ -45,12 +46,14 @@ export default function Layout() {
       <div className="flex-1 lg:ml-64 flex flex-col min-h-screen">
         <Header onSidebarOpen={() => setSidebarOpen(true)} />
         <main className="flex-1 px-4 sm:px-8 lg:px-12 py-6 sm:py-8">
-          <Suspense fallback={<PageSpinner />}>
-            {PageComponent
-              ? <PageComponent />
-              : <div className="card p-8 text-center text-slate-400">Vista en construcción: {currentView}</div>
-            }
-          </Suspense>
+          <ErrorBoundary key={currentView} onReset={() => navigateTo('home')}>
+            <Suspense fallback={<PageSpinner />}>
+              {PageComponent
+                ? <PageComponent />
+                : <div className="card p-8 text-center text-slate-400">Vista en construcción: {currentView}</div>
+              }
+            </Suspense>
+          </ErrorBoundary>
         </main>
       </div>
 

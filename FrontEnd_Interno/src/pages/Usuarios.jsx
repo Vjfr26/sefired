@@ -46,14 +46,14 @@ function UserActions({ u, onReload }) {
     <button
       onClick={onClick}
       title={title}
-      className={`p-1.5 sm:p-2 rounded-lg ${BTN_COLOR[color] ?? BTN_COLOR.blue} transition inline-flex items-center justify-center`}
+      className={`p-2.5 rounded-lg ${BTN_COLOR[color] ?? BTN_COLOR.blue} transition inline-flex items-center justify-center`}
     >
-      <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+      <Icon className="w-[18px] h-[18px]" />
     </button>
   )
 
   return (
-    <div className="flex flex-wrap gap-1 items-center justify-center">
+    <div className="flex gap-1.5 justify-center flex-wrap items-center">
       {canEdit       && btn('blue',   'Editar',       () => showModal('editUser',   { user: u, onSave: onReload }), Pencil)}
       {canPerms      && btn('indigo', 'Permisos',     () => showModal('userPerms',  { user: u, onSave: onReload }), Shield)}
       {canChangeRole && btn('amber',  'Cambiar rol',  () => showModal('changeRole', { user: u, onSave: onReload }), UserCog)}
@@ -65,11 +65,11 @@ function UserActions({ u, onReload }) {
             est: estado,
             onConfirm: async (motivo) => { await toggleUserStatus(u.id, { motivo }); onReload() },
           })}
-          className="p-1.5 sm:p-2 rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 transition inline-flex items-center justify-center"
+          className="p-2.5 rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 transition inline-flex items-center justify-center"
         >
           {estado === 'Activo'
-            ? <Lock   className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            : <LockOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+            ? <Lock   className="w-[18px] h-[18px]" />
+            : <LockOpen className="w-[18px] h-[18px]" />}
         </button>
       )}
       {canDelete && !isMe && btn('rose', 'Eliminar', () => showModal('confirmDelete', {
@@ -83,6 +83,8 @@ function UserActions({ u, onReload }) {
 export default function Usuarios() {
   const { showModal, showToast, refreshUser, canAct } = useApp()
   const canCreateUser = canAct('usuarios', 'create')
+  const canViewCards  = canAct('usuarios', 'view_cards')
+  const canViewList   = canAct('usuarios', 'view_list')
   const [chipActive, setChipActive] = useState(0)
   const [search,     setSearch]     = useState('')
   const [usuarios,   setUsuarios]   = useState([])
@@ -132,7 +134,12 @@ export default function Usuarios() {
           />
           <div className="min-w-0">
             <p className="font-bold text-slate-800 text-xs sm:text-sm truncate">{u.nombre}</p>
-            <p className="text-[10px] sm:text-xs text-slate-400 font-mono truncate">@{u.nick}</p>
+            <p className="text-xs sm:text-sm text-slate-400 font-mono truncate">@{u.nick}</p>
+            {u.temp && (
+              <p className="text-xs sm:text-sm text-amber-600 font-semibold mt-0.5">
+                Temporal · vence {u.temp_expira_en?.slice(0, 10).split('-').reverse().join('/')}
+              </p>
+            )}
           </div>
         </div>
       ),
@@ -140,13 +147,20 @@ export default function Usuarios() {
       oficina:  u.sede || '—',
       conexion: u.ultima_conexion ? (
         <div>
-          <p className="text-xs text-slate-700 font-medium">{u.ultima_conexion}</p>
-          <p className="text-[10px] text-slate-400 font-mono mt-0.5">{u.ultimo_ip}</p>
+          {u.activo_ahora ? (
+            <p className="text-xs sm:text-sm text-emerald-600 font-bold flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+              Activo ahora
+            </p>
+          ) : (
+            <p className="text-xs sm:text-sm text-slate-700 font-medium">{u.ultima_conexion}</p>
+          )}
+          <p className="text-xs sm:text-sm text-slate-400 font-mono mt-0.5">{u.ultimo_ip}</p>
         </div>
-      ) : <span className="text-slate-300 text-xs">—</span>,
+      ) : <span className="text-slate-300 text-xs sm:text-sm">—</span>,
       motivo: !u.activo && u.motivo_bloqueo
-        ? <span className="text-xs text-rose-500 max-w-[150px] block truncate" title={u.motivo_bloqueo}>{u.motivo_bloqueo}</span>
-        : <span className="text-slate-300 text-xs">—</span>,
+        ? <span className="text-xs sm:text-sm text-rose-500 max-w-[150px] block truncate" title={u.motivo_bloqueo}>{u.motivo_bloqueo}</span>
+        : <span className="text-slate-300 text-xs sm:text-sm">—</span>,
       estb: rsbadge(estado),
       acc:  <UserActions u={u} onReload={loadUsuarios} />,
     }
@@ -167,7 +181,7 @@ export default function Usuarios() {
   return (
     <div className="animate-in fade-in duration-500">
       {/* ── Cards ── */}
-      {loading ? <SkeletonStatCards count={4} /> : <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      {canViewCards && (loading ? <SkeletonStatCards count={4} /> : <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {[
           { l: 'Total Usuarios',    v: usuarios.length, sub: `${usuarios.length - blocked} activos`,      Icon: Users,      bg: 'bg-slate-100',  ic: 'text-slate-600'  },
           { l: 'Administradores',   v: byRole['Admin'], sub: 'Acceso total',                               Icon: ShieldCheck, bg: 'bg-indigo-100', ic: 'text-indigo-600' },
@@ -185,7 +199,7 @@ export default function Usuarios() {
             </div>
           </div>
         ))}
-      </div>}
+      </div>)}
 
       {/* ── Filtro por rol ── */}
       <div className="flex flex-wrap gap-2 mb-4">
@@ -219,7 +233,14 @@ export default function Usuarios() {
         }
       />
 
-      <DataTable cols={COLS_BASE.filter(c => c.k !== 'motivo' || filtered.some(u => !u.activo))} rows={dataRows} loading={loading} />
+      {canViewList ? (
+        <DataTable cols={COLS_BASE.filter(c => c.k !== 'motivo' || filtered.some(u => !u.activo))} rows={dataRows} loading={loading} />
+      ) : (
+        <div className="card flex flex-col items-center justify-center py-16 gap-2 text-center">
+          <Lock className="w-6 h-6 text-slate-300" />
+          <p className="text-xs text-slate-400">No tienes permiso para ver el listado de usuarios.</p>
+        </div>
+      )}
     </div>
   )
 }

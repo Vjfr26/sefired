@@ -9,11 +9,15 @@ class ReporteInternoProgramacion extends Model
 {
     protected $table = 'reportes_internos_programaciones';
 
-    protected $fillable = ['nombre', 'hora', 'activo'];
+    protected $fillable = ['nombre', 'hora', 'tipo', 'activo', 'documentos_adicionales', 'cliente_documento_ids'];
 
     protected function casts(): array
     {
-        return ['activo' => 'boolean'];
+        return [
+            'activo'                 => 'boolean',
+            'documentos_adicionales' => 'array',
+            'cliente_documento_ids'  => 'array',
+        ];
     }
 
     public function destinatarios(): HasMany

@@ -23,8 +23,9 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->alias([
-            'role' => \App\Http\Middleware\CheckRole::class,
-            'perm' => \App\Http\Middleware\CheckPermission::class,
+            'role'     => \App\Http\Middleware\CheckRole::class,
+            'perm'     => \App\Http\Middleware\CheckPermission::class,
+            'perm_any' => \App\Http\Middleware\CheckAnyPermission::class,
         ]);
 
         // El backend recibe tráfico tanto detrás del nginx interno (que sí
@@ -80,11 +81,16 @@ return Application::configure(basePath: dirname(__DIR__))
             return response()->json(['message' => 'Método HTTP no permitido para esta ruta.'], 405);
         });
 
-        // Errores de validación — ya incluyen detalles por campo, solo mejoramos el mensaje principal
+        // Errores de validación — se muestra el primer error específico (ej. "La
+        // póliza no puede pasar de X a Y") en vez de un mensaje genérico que
+        // oculta la causa real; "errors" sigue disponible con el detalle completo.
         $exceptions->render(function (ValidationException $e) {
+            $errores = $e->errors();
+            $primero = ! empty($errores) ? (array_values($errores)[0][0] ?? null) : null;
+
             return response()->json([
-                'message' => 'Los datos enviados no son válidos.',
-                'errors'  => $e->errors(),
+                'message' => $primero ?? 'Los datos enviados no son válidos.',
+                'errors'  => $errores,
             ], 422);
         });
 

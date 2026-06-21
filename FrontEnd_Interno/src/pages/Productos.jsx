@@ -2,13 +2,13 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Pencil, Plus, Trash2, Shield, ShieldCheck, TrendingUp, DollarSign, Eye,
   Euro, Banknote, ChevronDown, FileText, Settings, ListChecks, X, Check,
-  Car, Package, Users, AlertCircle,
+  Car, Package, Users, AlertCircle, Globe, EyeOff,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
-import { usd, fmtMonto, fmtMontoAbrev } from '../utils/helpers.jsx'
+import { usd, fmtMonto, fmtMontoAbrev, useModalLock } from '../utils/helpers.jsx'
 import SearchBar from '../components/SearchBar.jsx'
 import DataTable from '../components/DataTable.jsx'
-import { fetchProductos, createProducto, updateProducto, deleteProducto } from '../api/productos.js'
+import { fetchProductos, createProducto, updateProducto, deleteProducto, createBeneficio, updateBeneficio, deleteBeneficio } from '../api/productos.js'
 import { fetchTarifario, createTarifa, updateTarifa, deleteTarifa } from '../api/tarifario.js'
 
 const MONEDAS  = ['USD', 'BS', 'EUR']
@@ -178,6 +178,8 @@ function ComboField({ value, onChange, suggestions, placeholder, className = '' 
 }
 
 function ProductoModal({ producto, productos = [], onClose, onSaved }) {
+  const panelRef = useRef(null)
+  useModalLock(panelRef)
   const isEdit  = !!producto?.id
   const [form, setForm] = useState({
     es_nuevo:              true,
@@ -187,26 +189,58 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
     tipo:                  producto?.tipo         || '',
     categoria:             producto?.categoria    || '',
     tipo_bien:             producto?.tipo_bien    || '',
+    permite_multiples_bienes: producto?.permite_multiples_bienes ?? false,
+    max_bienes:            producto?.max_bienes   ?? '',
+    aplica_beneficiarios:  producto?.aplica_beneficiarios ?? false,
+    min_beneficiarios:     producto?.min_beneficiarios ?? '',
+    max_beneficiarios:     producto?.max_beneficiarios ?? '',
     tipo_calculo:          producto?.tipo_calculo  || 'fijo',
     derecho_poliza:        producto?.derecho_poliza ?? 0,
     descripcion:           producto?.descripcion  || '',
     prima:                 producto?.prima        ?? 0,
     cobertura:             producto?.cobertura    ?? 0,
     moneda:                producto?.moneda       || 'USD',
+    iva_aplica:             producto?.iva_aplica ?? false,
+    iva_porcentaje:         producto?.iva_porcentaje ?? '',
+    permite_mensualidades:  producto?.permite_mensualidades ?? false,
+    recargo_mensual_pct:    producto?.recargo_mensual_pct ?? '',
     documentos_requeridos: producto?.documentos_requeridos || [],
   })
+  // Datos tarifarios capturados aquí mismo al CREAR un producto nuevo — se
+  // usan para generar su primera tarifa automáticamente al guardar, en vez
+  // de obligar a abrir "Gestionar Tarifario" como paso aparte. Al EDITAR un
+  // producto existente no se muestran (la tarifa real ya vive en sus propias
+  // filas de tarifario, gestionadas con ese modal para no pisarlas).
+  const [datosForm, setDatosForm] = useState(() => initDatosForm(producto?.tipo_calculo || 'fijo', null, producto?.tipo_bien))
+  // Nombre de la tarifa inicial — solo relevante en por_plan/por_nivel,
+  // donde cada fila de tarifario representa un plan/nivel con nombre propio
+  // (ej. "Plan Básico", "Nivel I"). Se pueden agregar más después desde
+  // "Gestionar Tarifario".
+  const [tarifaNombre, setTarifaNombre] = useState('')
   const [errors,  setErrors]  = useState({})
   const [saving,  setSaving]  = useState(false)
   const [formErr, setFormErr] = useState('')
 
   const set = (k, v) => { setForm(prev => ({ ...prev, [k]: v })); setErrors(e => ({ ...e, [k]: '' })) }
+  const setTipoCalculo = (val) => { set('tipo_calculo', val); setDatosForm(initDatosForm(val, null, form.tipo_bien)) }
+  // Cambiar el tipo de bien también cambia qué campos tiene sentido pedir en
+  // 'fijo' (vehículo usa el desglose de coberturas con nombre; el resto, una
+  // suma asegurada genérica) — sin esto quedarían datos de la forma anterior
+  // ocultos pero guardados por error al enviar.
+  const setTipoBien = (val) => { set('tipo_bien', val); if (!isEdit) setDatosForm(initDatosForm(form.tipo_calculo, null, val)) }
 
   // Sugerencias únicas de productos existentes
   const sugerencias = {
     tipo:      [...new Set(productos.map(p => p.tipo).filter(Boolean))],
     categoria: [...new Set([...CATEGORIAS, ...productos.map(p => p.categoria).filter(Boolean)])],
-    tipo_bien: [...new Set(['vehiculo', 'inmueble', 'vida', 'bien', 'ninguno', ...productos.map(p => p.tipo_bien).filter(Boolean)])],
+    tipo_bien: [...new Set(['vehiculo', 'inmueble', 'vida', 'bien', 'ninguno', 'bicicleta', 'mascota', 'embarcacion', 'equipo_electronico', 'joya', ...productos.map(p => p.tipo_bien).filter(Boolean)])],
   }
+
+  // Solo lo que realmente no tiene un valor razonable por defecto es
+  // obligatorio. Antes "Prima base" se exigía siempre aunque ese campo no es
+  // el que realmente fija el precio en por_plan/por_nivel/por_valor (ahí la
+  // tarifa real vive en los planes/niveles/tasa de abajo).
+  const requiereNombreTarifa = form.tipo_calculo === 'por_plan' || form.tipo_calculo === 'por_nivel'
 
   const validate = () => {
     const e = {}
@@ -215,9 +249,32 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
     if (!form.categoria.trim())   e.categoria   = 'Obligatorio'
     if (!form.tipo_bien.trim())   e.tipo_bien   = 'Obligatorio'
     if (!form.descripcion.trim()) e.descripcion = 'Obligatorio'
-    if (!(parseFloat(form.prima) > 0))          e.prima     = 'Debe ser mayor a 0'
+    if (!isEdit) {
+      if (form.tipo_calculo === 'fijo' && !(parseFloat(datosForm.prima_anual) > 0)) e.datosForm = 'Indica la prima anual.'
+      if (form.tipo_calculo === 'por_valor' && !(parseFloat(datosForm.tasa_pct) > 0)) e.datosForm = 'Indica la tasa (%).'
+      if (form.tipo_calculo === 'por_plan' && !(datosForm.coberturas || []).some(c => c.label?.trim() && parseFloat(c.prima) > 0)) e.datosForm = 'Agrega al menos una cobertura con nombre y prima.'
+      if (form.tipo_calculo === 'por_nivel' && !(parseFloat(datosForm.prima) > 0)) e.datosForm = 'Indica la prima de este nivel.'
+      if (requiereNombreTarifa && !tarifaNombre.trim()) e.tarifaNombre = `Indica el nombre del ${form.tipo_calculo === 'por_plan' ? 'plan' : 'nivel'}.`
+    }
     setErrors(e)
     return Object.keys(e).length === 0
+  }
+
+  /** Deriva los valores planos (prima/cobertura) desde lo capturado en datosForm, solo para mostrar un valor de referencia en listados — la tarifa real queda en la fila de tarifario creada abajo. */
+  const primaCoberturaDesdeDatos = () => {
+    if (form.tipo_calculo === 'fijo') {
+      const cobertura = form.tipo_bien === 'vehiculo'
+        ? (parseFloat(datosForm.suma_persona) || 0) + (parseFloat(datosForm.suma_cosa) || 0)
+        : (parseFloat(datosForm.suma_asegurada) || 0)
+      return { prima: parseFloat(datosForm.prima_anual) || 0, cobertura }
+    }
+    if (form.tipo_calculo === 'por_valor') return { prima: 0, cobertura: parseFloat(datosForm.cobertura_max) || 0 }
+    if (form.tipo_calculo === 'por_plan') {
+      const cs = datosForm.coberturas || []
+      return { prima: cs.reduce((s, c) => s + (parseFloat(c.prima) || 0), 0), cobertura: cs.reduce((s, c) => s + (parseFloat(c.suma) || 0), 0) }
+    }
+    if (form.tipo_calculo === 'por_nivel') return { prima: parseFloat(datosForm.prima) || 0, cobertura: parseFloat(datosForm.suma) || 0 }
+    return { prima: parseFloat(form.prima) || 0, cobertura: parseFloat(form.cobertura) || 0 }
   }
 
   const handleSave = async () => {
@@ -225,14 +282,37 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
     setSaving(true)
     setFormErr('')
     try {
+      const derivado = !isEdit ? primaCoberturaDesdeDatos() : null
       const payload = {
         ...form,
-        prima:          parseFloat(form.prima)          || 0,
-        cobertura:      parseFloat(form.cobertura)      || 0,
+        prima:          derivado ? derivado.prima     : (parseFloat(form.prima)     || 0),
+        cobertura:      derivado ? derivado.cobertura : (parseFloat(form.cobertura) || 0),
         derecho_poliza: parseFloat(form.derecho_poliza) || 0,
+        max_bienes:         form.permite_multiples_bienes && form.max_bienes !== '' ? parseInt(form.max_bienes, 10)        : null,
+        min_beneficiarios:  form.aplica_beneficiarios     && form.min_beneficiarios !== '' ? parseInt(form.min_beneficiarios, 10) : null,
+        max_beneficiarios:  form.aplica_beneficiarios     && form.max_beneficiarios !== '' ? parseInt(form.max_beneficiarios, 10) : null,
+        iva_porcentaje:        form.iva_aplica            && form.iva_porcentaje !== ''      ? parseFloat(form.iva_porcentaje)      : null,
+        recargo_mensual_pct:   form.permite_mensualidades && form.recargo_mensual_pct !== '' ? parseFloat(form.recargo_mensual_pct) : null,
       }
-      if (isEdit) await updateProducto(producto.id, payload)
-      else        await createProducto(payload)
+      let savedProducto
+      if (isEdit) savedProducto = await updateProducto(producto.id, payload)
+      else        savedProducto = await createProducto(payload)
+
+      // Crear la primera tarifa automáticamente a partir de lo capturado
+      // arriba, para que el producto quede listo para cotizar sin un
+      // segundo paso obligatorio en "Gestionar Tarifario". Para por_plan/
+      // por_nivel se pueden agregar más planes/niveles después desde ahí.
+      if (!isEdit) {
+        const nombreTarifa = requiereNombreTarifa ? tarifaNombre.trim() : 'Tarifa Base'
+        const datos = serializeDatosForm(form.tipo_calculo, datosForm, nombreTarifa, form.tipo_bien)
+        await createTarifa(savedProducto.id, {
+          nombre: nombreTarifa,
+          subtipo: nombreTarifa.toLowerCase().replace(/\s+/g, '_'),
+          activo: true,
+          datos,
+        })
+      }
+
       onSaved()
       onClose()
     } catch (e) {
@@ -248,7 +328,7 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 bg-black/50 z-[80] flex items-center justify-center p-4 backdrop-blur-sm">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in duration-200">
+      <div ref={panelRef} tabIndex={-1} className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in duration-200 outline-none">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
@@ -325,11 +405,11 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-x-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
             {/* ── Identificación ── */}
             <section>
               <ProdSecHdr Icon={Shield}>Identificación</ProdSecHdr>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="col-span-2">
                   <label className={lbl}>Nombre de la póliza <span className="text-rose-500">*</span></label>
                   <input className={inp('nombre')} value={form.nombre} onChange={e => set('nombre', e.target.value)} placeholder="Ej. RCV Particular Privado" />
@@ -386,7 +466,7 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
                     </div>
                   ) : (
                     <>
-                      <select className={`select-field text-sm ${errors.tipo_bien ? 'border-rose-400' : ''}`} value={form.tipo_bien} onChange={e => set('tipo_bien', e.target.value)}>
+                      <select className={`select-field text-sm ${errors.tipo_bien ? 'border-rose-400' : ''}`} value={form.tipo_bien} onChange={e => setTipoBien(e.target.value)}>
                         <option value="">— Selecciona el tipo —</option>
                         {sugerencias.tipo_bien.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
                       </select>
@@ -398,16 +478,16 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
             </section>
 
             {/* ── Cálculo ── */}
-            <section className="pl-6 border-l border-slate-100">
+            <section className="sm:pl-6 sm:border-l border-slate-100">
               <ProdSecHdr Icon={Settings}>Cálculo</ProdSecHdr>
               <div className="space-y-3">
                 <div>
                   <label className={lbl}>Tipo de cálculo <span className="text-rose-500">*</span></label>
-                  <div className="grid grid-cols-2 gap-2 mt-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
                     {TIPOS_CALCULO.map(t => {
                       const on = form.tipo_calculo === t.val
                       return (
-                        <button key={t.val} type="button" onClick={() => set('tipo_calculo', t.val)}
+                        <button key={t.val} type="button" onClick={() => setTipoCalculo(t.val)}
                           className={`flex flex-col items-start p-2.5 rounded-xl border-2 text-left transition-all ${on ? 'border-jm-blue bg-blue-50/50' : 'border-slate-200 hover:border-slate-300'}`}>
                           <p className={`text-xs font-bold ${on ? 'text-jm-blue' : 'text-slate-700'}`}>{t.label}</p>
                           <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">{t.desc}</p>
@@ -416,6 +496,28 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
                     })}
                   </div>
                 </div>
+
+                {/* Campos reales de la tarifa — cambian según el tipo de cálculo elegido arriba.
+                    Solo al crear: al editar, la tarifa real se ajusta desde "Gestionar Tarifario". */}
+                {!isEdit && (
+                  <div className="p-3 rounded-xl border border-dashed border-jm-blue/30 bg-blue-50/30">
+                    <p className="text-[11px] font-bold text-jm-blue uppercase tracking-wide mb-2">
+                      Tarifa — {TIPOS_CALCULO.find(t => t.val === form.tipo_calculo)?.label}
+                    </p>
+                    {requiereNombreTarifa && (
+                      <div className="mb-2.5">
+                        <label className={lbl}>Nombre de este {form.tipo_calculo === 'por_plan' ? 'plan' : 'nivel'} <span className="text-rose-500">*</span></label>
+                        <input className={`input-field text-sm ${errors.tarifaNombre ? 'border-rose-400' : ''}`} value={tarifaNombre}
+                          placeholder={form.tipo_calculo === 'por_plan' ? 'Plan Básico' : 'Nivel I'}
+                          onChange={e => { setTarifaNombre(e.target.value); setErrors(er => ({ ...er, tarifaNombre: '' })) }} />
+                        {errors.tarifaNombre && <p className="text-[10px] text-rose-500 mt-0.5">{errors.tarifaNombre}</p>}
+                        <p className="text-[10px] text-slate-400 mt-1">Podrás agregar más {form.tipo_calculo === 'por_plan' ? 'planes' : 'niveles'} luego desde "Gestionar Tarifario".</p>
+                      </div>
+                    )}
+                    <DatosForm tipoCalculo={form.tipo_calculo} value={datosForm} onChange={setDatosForm} tipoBien={form.tipo_bien} />
+                    {errors.datosForm && <p className="text-[10px] text-rose-500 mt-1">{errors.datosForm}</p>}
+                  </div>
+                )}
 
                 {/* Moneda base → afecta etiquetas de todos los montos */}
                 <div>
@@ -437,20 +539,25 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
                   <p className="text-[10px] text-slate-400 mt-1">Todos los montos se expresan en {M}.</p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className={isEdit ? '' : 'sm:col-span-2'}>
                     <label className={lbl}>Derecho póliza ({M})</label>
                     <input type="number" className="input-field text-sm" min="0" step="0.01" value={form.derecho_poliza} onChange={e => set('derecho_poliza', e.target.value)} placeholder="0.00" />
                   </div>
-                  <div>
-                    <label className={lbl}>Prima base ({M}) <span className="text-rose-500">*</span></label>
-                    <input type="number" className={inp('prima')} min="0" step="0.01" value={form.prima} onChange={e => set('prima', e.target.value)} placeholder="0.00" />
-                    {errors.prima && <p className="text-[10px] text-rose-500 mt-0.5">{errors.prima}</p>}
-                  </div>
-                  <div className="col-span-2">
-                    <label className={lbl}>Cobertura / Suma asegurada ({M})</label>
-                    <input type="number" className="input-field text-sm" min="0" step="0.01" value={form.cobertura} onChange={e => set('cobertura', e.target.value)} placeholder="0.00" />
-                  </div>
+                  {/* Al crear, prima/cobertura se derivan de la tarifa capturada arriba —
+                      mostrarlas también aquí sería un campo duplicado y confuso. */}
+                  {isEdit && (
+                    <>
+                      <div>
+                        <label className={lbl}>Prima base ({M})</label>
+                        <input type="number" className={inp('prima')} min="0" step="0.01" value={form.prima} onChange={e => set('prima', e.target.value)} placeholder="0.00" />
+                      </div>
+                      <div className="col-span-2">
+                        <label className={lbl}>Cobertura / Suma asegurada ({M})</label>
+                        <input type="number" className="input-field text-sm" min="0" step="0.01" value={form.cobertura} onChange={e => set('cobertura', e.target.value)} placeholder="0.00" />
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 <div>
@@ -461,6 +568,84 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
               </div>
             </section>
           </div>
+
+          {/* ── Bienes y beneficiarios (fila completa) ── */}
+          <section className="pt-4 border-t border-slate-100">
+            <ProdSecHdr Icon={Package}>Bienes y beneficiarios de esta póliza</ProdSecHdr>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+              <div className="p-3 rounded-xl border border-slate-200 space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={form.permite_multiples_bienes} onChange={e => set('permite_multiples_bienes', e.target.checked)} className="w-4 h-4 accent-jm-blue" />
+                  <span className="text-xs font-semibold text-slate-700">¿Permite cubrir varios bienes?</span>
+                </label>
+                <p className="text-[10px] text-slate-400">Ej. una póliza de flota que cubre varios vehículos bajo el mismo contrato.</p>
+                {form.permite_multiples_bienes && (
+                  <div>
+                    <label className={lbl}>Máximo de bienes (vacío = sin límite)</label>
+                    <input type="number" min="1" className="input-field text-sm" value={form.max_bienes} onChange={e => set('max_bienes', e.target.value)} placeholder="Ej. 5" />
+                  </div>
+                )}
+              </div>
+              <div className="p-3 rounded-xl border border-slate-200 space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={form.aplica_beneficiarios} onChange={e => set('aplica_beneficiarios', e.target.checked)} className="w-4 h-4 accent-jm-blue" />
+                  <span className="text-xs font-semibold text-slate-700">¿Aplican beneficiarios?</span>
+                </label>
+                <p className="text-[10px] text-slate-400">Ej. vida o accidentes personales, donde se reparte una suma asegurada entre beneficiarios.</p>
+                {form.aplica_beneficiarios && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className={lbl}>Mínimo</label>
+                      <input type="number" min="0" className="input-field text-sm" value={form.min_beneficiarios} onChange={e => set('min_beneficiarios', e.target.value)} placeholder="—" />
+                    </div>
+                    <div>
+                      <label className={lbl}>Máximo</label>
+                      <input type="number" min="0" className="input-field text-sm" value={form.max_beneficiarios} onChange={e => set('max_beneficiarios', e.target.value)} placeholder="—" />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* ── Impuestos y forma de pago ── */}
+          <section className="pt-4 border-t border-slate-100">
+            <ProdSecHdr Icon={DollarSign}>Impuestos y forma de pago</ProdSecHdr>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+              <div className="p-3 rounded-xl border border-slate-200 space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={form.iva_aplica} onChange={e => set('iva_aplica', e.target.checked)} className="w-4 h-4 accent-jm-blue" />
+                  <span className="text-xs font-semibold text-slate-700">¿Aplica IVA?</span>
+                </label>
+                <p className="text-[10px] text-slate-400">Se calcula sobre la prima al cotizar y aparece desglosado en el documento de la póliza.</p>
+                {form.iva_aplica && (
+                  <div>
+                    <label className={lbl}>Porcentaje de IVA</label>
+                    <div className="relative">
+                      <input type="number" min="0" max="100" step="0.01" className="input-field text-sm pr-7" value={form.iva_porcentaje} onChange={e => set('iva_porcentaje', e.target.value)} placeholder="16.00" />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">%</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="p-3 rounded-xl border border-slate-200 space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={form.permite_mensualidades} onChange={e => set('permite_mensualidades', e.target.checked)} className="w-4 h-4 accent-jm-blue" />
+                  <span className="text-xs font-semibold text-slate-700">¿Admite pago mensual?</span>
+                </label>
+                <p className="text-[10px] text-slate-400">Si no indicas recargo, la mensualidad es la prima anual dividida en 12 partes iguales.</p>
+                {form.permite_mensualidades && (
+                  <div>
+                    <label className={lbl}>Recargo por financiamiento mensual (opcional)</label>
+                    <div className="relative">
+                      <input type="number" min="0" max="100" step="0.01" className="input-field text-sm pr-7" value={form.recargo_mensual_pct} onChange={e => set('recargo_mensual_pct', e.target.value)} placeholder="0.00" />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">%</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
 
           {/* ── Documentos (fila completa) ── */}
           <section className="pt-4 border-t border-slate-100">
@@ -486,27 +671,48 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
 }
 
 // ── Tarifario: helpers de serialización ──────────────────────────────────────
-function initDatosForm(tipoCalculo, datos) {
+// IMPORTANTE: cada fila de tarifario (una por plan/nivel) ya representa UN
+// plan/nivel — su `nombre` es el del plan. Por eso `datos` para por_plan/
+// por_nivel NUNCA debe contener una lista de "planes"/"niveles" anidados:
+// el motor de cálculo del Simulador (calcTotal) lee directamente
+// `datos.prima`/`datos.suma` (por_nivel) o suma los `.prima` de cada
+// cobertura nombrada dentro de `datos` (por_plan) — exactamente como ya
+// están los datos sembrados originalmente. Antes este formulario guardaba
+// otra forma distinta (`{planes:[...]}`) que el Simulador no sabía leer,
+// así que cualquier plan/nivel nuevo cotizaba con prima $0 en silencio.
+function initDatosForm(tipoCalculo, datos, tipoBien) {
   const d = datos || {}
   switch (tipoCalculo) {
     case 'fijo':
+      if (tipoBien === 'vehiculo') {
+        return {
+          prima_anual:       d.prima_anual       ?? '',
+          suma_persona:      d.suma_persona      ?? '',
+          suma_cosa:         d.suma_cosa         ?? '',
+          deducible:         d.deducible         ?? '',
+          asistencia_vial:   d.asistencia_vial   ?? '',
+          exceso_limite:     d.exceso_limite     ?? '',
+          defensa_penal:     d.defensa_penal     ?? '',
+          muerte_invalidez:  d.muerte_invalidez  ?? '',
+          gastos_medicos:    d.gastos_medicos    ?? '',
+          gastos_funerarios: d.gastos_funerarios ?? '',
+        }
+      }
       return {
-        prima_anual:    d.prima_anual    ?? d.prima_persona ?? '',
-        suma_asegurada: d.suma_asegurada ?? d.suma_persona  ?? '',
+        prima_anual:    d.prima_anual    ?? d.prima_persona ?? d.prima_cosa ?? '',
+        suma_asegurada: d.suma_asegurada ?? d.suma_persona  ?? d.suma_cosa  ?? '',
         deducible:      d.deducible      ?? '',
       }
-    case 'por_plan':
+    case 'por_plan': {
+      const entradas = Object.entries(d).filter(([k, v]) => v && typeof v === 'object')
       return {
-        planes: Array.isArray(d.planes) && d.planes.length > 0
-          ? d.planes
-          : [{ nombre: '', prima_anual: '', suma_asegurada: '' }],
+        coberturas: entradas.length > 0
+          ? entradas.map(([key, v]) => ({ label: v.label || key.replace(/_/g, ' '), suma: v.suma ?? '', prima: v.prima ?? '' }))
+          : [{ label: '', suma: '', prima: '' }],
       }
+    }
     case 'por_nivel':
-      return {
-        niveles: Array.isArray(d.niveles) && d.niveles.length > 0
-          ? d.niveles
-          : [{ nombre: '', prima_anual: '', suma_asegurada: '' }],
-      }
+      return { suma: d.suma ?? '', prima: d.prima ?? '' }
     case 'por_valor':
       return { tasa_pct: d.tasa_pct ?? '', prima_minima: d.prima_minima ?? '', cobertura_max: d.cobertura_max ?? '' }
     default:
@@ -514,16 +720,40 @@ function initDatosForm(tipoCalculo, datos) {
   }
 }
 
-function serializeDatosForm(tipoCalculo, datosForm) {
+// `nombreFila` es el nombre de ESTA fila de tarifario (el plan/nivel que
+// representa) — en por_nivel los datos reales sembrados ya lo guardan
+// redundantemente como `nivel` (ver docblock de TarifarioController).
+// `tipoBien` solo afecta a 'fijo': los vehículos usan el desglose de
+// coberturas con nombre propio (Daños a Personas/Cosas, Asistencia Vial…)
+// que exige el cuadro póliza estándar; el resto usa una suma asegurada genérica.
+function serializeDatosForm(tipoCalculo, datosForm, nombreFila, tipoBien) {
   const f = datosForm || {}
   const n = v => parseFloat(v) || 0
   switch (tipoCalculo) {
     case 'fijo':
+      if (tipoBien === 'vehiculo') {
+        return {
+          prima_anual:       n(f.prima_anual),
+          suma_persona:      n(f.suma_persona),
+          suma_cosa:         n(f.suma_cosa),
+          deducible:         n(f.deducible),
+          asistencia_vial:   n(f.asistencia_vial),
+          exceso_limite:     n(f.exceso_limite),
+          defensa_penal:     n(f.defensa_penal),
+          muerte_invalidez:  n(f.muerte_invalidez),
+          gastos_medicos:    n(f.gastos_medicos),
+          gastos_funerarios: n(f.gastos_funerarios),
+        }
+      }
       return { prima_anual: n(f.prima_anual), suma_asegurada: n(f.suma_asegurada), deducible: n(f.deducible) }
     case 'por_plan':
-      return { planes: (f.planes || []).map(p => ({ nombre: p.nombre, prima_anual: n(p.prima_anual), suma_asegurada: n(p.suma_asegurada) })) }
+      return Object.fromEntries(
+        (f.coberturas || [])
+          .filter(c => c.label?.trim())
+          .map(c => [c.label.trim().toLowerCase().replace(/\s+/g, '_'), { label: c.label.trim(), suma: n(c.suma), prima: n(c.prima) }])
+      )
     case 'por_nivel':
-      return { niveles: (f.niveles || []).map(p => ({ nombre: p.nombre, prima_anual: n(p.prima_anual), suma_asegurada: n(p.suma_asegurada) })) }
+      return { nivel: nombreFila ?? f.nivel, suma: n(f.suma), prima: n(f.prima) }
     case 'por_valor':
       return { tasa_pct: n(f.tasa_pct), prima_minima: n(f.prima_minima), cobertura_max: n(f.cobertura_max) }
     default:
@@ -532,7 +762,7 @@ function serializeDatosForm(tipoCalculo, datosForm) {
 }
 
 // ── Formulario dinámico de datos tarifarios ───────────────────────────────────
-function DatosForm({ tipoCalculo, value, onChange }) {
+function DatosForm({ tipoCalculo, value, onChange, tipoBien }) {
   const inp = 'input-field text-sm'
   const lbl = 'field-label'
   const numInput = (field, placeholder = '0.00') => (
@@ -541,8 +771,60 @@ function DatosForm({ tipoCalculo, value, onChange }) {
       onChange={e => onChange({ ...value, [field]: e.target.value })} />
   )
 
+  if (tipoCalculo === 'fijo' && tipoBien === 'vehiculo') return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className={lbl}>Prima anual (USD) <span className="text-rose-500">*</span></label>
+          {numInput('prima_anual', '180.00')}
+        </div>
+        <div>
+          <label className={lbl}>Deducible (USD)</label>
+          {numInput('deducible', '0.00')}
+        </div>
+      </div>
+      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide pt-1">Coberturas del cuadro póliza</p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div>
+          <label className={lbl}>Daños a Personas</label>
+          {numInput('suma_persona')}
+        </div>
+        <div>
+          <label className={lbl}>Exceso de Límite</label>
+          {numInput('exceso_limite')}
+        </div>
+        <div>
+          <label className={lbl}>Muerte e Invalidez</label>
+          {numInput('muerte_invalidez')}
+        </div>
+        <div>
+          <label className={lbl}>Daños a Cosas</label>
+          {numInput('suma_cosa')}
+        </div>
+        <div>
+          <label className={lbl}>Defensa Penal</label>
+          {numInput('defensa_penal')}
+        </div>
+        <div>
+          <label className={lbl}>Gastos Médicos</label>
+          {numInput('gastos_medicos')}
+        </div>
+        <div>
+          <label className={lbl}>Asistencia Vial</label>
+          {numInput('asistencia_vial')}
+        </div>
+        <div></div>
+        <div>
+          <label className={lbl}>Gastos Funerarios</label>
+          {numInput('gastos_funerarios')}
+        </div>
+      </div>
+      <p className="text-[10px] text-slate-400">Déjalas en blanco (0) si esta póliza no incluye esa cobertura — igual aparecerán en el cuadro póliza como "0,00".</p>
+    </div>
+  )
+
   if (tipoCalculo === 'fijo') return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <div>
         <label className={lbl}>Prima anual (USD) <span className="text-rose-500">*</span></label>
         {numInput('prima_anual', '180.00')}
@@ -558,56 +840,72 @@ function DatosForm({ tipoCalculo, value, onChange }) {
     </div>
   )
 
-  if (tipoCalculo === 'por_plan' || tipoCalculo === 'por_nivel') {
-    const key   = tipoCalculo === 'por_plan' ? 'planes' : 'niveles'
-    const label = tipoCalculo === 'por_plan' ? 'Plan'   : 'Nivel'
-    const items = value[key] ?? []
-    const updateItem = (i, field, val) => {
-      const updated = items.map((it, idx) => idx === i ? { ...it, [field]: val } : it)
-      onChange({ ...value, [key]: updated })
+  // por_nivel: esta fila YA ES un nivel (su nombre es el del nivel) — solo
+  // hace falta su suma y prima, sin lista anidada.
+  if (tipoCalculo === 'por_nivel') return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div>
+        <label className={lbl}>Suma asegurada ($) <span className="text-rose-500">*</span></label>
+        {numInput('suma', '30000.00')}
+      </div>
+      <div>
+        <label className={lbl}>Prima anual ($) <span className="text-rose-500">*</span></label>
+        {numInput('prima', '800.00')}
+      </div>
+    </div>
+  )
+
+  // por_plan: esta fila YA ES un plan — lo que varía dentro de un plan son
+  // sus coberturas (Muerte Accidental, Invalidez, Gastos de Sepelio…), cada
+  // una con su propia suma y prima.
+  if (tipoCalculo === 'por_plan') {
+    const coberturas = value.coberturas ?? []
+    const update = (i, field, val) => {
+      const updated = coberturas.map((c, idx) => idx === i ? { ...c, [field]: val } : c)
+      onChange({ ...value, coberturas: updated })
     }
     return (
       <div className="space-y-2">
-        {items.map((item, i) => (
+        {coberturas.map((c, i) => (
           <div key={i} className="p-3 bg-white rounded-xl border border-slate-200">
             <div className="flex items-center justify-between mb-2.5">
-              <span className="text-xs font-bold text-slate-500">{label} {i + 1}</span>
-              {items.length > 1 && (
-                <button type="button" onClick={() => onChange({ ...value, [key]: items.filter((_, j) => j !== i) })}
+              <span className="text-xs font-bold text-slate-500">Cobertura {i + 1}</span>
+              {coberturas.length > 1 && (
+                <button type="button" onClick={() => onChange({ ...value, coberturas: coberturas.filter((_, j) => j !== i) })}
                   className="p-1 hover:bg-rose-100 rounded transition">
                   <X className="w-3.5 h-3.5 text-rose-400" />
                 </button>
               )}
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <div>
                 <label className={lbl}>Nombre</label>
-                <input className={inp} value={item.nombre || ''} placeholder={`${label} Básico`}
-                  onChange={e => updateItem(i, 'nombre', e.target.value)} />
-              </div>
-              <div>
-                <label className={lbl}>Prima anual ($)</label>
-                <input type="number" min="0" step="0.01" className={inp} value={item.prima_anual || ''}
-                  onChange={e => updateItem(i, 'prima_anual', e.target.value)} />
+                <input className={inp} value={c.label || ''} placeholder="Muerte Accidental"
+                  onChange={e => update(i, 'label', e.target.value)} />
               </div>
               <div>
                 <label className={lbl}>Suma asegurada ($)</label>
-                <input type="number" min="0" step="0.01" className={inp} value={item.suma_asegurada || ''}
-                  onChange={e => updateItem(i, 'suma_asegurada', e.target.value)} />
+                <input type="number" min="0" step="0.01" className={inp} value={c.suma || ''}
+                  onChange={e => update(i, 'suma', e.target.value)} />
+              </div>
+              <div>
+                <label className={lbl}>Prima anual ($)</label>
+                <input type="number" min="0" step="0.01" className={inp} value={c.prima || ''}
+                  onChange={e => update(i, 'prima', e.target.value)} />
               </div>
             </div>
           </div>
         ))}
-        <button type="button" onClick={() => onChange({ ...value, [key]: [...items, { nombre: '', prima_anual: '', suma_asegurada: '' }] })}
+        <button type="button" onClick={() => onChange({ ...value, coberturas: [...coberturas, { label: '', suma: '', prima: '' }] })}
           className="btn-secondary w-full justify-center text-sm">
-          <Plus className="w-4 h-4" /> Agregar {label.toLowerCase()}
+          <Plus className="w-4 h-4" /> Agregar cobertura
         </button>
       </div>
     )
   }
 
   if (tipoCalculo === 'por_valor') return (
-    <div className="grid grid-cols-3 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
       <div>
         <label className={lbl}>Tasa (%) <span className="text-rose-500">*</span></label>
         <input type="number" min="0" step="0.001" className={inp} placeholder="0.500"
@@ -640,27 +938,47 @@ function DatosDisplay({ tipoCalculo, datos }) {
     </span>
   )
 
+  // 'fijo' tiene 2 formas posibles: suma_asegurada genérica (la mayoría de
+  // productos) o el desglose con nombre propio de vehículos (suma_persona,
+  // suma_cosa, asistencia_vial…). Se muestran todas las que tengan valor
+  // > 0 en vez de asumir una sola forma fija.
+  const ETIQUETAS_FIJO = {
+    suma_asegurada: 'Suma asegurada', suma_persona: 'Daños a Personas', suma_cosa: 'Daños a Cosas',
+    asistencia_vial: 'Asistencia Vial', exceso_limite: 'Exceso de Límite', defensa_penal: 'Defensa Penal',
+    muerte_invalidez: 'Muerte e Invalidez', gastos_medicos: 'Gastos Médicos', gastos_funerarios: 'Gastos Funerarios',
+  }
   if (tipoCalculo === 'fijo') return (
     <div className="flex flex-wrap gap-4 mt-2 px-1">
       <Tag label="Prima anual" val={fmt(d.prima_anual)} />
-      <Tag label="Suma asegurada" val={fmt(d.suma_asegurada)} />
+      {Object.entries(ETIQUETAS_FIJO).filter(([k]) => (parseFloat(d[k]) || 0) > 0).map(([k, label]) => (
+        <Tag key={k} label={label} val={fmt(d[k])} />
+      ))}
       {d.deducible > 0 && <Tag label="Deducible" val={fmt(d.deducible)} />}
     </div>
   )
 
-  if (tipoCalculo === 'por_plan' || tipoCalculo === 'por_nivel') {
-    const key   = tipoCalculo === 'por_plan' ? 'planes' : 'niveles'
-    const items = d[key] || []
+  // Esta fila YA ES un nivel — sus únicos datos son suma + prima.
+  if (tipoCalculo === 'por_nivel') return (
+    <div className="flex flex-wrap gap-4 mt-2 px-1">
+      <Tag label="Prima anual" val={fmt(d.prima)} />
+      <Tag label="Suma asegurada" val={fmt(d.suma)} />
+    </div>
+  )
+
+  // Esta fila YA ES un plan — sus datos son un mapa de coberturas nombradas
+  // (ej. muerte_accidental, invalidez_total), cada una con su suma + prima.
+  if (tipoCalculo === 'por_plan') {
+    const coberturas = Object.entries(d).filter(([, v]) => v && typeof v === 'object')
     return (
       <div className="flex flex-wrap gap-1.5 mt-2">
-        {items.map((item, i) => (
-          <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-100 text-xs">
-            <span className="font-semibold text-slate-700">{item.nombre || `#${i + 1}`}</span>
+        {coberturas.map(([key, v], i) => (
+          <span key={key} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-100 text-xs">
+            <span className="font-semibold text-slate-700">{v.label || key.replace(/_/g, ' ')}</span>
             <span className="text-slate-300">·</span>
-            <span className="text-emerald-600 font-bold">{fmt(item.prima_anual)}/año</span>
-            {item.suma_asegurada > 0 && <>
+            <span className="text-emerald-600 font-bold">{fmt(v.prima)}/año</span>
+            {v.suma > 0 && <>
               <span className="text-slate-300">·</span>
-              <span className="text-indigo-600">{fmt(item.suma_asegurada)}</span>
+              <span className="text-indigo-600">{fmt(v.suma)}</span>
             </>}
           </span>
         ))}
@@ -691,7 +1009,10 @@ const ESTADO_TARIFA = {
 }
 
 function TarifarioModal({ producto, onClose }) {
-  const { showToast, showModal } = useApp()
+  const { showToast, showModal, canAct } = useApp()
+  const panelRef = useRef(null)
+  useModalLock(panelRef)
+  const canEdit = canAct('productos', 'edit')
   const [tarifas,       setTarifas]       = useState([])
   const [loading,       setLoading]       = useState(true)
   const [showForm,      setShowForm]      = useState(false)
@@ -701,9 +1022,12 @@ function TarifarioModal({ producto, onClose }) {
   const [err,           setErr]           = useState('')
   const [showArchivado, setShowArchivado] = useState(false)
 
+  // Compara usando el MISMO nombre en ambos lados — así un simple renombre
+  // (que en por_nivel se reflejaría en datos.nivel) no dispara una nueva
+  // versión por sí solo; solo cuenta como cambio real si suma/prima difieren.
   const datosChangedFromEditing = editing && (
-    JSON.stringify(serializeDatosForm(producto.tipo_calculo, form.datosForm)) !==
-    JSON.stringify(editing.datos ?? {})
+    JSON.stringify(serializeDatosForm(producto.tipo_calculo, form.datosForm, form.nombre, producto.tipo_bien)) !==
+    JSON.stringify(serializeDatosForm(producto.tipo_calculo, initDatosForm(producto.tipo_calculo, editing.datos, producto.tipo_bien), form.nombre, producto.tipo_bien))
   )
 
   const load = useCallback(async () => {
@@ -722,21 +1046,21 @@ function TarifarioModal({ producto, onClose }) {
 
   const openNew = () => {
     setEditing(null)
-    setForm({ nombre: '', subtipo: '', datosForm: initDatosForm(producto.tipo_calculo, null), activo: true })
+    setForm({ nombre: '', subtipo: '', datosForm: initDatosForm(producto.tipo_calculo, null, producto.tipo_bien), activo: true })
     setErr('')
     setShowForm(true)
   }
 
   const openEdit = (t) => {
     setEditing(t)
-    setForm({ nombre: t.nombre, subtipo: t.subtipo || '', datosForm: initDatosForm(producto.tipo_calculo, t.datos), activo: t.activo })
+    setForm({ nombre: t.nombre, subtipo: t.subtipo || '', datosForm: initDatosForm(producto.tipo_calculo, t.datos, producto.tipo_bien), activo: t.activo })
     setErr('')
     setShowForm(true)
   }
 
   const handleSave = async () => {
     if (!form.nombre.trim()) { setErr('El nombre es obligatorio.'); return }
-    const datos = serializeDatosForm(producto.tipo_calculo, form.datosForm)
+    const datos = serializeDatosForm(producto.tipo_calculo, form.datosForm, form.nombre, producto.tipo_bien)
     setSaving(true); setErr('')
     try {
       const payload = { nombre: form.nombre, subtipo: form.subtipo, activo: form.activo, datos }
@@ -760,7 +1084,7 @@ function TarifarioModal({ producto, onClose }) {
 
   return (
     <div className="fixed inset-0 bg-black/50 z-[80] flex items-center justify-center p-4 backdrop-blur-sm">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in duration-200">
+      <div ref={panelRef} tabIndex={-1} className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in duration-200 outline-none">
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
           <div>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tarifario</p>
@@ -781,7 +1105,7 @@ function TarifarioModal({ producto, onClose }) {
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-3">
-          {!showForm && (
+          {!showForm && canEdit && (
             <button onClick={openNew} className="btn-primary w-full justify-center">
               <Plus className="w-4 h-4" /> Agregar tarifa
             </button>
@@ -799,7 +1123,7 @@ function TarifarioModal({ producto, onClose }) {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="field-label">Nombre de la tarifa <span className="text-rose-500">*</span></label>
                   <input className="input-field text-sm" value={form.nombre} onChange={e => setForm(p => ({ ...p, nombre: e.target.value }))} placeholder="Ej. Tarifa Estándar" />
@@ -818,6 +1142,7 @@ function TarifarioModal({ producto, onClose }) {
                   tipoCalculo={producto.tipo_calculo}
                   value={form.datosForm}
                   onChange={datosForm => setForm(p => ({ ...p, datosForm }))}
+                  tipoBien={producto.tipo_bien}
                 />
               </div>
               <div className="flex items-center gap-2">
@@ -862,12 +1187,12 @@ function TarifarioModal({ producto, onClose }) {
                           </p>
                         )}
                       </div>
-                      {!isArchivado && (
+                      {!isArchivado && canEdit && (
                         <div className="flex gap-1 shrink-0">
-                          <button onClick={() => openEdit(t)} className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition">
+                          <button onClick={() => openEdit(t)} className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition" title="Editar tarifa">
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
-                          <button onClick={() => handleDelete(t)} className="p-1.5 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition">
+                          <button onClick={() => handleDelete(t)} className="p-1.5 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition" title="Eliminar tarifa">
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
@@ -878,6 +1203,131 @@ function TarifarioModal({ producto, onClose }) {
                 )
               })}
             </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Beneficios (coberturas informativas) de un producto ──────────────────────
+function BeneficiosModal({ producto, onClose, onSaved }) {
+  const { showToast, canAct } = useApp()
+  const panelRef = useRef(null)
+  useModalLock(panelRef)
+  const canEdit = canAct('productos', 'manage_beneficios')
+  const [items,   setItems]   = useState(producto.beneficios || [])
+  const [saving,  setSaving]  = useState(false)
+  const [editId,  setEditId]  = useState(null)
+  const [form,    setForm]    = useState({ descripcion: '', monto: '' })
+
+  const resetForm = () => { setEditId(null); setForm({ descripcion: '', monto: '' }) }
+
+  const startEdit = (b) => {
+    setEditId(b.id)
+    setForm({ descripcion: b.descripcion, monto: String(b.monto) })
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!form.descripcion.trim() || form.monto === '') {
+      showToast('Descripción y monto son obligatorios.', 'warning')
+      return
+    }
+    setSaving(true)
+    try {
+      const payload = { descripcion: form.descripcion.trim(), monto: parseFloat(form.monto) }
+      if (editId) {
+        const updated = await updateBeneficio(producto.id, editId, payload)
+        setItems(prev => prev.map(b => b.id === editId ? updated : b))
+      } else {
+        const created = await createBeneficio(producto.id, payload)
+        setItems(prev => [...prev, created])
+      }
+      resetForm()
+      onSaved?.()
+      showToast(editId ? 'Beneficio actualizado' : 'Beneficio agregado', 'success')
+    } catch (e) {
+      showToast(e.message, 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async (b) => {
+    try {
+      await deleteBeneficio(producto.id, b.id)
+      setItems(prev => prev.filter(x => x.id !== b.id))
+      if (editId === b.id) resetForm()
+      onSaved?.()
+      showToast('Beneficio eliminado', 'success')
+    } catch (e) {
+      showToast(e.message, 'error')
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-[80] flex items-center justify-center p-4 backdrop-blur-sm">
+      <div ref={panelRef} tabIndex={-1} className="bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in duration-200 outline-none">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
+          <div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Beneficios / Coberturas</p>
+            <h3 className="text-base font-black text-slate-800">{producto.nombre}</h3>
+          </div>
+          <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-xl transition">
+            <X className="w-4 h-4 text-slate-500" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {items.length === 0 ? (
+            <div className="py-6 text-center">
+              <ListChecks className="w-9 h-9 text-slate-200 mx-auto mb-2" />
+              <p className="text-sm text-slate-400">Este producto aún no tiene beneficios listados.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {items.map(b => (
+                <div key={b.id} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+                    <ListChecks className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <p className="flex-1 text-sm font-medium text-slate-700 truncate">{b.descripcion}</p>
+                  <span className="text-sm font-bold text-emerald-700 shrink-0">{fmtMonto(b.monto, producto.moneda)}</span>
+                  {canEdit && (
+                    <>
+                      <button onClick={() => startEdit(b)} className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition shrink-0" title="Editar">
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => handleDelete(b)} className="p-2 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition shrink-0" title="Eliminar">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {canEdit && (
+            <form onSubmit={handleSubmit} className="p-3 rounded-xl border border-dashed border-slate-200 space-y-2">
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">
+                {editId ? 'Editar beneficio' : 'Agregar beneficio'}
+              </p>
+              <input className="input-field text-sm w-full" placeholder="Descripción (ej: Muerte Accidental) *" value={form.descripcion}
+                onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))} />
+              <input type="number" min="0" step="0.01" className="input-field text-sm w-full" placeholder="Monto / suma asegurada *" value={form.monto}
+                onChange={e => setForm(f => ({ ...f, monto: e.target.value }))} />
+              <div className="flex gap-2">
+                <button type="submit" disabled={saving} className="btn-primary text-xs !py-1.5 flex-1 justify-center disabled:opacity-50">
+                  {editId ? <Check className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                  {saving ? 'Guardando…' : editId ? 'Guardar cambios' : 'Agregar'}
+                </button>
+                {editId && (
+                  <button type="button" onClick={resetForm} className="btn-secondary text-xs !py-1.5">Cancelar</button>
+                )}
+              </div>
+            </form>
           )}
         </div>
       </div>
@@ -915,6 +1365,7 @@ export default function Productos() {
   const [monedaOpen,    setMonedaOpen]    = useState(false)
   const [modalProd,     setModalProd]     = useState(null)  // null | 'new' | producto
   const [modalTar,      setModalTar]      = useState(null)  // null | producto
+  const [modalBenef,    setModalBenef]    = useState(null)  // null | producto
   const monedaDropRef = useRef(null)
 
   useEffect(() => {
@@ -943,6 +1394,8 @@ export default function Productos() {
   const canEdit       = canAct('productos', 'edit')
   const canDelete     = canAct('productos', 'delete')
   const canManageDocs = canAct('productos', 'manage_docs')
+  const canViewCards  = canAct('productos', 'view_cards')
+  const canViewList   = canAct('productos', 'view_list')
 
   const conteosPorTipo = TIPOS_PRODUCTO.reduce((acc, t) => {
     acc[t.val] = productos.filter(p => p.tipo === t.val).length
@@ -993,37 +1446,63 @@ export default function Productos() {
         ? <span className="inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-700">Publicado</span>
         : <span className="inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-500">Borrador</span>,
       acc: (
-        <div className="flex gap-1 justify-center flex-wrap items-center">
-          <button onClick={() => showModal('productoDetail', { p })} className="p-2 rounded-lg bg-slate-50 text-slate-500 hover:bg-slate-100 transition inline-flex items-center justify-center" title="Ver detalles">
-            <Eye className="w-4 h-4" />
+        <div className="flex gap-1.5 justify-center flex-wrap items-center">
+          <button onClick={() => showModal('productoDetail', { p })} className="p-2.5 rounded-lg bg-slate-50 text-slate-500 hover:bg-slate-100 transition inline-flex items-center justify-center" title="Ver detalles">
+            <Eye className="w-[18px] h-[18px]" />
           </button>
           {canManageDocs && (
             <button
               onClick={() => showModal('productoDocumentos', { p, onSaved: loadProductos })}
-              className={`p-2 rounded-lg transition inline-flex items-center justify-center ${p.documentos?.length > 0 ? 'bg-violet-100 text-violet-700 hover:bg-violet-200' : 'bg-slate-50 text-slate-400 hover:bg-violet-50 hover:text-violet-500'}`}
+              className={`p-2.5 rounded-lg transition inline-flex items-center justify-center ${p.documentos?.length > 0 ? 'bg-violet-100 text-violet-700 hover:bg-violet-200' : 'bg-slate-50 text-slate-400 hover:bg-violet-50 hover:text-violet-500'}`}
               title={`Documentos PDF (${p.documentos?.length ?? 0})`}
             >
-              <FileText className="w-4 h-4" />
+              <FileText className="w-[18px] h-[18px]" />
             </button>
           )}
           {/* Tarifario */}
           {canEdit && (
-            <button onClick={() => setModalTar(p)} className="p-2 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 transition inline-flex items-center justify-center" title="Gestionar tarifario">
-              <Settings className="w-4 h-4" />
+            <button onClick={() => setModalTar(p)} className="p-2.5 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 transition inline-flex items-center justify-center" title="Gestionar tarifario">
+              <Settings className="w-[18px] h-[18px]" />
+            </button>
+          )}
+          {/* Beneficios / coberturas */}
+          <button onClick={() => setModalBenef(p)} className="p-2.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition inline-flex items-center justify-center" title="Beneficios / coberturas">
+            <ListChecks className="w-[18px] h-[18px]" />
+          </button>
+          {canEdit && (
+            <button onClick={() => setModalProd(p)} className="p-2.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition inline-flex items-center justify-center" title="Editar">
+              <Pencil className="w-[18px] h-[18px]" />
             </button>
           )}
           {canEdit && (
-            <button onClick={() => setModalProd(p)} className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition inline-flex items-center justify-center" title="Editar">
-              <Pencil className="w-4 h-4" />
+            <button
+              onClick={() => showModal('confirmAction', {
+                title: p.publicado ? 'Despublicar producto' : 'Publicar producto',
+                message: p.publicado
+                  ? `"${p.nombre}" dejará de mostrarse en el portal público de clientes.`
+                  : `"${p.nombre}" se mostrará en el portal público de clientes.`,
+                icon: p.publicado ? EyeOff : Globe,
+                color: p.publicado ? 'amber' : 'emerald',
+                confirmLabel: p.publicado ? 'Despublicar' : 'Publicar',
+                onConfirm: async () => {
+                  await updateProducto(p.id, { publicado: !p.publicado })
+                  await loadProductos()
+                  showToast(p.publicado ? `"${p.nombre}" ya no aparece en el portal público` : `"${p.nombre}" publicado en el portal público`, 'success')
+                },
+              })}
+              className={`p-2.5 rounded-lg transition inline-flex items-center justify-center ${p.publicado ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
+              title={p.publicado ? 'Despublicar (ocultar del portal público)' : 'Publicar (mostrar en el portal público)'}
+            >
+              {p.publicado ? <Globe className="w-[18px] h-[18px]" /> : <EyeOff className="w-[18px] h-[18px]" />}
             </button>
           )}
           {canDelete && (
             <button
               onClick={() => showModal('confirmDelete', { name: p.nombre, onConfirm: async () => { await deleteProducto(p.id); await loadProductos() } })}
-              className="p-2 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition inline-flex items-center justify-center"
+              className="p-2.5 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition inline-flex items-center justify-center"
               title="Eliminar"
             >
-              <Trash2 className="w-4 h-4" />
+              <Trash2 className="w-[18px] h-[18px]" />
             </button>
           )}
         </div>
@@ -1079,49 +1558,51 @@ export default function Productos() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="card p-4 flex items-start gap-3">
-            <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0"><Shield className="w-4 h-4 text-slate-600" /></div>
-            <div className="min-w-0">
-              <p className="text-xs text-slate-500 font-medium leading-tight">Tipos de Póliza</p>
-              <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{productos.length}</p>
-              <p className="text-xs text-slate-400 mt-1">Disponibles en el simulador</p>
+        {canViewCards && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="card p-4 flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0"><Shield className="w-4 h-4 text-slate-600" /></div>
+              <div className="min-w-0">
+                <p className="text-xs text-slate-500 font-medium leading-tight">Tipos de Póliza</p>
+                <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{productos.length}</p>
+                <p className="text-xs text-slate-400 mt-1">Disponibles en el simulador</p>
+              </div>
             </div>
-          </div>
-          <div className="card p-4 flex items-start gap-3">
-            <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0"><ShieldCheck className="w-4 h-4 text-slate-600" /></div>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs text-slate-500 font-medium leading-tight mb-2">Por Tipo</p>
-              <div className="flex flex-wrap gap-1">
-                {TIPOS_PRODUCTO.filter(t => conteosPorTipo[t.val] > 0).map(t => (
-                  <span key={t.val} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${t.bg} ${t.text}`}>
-                    {t.label} <span className="opacity-70">{conteosPorTipo[t.val]}</span>
-                  </span>
-                ))}
+            <div className="card p-4 flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0"><ShieldCheck className="w-4 h-4 text-slate-600" /></div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-slate-500 font-medium leading-tight mb-2">Por Tipo</p>
+                <div className="flex flex-wrap gap-1">
+                  {TIPOS_PRODUCTO.filter(t => conteosPorTipo[t.val] > 0).map(t => (
+                    <span key={t.val} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${t.bg} ${t.text}`}>
+                      {t.label} <span className="opacity-70">{conteosPorTipo[t.val]}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="card p-4 flex items-start gap-3">
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${CURRENCY_META[monedaDisplay].bg}`}>
+                <TrendingUp className={`w-4 h-4 ${CURRENCY_META[monedaDisplay].text}`} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-slate-500 font-medium leading-tight">Suma Primas</p>
+                <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{fmtMontoAbrev(sumaPrimaActual, monedaDisplay)}</p>
+                <p className="text-xs text-slate-400 mt-1">{tasasOk ? 'Al tipo BCV' : 'Solo misma moneda'}</p>
+              </div>
+            </div>
+            <div className="card p-4 flex items-start gap-3">
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${CURRENCY_META[monedaDisplay].bg}`}>
+                <ShieldCheck className={`w-4 h-4 ${CURRENCY_META[monedaDisplay].text}`} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-slate-500 font-medium leading-tight">Suma Coberturas</p>
+                <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{fmtMontoAbrev(sumaCobActual, monedaDisplay)}</p>
+                <p className="text-xs text-slate-400 mt-1">{tasasOk ? 'Al tipo BCV' : 'Solo misma moneda'}</p>
               </div>
             </div>
           </div>
-          <div className="card p-4 flex items-start gap-3">
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${CURRENCY_META[monedaDisplay].bg}`}>
-              <TrendingUp className={`w-4 h-4 ${CURRENCY_META[monedaDisplay].text}`} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-slate-500 font-medium leading-tight">Suma Primas</p>
-              <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{fmtMontoAbrev(sumaPrimaActual, monedaDisplay)}</p>
-              <p className="text-xs text-slate-400 mt-1">{tasasOk ? 'Al tipo BCV' : 'Solo misma moneda'}</p>
-            </div>
-          </div>
-          <div className="card p-4 flex items-start gap-3">
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${CURRENCY_META[monedaDisplay].bg}`}>
-              <ShieldCheck className={`w-4 h-4 ${CURRENCY_META[monedaDisplay].text}`} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-slate-500 font-medium leading-tight">Suma Coberturas</p>
-              <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{fmtMontoAbrev(sumaCobActual, monedaDisplay)}</p>
-              <p className="text-xs text-slate-400 mt-1">{tasasOk ? 'Al tipo BCV' : 'Solo misma moneda'}</p>
-            </div>
-          </div>
-        </div>
+        )}
       </div>
 
       <SearchBar
@@ -1143,7 +1624,14 @@ export default function Productos() {
         </div>
       )}
       {error && !loading && <div className="text-center py-12 text-rose-500 text-sm">{error}</div>}
-      {!loading && !error && <DataTable cols={COLS} rows={dataRows} searchable />}
+      {!loading && !error && (canViewList ? (
+        <DataTable cols={COLS} rows={dataRows} searchable />
+      ) : (
+        <div className="card flex flex-col items-center justify-center py-16 gap-2 text-center">
+          <Shield className="w-6 h-6 text-slate-300" />
+          <p className="text-xs text-slate-400">No tienes permiso para ver el listado de productos.</p>
+        </div>
+      ))}
 
       {/* Modales */}
       {modalProd && (
@@ -1158,6 +1646,13 @@ export default function Productos() {
         <TarifarioModal
           producto={modalTar}
           onClose={() => setModalTar(null)}
+        />
+      )}
+      {modalBenef && (
+        <BeneficiosModal
+          producto={modalBenef}
+          onClose={() => setModalBenef(null)}
+          onSaved={loadProductos}
         />
       )}
     </div>

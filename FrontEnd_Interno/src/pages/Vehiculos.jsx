@@ -1,14 +1,16 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Pencil, Trash2, Eye, Car, Package, Users, ShieldCheck, AlertTriangle, X, Check, Home, FileText, FolderOpen, Download } from 'lucide-react'
+import { Pencil, Trash2, Eye, Car, Package, Users, ShieldCheck, AlertTriangle, X, Check, Home, FileText, FolderOpen, Download, Bike, PawPrint, Anchor, Laptop, Gem } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import SearchBar from '../components/SearchBar.jsx'
 import DataTable from '../components/DataTable.jsx'
 import { fetchBienes, updateBien, deleteBien } from '../api/bienes.js'
 import { downloadPolizaPdf } from '../api/polizas.js'
+import { useModalLock } from '../utils/helpers.jsx'
+import { BIEN_TIPO_PRESETS } from '../utils/bienPresets.js'
 
-const TIPO_ICON  = { vehiculo: Car, inmueble: Home, bien: Package, vida: Users }
-const TIPO_LABEL = { vehiculo: 'Vehículo', inmueble: 'Inmueble', bien: 'Bien', vida: 'Vida/Personas' }
+const TIPO_ICON  = { vehiculo: Car, inmueble: Home, bien: Package, vida: Users, bicicleta: Bike, mascota: PawPrint, embarcacion: Anchor, equipo_electronico: Laptop, joya: Gem }
+const TIPO_LABEL = { vehiculo: 'Vehículo', inmueble: 'Inmueble', bien: 'Bien', vida: 'Vida/Personas', bicicleta: 'Bicicleta', mascota: 'Mascota', embarcacion: 'Embarcación', equipo_electronico: 'Equipo electrónico', joya: 'Joya' }
 
 function bienRef(b) {
   const a = b.atributos || {}
@@ -22,6 +24,8 @@ function bienRef(b) {
 // ── Modal de edición/visualización de bien ────────────────────────────────────
 function BienModal({ bien, onClose, onSaved }) {
   const { showToast } = useApp()
+  const panelRef = useRef(null)
+  useModalLock(panelRef)
   const [saving, setSaving] = useState(false)
   const [form, setForm]     = useState(() => {
     const a = bien.atributos || {}
@@ -40,11 +44,13 @@ function BienModal({ bien, onClose, onSaved }) {
         version:           a.version           ?? '',
         valor_declarado:   bien.valor_declarado ?? '',
         descripcion:       bien.descripcion     ?? '',
+        observaciones:     bien.observaciones   ?? '',
       }
     }
     return {
       descripcion:     a.descripcion || bien.descripcion || '',
       valor_declarado: bien.valor_declarado ?? '',
+      observaciones:   bien.observaciones   ?? '',
       ...a,
     }
   })
@@ -55,6 +61,7 @@ function BienModal({ bien, onClose, onSaved }) {
     setSaving(true)
     try {
       const atributos = { ...bien.atributos }
+      const presetActual = BIEN_TIPO_PRESETS[bien.tipo]
       if (bien.tipo === 'vehiculo') {
         Object.assign(atributos, {
           placa: form.placa?.toUpperCase(), marca: form.marca, modelo: form.modelo,
@@ -62,6 +69,8 @@ function BienModal({ bien, onClose, onSaved }) {
           puestos: form.puestos, serial_carroceria: form.serial_carroceria,
           serial_motor: form.serial_motor, version: form.version,
         })
+      } else if (presetActual) {
+        presetActual.campos.forEach(c => { atributos[c.key] = form[c.key] ?? '' })
       } else {
         atributos.descripcion = form.descripcion
       }
@@ -69,6 +78,7 @@ function BienModal({ bien, onClose, onSaved }) {
         atributos,
         descripcion:     form.descripcion,
         valor_declarado: parseFloat(form.valor_declarado) || null,
+        observaciones:   form.observaciones || null,
       })
       showToast('Bien actualizado correctamente', 'success')
       onSaved()
@@ -83,10 +93,11 @@ function BienModal({ bien, onClose, onSaved }) {
   const inp = 'input-field text-sm'
   const lbl = 'field-label'
   const Icon = TIPO_ICON[bien.tipo] ?? Package
+  const preset = BIEN_TIPO_PRESETS[bien.tipo] ?? null
 
   return (
     <div className="fixed inset-0 bg-black/50 z-[80] flex items-center justify-center p-4 backdrop-blur-sm">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in duration-200">
+      <div ref={panelRef} tabIndex={-1} className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in duration-200 outline-none">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
@@ -124,7 +135,7 @@ function BienModal({ bien, onClose, onSaved }) {
             <>
               <div>
                 <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">Datos del Vehículo</p>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className={lbl}>Placa</label>
                     <input className={`${inp} font-mono uppercase`} value={form.placa} onChange={e => set('placa', e.target.value.toUpperCase())} placeholder="AB123CD" />
@@ -176,6 +187,33 @@ function BienModal({ bien, onClose, onSaved }) {
                 </div>
               </div>
             </>
+          ) : preset ? (
+            <div className="space-y-3">
+              <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1">Datos de: {preset.label}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {preset.campos.map(c => (
+                  <div key={c.key}>
+                    <label className={lbl}>{c.label}</label>
+                    {c.type === 'select' ? (
+                      <select className="select-field text-sm" value={form[c.key] ?? ''} onChange={e => set(c.key, e.target.value)}>
+                        <option value="">— Seleccionar —</option>
+                        {c.opciones.map(o => <option key={o}>{o}</option>)}
+                      </select>
+                    ) : (
+                      <input type={c.type === 'number' ? 'number' : 'text'} className={inp} value={form[c.key] ?? ''} onChange={e => set(c.key, e.target.value)} placeholder={c.placeholder || ''} />
+                    )}
+                  </div>
+                ))}
+                <div>
+                  <label className={lbl}>Valor declarado (USD)</label>
+                  <input type="number" className={inp} value={form.valor_declarado} onChange={e => set('valor_declarado', e.target.value)} placeholder="0.00" min="0" step="0.01" />
+                </div>
+              </div>
+              <div>
+                <label className={lbl}>Descripción</label>
+                <textarea className={`${inp} resize-none`} rows={2} value={form.descripcion} onChange={e => set('descripcion', e.target.value)} placeholder="Descripción del bien…" />
+              </div>
+            </div>
           ) : (
             <div className="space-y-3">
               <div>
@@ -188,6 +226,12 @@ function BienModal({ bien, onClose, onSaved }) {
               </div>
             </div>
           )}
+
+          <div>
+            <label className={lbl}>Otros / Observaciones</label>
+            <textarea className={`${inp} resize-none`} rows={2} value={form.observaciones} onChange={e => set('observaciones', e.target.value)} placeholder="Detalles adicionales: golpes previos, modificaciones, acuerdos con el cliente…" />
+            <p className="text-[10px] text-slate-400 mt-1">Aparece en el campo "Otros" del cuadro póliza.</p>
+          </div>
 
           {/* Roles adicionales */}
           {bien.roles?.length > 0 && (
@@ -225,7 +269,7 @@ const COLS = [
   { k: 'ref_cell',     l: 'Identificación', bold: true, tr: true },
   { k: 'detalles',     l: 'Detalles',       tr: true,  hide: 'md' },
   { k: 'titular_cell', l: 'Titular',        tr: true,  hide: 'sm' },
-  { k: 'valor',        l: 'Valor Decl.',    r: true,   nw: true, hide: 'lg' },
+  { k: 'vendedor_cell',l: 'Vendedor',       nw: true,  hide: 'lg' },
   { k: 'poliza_cell',  l: 'Póliza',         nw: true,  hide: 'lg' },
   { k: 'vigencia_cell',l: 'Vigencia',       nw: true,  hide: 'xl' },
   { k: 'acc',          l: '',               acc: true },
@@ -237,6 +281,8 @@ export default function Vehiculos() {
   const canVerDocs   = canAct('vehiculos', 'view_docs')
   const canEdit      = canAct('vehiculos', 'edit')
   const canDelete    = canAct('vehiculos', 'delete')
+  const canViewCards = canAct('vehiculos', 'view_cards')
+  const canViewList  = canAct('vehiculos', 'view_list')
 
   if (!canAct('vehiculos', 'view')) {
     return (
@@ -258,6 +304,8 @@ export default function Vehiculos() {
   const [editBien,       setEditBien]       = useState(null)
   const [pdfLoading,     setPdfLoading]     = useState(null)
   const [pdfVisor,       setPdfVisor]       = useState(null) // { url, title, nro }
+  const pdfVisorPanelRef = useRef(null)
+  useModalLock(pdfVisorPanelRef, !!pdfVisor)
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -323,82 +371,82 @@ export default function Vehiculos() {
       tipo_label: (
         <span className="inline-flex items-center gap-1.5">
           <Icon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-          <span className="text-xs font-semibold text-slate-600">{TIPO_LABEL[b.tipo] ?? b.tipo}</span>
+          <span className="text-xs sm:text-sm font-semibold text-slate-600">{TIPO_LABEL[b.tipo] ?? b.tipo}</span>
         </span>
       ),
       ref_cell: (
         <div>
-          <div className="text-sm">{refPrincipal}</div>
+          <div className="text-xs sm:text-sm">{refPrincipal}</div>
           {b.tipo === 'vehiculo' && a.serial_carroceria && (
-            <div className="text-[10px] text-slate-400 font-mono mt-0.5 truncate max-w-[180px]">{a.serial_carroceria}</div>
+            <div className="text-xs sm:text-sm text-slate-400 font-mono mt-0.5 truncate max-w-[180px]">{a.serial_carroceria}</div>
           )}
         </div>
       ),
       detalles: (
         <div>
-          <p className="text-sm text-slate-700">{detalles}</p>
+          <p className="text-xs sm:text-sm text-slate-700">{detalles}</p>
           {b.tipo === 'vehiculo' && a.uso && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-600 font-semibold mt-0.5 inline-block">{a.uso}</span>
+            <span className="text-xs px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-600 font-semibold mt-0.5 inline-block">{a.uso}</span>
           )}
         </div>
       ),
       titular_cell: b.persona ? (
         <div>
-          <p className="text-sm font-semibold text-slate-700">{b.persona.nombre}</p>
-          <p className="text-[11px] text-slate-400">{b.persona.cedula}</p>
+          <p className="text-xs sm:text-sm font-semibold text-slate-700">{b.persona.nombre}</p>
+          <p className="text-xs sm:text-sm text-slate-400">{b.persona.cedula}</p>
         </div>
-      ) : <span className="text-slate-400 text-sm">—</span>,
-      valor: b.valor_declarado
-        ? `$${Number(b.valor_declarado).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
-        : <span className="text-slate-300">—</span>,
+      ) : <span className="text-slate-400 text-xs sm:text-sm">—</span>,
+      vendedor_cell: b.persona?.vendedor_nombre
+        ? <span className="text-xs sm:text-sm font-medium text-slate-600">{b.persona.vendedor_nombre}</span>
+        : <span className="text-slate-300 text-xs sm:text-sm italic">Sin asignar</span>,
       poliza_cell: b.poliza_nro ? (
         <div>
-          <p className="text-[11px] font-mono font-bold text-slate-700">{b.poliza_nro}</p>
+          <p className="text-xs sm:text-sm font-mono font-bold text-slate-700">{b.poliza_nro}</p>
           {b.poliza_status && (
-            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${POL_STATUS_COLOR[b.poliza_status] ?? 'bg-slate-100 text-slate-500'}`}>
+            <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${POL_STATUS_COLOR[b.poliza_status] ?? 'bg-slate-100 text-slate-500'}`}>
               {b.poliza_status}
             </span>
           )}
         </div>
-      ) : <span className="text-slate-300 text-xs">Sin póliza</span>,
+      ) : <span className="text-slate-300 text-xs sm:text-sm">Sin póliza</span>,
       vigencia_cell: b.poliza_fecha_emision ? (
         <div className="leading-tight">
-          <p className="text-[10px] text-slate-400">{b.poliza_fecha_emision}</p>
-          <p className={`text-[11px] font-semibold ${b.dias_vencimiento !== null && b.dias_vencimiento < 0 ? 'text-rose-600' : b.dias_vencimiento !== null && b.dias_vencimiento <= 30 ? 'text-amber-600' : 'text-slate-600'}`}>
+          <p className="text-xs sm:text-sm text-slate-400">{b.poliza_fecha_emision}</p>
+          <p className={`text-xs sm:text-sm font-semibold ${b.dias_vencimiento !== null && b.dias_vencimiento < 0 ? 'text-rose-600' : b.dias_vencimiento !== null && b.dias_vencimiento <= 30 ? 'text-amber-600' : 'text-slate-600'}`}>
             {b.poliza_fecha_venc}
           </p>
         </div>
-      ) : <span className="text-slate-300 text-xs">—</span>,
+      ) : <span className="text-slate-300 text-xs sm:text-sm">—</span>,
       acc: (
-        <div className="flex gap-1 justify-center flex-wrap">
+        <div className="flex gap-1.5 justify-center flex-wrap">
           {b.poliza_id && canVerPoliza && (
             <button
               onClick={() => handleVerPoliza(b)}
               disabled={pdfLoading === b.id}
-              className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition disabled:opacity-50"
+              className="p-2.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition disabled:opacity-50"
               title="Ver póliza / certificado"
             >
               {pdfLoading === b.id
-                ? <div className="w-3.5 h-3.5 border border-indigo-400 border-t-transparent rounded-full animate-spin" />
-                : <FileText className="w-3.5 h-3.5" />}
+                ? <div className="w-[18px] h-[18px] border border-indigo-400 border-t-transparent rounded-full animate-spin" />
+                : <FileText className="w-[18px] h-[18px]" />}
             </button>
           )}
           {b.poliza_persona_id && canVerDocs && (
             <button
               onClick={() => showModal('clienteDocumentos', { c: { id: b.poliza_persona_id, nombre: b.persona?.nombre ?? '' } })}
-              className="p-1.5 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 transition"
+              className="p-2.5 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 transition"
               title="Ver documentos"
             >
-              <FolderOpen className="w-3.5 h-3.5" />
+              <FolderOpen className="w-[18px] h-[18px]" />
             </button>
           )}
           {canEdit && (
             <button
               onClick={() => setEditBien(b)}
-              className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition"
+              className="p-2.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition"
               title="Editar"
             >
-              <Pencil className="w-3.5 h-3.5" />
+              <Pencil className="w-[18px] h-[18px]" />
             </button>
           )}
           {canDelete && (
@@ -407,10 +455,10 @@ export default function Vehiculos() {
                 name: bienRef(b),
                 onConfirm: async () => { await deleteBien(b.id); load() },
               })}
-              className="p-1.5 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition"
+              className="p-2.5 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition"
               title="Eliminar"
             >
-              <Trash2 className="w-3.5 h-3.5" />
+              <Trash2 className="w-[18px] h-[18px]" />
             </button>
           )}
         </div>
@@ -434,33 +482,40 @@ export default function Vehiculos() {
             <p className="text-sm text-white/50">Vehículos, inmuebles y otros activos registrados en el sistema.</p>
           </div>
         </div>
-        <div className="grid grid-cols-4 border-t border-white/10">
-          {[
-            [`${bienes.length}`,                                         'Total bienes',   ShieldCheck],
-            [`${bienes.filter(b => b.tipo === 'vehiculo').length}`,      'Vehículos',      Car       ],
-            [`${bienes.filter(b => b.tipo === 'inmueble').length}`,      'Inmuebles',      Home      ],
-            [`${bienes.filter(b => !['vehiculo','inmueble'].includes(b.tipo)).length}`, 'Otros tipos', Package],
-          ].map(([val, label, Icon]) => (
-            <div key={label} className="flex flex-col sm:flex-row items-center sm:gap-2 gap-1 px-4 py-3 text-center sm:text-left">
-              <Icon className="w-3.5 h-3.5 text-white/35 shrink-0" />
-              <div>
-                <p className="text-sm font-black text-white/80">{val}</p>
-                <p className="text-[10px] text-white/30">{label}</p>
+        {canViewCards && (
+          <div className="grid grid-cols-4 border-t border-white/10">
+            {[
+              [`${bienes.length}`,                                         'Total bienes',   ShieldCheck],
+              [`${bienes.filter(b => b.tipo === 'vehiculo').length}`,      'Vehículos',      Car       ],
+              [`${bienes.filter(b => b.tipo === 'inmueble').length}`,      'Inmuebles',      Home      ],
+              [`${bienes.filter(b => !['vehiculo','inmueble'].includes(b.tipo)).length}`, 'Otros tipos', Package],
+            ].map(([val, label, Icon]) => (
+              <div key={label} className="flex flex-col sm:flex-row items-center sm:gap-2 gap-1 px-4 py-3 text-center sm:text-left">
+                <Icon className="w-3.5 h-3.5 text-white/35 shrink-0" />
+                <div>
+                  <p className="text-sm font-black text-white/80">{val}</p>
+                  <p className="text-[10px] text-white/30">{label}</p>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Filtros */}
-      <div className="flex flex-wrap items-center gap-3">
-        <SearchBar value={search} onChange={setSearch} placeholder="Buscar por placa, titular, marca…" className="w-full sm:w-72" />
-        <select className="select-field text-sm w-auto" value={tipo} onChange={e => setTipo(e.target.value)}>
-          <option value="">Todos los tipos</option>
-          {tipos.map(t => <option key={t} value={t}>{TIPO_LABEL[t] ?? t}</option>)}
-        </select>
-        <p className="text-xs text-slate-400 ml-auto">{filt.length} resultado{filt.length !== 1 ? 's' : ''}</p>
-      </div>
+      <SearchBar
+        placeholder="Buscar por placa, titular, marca…"
+        onSearch={setSearch}
+        extra={
+          <>
+            <select className="select-field text-sm w-auto" value={tipo} onChange={e => setTipo(e.target.value)}>
+              <option value="">Todos los tipos</option>
+              {tipos.map(t => <option key={t} value={t}>{TIPO_LABEL[t] ?? t}</option>)}
+            </select>
+            <p className="text-xs text-slate-400 whitespace-nowrap">{filt.length} resultado{filt.length !== 1 ? 's' : ''}</p>
+          </>
+        }
+      />
 
       {error && (
         <div className="flex items-center gap-2 p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-sm">
@@ -468,7 +523,14 @@ export default function Vehiculos() {
         </div>
       )}
 
-      <DataTable cols={COLS} rows={rows} loading={loading} emptyMsg="No hay bienes registrados." />
+      {canViewList ? (
+        <DataTable cols={COLS} rows={rows} loading={loading} emptyMsg="No hay bienes registrados." />
+      ) : (
+        <div className="card flex flex-col items-center justify-center py-16 gap-2 text-center">
+          <ShieldCheck className="w-6 h-6 text-slate-300" />
+          <p className="text-xs text-slate-400">No tienes permiso para ver el listado de bienes.</p>
+        </div>
+      )}
 
       {/* Modal de edición */}
       {editBien && (
@@ -483,9 +545,8 @@ export default function Vehiculos() {
       {pdfVisor && createPortal(
         <div
           className="fixed inset-0 z-[65] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 sm:p-8"
-          onClick={e => { if (e.target === e.currentTarget) closePdfVisor() }}
         >
-          <div className="flex flex-col w-full max-w-3xl rounded-xl overflow-hidden shadow-2xl" style={{ height: '80vh' }}>
+          <div ref={pdfVisorPanelRef} tabIndex={-1} className="flex flex-col w-full max-w-3xl rounded-xl overflow-hidden shadow-2xl outline-none animate-in zoom-in duration-200" style={{ height: '80vh' }}>
             <div className="flex items-center gap-2 px-4 h-11 bg-[#323639] shrink-0">
               <button onClick={closePdfVisor} className="p-1.5 hover:bg-white/10 rounded-lg transition text-white" title="Cerrar">
                 <X className="w-4 h-4" />

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -14,6 +15,7 @@ class Persona extends Model
     public $timestamps = false;
 
     protected $fillable = [
+        'vendedor_id',
         'cedula',
         'nombre',
         'telefono',
@@ -46,6 +48,12 @@ class Persona extends Model
     public function solicitudes(): HasMany
     {
         return $this->hasMany(Solicitud::class, 'persona_id');
+    }
+
+    /** Vendedor que registró a este cliente (puede ser null: leads del portal o datos previos a este campo). */
+    public function vendedor(): BelongsTo
+    {
+        return $this->belongsTo(Usuario::class, 'vendedor_id');
     }
 
     public function bienes(): HasMany

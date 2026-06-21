@@ -13,6 +13,8 @@ use App\Models\IndicadorEconomico;
 use App\Models\Persona;
 use App\Models\Poliza;
 use App\Rules\NoInjectionChars;
+use App\Traits\LogsActivity;
+use App\Traits\ScopesVendedor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
@@ -26,10 +28,21 @@ use Illuminate\Support\Facades\Storage;
  */
 class ClienteController extends Controller
 {
+    use LogsActivity, ScopesVendedor;
+
+    /**
+     * Lista los clientes. Admin, Oficina y cualquier usuario con el permiso
+     * `clientes.view_all` ven todos. Los demás roles (vendedores) solo ven
+     * los clientes con su propio vendedor_id — los que aún no tienen
+     * vendedor asignado (leads del portal, datos previos a este campo) se
+     * muestran a todos para no dejarlos huérfanos. Ver ScopesVendedor.
+     */
     public function index()
     {
-        $personas = Persona::with(['solicitudes.polizas', 'bienes'])
-            ->get()
+        $query = Persona::with(['solicitudes.polizas', 'bienes', 'vendedor'])->withCount('documentos');
+        $this->whereVendedorPropio($query);
+
+        $personas = $query->get()
             ->map(function ($p) {
                 $polizas = $p->solicitudes->flatMap->polizas;
 
@@ -102,8 +115,11 @@ class ClienteController extends Controller
             if (isset($data[$field])) $data[$field] = strip_tags(trim($data[$field]));
         }
 
-        $data['activo'] = true;
+        $data['activo']      = true;
+        $data['vendedor_id'] = auth()->id();
         $persona = Persona::create($data);
+
+        $this->logActivity('crear_cliente', "Cliente {$persona->nombre} (CI {$persona->cedula}) registrado", 'persona', auth()->id());
 
         if ($persona->correo) {
             try {
@@ -121,6 +137,7 @@ class ClienteController extends Controller
     public function update(Request $request, $id)
     {
         $persona = Persona::findOrFail($id);
+        $this->assertAccesoCliente($persona);
 
         $noInjection = new NoInjectionChars();
         $data = $request->validate([
@@ -180,6 +197,14 @@ class ClienteController extends Controller
 
         $persona->update($data);
 
+        if (!empty($cambios)) {
+            $detalle = implode('; ', array_map(
+                fn($campo, $c) => "{$campo}: '{$c['anterior']}' → '{$c['nuevo']}'",
+                array_keys($cambios), $cambios
+            ));
+            $this->logActivity('editar_cliente', "Cliente {$persona->nombre} — {$detalle}", 'persona', auth()->id());
+        }
+
         // Enviar notificación si hubo cambios y existe correo
         if (!empty($cambios)) {
             $correoNuevo  = $persona->fresh()->correo;
@@ -216,6 +241,7 @@ class ClienteController extends Controller
     public function toggle(Request $request, $id)
     {
         $persona        = Persona::findOrFail($id);
+        $this->assertAccesoCliente($persona);
         $bloqueando     = (bool) $persona->activo; // si estaba activo, lo estamos bloqueando
 
         $persona->activo = !$persona->activo;
@@ -230,6 +256,13 @@ class ClienteController extends Controller
         $persona->save();
 
         $msg = $persona->activo ? 'Cliente activado correctamente' : 'Cliente bloqueado correctamente';
+
+        $this->logActivity(
+            $bloqueando ? 'bloquear_cliente' : 'activar_cliente',
+            "Cliente {$persona->nombre} (CI {$persona->cedula}) " . ($bloqueando ? "bloqueado — motivo: " . ($persona->motivo_bloqueo ?? 'sin especificar') : 'activado'),
+            'persona',
+            auth()->id()
+        );
 
         if ($persona->correo) {
             try {
@@ -252,9 +285,11 @@ class ClienteController extends Controller
     {
         $persona = Persona::with([
             'solicitudes.polizas.producto',
+            'solicitudes.polizas.vendedor',
             'solicitudes.producto',
             'solicitudes.bien',
         ])->findOrFail($id);
+        $this->assertAccesoCliente($persona);
 
         $polizas = $persona->solicitudes
             ->flatMap(function ($solicitud) {
@@ -269,6 +304,14 @@ class ClienteController extends Controller
                         'bien_tipo'             => $bien?->tipo ?? '—',
                         'bien_ref'              => $attr['placa'] ?? $attr['descripcion'] ?? '—',
                         'producto'              => $poliza->producto?->nombre ?? '—',
+                        'producto_permite_multiples_bienes' => (bool) $poliza->producto?->permite_multiples_bienes,
+                        'producto_max_bienes'               => $poliza->producto?->max_bienes,
+                        'producto_aplica_beneficiarios'     => (bool) $poliza->producto?->aplica_beneficiarios,
+                        'producto_max_beneficiarios'        => $poliza->producto?->max_beneficiarios,
+                        'producto_permite_mensualidades'    => (bool) $poliza->producto?->permite_mensualidades,
+                        'producto_recargo_mensual_pct'      => $poliza->producto?->recargo_mensual_pct,
+                        'vendedor_id'           => $poliza->vendedor_id,
+                        'vendedor_nombre'       => $poliza->vendedor?->nombre ?? '—',
                         'fecha_emision'         => $poliza->fecha_emision->format('d/m/Y'),
                         'fecha_vencimiento'     => $poliza->fecha_vencimiento->format('d/m/Y'),
                         'fecha_vencimiento_iso' => $poliza->fecha_vencimiento->format('Y-m-d'),
@@ -283,6 +326,8 @@ class ClienteController extends Controller
                         'pago'                  => $poliza->pago,
                         'status'                => $poliza->status,
                         'sede'                  => $poliza->sede_poliza ?? '—',
+                        'nro_venezolana'        => $poliza->nro_venezolana,
+                        'papeleria'             => $poliza->papeleria,
                         'bien_atributos'        => $attr,
                         'producto_documentos'   => array_map(
                             fn($d) => [
@@ -334,6 +379,7 @@ class ClienteController extends Controller
     public function solicitudes($id)
     {
         $persona = Persona::with(['solicitudes.producto'])->findOrFail($id);
+        $this->assertAccesoCliente($persona);
 
         $solicitudes = $persona->solicitudes
             ->sortByDesc(fn($s) => [$s->fecha_solicitud?->format('Y-m-d'), $s->id])
@@ -366,6 +412,7 @@ class ClienteController extends Controller
             'solicitudes.polizas.facturas.usuario',
             'solicitudes.polizas.producto',
         ])->findOrFail($id);
+        $this->assertAccesoCliente($persona);
 
         $facturas = $persona->solicitudes
             ->flatMap(fn($sol) => $sol->polizas)
@@ -391,6 +438,8 @@ class ClienteController extends Controller
                                         ?? $poliza->solicitud?->bien?->descripcion ?? '—',
                         'poliza_producto' => $poliza->producto?->nombre ?? '—',
                         'poliza_status'   => $poliza->status,
+                        'iva_aplica'      => (bool) $poliza->producto?->iva_aplica,
+                        'iva_porcentaje'  => $poliza->producto?->iva_porcentaje !== null ? (float) $poliza->producto->iva_porcentaje : null,
                     ];
                 });
             })
@@ -403,6 +452,7 @@ class ClienteController extends Controller
     public function destroy($id)
     {
         $persona = Persona::with('solicitudes')->findOrFail($id);
+        $this->assertAccesoCliente($persona);
 
         if ($persona->solicitudes->isNotEmpty()) {
             return response()->json(
@@ -417,6 +467,8 @@ class ClienteController extends Controller
                 EmailLog::registrar('cliente_eliminado', $persona->correo, 'Cuenta eliminada', $persona->id);
             } catch (\Throwable) {}
         }
+
+        $this->logActivity('eliminar_cliente', "Cliente {$persona->nombre} (CI {$persona->cedula}) eliminado", 'persona', auth()->id());
 
         $persona->delete();
 
@@ -481,6 +533,10 @@ class ClienteController extends Controller
             'tel'           => $p->celular ?? $p->telefono ?? '—',
             'email'         => $p->correo ?? '—',
             'activo'        => (bool) $p->activo,
+            'vendedor_id'   => $p->vendedor_id,
+            'vendedor_nombre' => $p->vendedor?->nombre ?? null,
+            'documentos_count' => $p->documentos_count ?? 0,
+            'motivo_bloqueo' => $p->motivo_bloqueo,
             'est'           => $est,
             'poliza_id'     => $polizaId,
             'pol'           => $pol,
@@ -501,6 +557,7 @@ class ClienteController extends Controller
             'direccion'     => $p->direccion,
             'profesion'     => $p->profesion,
             'actividad'     => $p->actividad,
+            'fecha_registro' => $p->fecha_creacion?->format('d/m/Y'),
         ];
     }
 }

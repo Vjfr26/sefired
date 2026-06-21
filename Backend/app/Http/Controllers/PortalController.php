@@ -30,7 +30,8 @@ class PortalController extends Controller
     public function productos()
     {
         return response()->json(
-            Producto::whereNull('parent_id')
+            Producto::with('beneficios')
+                ->whereNull('parent_id')
                 ->where('publicado', true)
                 ->orderBy('nombre')
                 ->get()
@@ -48,6 +49,7 @@ class PortalController extends Controller
 
         return response()->json(
             $producto->subtipos()
+                ->with('beneficios')
                 ->where('publicado', true)
                 ->orderBy('nombre')
                 ->get()
@@ -406,6 +408,10 @@ class PortalController extends Controller
             'derecho_poliza'       => (float) $p->derecho_poliza,
             'tipo_bien'            => $p->tipo_bien ?? 'ninguno',
             'documentos_requeridos'=> $p->documentos_requeridos ?? [],
+            'beneficios'           => $p->beneficios->map(fn($b) => [
+                'descripcion' => $b->descripcion,
+                'monto'       => (float) $b->monto,
+            ])->values(),
         ];
 
         if ($conSubtiposFlag) {

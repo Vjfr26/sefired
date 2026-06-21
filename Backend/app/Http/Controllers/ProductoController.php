@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Producto;
 use App\Rules\NoInjectionChars;
+use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -24,6 +25,8 @@ use Illuminate\Support\Facades\Storage;
  */
 class ProductoController extends Controller
 {
+    use LogsActivity;
+
     /**
      * Lista todos los productos ordenados por nombre.
      * El orden alfabético facilita encontrar coberturas en el simulador.
@@ -31,7 +34,7 @@ class ProductoController extends Controller
     public function index()
     {
         return response()->json(
-            Producto::orderBy('nombre')->get()->map(fn($p) => $this->row($p))
+            Producto::with('beneficios')->orderBy('nombre')->get()->map(fn($p) => $this->row($p))
         );
     }
 
@@ -51,19 +54,30 @@ class ProductoController extends Controller
             'codigo'                 => ['nullable', 'string', 'max:20', $noInjection],
             'tipo'                   => 'required|string|in:rcv,apov,alpd,ec,ep,vida,salud,hogar,accidentes,funeraria,otro',
             'categoria'              => 'nullable|string|in:vehicular,bienes,personas',
-            'tipo_bien'              => 'nullable|string|in:vehiculo,inmueble,vida,bien,ninguno',
+            'tipo_bien'              => 'nullable|string|in:vehiculo,inmueble,vida,bien,ninguno,bicicleta,mascota,embarcacion,equipo_electronico,joya',
+            'permite_multiples_bienes' => 'boolean',
+            'max_bienes'             => 'nullable|integer|min:1',
+            'aplica_beneficiarios'   => 'boolean',
+            'min_beneficiarios'      => 'nullable|integer|min:0',
+            'max_beneficiarios'      => 'nullable|integer|min:0',
             'tipo_calculo'           => 'required|string|in:fijo,por_plan,por_nivel,por_valor',
             'derecho_poliza'         => 'numeric|min:0',
             'descripcion'            => ['nullable', 'string', $noInjection],
             'prima'                  => 'numeric|min:0',
             'cobertura'              => 'numeric|min:0',
             'moneda'                 => 'required|string|in:USD,BS,EUR',
+            'iva_aplica'             => 'boolean',
+            'iva_porcentaje'         => 'nullable|numeric|min:0|max:100',
+            'permite_mensualidades'  => 'boolean',
+            'recargo_mensual_pct'    => 'nullable|numeric|min:0|max:100',
             'documentos_requeridos'  => 'nullable|array',
             'documentos_requeridos.*.nombre'      => ['required', 'string', 'max:100', $noInjection],
             'documentos_requeridos.*.obligatorio' => 'required|boolean',
         ]);
 
         $producto = Producto::create($data);
+
+        $this->logActivity('Producto Creado', "Producto \"{$producto->nombre}\" creado", 'producto', auth()->id());
 
         return response()->json($this->row($producto), 201);
     }
@@ -85,19 +99,40 @@ class ProductoController extends Controller
             'codigo'                 => ['nullable', 'string', 'max:20', $noInjection],
             'tipo'                   => 'sometimes|required|string|in:rcv,apov,alpd,ec,ep,vida,salud,hogar,accidentes,funeraria,otro',
             'categoria'              => 'nullable|string|in:vehicular,bienes,personas',
-            'tipo_bien'              => 'sometimes|nullable|string|in:vehiculo,inmueble,vida,bien,ninguno',
+            'tipo_bien'              => 'sometimes|nullable|string|in:vehiculo,inmueble,vida,bien,ninguno,bicicleta,mascota,embarcacion,equipo_electronico,joya',
+            'permite_multiples_bienes' => 'sometimes|boolean',
+            'max_bienes'             => 'sometimes|nullable|integer|min:1',
+            'aplica_beneficiarios'   => 'sometimes|boolean',
+            'min_beneficiarios'      => 'sometimes|nullable|integer|min:0',
+            'max_beneficiarios'      => 'sometimes|nullable|integer|min:0',
             'tipo_calculo'           => 'sometimes|required|string|in:fijo,por_plan,por_nivel,por_valor',
             'derecho_poliza'         => 'sometimes|numeric|min:0',
             'descripcion'            => ['nullable', 'string', $noInjection],
             'prima'                  => 'sometimes|numeric|min:0',
             'cobertura'              => 'sometimes|numeric|min:0',
             'moneda'                 => 'sometimes|required|string|in:USD,BS,EUR',
+            'iva_aplica'             => 'sometimes|boolean',
+            'iva_porcentaje'         => 'sometimes|nullable|numeric|min:0|max:100',
+            'permite_mensualidades'  => 'sometimes|boolean',
+            'recargo_mensual_pct'    => 'sometimes|nullable|numeric|min:0|max:100',
             'documentos_requeridos'  => 'nullable|array',
             'documentos_requeridos.*.nombre'      => ['required_with:documentos_requeridos', 'string', 'max:100', $noInjection],
             'documentos_requeridos.*.obligatorio' => 'required_with:documentos_requeridos|boolean',
         ]);
 
+        $publicadoAnterior = $producto->publicado;
         $producto->update($data);
+
+        if (array_key_exists('publicado', $data) && (bool) $publicadoAnterior !== (bool) $data['publicado']) {
+            $this->logActivity(
+                $data['publicado'] ? 'Producto Publicado' : 'Producto Despublicado',
+                "Producto \"{$producto->nombre}\" " . ($data['publicado'] ? 'publicado en el portal público' : 'ocultado del portal público'),
+                'producto',
+                auth()->id()
+            );
+        } else {
+            $this->logActivity('Producto Actualizado', "Producto \"{$producto->nombre}\" actualizado", 'producto', auth()->id());
+        }
 
         // fresh() recarga el modelo de la base de datos para obtener los valores actualizados
         return response()->json($this->row($producto->fresh()));
@@ -121,7 +156,10 @@ class ProductoController extends Controller
             );
         }
 
+        $nombre = $producto->nombre;
         $producto->delete();
+
+        $this->logActivity('Producto Eliminado', "Producto \"{$nombre}\" eliminado", 'producto', auth()->id());
 
         return response()->json(['message' => 'Producto eliminado correctamente']);
     }
@@ -153,6 +191,8 @@ class ProductoController extends Controller
 
         $producto->update(['documentos' => $documentos]);
 
+        $this->logActivity('Documento Agregado', "Producto \"{$producto->nombre}\" — doc \"{$request->input('nombre')}\"", 'producto', auth()->id());
+
         return response()->json([
             'mensaje'    => 'Documento subido correctamente',
             'documentos' => $this->formatDocumentos($documentos),
@@ -179,6 +219,8 @@ class ProductoController extends Controller
         Storage::disk('public')->delete($path);
         $producto->update(['documentos' => $restantes ?: null]);
 
+        $this->logActivity('Documento Eliminado', "Producto \"{$producto->nombre}\" — doc eliminado", 'producto', auth()->id());
+
         return response()->json(['mensaje' => 'Documento eliminado correctamente']);
     }
 
@@ -191,57 +233,53 @@ class ProductoController extends Controller
         ], $docs);
     }
 
-    /**
-     * Importa la tabla de tasas desde un CSV con cabecera.
-     * El CSV puede tener cualquier columna — se almacena como JSON array of objects.
-     * El separador puede ser coma o tabulador (auto-detectado).
-     */
-    public function uploadTasas(Request $request, $id)
+    // ── Beneficios (lista de coberturas informativas del producto) ────────────
+
+    public function agregarBeneficio(Request $request, $id)
     {
         $producto = Producto::findOrFail($id);
 
-        $request->validate([
-            'tasas' => 'required|file|mimes:csv,txt|max:2048',
+        $noInjection = new NoInjectionChars();
+        $data = $request->validate([
+            'descripcion' => ['required', 'string', 'max:100', $noInjection],
+            'monto'       => 'required|numeric|min:0',
         ]);
 
-        $lines = file(
-            $request->file('tasas')->getRealPath(),
-            FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES
-        );
+        $beneficio = $producto->beneficios()->create($data);
 
-        if (empty($lines)) {
-            return response()->json(['error' => 'El archivo CSV está vacío'], 422);
-        }
+        $this->logActivity('Beneficio Agregado', "Producto \"{$producto->nombre}\" — {$beneficio->descripcion}", 'producto', auth()->id());
 
-        // Auto-detectar separador: si la primera línea tiene más tabs que comas, usar tab
-        $firstLine = $lines[0];
-        $sep = substr_count($firstLine, "\t") > substr_count($firstLine, ',') ? "\t" : ',';
-
-        $headers = array_map('trim', str_getcsv(array_shift($lines), $sep));
-
-        $rows = [];
-        foreach ($lines as $line) {
-            $values = array_map('trim', str_getcsv($line, $sep));
-            if (count($values) !== count($headers)) continue;
-            $rows[] = array_combine($headers, $values);
-        }
-
-        $producto->update(['tasas' => $rows]);
-
-        return response()->json([
-            'mensaje' => 'Tasas cargadas correctamente',
-            'count'   => count($rows),
-        ]);
+        return response()->json($beneficio, 201);
     }
 
-    /**
-     * Borra la tabla de tasas de un producto.
-     */
-    public function deleteTasas($id)
+    public function actualizarBeneficio(Request $request, $id, $benId)
+    {
+        $producto   = Producto::findOrFail($id);
+        $beneficio  = $producto->beneficios()->findOrFail($benId);
+
+        $noInjection = new NoInjectionChars();
+        $data = $request->validate([
+            'descripcion' => ['sometimes', 'string', 'max:100', $noInjection],
+            'monto'       => 'sometimes|numeric|min:0',
+        ]);
+
+        $beneficio->update($data);
+
+        $this->logActivity('Beneficio Actualizado', "Producto \"{$producto->nombre}\" — {$beneficio->descripcion}", 'producto', auth()->id());
+
+        return response()->json($beneficio);
+    }
+
+    public function eliminarBeneficio($id, $benId)
     {
         $producto = Producto::findOrFail($id);
-        $producto->update(['tasas' => null]);
-        return response()->json(['mensaje' => 'Tasas eliminadas correctamente']);
+        $beneficio = $producto->beneficios()->findOrFail($benId);
+        $descripcion = $beneficio->descripcion;
+        $beneficio->delete();
+
+        $this->logActivity('Beneficio Eliminado', "Producto \"{$producto->nombre}\" — {$descripcion}", 'producto', auth()->id());
+
+        return response()->json(null, 204);
     }
 
     /**
@@ -259,6 +297,11 @@ class ProductoController extends Controller
             'publicado'             => (bool) $p->publicado,
             'tipo'                  => $p->tipo ?? 'otro',
             'tipo_bien'             => $p->tipo_bien ?? 'ninguno',
+            'permite_multiples_bienes' => (bool) $p->permite_multiples_bienes,
+            'max_bienes'            => $p->max_bienes,
+            'aplica_beneficiarios'  => (bool) $p->aplica_beneficiarios,
+            'min_beneficiarios'     => $p->min_beneficiarios,
+            'max_beneficiarios'     => $p->max_beneficiarios,
             'categoria'             => $p->categoria,
             'tipo_calculo'          => $p->tipo_calculo ?? 'fijo',
             'derecho_poliza'        => (float) $p->derecho_poliza,
@@ -266,8 +309,17 @@ class ProductoController extends Controller
             'prima'                 => (float) $p->prima,
             'cobertura'             => (float) $p->cobertura,
             'moneda'                => $p->moneda,
+            'iva_aplica'            => (bool) $p->iva_aplica,
+            'iva_porcentaje'        => $p->iva_porcentaje !== null ? (float) $p->iva_porcentaje : null,
+            'permite_mensualidades' => (bool) $p->permite_mensualidades,
+            'recargo_mensual_pct'   => $p->recargo_mensual_pct !== null ? (float) $p->recargo_mensual_pct : null,
             'documentos'            => $this->formatDocumentos($p->documentos ?? []),
             'documentos_requeridos' => $p->documentos_requeridos ?? [],
+            'beneficios'            => $p->beneficios->map(fn($b) => [
+                'id'          => $b->id,
+                'descripcion' => $b->descripcion,
+                'monto'       => (float) $b->monto,
+            ])->values(),
         ];
     }
 }

@@ -22,6 +22,7 @@ class Usuario extends Authenticatable
         'api_token',
         'token_expira_en',
         'token_created_at',
+        'ultimo_visto',
         'sede',
         'nro_sede',
         'tipo',
@@ -38,6 +39,7 @@ class Usuario extends Authenticatable
         'api_token',
         'token_expira_en',
         'token_created_at',
+        'ultimo_visto',
         'temp',
         'temp_expira_en',
     ];
@@ -51,6 +53,7 @@ class Usuario extends Authenticatable
             'temp_expira_en'   => 'datetime',
             'token_created_at' => 'datetime',
             'token_expira_en'  => 'datetime',
+            'ultimo_visto'     => 'datetime',
             'fecha_creacion'   => 'datetime',
             'password' => 'hashed',
         ];

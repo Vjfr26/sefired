@@ -31,6 +31,13 @@ class ApiTokenMiddleware
             return response()->json(['message' => 'No autorizado.'], 401);
         }
 
+        // Cuentas temporales (ej. auditores, contratistas externos): se
+        // desactivan solas al vencer su fecha límite de acceso.
+        if ($usuario->temp && $usuario->temp_expira_en && now()->isAfter($usuario->temp_expira_en)) {
+            $usuario->update(['activo' => false, 'api_token' => null]);
+            return response()->json(['message' => 'El acceso temporal de esta cuenta ha vencido.'], 401);
+        }
+
         if (IpBloqueada::where('ip', $request->ip())->exists()) {
             return response()->json(['message' => 'Acceso denegado.'], 403);
         }
@@ -47,8 +54,9 @@ class ApiTokenMiddleware
             return response()->json(['message' => 'Sesión expirada por inactividad. Inicia sesión nuevamente.'], 401);
         }
 
-        // Renovar ventana de inactividad con cada request activo
-        $usuario->update(['token_expira_en' => now()->addHours(8)]);
+        // Renovar ventana de inactividad con cada request activo, y registrar
+        // este momento como "última conexión" real (no solo el último login).
+        $usuario->update(['token_expira_en' => now()->addHours(8), 'ultimo_visto' => now()]);
 
         auth()->login($usuario);
 

@@ -110,6 +110,7 @@ const T = {
     'res.tasa_bcv_pre': 'Tasa de cambio oficial del Banco Central de Venezuela (BCV):',
     'res.sin_precio': 'Este producto requiere una evaluación personalizada (valor del bien, ubicación, etc.) para calcular el costo exacto. Un asesor te lo confirmará al contactarte.',
     'res.incluye':    'Documentos a presentar',
+    'res.beneficios': 'Beneficios incluidos',
     'res.titular':    'Titular',
     'res.disclaimer': 'Cotización referencial. Puede variar. Un asesor te contactará a la brevedad.',
     /* Paso 1 — sub-tipos */
@@ -243,6 +244,7 @@ const T = {
     'res.tasa_bcv_pre': 'Official exchange rate from the Central Bank of Venezuela (BCV):',
     'res.sin_precio': 'This product requires a personalized evaluation (asset value, location, etc.) to calculate the exact cost. An advisor will confirm it when they contact you.',
     'res.incluye': 'Documents to submit',
+    'res.beneficios': 'Benefits included',
     'res.titular': 'Policyholder',
     'res.disclaimer': 'Referential quote. May vary. An advisor will contact you shortly.',
     's1.loading_planes': 'Loading plans...',
@@ -427,6 +429,7 @@ const sim = {
   derechoPoliza:      0,
   tipoCalculo:        'fijo',
   documentosRequeridos: [],  /* [{nombre, obligatorio}] */
+  beneficios:         [],  /* [{descripcion, monto}] */
 
   /* Paso 4 — archivos en memoria */
   documentosFiles: [],  /* [{nombre, obligatorio, file: File|null}] */
@@ -633,7 +636,8 @@ function _renderCarouselPage(page) {
         data-requiere-vehiculo="${p.requiere_vehiculo ? '1' : '0'}"
         data-tipo-bien="${esc(p.tipo_bien ?? 'ninguno')}"
         data-tiene-subtipos="${p.tiene_subtipos ? '1' : '0'}"
-        data-docs-req='${JSON.stringify(p.documentos_requeridos ?? [])}'>
+        data-docs-req='${JSON.stringify(p.documentos_requeridos ?? [])}'
+        data-beneficios='${JSON.stringify(p.beneficios ?? [])}'>
       <div class="product-card-icon ${meta.bg} ${meta.text}">
         <i class="fa-solid ${meta.icon}"></i>
       </div>
@@ -709,6 +713,7 @@ async function seleccionarProducto(card) {
       requiere_vehiculo:    card.dataset.requiereVehiculo === '1',
       tipo_bien:            card.dataset.tipoBien || 'ninguno',
       documentos_requeridos: JSON.parse(card.dataset.docsReq || '[]'),
+      beneficios:           JSON.parse(card.dataset.beneficios || '[]'),
     });
     document.getElementById('subtipos-section').classList.add('hidden');
     checkStep1();
@@ -765,7 +770,8 @@ function renderSubtipoCards(subtipos, container) {
         data-calculo="${p.tipo_calculo || 'fijo'}"
         data-requiere-vehiculo="${p.requiere_vehiculo ? '1' : '0'}"
         data-tipo-bien="${esc(p.tipo_bien ?? 'ninguno')}"
-        data-docs-req='${JSON.stringify(p.documentos_requeridos ?? [])}'>
+        data-docs-req='${JSON.stringify(p.documentos_requeridos ?? [])}'
+        data-beneficios='${JSON.stringify(p.beneficios ?? [])}'>
       <div class="subtipo-card-icon ${meta.bg} ${meta.text}">
         <i class="fa-solid ${meta.icon}"></i>
       </div>
@@ -800,6 +806,7 @@ function seleccionarSubtipo(card) {
     requiere_vehiculo:     card.dataset.requiereVehiculo === '1',
     tipo_bien:             card.dataset.tipoBien || 'ninguno',
     documentos_requeridos: JSON.parse(card.dataset.docsReq || '[]'),
+    beneficios:            JSON.parse(card.dataset.beneficios || '[]'),
   });
   checkStep1();
 }
@@ -812,6 +819,7 @@ function aplicarProductoEfectivo(p) {
   sim.derechoPoliza        = p.derecho_poliza || 0;
   sim.tipoCalculo          = p.tipo_calculo || 'fijo';
   sim.documentosRequeridos = p.documentos_requeridos || [];
+  sim.beneficios           = p.beneficios || [];
   sim.productoTipo         = p.tipo || '';
   sim.productoDescripcion  = p.descripcion || '';
   sim.productoCategoria    = p.categoria || '';
@@ -1194,6 +1202,23 @@ function setupStep5() {
     }
   }
 
+  /* Beneficios/coberturas informativas del producto elegido */
+  const benefWrap = document.getElementById('s5-beneficios-list-wrap');
+  const benefEl   = document.getElementById('s5-beneficios-list');
+  if (benefWrap && benefEl) {
+    if (sim.beneficios.length > 0) {
+      benefEl.innerHTML = sim.beneficios.map(b =>
+        `<div class="flex justify-between items-center text-[11px] text-gray-700">
+          <span class="flex items-center gap-1"><i class="fa-solid fa-circle-check text-emerald-500 text-[10px]"></i>${esc(b.descripcion)}</span>
+          <span class="font-semibold">$ ${fmt(b.monto)}</span>
+        </div>`
+      ).join('');
+      benefWrap.classList.remove('hidden');
+    } else {
+      benefWrap.classList.add('hidden');
+    }
+  }
+
   /* Equivalente en Bs. y EUR según la tasa BCV vigente */
   const totalOtrasEl = document.getElementById('s5-total-otras');
   const tasaBcvEl     = document.getElementById('s5-tasa-bcv');
@@ -1453,6 +1478,7 @@ function resetAll() {
     productoEfectivoId: null, productoCat: '', requiereVehiculo: false,
     productoTipo: '', productoDescripcion: '', productoCategoria: '',
     primaBase: 0, derechoPoliza: 0, tipoCalculo: 'fijo', documentosRequeridos: [],
+    beneficios: [],
     documentosFiles: [], turnstileToken: '',
     _pasos: [1,2,5], _pasoActual: 1,
   });

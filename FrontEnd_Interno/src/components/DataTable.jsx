@@ -55,7 +55,7 @@ const tdCls = c =>
   `${c.nw          ? ' whitespace-nowrap'               : ''}` +
   `${c.hide        ? ' ' + HIDE[c.hide]                 : ''}` +
   `${c.tr          ? ' max-w-0'                         : ''}` +
-  `${c.acc         ? ' whitespace-nowrap !overflow-visible' : ''}`
+  `${c.acc         ? ' whitespace-nowrap !overflow-visible min-w-[150px]' : ''}`
 
 /**
  * Convierte el valor de una celda a un tipo comparable para ordenar.
@@ -164,6 +164,7 @@ export default function DataTable({ cols, rows, footer = null, id, searchable = 
                 const thCls    =
                   `th-cell ${c.r ? 'text-right' : 'text-left'}` +
                   `${c.hide   ? ' ' + HIDE[c.hide] : ''}` +
+                  `${c.acc    ? ' min-w-[150px]' : ''}` +
                   `${sortable ? ' cursor-pointer select-none hover:bg-slate-200/60 transition-colors group' : ''}`
                 return (
                   <th key={c.k} className={thCls} onClick={sortable ? () => handleSort(c.k) : undefined}>

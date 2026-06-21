@@ -24,6 +24,17 @@ export async function fetchUsuarios() {
   return res.json()
 }
 
+/** Lista liviana (id, nombre, tipo) de usuarios activos, para reasignar el
+ *  vendedor de una póliza desde el modal de ajuste. No requiere usuarios.view. */
+export async function fetchVendedoresDisponibles() {
+  const res = await fetch(`${API}/vendedores-disponibles`, {
+    cache: 'no-store',
+    headers: getAuthHeaders(),
+  })
+  if (!res.ok) throw new Error('Error al cargar vendedores')
+  return res.json()
+}
+
 export async function storeUsuario(data) {
   const res = await fetch(API, {
     method: 'POST',

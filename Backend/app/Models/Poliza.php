@@ -20,7 +20,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  *   total_bs / cobertura_bs   → Bolívares (calculado con la tasa del día de emisión)
  *
  * Ruta hasta el cliente dueño de esta póliza:
- *   $poliza->solicitud->cliente->persona
+ *   $poliza->solicitud->persona
  */
 class Poliza extends Model
 {
@@ -47,6 +47,7 @@ class Poliza extends Model
         'asegurado_ci',
         'fecha_emision',
         'fecha_vencimiento',
+        'nro_venezolana',
         'papeleria',
         'vendedor_id',
         'sede_poliza',
@@ -104,5 +105,14 @@ class Poliza extends Model
     public function beneficiarios(): HasMany
     {
         return $this->hasMany(Beneficiario::class, 'poliza_id');
+    }
+
+    /**
+     * Bienes cubiertos por esta póliza (el original de la solicitud + los
+     * agregados después). Ver App\Models\PolizaBien.
+     */
+    public function bienes(): HasMany
+    {
+        return $this->hasMany(PolizaBien::class, 'poliza_id');
     }
 }

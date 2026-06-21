@@ -5,17 +5,17 @@ namespace App\Console\Commands;
 use App\Mail\ReporteAdjuntoMail;
 use App\Models\EmailLog;
 use App\Models\ReporteExternoProgramacion;
-use App\Models\ReporteInternoProgramacion;
 use App\Services\ReporteGeneratorService;
+use App\Traits\ResuelveAdjuntosReporte;
 use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 
 /**
- * Revisa todos los destinatarios activos de "Reportes Externos" y "Reportes
- * Automáticos" y, para cada uno cuya frecuencia individual ya esté cumplida,
- * genera el Excel correspondiente y se lo envía por correo.
+ * Revisa todos los destinatarios activos de "Reportes Externos" y, para cada
+ * uno cuya frecuencia individual ya esté cumplida, genera el Excel
+ * correspondiente y se lo envía por correo.
  *
  * Se ejecuta cada 15 minutos (ver routes/console.php). El archivo se genera
  * UNA sola vez por programación con destinatarios pendientes (no uno por
@@ -23,31 +23,26 @@ use Illuminate\Support\Facades\Mail;
  */
 class SendReportesProgramados extends Command
 {
+    use ResuelveAdjuntosReporte;
+
     protected $signature   = 'reportes:enviar-programados';
-    protected $description = 'Envía por correo los reportes externos/internos a los destinatarios cuya frecuencia ya se cumplió';
+    protected $description = 'Envía por correo el reporte externo a los destinatarios cuya frecuencia ya se cumplió';
 
     public function handle(ReporteGeneratorService $generator): void
     {
         $this->procesar(
             ReporteExternoProgramacion::with('destinatarios')->where('activo', true)->get(),
-            fn() => $generator->generarExterno(),
+            fn($prog) => $generator->generarExterno(),
             'reportes_externos_historial',
             'reporte_externo',
-        );
-
-        $this->procesar(
-            ReporteInternoProgramacion::with('destinatarios')->where('activo', true)->get(),
-            fn() => $generator->generarInterno(),
-            'reportes_internos_historial',
-            'reporte_interno',
         );
 
         $this->info('Revisión de reportes programados completada.');
     }
 
     /**
-     * @param \Illuminate\Support\Collection<int, ReporteExternoProgramacion|ReporteInternoProgramacion> $programaciones
-     * @param callable(): array{path: string, filename: string, size: int} $generar
+     * @param \Illuminate\Support\Collection<int, ReporteExternoProgramacion> $programaciones
+     * @param callable(ReporteExternoProgramacion): array{path: string, filename: string, size: int} $generar
      */
     private function procesar($programaciones, callable $generar, string $tablaHistorial, string $tipoEmailLog): void
     {
@@ -60,7 +55,7 @@ class SendReportesProgramados extends Command
             }
 
             try {
-                $archivo = $generar();
+                $archivo = $generar($prog);
             } catch (\Throwable $e) {
                 $this->error("No se pudo generar \"{$prog->nombre}\": {$e->getMessage()}");
                 continue;
@@ -75,6 +70,8 @@ class SendReportesProgramados extends Command
                 'updated_at'       => now(),
             ]);
 
+            $adjuntosExtra = $this->resolverAdjuntosExtra($prog);
+
             foreach ($pendientes as $destinatario) {
                 try {
                     Mail::to($destinatario->email)->send(new ReporteAdjuntoMail(
@@ -82,6 +79,7 @@ class SendReportesProgramados extends Command
                         $archivo['path'],
                         $archivo['filename'],
                         $destinatario->frecuencia,
+                        $adjuntosExtra,
                     ));
                     $destinatario->update(['ultimo_envio' => now()]);
                     EmailLog::registrar(tipo: $tipoEmailLog, destinatario: $destinatario->email, asunto: $prog->nombre);

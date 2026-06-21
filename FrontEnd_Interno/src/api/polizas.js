@@ -57,3 +57,74 @@ export async function downloadPolizaPdf(id) {
   }
   return res.blob()
 }
+
+// ── Beneficiarios ────────────────────────────────────────────────────────────
+
+export async function fetchBeneficiarios(polizaId) {
+  const res = await fetch(`${API}/${polizaId}/beneficiarios`, { headers: getAuthHeaders() })
+  if (!res.ok) throw new Error('Error al cargar beneficiarios')
+  return res.json()
+}
+
+export async function createBeneficiario(polizaId, data) {
+  const res = await fetch(`${API}/${polizaId}/beneficiarios`, {
+    method: 'POST',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(data),
+  })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json.error || json.message || 'Error al agregar beneficiario')
+  return json
+}
+
+export async function updateBeneficiario(polizaId, benId, data) {
+  const res = await fetch(`${API}/${polizaId}/beneficiarios/${benId}`, {
+    method: 'PUT',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(data),
+  })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json.error || json.message || 'Error al actualizar beneficiario')
+  return json
+}
+
+export async function deleteBeneficiario(polizaId, benId) {
+  const res = await fetch(`${API}/${polizaId}/beneficiarios/${benId}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  })
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({}))
+    throw new Error(json.error || json.message || 'Error al eliminar beneficiario')
+  }
+}
+
+// ── Bienes cubiertos (pólizas con varios bienes, ej. flota) ──────────────────
+
+export async function fetchBienesPoliza(polizaId) {
+  const res = await fetch(`${API}/${polizaId}/bienes`, { headers: getAuthHeaders() })
+  if (!res.ok) throw new Error('Error al cargar los bienes de la póliza')
+  return res.json()
+}
+
+export async function agregarBienPoliza(polizaId, data) {
+  const res = await fetch(`${API}/${polizaId}/bienes`, {
+    method: 'POST',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(data),
+  })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json.error || json.message || 'Error al agregar el bien')
+  return json
+}
+
+export async function quitarBienPoliza(polizaId, polizaBienId) {
+  const res = await fetch(`${API}/${polizaId}/bienes/${polizaBienId}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  })
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({}))
+    throw new Error(json.error || json.message || 'Error al quitar el bien')
+  }
+}

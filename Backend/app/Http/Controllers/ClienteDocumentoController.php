@@ -8,17 +8,19 @@ use App\Models\EmailLog;
 use App\Models\Persona;
 use App\Rules\NoInjectionChars;
 use App\Traits\LogsActivity;
+use App\Traits\ScopesVendedor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 
 class ClienteDocumentoController extends Controller
 {
-    use LogsActivity;
+    use LogsActivity, ScopesVendedor;
 
     public function index($personaId)
     {
         $persona = Persona::findOrFail($personaId);
+        $this->assertAccesoCliente($persona);
 
         $docs = $persona->documentos()
             ->orderBy('created_at', 'desc')
@@ -31,6 +33,7 @@ class ClienteDocumentoController extends Controller
     public function store(Request $request, $personaId)
     {
         $persona = Persona::findOrFail($personaId);
+        $this->assertAccesoCliente($persona);
 
         $noInjection = new NoInjectionChars();
 
@@ -71,7 +74,8 @@ class ClienteDocumentoController extends Controller
     public function destroy($personaId, $docId)
     {
         $doc     = ClienteDocumento::where('persona_id', $personaId)->findOrFail($docId);
-        $persona = Persona::find($personaId);
+        $persona = Persona::findOrFail($personaId);
+        $this->assertAccesoCliente($persona);
 
         Storage::disk('public')->delete($doc->path);
         $docNombre = $doc->nombre;

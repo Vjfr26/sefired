@@ -20,11 +20,16 @@
  * El HTML se construye con las funciones pdfPage(), pdfHdr(), pdfSec(), etc.
  * del archivo utils/helpers.jsx.
  */
+import { useRef } from 'react'
 import { X, Printer, Download } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
+import { useModalLock } from '../utils/helpers.jsx'
 
 export default function PdfViewer() {
   const { pdfViewer, closePdfViewer, showToast } = useApp()
+  const panelRef = useRef(null)
+  useModalLock(panelRef, !!pdfViewer)
+
   if (!pdfViewer) return null
 
   const { title, pagesHtml } = pdfViewer
@@ -49,10 +54,9 @@ export default function PdfViewer() {
     // Fondo oscuro semitransparente; clic en él cierra el visor
     <div
       className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4"
-      onClick={e => { if (e.target === e.currentTarget) closePdfViewer() }}
     >
       {/* Contenedor del visor: ancho máximo y altura limitada al 90% de la pantalla */}
-      <div className="bg-[#323639] rounded-2xl shadow-2xl w-full max-w-5xl flex flex-col overflow-hidden"
+      <div ref={panelRef} tabIndex={-1} className="bg-[#323639] rounded-2xl shadow-2xl w-full max-w-5xl flex flex-col overflow-hidden outline-none animate-in zoom-in duration-200"
            style={{ height: 'min(90vh, 900px)' }}>
 
         {/* ── Barra de herramientas ── */}

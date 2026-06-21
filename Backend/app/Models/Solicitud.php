@@ -33,6 +33,8 @@ class Solicitud extends Model
         'ci_tomador',
         'asegurado_nombre',
         'asegurado_ci',
+        'asegurado_telefono',
+        'asegurado_direccion',
         'created_by',
         'updated_by',
     ];
@@ -82,5 +84,10 @@ class Solicitud extends Model
     public function evaluaciones(): HasMany
     {
         return $this->hasMany(UnderwritingEvaluacion::class, 'solicitud_id');
+    }
+
+    public function vendedor(): BelongsTo
+    {
+        return $this->belongsTo(Usuario::class, 'vendedor_id');
     }
 }

@@ -13,10 +13,10 @@ import {
   Car, User, Shield, FileCheck, X, Info, CheckCircle, Pencil,
   Download, Trash2, Clock, XCircle, Search, UserCheck, Plus,
   DollarSign, Package, Users, FileText, Upload, AlertTriangle,
-  Layers, ClipboardList, ChevronDown, Star,
+  Layers, ClipboardList, ChevronDown, Star, SlidersHorizontal,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
-import { usd, fmtTasa, pdfPage, pdfHdr, pdfSec, pdfRow, pdfTotal, pdfFooterSimple } from '../utils/helpers.jsx'
+import { usd, fmtTasa, pdfPage, pdfHdr, pdfSec, pdfRow, pdfTotal, pdfFooterSimple, useModalLock } from '../utils/helpers.jsx'
 import { fetchClientes, createCliente } from '../api/clientes.js'
 import { fetchTasas } from '../api/tasas.js'
 import { fetchProductos } from '../api/productos.js'
@@ -25,6 +25,7 @@ import { fetchCotizaciones, createCotizacion, updateCotizacion, deleteCotizacion
 import { createBien, updateBien } from '../api/bienes.js'
 import { fetchUnderwriting, createUnderwriting } from '../api/underwriting.js'
 import { fetchDocumentosCliente, uploadDocumentoCliente, deleteDocumentoCliente } from '../api/clienteDocumentos.js'
+import { BIEN_TIPO_PRESETS } from '../utils/bienPresets.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const STATUS_BADGE = {
@@ -44,7 +45,7 @@ const STATUS_LABEL = {
 
 function StatusBadge({ status }) {
   return (
-    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${STATUS_BADGE[status] ?? 'bg-slate-100 text-slate-500'}`}>
+    <span className={`text-xs font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${STATUS_BADGE[status] ?? 'bg-slate-100 text-slate-500'}`}>
       {STATUS_LABEL[status] ?? status}
     </span>
   )
@@ -65,8 +66,13 @@ function freshState() {
     // Paso 3 — vehículo
     placa: '', marca: 'Toyota', modelo: '', año: String(new Date().getFullYear()),
     color: '', uso: 'Particular', valor: 15000,
-    // Paso 3 — asegurado (no vehículo)
-    asegurado_nombre: '', asegurado_ci: '',
+    clase: 'Automóvil', version: '', puestos: '', serial_carroceria: '', serial_motor: '',
+    // Paso 3 — asegurado, si es distinto del tomador
+    asegurado_nombre: '', asegurado_ci: '', asegurado_telefono: '', asegurado_direccion: '',
+    // Paso 3 — campos propios del preset del tipo de bien (bicicleta, mascota, etc.)
+    bienCampos: {},
+    // Paso 3 — observaciones libres sobre el bien ("Otros" en el cuadro póliza)
+    bien_observaciones: '',
     // Paso 4 — tarifario
     tarifario_id: null,
     tarifa:       null,
@@ -96,8 +102,17 @@ function simFromCot(q) {
     color:            attr.color  || cobs.color  || '',
     uso:              attr.uso    || cobs.uso    || 'Particular',
     valor:            parseFloat(cobs.valor_mercado) || 15000,
-    asegurado_nombre: q.asegurado_nombre || '',
-    asegurado_ci:     q.asegurado_ci     || '',
+    clase:            attr.clase || 'Automóvil',
+    version:          attr.version || '',
+    puestos:          attr.puestos || '',
+    serial_carroceria: attr.serial_carroceria || '',
+    serial_motor:     attr.serial_motor || '',
+    asegurado_nombre:    q.asegurado_nombre    || '',
+    asegurado_ci:        q.asegurado_ci        || '',
+    asegurado_telefono:  q.asegurado_telefono  || '',
+    asegurado_direccion: q.asegurado_direccion || '',
+    bienCampos:       attr,
+    bien_observaciones: q.bien_observaciones || '',
     tarifario_id:     q.tarifario_id ?? null,
     tarifa:           null,
     valor_declarado:  parseFloat(cobs.valor_declarado) || 0,
@@ -146,9 +161,11 @@ function SimBar({ active }) {
 // ── Shell del wizard ──────────────────────────────────────────────────────────
 function SimShell({ step, size = 'md', onClose, footer, children }) {
   const maxW = { sm: 'max-w-xl', md: 'max-w-2xl', lg: 'max-w-3xl', xl: 'max-w-4xl', xxl: 'max-w-5xl' }[size] || 'max-w-2xl'
+  const panelRef = useRef(null)
+  useModalLock(panelRef)
   return (
     <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-2 sm:p-4 backdrop-blur-sm">
-      <div className={`bg-white rounded-3xl shadow-2xl w-full ${maxW} max-h-[95vh] flex flex-col overflow-hidden animate-in zoom-in duration-200`}>
+      <div ref={panelRef} tabIndex={-1} className={`bg-white rounded-3xl shadow-2xl w-full ${maxW} max-h-[95vh] flex flex-col overflow-hidden animate-in zoom-in duration-200 outline-none`}>
         <div className="px-5 sm:px-7 pt-5 pb-4 border-b border-slate-100 shrink-0">
           <div className="flex items-center justify-between gap-3 mb-4">
             <div className="flex items-center gap-3 min-w-0">
@@ -273,7 +290,18 @@ function Step1({ sim, setSim, onNext, onClose, productos }) {
                 <button
                   key={p.id}
                   type="button"
-                  onClick={() => setSim(prev => ({ ...prev, producto_id: p.id, producto: p }))}
+                  onClick={() => setSim(prev => (prev.producto_id === p.id ? prev : {
+                    ...prev,
+                    producto_id: p.id,
+                    producto: p,
+                    // Limpiar selección de tarifa/valor del producto anterior — cada
+                    // producto puede tener un tipo_calculo distinto (fijo/por_plan/
+                    // por_nivel/por_valor) y arrastrar la tarifa previa daba totales
+                    // incorrectos o en $0.
+                    tarifario_id: null,
+                    tarifa: null,
+                    valor_declarado: null,
+                  }))}
                   className={`relative flex flex-col rounded-2xl border-2 text-left transition-all duration-200 overflow-hidden
                     ${on
                       ? `${colors.border} ${colors.light} shadow-lg`
@@ -533,7 +561,7 @@ function Step2({ sim, setSim, onNext, onBack, onClose }) {
       ) : (
         <div>
           <SecLabel icon={Users} label="Datos del nuevo cliente" />
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="col-span-2 sm:col-span-3">
               <label className={lbl}>Nombre completo <span className="text-rose-500">*</span></label>
               <input className={inp} value={nuevoForm.nombre} onChange={e => setNf('nombre', e.target.value)} placeholder="Juan Pérez" />
@@ -620,6 +648,8 @@ const USOS   = ['Particular','Ejecutivo / Transporte de personal','Carga liviana
 function Step3({ sim, setSim, onNext, onBack, onClose }) {
   const tipoBien        = sim.producto?.tipo_bien ?? 'ninguno'
   const requiereVehiculo = tipoBien === 'vehiculo'
+  const preset           = BIEN_TIPO_PRESETS[tipoBien] ?? null
+  const setCampo = (key, val) => setSim(p => ({ ...p, bienCampos: { ...p.bienCampos, [key]: val } }))
   const [err, setErr] = useState('')
   const curYear = new Date().getFullYear()
   const years   = Array.from({ length: 35 }, (_, i) => curYear + 1 - i)
@@ -642,7 +672,7 @@ function Step3({ sim, setSim, onNext, onBack, onClose }) {
       {requiereVehiculo ? (
         <>
           <SecLabel icon={Car} label="Datos del vehículo" />
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="field-label">Placa <span className="text-rose-500">*</span></label>
               <input className="input-field font-mono uppercase" placeholder="ABC-123" value={sim.placa} maxLength={8}
@@ -676,6 +706,31 @@ function Step3({ sim, setSim, onNext, onBack, onClose }) {
                 {USOS.map(u => <option key={u}>{u}</option>)}
               </select>
             </div>
+            <div>
+              <label className="field-label">Tipo de vehículo</label>
+              <input className="input-field" placeholder="Automóvil, Camioneta, Moto…" value={sim.clase}
+                onChange={e => setSim(p => ({ ...p, clase: e.target.value }))} />
+            </div>
+            <div>
+              <label className="field-label">Versión</label>
+              <input className="input-field" placeholder="EX, LE, Sport…" value={sim.version}
+                onChange={e => setSim(p => ({ ...p, version: e.target.value }))} />
+            </div>
+            <div>
+              <label className="field-label">N° de puestos</label>
+              <input type="number" min="1" className="input-field" placeholder="5" value={sim.puestos}
+                onChange={e => setSim(p => ({ ...p, puestos: e.target.value }))} />
+            </div>
+            <div>
+              <label className="field-label">Serial de carrocería</label>
+              <input className="input-field font-mono uppercase" value={sim.serial_carroceria}
+                onChange={e => setSim(p => ({ ...p, serial_carroceria: e.target.value.toUpperCase() }))} />
+            </div>
+            <div>
+              <label className="field-label">Serial de motor</label>
+              <input className="input-field font-mono uppercase" value={sim.serial_motor}
+                onChange={e => setSim(p => ({ ...p, serial_motor: e.target.value.toUpperCase() }))} />
+            </div>
           </div>
           <div className="mt-3">
             <label className="field-label">Valor de mercado (USD) <span className="text-rose-500">*</span></label>
@@ -685,12 +740,79 @@ function Step3({ sim, setSim, onNext, onBack, onClose }) {
                 value={sim.valor} onChange={e => setSim(p => ({ ...p, valor: parseFloat(e.target.value) || 0 }))} />
             </div>
           </div>
+          <div className="mt-4">
+            <SecLabel icon={User} label="Asegurado (solo si es distinto del tomador)" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="field-label">Nombre del asegurado</label>
+                <input className="input-field" placeholder="Nombre completo" value={sim.asegurado_nombre}
+                  onChange={e => setSim(p => ({ ...p, asegurado_nombre: e.target.value }))} />
+              </div>
+              <div>
+                <label className="field-label">Cédula del asegurado</label>
+                <input className="input-field font-mono" placeholder="V-12345678" value={sim.asegurado_ci}
+                  onChange={e => setSim(p => ({ ...p, asegurado_ci: e.target.value }))} />
+              </div>
+              <div>
+                <label className="field-label">Teléfono del asegurado</label>
+                <input className="input-field" placeholder="0414-1234567" value={sim.asegurado_telefono}
+                  onChange={e => setSim(p => ({ ...p, asegurado_telefono: e.target.value }))} />
+              </div>
+              <div>
+                <label className="field-label">Dirección del asegurado</label>
+                <input className="input-field" placeholder="Dirección completa" value={sim.asegurado_direccion}
+                  onChange={e => setSim(p => ({ ...p, asegurado_direccion: e.target.value }))} />
+              </div>
+            </div>
+          </div>
+        </>
+      ) : preset ? (
+        <>
+          <SecLabel icon={Package} label={`Datos de: ${preset.label}`} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {preset.campos.map(c => (
+              <div key={c.key}>
+                <label className="field-label">{c.label}</label>
+                {c.type === 'select' ? (
+                  <select className="select-field" value={sim.bienCampos[c.key] ?? ''} onChange={e => setCampo(c.key, e.target.value)}>
+                    <option value="">— Seleccionar —</option>
+                    {c.opciones.map(o => <option key={o}>{o}</option>)}
+                  </select>
+                ) : (
+                  <input
+                    type={c.type === 'number' ? 'number' : 'text'}
+                    className="input-field"
+                    placeholder={c.placeholder || ''}
+                    value={sim.bienCampos[c.key] ?? ''}
+                    onChange={e => setCampo(c.key, e.target.value)}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="sm:col-span-2">
+              <label className="field-label">Nombre del asegurado (si es distinto del tomador)</label>
+              <input className="input-field" placeholder="Nombre completo" value={sim.asegurado_nombre}
+                onChange={e => setSim(p => ({ ...p, asegurado_nombre: e.target.value }))} />
+            </div>
+            <div>
+              <label className="field-label">Teléfono del asegurado</label>
+              <input className="input-field" placeholder="0414-1234567" value={sim.asegurado_telefono}
+                onChange={e => setSim(p => ({ ...p, asegurado_telefono: e.target.value }))} />
+            </div>
+            <div>
+              <label className="field-label">Dirección del asegurado</label>
+              <input className="input-field" placeholder="Dirección completa" value={sim.asegurado_direccion}
+                onChange={e => setSim(p => ({ ...p, asegurado_direccion: e.target.value }))} />
+            </div>
+          </div>
         </>
       ) : (
         <>
           <SecLabel icon={User} label="Datos del asegurado" />
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="sm:col-span-2">
               <label className="field-label">Nombre del asegurado</label>
               <input className="input-field" placeholder="Nombre completo" value={sim.asegurado_nombre}
                 onChange={e => setSim(p => ({ ...p, asegurado_nombre: e.target.value }))} />
@@ -699,6 +821,16 @@ function Step3({ sim, setSim, onNext, onBack, onClose }) {
               <label className="field-label">Cédula del asegurado</label>
               <input className="input-field font-mono" placeholder="V-12345678" value={sim.asegurado_ci}
                 onChange={e => setSim(p => ({ ...p, asegurado_ci: e.target.value }))} />
+            </div>
+            <div>
+              <label className="field-label">Teléfono del asegurado</label>
+              <input className="input-field" placeholder="0414-1234567" value={sim.asegurado_telefono}
+                onChange={e => setSim(p => ({ ...p, asegurado_telefono: e.target.value }))} />
+            </div>
+            <div>
+              <label className="field-label">Dirección del asegurado</label>
+              <input className="input-field" placeholder="Dirección completa" value={sim.asegurado_direccion}
+                onChange={e => setSim(p => ({ ...p, asegurado_direccion: e.target.value }))} />
             </div>
           </div>
           <div className="mt-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
@@ -709,12 +841,22 @@ function Step3({ sim, setSim, onNext, onBack, onClose }) {
           </div>
         </>
       )}
+
+      <div className="mt-4">
+        <label className="field-label">Otros / Observaciones del bien</label>
+        <textarea className="input-field resize-none" rows={2} placeholder="Detalles adicionales sobre el bien asegurado…"
+          value={sim.bien_observaciones} onChange={e => setSim(p => ({ ...p, bien_observaciones: e.target.value }))} />
+        <p className="text-[10px] text-slate-400 mt-1">Aparece en el campo "Otros" del cuadro póliza.</p>
+      </div>
     </SimShell>
   )
 }
 
 // ── PASO 4: Tarifario / Plan ──────────────────────────────────────────────────
-function calcTotal(tarifa, tipoCalculo, valorDeclarado, derecho) {
+// `producto` trae la config real de IVA — antes el 16% estaba fijo en el
+// código sin importar el producto, así que TODAS las cotizaciones llevaban
+// IVA aunque el producto no lo tuviera configurado (o llevaban el % equivocado).
+function calcTotal(tarifa, tipoCalculo, valorDeclarado, derecho, producto) {
   if (!tarifa) return { prima: 0, total: 0 }
   const d = tarifa.datos || {}
   let prima = 0
@@ -732,9 +874,10 @@ function calcTotal(tarifa, tipoCalculo, valorDeclarado, derecho) {
     prima = Math.round(valorDeclarado * (parseFloat(d.tasa_pct) || 0) / 100 * 100) / 100
   }
 
-  const iva   = prima * 0.16
-  const total = prima + iva + (parseFloat(derecho) || 0)
-  return { prima, iva, total }
+  const ivaPct = producto?.iva_aplica ? (parseFloat(producto.iva_porcentaje) || 0) : 0
+  const iva    = Math.round(prima * ivaPct) / 100
+  const total  = prima + iva + (parseFloat(derecho) || 0)
+  return { prima, iva, ivaPct, total }
 }
 
 function Step4({ sim, setSim, tasaBcv, onNext, onBack, onClose }) {
@@ -751,19 +894,21 @@ function Step4({ sim, setSim, tasaBcv, onNext, onBack, onClose }) {
       .finally(() => setLoading(false))
   }, [producto?.id])
 
-  // Para tipo fijo: auto-seleccionar la única tarifa disponible
+  // Para tipo fijo o por_valor: auto-seleccionar la única tarifa disponible
+  // (por_valor necesita su tarifa cargada en `sim.tarifa` para leer tasa_pct;
+  // sin esto calcTotal() siempre devuelve 0 sin importar el valor declarado).
   useEffect(() => {
-    if (tipoCalculo === 'fijo' && tarifas.length >= 1 && !sim.tarifario_id) {
+    if ((tipoCalculo === 'fijo' || tipoCalculo === 'por_valor') && tarifas.length >= 1 && !sim.tarifario_id) {
       setSim(p => ({ ...p, tarifario_id: tarifas[0].id, tarifa: tarifas[0] }))
     }
   }, [tarifas, tipoCalculo, sim.tarifario_id, setSim])
 
-  const { prima, iva, total } = calcTotal(sim.tarifa, tipoCalculo, sim.valor_declarado, producto?.derecho_poliza)
+  const { prima, iva, ivaPct, total } = calcTotal(sim.tarifa, tipoCalculo, sim.valor_declarado, producto?.derecho_poliza, producto)
   const totBs = tasaBcv ? total * tasaBcv : 0
 
-  const canNext = tipoCalculo === 'por_valor'
+  const canNext = tarifas.length > 0 && (tipoCalculo === 'por_valor'
     ? (sim.valor_declarado > 0)
-    : !!sim.tarifario_id
+    : !!sim.tarifario_id)
 
   const renderDatos = (d) => {
     if (tipoCalculo === 'fijo') {
@@ -774,7 +919,7 @@ function Step4({ sim, setSim, tasaBcv, onNext, onBack, onClose }) {
         d.prima_cosa    && ['Prima cosas',             usd(d.prima_cosa)],
       ].filter(Boolean)
       return filas.length > 0 ? (
-        <div className="grid grid-cols-2 gap-x-6 gap-y-1 mt-2 text-xs text-slate-500">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 mt-2 text-xs text-slate-500">
           {filas.map(([k, v]) => <><span key={k}>{k}</span><span className="font-semibold text-slate-700">{v}</span></>)}
         </div>
       ) : null
@@ -803,14 +948,18 @@ function Step4({ sim, setSim, tasaBcv, onNext, onBack, onClose }) {
     return null
   }
 
-  const sinTarifas = !loading && tarifas.length === 0 && tipoCalculo !== 'por_valor'
+  // por_valor también depende de una tarifa (tasa_pct) — sin ella la prima
+  // siempre calcularía 0, así que se bloquea igual que los demás tipos.
+  const sinTarifas = !loading && tarifas.length === 0
 
   // Panel de resumen financiero (reutilizado en ambas columnas según layout)
   const ResumenFinanciero = () => (
     <div className="rounded-2xl overflow-hidden shrink-0" style={{ background: 'linear-gradient(135deg,#001463,#000c3b)' }}>
       <div className="px-4 py-3 space-y-2 border-b border-white/10">
         <div className="flex justify-between text-xs"><span className="text-white/50">Prima Neta</span><span className="text-white/80 font-semibold">{usd(prima)}</span></div>
-        <div className="flex justify-between text-xs"><span className="text-white/50">IVA (16%)</span><span className="text-white/80 font-semibold">{usd(iva || 0)}</span></div>
+        {producto?.iva_aplica && (
+          <div className="flex justify-between text-xs"><span className="text-white/50">IVA ({ivaPct}%)</span><span className="text-white/80 font-semibold">{usd(iva || 0)}</span></div>
+        )}
         <div className="flex justify-between text-xs"><span className="text-white/50">Derecho de Póliza</span><span className="text-white/80 font-semibold">{usd(producto?.derecho_poliza || 0)}</span></div>
       </div>
       <div className="px-4 py-4">
@@ -915,7 +1064,7 @@ function Step4({ sim, setSim, tasaBcv, onNext, onBack, onClose }) {
 function Step5({ sim, tasaBcv, editId, onBack, onClose, onSaved, showToast, currentUser }) {
   const isEdit  = !!editId
   const prod    = sim.producto
-  const { prima, iva, total } = calcTotal(sim.tarifa, prod?.tipo_calculo, sim.valor_declarado, prod?.derecho_poliza)
+  const { prima, iva, ivaPct, total } = calcTotal(sim.tarifa, prod?.tipo_calculo, sim.valor_declarado, prod?.derecho_poliza, prod)
   const totBs   = tasaBcv ? total * tasaBcv : 0
   const hoy     = new Date()
   const fechaISO = hoy.toISOString().slice(0, 10)
@@ -992,9 +1141,33 @@ function Step5({ sim, tasaBcv, editId, onBack, onClose, onSaved, showToast, curr
             color: sim.color,
             uso: sim.uso,
             valor_mercado: sim.valor,
+            clase: sim.clase,
+            version: sim.version,
+            puestos: sim.puestos,
+            serial_carroceria: sim.serial_carroceria,
+            serial_motor: sim.serial_motor,
           },
           valor_declarado: sim.valor || null,
           descripcion: `${sim.marca} ${sim.modelo} ${sim.año}`.trim(),
+        }
+        if (bienId) {
+          await updateBien(bienId, bienData)
+        } else {
+          const nuevo = await createBien(bienData)
+          bienId = nuevo.id
+        }
+      } else if (tipoBien !== 'ninguno') {
+        // Productos no vehiculares (inmueble, bicicleta, mascota, etc.)
+        // también deben quedar registrados como bien asegurado — antes solo
+        // se hacía para vehículos y el resto nunca aparecía en "Bienes".
+        const campos = { ...sim.bienCampos }
+        if (sim.asegurado_nombre) campos.asegurado_nombre = sim.asegurado_nombre
+        if (sim.asegurado_ci)     campos.asegurado_ci     = sim.asegurado_ci
+        const bienData = {
+          tipo: tipoBien,
+          atributos: Object.keys(campos).length > 0 ? campos : null,
+          valor_declarado: sim.valor_declarado || null,
+          descripcion: prod?.nombre || tipoBien,
         }
         if (bienId) {
           await updateBien(bienId, bienData)
@@ -1127,7 +1300,7 @@ function Step5({ sim, tasaBcv, editId, onBack, onClose, onSaved, showToast, curr
                 <div key={d.id} className="flex items-center gap-2">
                   <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                   <a href={d.url} target="_blank" rel="noreferrer" className="text-xs text-jm-blue hover:underline truncate flex-1">{d.nombre}</a>
-                  <button onClick={() => handleDeleteDoc(d)} className="p-1 hover:bg-rose-50 rounded-lg transition">
+                  <button onClick={() => handleDeleteDoc(d)} className="p-1 hover:bg-rose-50 rounded-lg transition" title="Eliminar documento">
                     <X className="w-3 h-3 text-rose-400" />
                   </button>
                 </div>
@@ -1142,7 +1315,9 @@ function Step5({ sim, tasaBcv, editId, onBack, onClose, onSaved, showToast, curr
             <div className="px-4 py-3.5 space-y-2 border-b border-white/10">
               <p className="text-xs font-bold text-white/40 uppercase tracking-widest mb-2">Resumen financiero</p>
               <div className="flex justify-between text-sm"><span className="text-white/50">Prima Neta</span><span className="text-white/80 font-semibold">{usd(prima)}</span></div>
-              <div className="flex justify-between text-sm"><span className="text-white/50">IVA (16%)</span><span className="text-white/80 font-semibold">{usd(iva || 0)}</span></div>
+              {prod?.iva_aplica && (
+                <div className="flex justify-between text-sm"><span className="text-white/50">IVA ({ivaPct}%)</span><span className="text-white/80 font-semibold">{usd(iva || 0)}</span></div>
+              )}
               <div className="flex justify-between text-sm"><span className="text-white/50">Derecho de Póliza</span><span className="text-white/80 font-semibold">{usd(prod?.derecho_poliza || 0)}</span></div>
             </div>
             <div className="px-4 py-4">
@@ -1198,6 +1373,8 @@ function freshUwForm() {
 }
 
 function UnderwritingModal({ cot, onClose, onStatusChanged, showToast }) {
+  const panelRef = useRef(null)
+  useModalLock(panelRef)
   const [evaluaciones, setEvaluaciones] = useState([])
   const [loading,   setLoading]   = useState(true)
   const [form,      setForm]      = useState(freshUwForm())
@@ -1242,7 +1419,7 @@ function UnderwritingModal({ cot, onClose, onStatusChanged, showToast }) {
 
   return (
     <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in duration-200">
+      <div ref={panelRef} tabIndex={-1} className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in duration-200 outline-none">
 
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
@@ -1271,8 +1448,8 @@ function UnderwritingModal({ cot, onClose, onStatusChanged, showToast }) {
 
             {err && <p className="text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2">{err}</p>}
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="sm:col-span-2">
                 <label className="field-label">Resultado <span className="text-rose-500">*</span></label>
                 <select className="select-field" value={form.resultado} onChange={e => setF('resultado', e.target.value)}>
                   <option value="pendiente">— Pendiente (sin resultado) —</option>
@@ -1380,7 +1557,10 @@ export default function Simulador() {
   const canEdit   = canAct('cotizaciones', 'edit')
   const canDelete = canAct('cotizaciones', 'delete')
   const canEmit   = canAct('cotizaciones', 'emit')
-  const hasAnyAction = canEdit || canEmit || canDelete
+  const canAdjust = canAct('clientes', 'adjust')
+  const canUnderwrite = canAct('cotizaciones', 'underwrite')
+  const canViewList = canAct('cotizaciones', 'view_list')
+  const hasAnyAction = canEdit || canEmit || canDelete || canAdjust || canUnderwrite
 
   const [sim,     setSim]     = useState(freshState())
   const [step,    setStep]    = useState(0)
@@ -1550,13 +1730,22 @@ export default function Simulador() {
             <h3 className="text-base font-black text-slate-800">Cotizaciones registradas</h3>
             <p className="text-xs text-slate-400">{cotizaciones.length} registros</p>
           </div>
-          <div className="relative ml-auto w-full sm:w-56">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-            <input className="input-field pl-9 py-2 text-sm w-full" placeholder="Buscar…" value={search} onChange={e => setSearch(e.target.value)} />
-            {search && <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X className="w-3.5 h-3.5" /></button>}
-          </div>
+          {canViewList && (
+            <div className="relative ml-auto w-full sm:w-56">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+              <input className="input-field pl-9 py-2 text-sm w-full" placeholder="Buscar…" value={search} onChange={e => setSearch(e.target.value)} />
+              {search && <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X className="w-3.5 h-3.5" /></button>}
+            </div>
+          )}
         </div>
 
+        {!canViewList ? (
+          <div className="card flex flex-col items-center justify-center py-16 gap-2 text-center">
+            <ClipboardList className="w-6 h-6 text-slate-300" />
+            <p className="text-xs text-slate-400">No tienes permiso para ver el listado de cotizaciones.</p>
+          </div>
+        ) : (
+        <>
         <div className="flex flex-wrap gap-2 px-1 sm:px-0">
           {statuses.map((s, i) => {
             const count = i === 0 ? cotizaciones.length : cotizaciones.filter(q => q.status === s).length
@@ -1577,7 +1766,7 @@ export default function Simulador() {
                 <tr>
                   <th className="th-cell text-left hidden md:table-cell">N° Cotización</th>
                   <th className="th-cell text-left">Cliente</th>
-                  <th className="th-cell text-left hidden sm:table-cell">Bien / Ref.</th>
+                  <th className="th-cell text-left hidden sm:table-cell">Vendedor</th>
                   <th className="th-cell text-left hidden xl:table-cell">Producto</th>
                   <th className="th-cell text-right hidden sm:table-cell">Total USD</th>
                   <th className="th-cell text-left hidden lg:table-cell">Fecha</th>
@@ -1599,45 +1788,64 @@ export default function Simulador() {
                   </td></tr>
                 ) : pagedCots.map(q => (
                   <tr key={q.id} className="hover:bg-slate-50/60 transition-colors">
-                    <td className="td-cell hidden md:table-cell"><span className="font-mono font-bold text-xs text-slate-700">{q.nro}</span></td>
+                    <td className="td-cell hidden md:table-cell"><span className="font-mono font-bold text-xs sm:text-sm text-slate-700">{q.nro}</span></td>
                     <td className="td-cell">
                       <p className="text-xs sm:text-sm font-semibold text-slate-800">{q.nombre}</p>
-                      <p className="text-[10px] text-slate-400 font-mono">{q.ci}</p>
-                      <p className="text-[10px] font-mono font-bold text-slate-500 md:hidden mt-0.5">{q.nro}</p>
+                      <p className="text-xs sm:text-sm text-slate-400 font-mono">{q.ci}</p>
+                      <p className="text-xs sm:text-sm font-mono font-bold text-slate-500 md:hidden mt-0.5">{q.nro}</p>
                     </td>
-                    <td className="td-cell font-mono text-xs text-slate-500 hidden sm:table-cell">
-                      {q.bien_atributos?.placa || q.bien_atributos?.descripcion || q.asegurado_nombre || '—'}
+                    <td className="td-cell text-xs sm:text-sm text-slate-600 hidden sm:table-cell">
+                      {q.vendedor_nombre || '—'}
                     </td>
-                    <td className="td-cell text-xs text-slate-600 hidden xl:table-cell">{q.producto || '—'}</td>
-                    <td className="td-cell text-right font-bold text-sm text-slate-800 hidden sm:table-cell">{usd(q.total)}</td>
-                    <td className="td-cell text-xs text-slate-500 hidden lg:table-cell">{q.fecha}</td>
+                    <td className="td-cell text-xs sm:text-sm text-slate-600 hidden xl:table-cell">{q.producto || '—'}</td>
+                    <td className="td-cell text-right font-bold text-xs sm:text-sm text-slate-800 hidden sm:table-cell">{usd(q.total)}</td>
+                    <td className="td-cell text-xs sm:text-sm text-slate-500 hidden lg:table-cell">{q.fecha}</td>
                     <td className="td-cell"><StatusBadge status={q.status} /></td>
                     {hasAnyAction && (
                       <td className="px-2 sm:px-3 py-2">
-                        <div className="flex flex-wrap gap-1 justify-center">
-                          {canEdit && (q.status === 'en_revision' || q.status === 'aprobado') && (
-                            <button onClick={() => setUwModal(q)} className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition" title="Evaluación de Underwriting">
-                              <ClipboardList className="w-3.5 h-3.5" />
+                        <div className="flex flex-wrap gap-1.5 justify-center">
+                          {canUnderwrite && q.status === 'en_revision' && (
+                            <button onClick={() => setUwModal(q)} className="p-2.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition" title="Evaluación de Underwriting">
+                              <ClipboardList className="w-[18px] h-[18px]" />
                             </button>
                           )}
                           {canEdit && q.status === 'en_revision' && (
-                            <button onClick={() => handleChangeStatus(q.id, 'rechazado')} className="p-1.5 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition" title="Rechazar directo">
-                              <X className="w-3.5 h-3.5" />
+                            <button onClick={() => handleChangeStatus(q.id, 'rechazado')} className="p-2.5 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition" title="Rechazar directo">
+                              <X className="w-[18px] h-[18px]" />
                             </button>
                           )}
                           {canEmit && q.status === 'aprobado' && (
-                            <button onClick={() => showModal('emitirCotizacion', { cot: q, onSaved: loadData })} className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition" title="Emitir póliza">
-                              <FileCheck className="w-3.5 h-3.5" />
+                            <button onClick={() => {
+                              const prod = productos.find(p => p.id === q.producto_id)
+                              showModal('emitirCotizacion', {
+                                cot: { ...q, producto_permite_mensualidades: !!prod?.permite_mensualidades, producto_recargo_mensual_pct: prod?.recargo_mensual_pct },
+                                onSaved: loadData,
+                              })
+                            }} className="p-2.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition" title="Emitir póliza">
+                              <FileCheck className="w-[18px] h-[18px]" />
                             </button>
                           )}
                           {canEdit && q.status !== 'emitida' && (
-                            <button onClick={() => openEditSim(q)} className="p-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition" title="Editar">
-                              <Pencil className="w-3.5 h-3.5" />
+                            <button onClick={() => openEditSim(q)} className="p-2.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition" title="Editar">
+                              <Pencil className="w-[18px] h-[18px]" />
+                            </button>
+                          )}
+                          {canAdjust && q.status === 'emitida' && q.poliza_id && (
+                            <button
+                              onClick={() => showModal('ajustarPoliza', {
+                                c: { id: q.persona_id, nombre: q.nombre },
+                                polizaId: q.poliza_id,
+                                onSave: loadData,
+                              })}
+                              className="p-2.5 rounded-lg bg-violet-50 text-violet-600 hover:bg-violet-100 transition"
+                              title="Editar póliza emitida"
+                            >
+                              <SlidersHorizontal className="w-[18px] h-[18px]" />
                             </button>
                           )}
                           {canDelete && (
-                            <button onClick={() => handleDelete(q.id, q.nro)} className="p-1.5 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition" title="Eliminar">
-                              <Trash2 className="w-3.5 h-3.5" />
+                            <button onClick={() => handleDelete(q.id, q.nro)} className="p-2.5 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition" title="Eliminar">
+                              <Trash2 className="w-[18px] h-[18px]" />
                             </button>
                           )}
                         </div>
@@ -1689,10 +1897,23 @@ export default function Simulador() {
             )}
           </div>
         </div>
+        </>
+        )}
       </div>
 
       {/* Wizard */}
-      {step === 1 && <Step1 sim={sim} setSim={setSim} onNext={() => setStep(2)} onClose={closeStep} productos={productos} />}
+      {step === 1 && (
+        <Step1
+          sim={sim}
+          setSim={setSim}
+          onNext={() => setStep(2)}
+          onClose={closeStep}
+          // Solo se ofrecen productos publicados al cotizar. Si se está
+          // editando una cotización cuyo producto ya fue despublicado, se
+          // mantiene visible solo ese para no romper la edición existente.
+          productos={productos.filter(p => p.publicado || p.id === sim.producto_id)}
+        />
+      )}
       {step === 2 && <Step2 sim={sim} setSim={setSim} onNext={() => setStep(3)} onBack={() => setStep(1)} onClose={closeStep} />}
       {step === 3 && <Step3 sim={sim} setSim={setSim} onNext={() => setStep(4)} onBack={() => setStep(2)} onClose={closeStep} />}
       {step === 4 && <Step4 sim={sim} setSim={setSim} tasaBcv={tasaBcv} onNext={() => setStep(5)} onBack={() => setStep(3)} onClose={closeStep} />}

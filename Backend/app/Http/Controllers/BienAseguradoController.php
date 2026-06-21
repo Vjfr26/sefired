@@ -9,6 +9,7 @@ use App\Models\EmailLog;
 use App\Models\Persona;
 use App\Rules\NoInjectionChars;
 use App\Traits\LogsActivity;
+use App\Traits\ScopesVendedor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 
@@ -30,12 +31,18 @@ use Illuminate\Support\Facades\Mail;
  */
 class BienAseguradoController extends Controller
 {
-    use LogsActivity;
+    use LogsActivity, ScopesVendedor;
 
     public function index(Request $request)
     {
-        $query = BienAsegurado::with(['persona', 'roles.persona', 'solicitudes.polizas'])
+        $query = BienAsegurado::with(['persona.vendedor', 'roles.persona', 'solicitudes.polizas'])
             ->orderByDesc('created_at');
+
+        // Un vendedor solo ve los bienes de SUS clientes — igual que en
+        // ClienteController::index(). Admin/Oficina ven todo.
+        if ($this->esRolRestringido()) {
+            $query->whereHas('persona', fn($q) => $this->whereVendedorPropio($q));
+        }
 
         if ($request->filled('tipo')) {
             $query->where('tipo', $request->tipo);
@@ -51,8 +58,12 @@ class BienAseguradoController extends Controller
 
     public function show($id)
     {
-        $bien = BienAsegurado::with(['persona', 'roles.persona', 'solicitudes.producto'])
+        $bien = BienAsegurado::with(['persona.vendedor', 'roles.persona', 'solicitudes.producto'])
             ->findOrFail($id);
+
+        if ($bien->persona) {
+            $this->assertAccesoCliente($bien->persona);
+        }
 
         return response()->json($this->formatBien($bien, true));
     }
@@ -67,7 +78,12 @@ class BienAseguradoController extends Controller
             'atributos'       => 'nullable|array',
             'valor_declarado' => 'nullable|numeric|min:0',
             'descripcion'     => ['nullable', 'string', 'max:200', $noInjection],
+            'observaciones'   => ['nullable', 'string', 'max:1000', $noInjection],
         ]);
+
+        if (!empty($data['persona_id'])) {
+            $this->assertAccesoCliente(Persona::findOrFail($data['persona_id']));
+        }
 
         $bien = BienAsegurado::create([
             ...$data,
@@ -89,7 +105,10 @@ class BienAseguradoController extends Controller
 
     public function update(Request $request, $id)
     {
-        $bien = BienAsegurado::findOrFail($id);
+        $bien = BienAsegurado::with('persona')->findOrFail($id);
+        if ($bien->persona) {
+            $this->assertAccesoCliente($bien->persona);
+        }
 
         $noInjection = new NoInjectionChars();
 
@@ -99,11 +118,20 @@ class BienAseguradoController extends Controller
             'atributos'       => 'sometimes|nullable|array',
             'valor_declarado' => 'sometimes|nullable|numeric|min:0',
             'descripcion'     => ['sometimes', 'nullable', 'string', 'max:200', $noInjection],
+            'observaciones'   => ['sometimes', 'nullable', 'string', 'max:1000', $noInjection],
         ]);
 
+        // Si se reasigna a otra persona, esa persona también debe estar
+        // dentro de la cartera del vendedor actual — si no, cualquiera
+        // podía "mudar" un bien propio al cliente de otro vendedor.
+        if (!empty($data['persona_id']) && $data['persona_id'] !== $bien->persona_id) {
+            $this->assertAccesoCliente(Persona::findOrFail($data['persona_id']));
+        }
+
+        $antes = $this->snapshotAntes($bien);
         $bien->update($data);
 
-        $this->logActivity('actualizar_bien', "Bien ID {$bien->id} actualizado");
+        $this->logActivity('actualizar_bien', "Bien ID {$bien->id} — " . $this->describirCambios($bien, $antes));
 
         $personaBien = $bien->fresh('persona')->persona;
         if ($personaBien?->correo) {
@@ -118,7 +146,10 @@ class BienAseguradoController extends Controller
 
     public function destroy($id)
     {
-        $bien = BienAsegurado::findOrFail($id);
+        $bien = BienAsegurado::with('persona')->findOrFail($id);
+        if ($bien->persona) {
+            $this->assertAccesoCliente($bien->persona);
+        }
         $bien->delete();
 
         $this->logActivity('eliminar_bien', "Bien ID {$id} eliminado");
@@ -129,7 +160,10 @@ class BienAseguradoController extends Controller
     /** Agregar una persona con un rol al bien */
     public function agregarPersona(Request $request, $id)
     {
-        $bien = BienAsegurado::findOrFail($id);
+        $bien = BienAsegurado::with('persona')->findOrFail($id);
+        if ($bien->persona) {
+            $this->assertAccesoCliente($bien->persona);
+        }
 
         $noInjection = new NoInjectionChars();
 
@@ -138,6 +172,8 @@ class BienAseguradoController extends Controller
             'rol'        => ['required', 'string', 'max:30', $noInjection],
             'datos'      => 'nullable|array',
         ]);
+
+        $this->assertAccesoCliente(Persona::findOrFail($data['persona_id']));
 
         $rol = BienPersonaRol::create([
             'bien_asegurado_id' => $bien->id,
@@ -158,6 +194,12 @@ class BienAseguradoController extends Controller
     public function quitarPersona($id, $rolId)
     {
         $rol = BienPersonaRol::where('bien_asegurado_id', $id)->findOrFail($rolId);
+
+        $bien = BienAsegurado::with('persona')->find($id);
+        if ($bien?->persona) {
+            $this->assertAccesoCliente($bien->persona);
+        }
+
         $rol->delete();
 
         return response()->json(null, 204);
@@ -173,10 +215,12 @@ class BienAseguradoController extends Controller
             'atributos'       => $b->atributos,
             'valor_declarado' => $b->valor_declarado,
             'descripcion'     => $b->descripcion,
+            'observaciones'   => $b->observaciones,
             'persona'         => $b->persona ? [
-                'id'     => $b->persona->id,
-                'nombre' => $b->persona->nombre,
-                'cedula' => $b->persona->cedula,
+                'id'              => $b->persona->id,
+                'nombre'          => $b->persona->nombre,
+                'cedula'          => $b->persona->cedula,
+                'vendedor_nombre' => $b->persona->vendedor?->nombre,
             ] : null,
             'roles'           => $b->roles->map(fn($r) => [
                 'id'      => $r->id,

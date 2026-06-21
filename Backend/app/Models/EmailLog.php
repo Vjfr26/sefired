@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class EmailLog extends Model
 {
@@ -18,6 +19,16 @@ class EmailLog extends Model
     protected function casts(): array
     {
         return ['sent_at' => 'datetime'];
+    }
+
+    public function persona(): BelongsTo
+    {
+        return $this->belongsTo(Persona::class, 'persona_id');
+    }
+
+    public function poliza(): BelongsTo
+    {
+        return $this->belongsTo(Poliza::class, 'poliza_id');
     }
 
     public static function registrar(
