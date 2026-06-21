@@ -33,7 +33,12 @@
           ['Asegurado',      $aseguradoNombre],
           ['Bien asegurado', $bienRef],
           ['Vigencia',       $fechaEmision . ' → ' . $fechaVencimiento],
-          ['Prima',          '$' . $primaDolares . ' USD'],
+          ['Forma de pago',  $esMensual ? 'Mensual (12 cuotas)' : 'Pago único anual'],
+          [$esMensual ? 'Prima Anual Total' : 'Prima', '$' . $primaDolares . ' USD'],
+          ...($esMensual ? [
+            ['Cuota mensual (esta es la que pagó)', '$' . $cuotaMensual . ' USD'],
+            ['Próxima cuota',                       $proximaCuota],
+          ] : []),
           ['Tasa BCV',       'Bs. ' . $tasaEmision . ' / USD'],
           ['Total Bs.',      'Bs. ' . $totalBs],
         ] as $row)

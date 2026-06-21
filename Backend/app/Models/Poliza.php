@@ -115,4 +115,37 @@ class Poliza extends Model
     {
         return $this->hasMany(PolizaBien::class, 'poliza_id');
     }
+
+    /**
+     * Bienes ADICIONALES (más allá del original de la solicitud, que no
+     * tiene certificado propio) — usado por el cuadro póliza para mostrar
+     * la sección "Bienes Adicionales" solo cuando aplica.
+     * Requiere `bienes.bien` precargado para no disparar más queries.
+     */
+    public function bienesAdicionales()
+    {
+        return $this->bienes->filter(fn($pb) => $pb->certificado !== null);
+    }
+
+    /**
+     * Número de recibo real (el de la factura asociada), distinto del
+     * número de contrato de la póliza. Requiere `facturas` precargado.
+     */
+    public function numeroRecibo(): string
+    {
+        return $this->facturas->sortBy('id')->first()?->numero ?? $this->nro_contrato;
+    }
+
+    /**
+     * true si esta póliza reemplazó a una anterior de la misma solicitud
+     * (la anterior queda en status='RENOVADA') — para mostrar "RENOVACIÓN"
+     * en vez de "EMISIÓN / ALTA" en el cuadro póliza.
+     */
+    public function esRenovacion(): bool
+    {
+        return (bool) ($this->solicitud_id && self::where('solicitud_id', $this->solicitud_id)
+            ->where('id', '<', $this->id)
+            ->where('status', 'RENOVADA')
+            ->exists());
+    }
 }

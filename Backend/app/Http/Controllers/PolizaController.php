@@ -159,8 +159,9 @@ class PolizaController extends Controller
         // Bienes adicionales (más allá del original de la solicitud, que no
         // tiene certificado propio) — solo se muestra esta sección extra si
         // la póliza cubre más de un bien.
-        $bienesAdicionales = $poliza->bienes->filter(fn($pb) => $pb->certificado !== null);
-        ['numeroRecibo' => $numeroRecibo, 'esRenovacion' => $esRenovacion] = $this->datosRecibo($poliza);
+        $bienesAdicionales = $poliza->bienesAdicionales();
+        $numeroRecibo      = $poliza->numeroRecibo();
+        $esRenovacion      = $poliza->esRenovacion();
 
         $qrUrl = url('/ver/' . urlencode($poliza->nro_contrato));
 
@@ -179,24 +180,6 @@ class PolizaController extends Controller
         $filename = 'poliza-' . str_replace(['/', ' '], '-', $poliza->nro_contrato) . '.pdf';
 
         return $pdf->download($filename);
-    }
-
-    /**
-     * Datos del recibo que no están en columnas directas de Poliza:
-     *   - numeroRecibo: el de la factura asociada (distinto del nro_contrato).
-     *   - esRenovacion: true si esta póliza reemplazó a una anterior de la
-     *     misma solicitud (la anterior queda en status='RENOVADA').
-     */
-    private function datosRecibo(Poliza $poliza): array
-    {
-        $numeroRecibo = $poliza->facturas->sortBy('id')->first()?->numero ?? $poliza->nro_contrato;
-
-        $esRenovacion = $poliza->solicitud_id && Poliza::where('solicitud_id', $poliza->solicitud_id)
-            ->where('id', '<', $poliza->id)
-            ->where('status', 'RENOVADA')
-            ->exists();
-
-        return ['numeroRecibo' => $numeroRecibo, 'esRenovacion' => $esRenovacion];
     }
 
     /**
@@ -295,8 +278,9 @@ class PolizaController extends Controller
                         ->whereNull('deleted_at')
                         ->firstOrFail();
 
-        $bienesAdicionales = $poliza->bienes->filter(fn($pb) => $pb->certificado !== null);
-        ['numeroRecibo' => $numeroRecibo, 'esRenovacion' => $esRenovacion] = $this->datosRecibo($poliza);
+        $bienesAdicionales = $poliza->bienesAdicionales();
+        $numeroRecibo      = $poliza->numeroRecibo();
+        $esRenovacion      = $poliza->esRenovacion();
 
         $qrUrl = url('/ver/' . urlencode($poliza->nro_contrato));
 
