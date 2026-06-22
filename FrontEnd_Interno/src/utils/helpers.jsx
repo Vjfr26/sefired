@@ -15,6 +15,60 @@
 import { useState, useEffect } from 'react'
 import { CheckCircle, Clock, AlertCircle } from 'lucide-react'
 
+// ── Bloqueo de fondo para ventanas tipo modal ────────────────────────────────
+
+/**
+ * Mientras una ventana modal/overlay está abierta: bloquea el scroll del
+ * fondo y atrapa el foco de teclado (Tab) dentro del panel indicado, para
+ * que no se puedan "escapar" interacciones hacia elementos de atrás.
+ *
+ * Usar en CUALQUIER overlay de pantalla completa, no solo en ModalShell —
+ * los visores de PDF (PdfViewer, pdfVisor) son overlays igual que un modal
+ * y deben comportarse igual.
+ *
+ * @param {React.RefObject} panelRef  Ref del panel/contenedor focuseable del overlay
+ * @param {boolean}         active    Si false, no bloquea nada (para overlays que
+ *                                    se montan siempre pero solo se muestran a veces,
+ *                                    ej. un visor de PDF condicionado por `pdfVisor &&`)
+ */
+export function useModalLock(panelRef, active = true) {
+  useEffect(() => {
+    if (!active) return
+    // Bloquear solo <body> no basta: en algunos navegadores la caja de scroll
+    // raíz es <html>, así que una rueda del mouse seguía moviendo la página
+    // de fondo aunque body tuviera overflow:hidden. Se bloquean ambos.
+    const prevBodyOverflow = document.body.style.overflow
+    const prevHtmlOverflow = document.documentElement.style.overflow
+    document.body.style.overflow = 'hidden'
+    document.documentElement.style.overflow = 'hidden'
+    panelRef.current?.focus()
+
+    const handleKeyDown = (e) => {
+      if (e.key !== 'Tab') return
+      const focusables = panelRef.current?.querySelectorAll(
+        'a[href], button:not([disabled]), textarea, input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )
+      if (!focusables || focusables.length === 0) return
+      const first = focusables[0]
+      const last  = focusables[focusables.length - 1]
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.body.style.overflow = prevBodyOverflow
+      document.documentElement.style.overflow = prevHtmlOverflow
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [panelRef, active])
+}
+
 // ── Avatares de usuario ──────────────────────────────────────────────────────
 
 /**
@@ -201,6 +255,9 @@ export const PERMS_CATALOG = {
     icon: '🪪',
     actions: [
       { id: 'view',          label: 'Ver listado de clientes' },
+      { id: 'view_cards',    label: 'Ver tarjetas de resumen (cards)' },
+      { id: 'view_list',     label: 'Ver tabla/listado de clientes' },
+      { id: 'view_all',      label: 'Ver TODOS los clientes (no solo los propios)' },
       { id: 'create',        label: 'Registrar nuevo cliente' },
       { id: 'edit',          label: 'Editar datos del cliente' },
       { id: 'delete',        label: 'Eliminar cliente (requiere contraseña)' },
@@ -209,7 +266,9 @@ export const PERMS_CATALOG = {
       { id: 'view_facturas', label: 'Ver facturas del cliente' },
       { id: 'view_docs',     label: 'Ver documentos del cliente' },
       { id: 'renew',         label: 'Renovar póliza del cliente' },
-      { id: 'adjust',        label: 'Ajustar póliza (estado, fechas, prima)' },
+      { id: 'adjust',        label: 'Ajustar póliza (estado, fechas, prima, vendedor)' },
+      { id: 'manage_beneficiarios', label: 'Gestionar beneficiarios de la póliza' },
+      { id: 'manage_bienes',        label: 'Gestionar bienes cubiertos por la póliza' },
     ],
   },
   vehiculos: {
@@ -217,6 +276,8 @@ export const PERMS_CATALOG = {
     icon: '🚗',
     actions: [
       { id: 'view',         label: 'Ver listado de bienes asegurados' },
+      { id: 'view_cards',   label: 'Ver tarjetas de resumen (cards)' },
+      { id: 'view_list',    label: 'Ver tabla/listado de bienes' },
       { id: 'view_poliza',  label: 'Ver póliza del bien (PDF)' },
       { id: 'view_docs',    label: 'Ver documentos del bien' },
       { id: 'edit',         label: 'Editar datos del bien' },
@@ -227,11 +288,13 @@ export const PERMS_CATALOG = {
     label: 'Simulador / Cotizaciones',
     icon: '🧮',
     actions: [
-      { id: 'view',   label: 'Ver cotizaciones guardadas' },
-      { id: 'create', label: 'Crear nueva simulación / cotización' },
-      { id: 'edit',   label: 'Editar cotización existente' },
-      { id: 'delete', label: 'Eliminar cotización' },
-      { id: 'emit',   label: 'Emitir póliza desde cotización' },
+      { id: 'view',      label: 'Ver cotizaciones guardadas' },
+      { id: 'view_list', label: 'Ver tabla/listado de cotizaciones' },
+      { id: 'create',    label: 'Crear nueva simulación / cotización' },
+      { id: 'edit',      label: 'Editar cotización existente' },
+      { id: 'delete',    label: 'Eliminar cotización' },
+      { id: 'emit',      label: 'Emitir póliza desde cotización' },
+      { id: 'underwrite', label: 'Evaluar underwriting (aprobar/rechazar riesgo)' },
     ],
   },
   productos: {
@@ -239,20 +302,25 @@ export const PERMS_CATALOG = {
     icon: '📦',
     actions: [
       { id: 'view',        label: 'Ver catálogo de productos' },
+      { id: 'view_cards',  label: 'Ver tarjetas de resumen (cards)' },
+      { id: 'view_list',   label: 'Ver tabla/listado de productos' },
       { id: 'create',      label: 'Crear nuevo producto / variante' },
       { id: 'edit',        label: 'Editar producto existente' },
       { id: 'delete',      label: 'Eliminar producto (requiere contraseña)' },
       { id: 'manage_docs', label: 'Subir / eliminar documentos del producto' },
+      { id: 'manage_beneficios', label: 'Gestionar beneficios/coberturas informativas' },
     ],
   },
   tasas: {
     label: 'Tasas del Día (BCV)',
     icon: '💵',
     actions: [
-      { id: 'view',   label: 'Ver tasas del día' },
-      { id: 'create', label: 'Registrar nueva tasa' },
-      { id: 'edit',   label: 'Editar tasa registrada' },
-      { id: 'delete', label: 'Eliminar tasa (requiere contraseña)' },
+      { id: 'view',      label: 'Ver tasas del día' },
+      { id: 'view_cards', label: 'Ver tarjetas de resumen (cards)' },
+      { id: 'view_list', label: 'Ver tabla/historial de tasas' },
+      { id: 'create',    label: 'Registrar nueva tasa' },
+      { id: 'edit',      label: 'Editar tasa registrada' },
+      { id: 'delete',    label: 'Eliminar tasa (requiere contraseña)' },
     ],
   },
   usuarios: {
@@ -260,6 +328,8 @@ export const PERMS_CATALOG = {
     icon: '👤',
     actions: [
       { id: 'view',        label: 'Ver listado de usuarios' },
+      { id: 'view_cards',  label: 'Ver tarjetas de resumen (cards)' },
+      { id: 'view_list',   label: 'Ver tabla/listado de usuarios' },
       { id: 'create',      label: 'Registrar nuevo usuario' },
       { id: 'edit',        label: 'Editar datos del usuario' },
       { id: 'delete',      label: 'Eliminar usuario (requiere contraseña)' },
@@ -272,8 +342,18 @@ export const PERMS_CATALOG = {
     label: 'Reportes',
     icon: '📊',
     actions: [
-      { id: 'view',   label: 'Ver y generar reportes' },
-      { id: 'export', label: 'Exportar e imprimir reportes' },
+      { id: 'view',             label: 'Acceder al módulo de reportes' },
+      { id: 'export',           label: 'Exportar e imprimir reportes' },
+      { id: 'manage_leads',     label: 'Gestionar solicitudes de contacto (marcar atendidas)' },
+      { id: 'manage_schedules', label: 'Gestionar programaciones automáticas y envíos por correo' },
+      { id: 'view_ventas',             label: 'Ver pestaña: Ventas / Comisiones' },
+      { id: 'view_oficinas',           label: 'Ver pestaña: Oficinas' },
+      { id: 'view_personal',           label: 'Ver pestaña: Personal' },
+      { id: 'view_metrics_personal',   label: 'Ver pestaña: Métricas de Personal' },
+      { id: 'view_metrics_clientes',   label: 'Ver pestaña: Métricas de Clientes' },
+      { id: 'view_metrics_vehiculos',  label: 'Ver pestaña: Métricas de Vehículos' },
+      { id: 'view_leads',              label: 'Ver pestaña: Solicitudes de Contacto' },
+      { id: 'view_externos',           label: 'Ver pestaña: Reportes Externos' },
     ],
   },
   config: {
@@ -281,9 +361,11 @@ export const PERMS_CATALOG = {
     icon: '⚙️',
     locked: true,
     actions: [
-      { id: 'view',            label: 'Acceder a configuración' },
-      { id: 'change_password', label: 'Cambiar contraseña propia' },
-      { id: 'view_audit',      label: 'Ver auditoría del sistema (logs)' },
+      { id: 'view',             label: 'Acceder a configuración' },
+      { id: 'change_password',  label: 'Cambiar contraseña propia' },
+      { id: 'view_audit',       label: 'Ver auditoría del sistema (logs de actividad e IPs)' },
+      { id: 'view_email_logs',  label: 'Ver historial de correos enviados' },
+      { id: 'manage_security',  label: 'Desbloquear IPs bloqueadas' },
     ],
   },
 }
@@ -291,8 +373,9 @@ export const PERMS_CATALOG = {
 // Orden en que se muestran los módulos en el modal de permisos
 export const PERMS_ORDER = ['home', 'clientes', 'vehiculos', 'cotizaciones', 'productos', 'tasas', 'usuarios', 'reportes', 'config']
 
-// Módulos cuya visibilidad no puede quitarse
-export const LOCKED_PERMS = new Set(['home', 'config'])
+// Módulos cuya visibilidad no puede quitarse. "config" es selectivo: lo
+// decide el Admin por usuario (ver UserPermsModal), no viene forzado.
+export const LOCKED_PERMS = new Set(['home'])
 
 /**
  * Permisos por defecto según el rol del usuario.
@@ -302,38 +385,41 @@ export const LOCKED_PERMS = new Set(['home', 'config'])
 export const PERMISOS_POR_ROL = {
   'Admin': {
     home:         ['view'],
-    clientes:     ['view', 'create', 'edit', 'delete', 'block', 'view_polizas', 'view_facturas', 'view_docs', 'renew', 'adjust'],
-    vehiculos:    ['view', 'view_poliza', 'view_docs', 'edit', 'delete'],
-    cotizaciones: ['view', 'create', 'edit', 'delete', 'emit'],
-    productos:    ['view', 'create', 'edit', 'delete', 'manage_docs'],
-    tasas:        ['view', 'create', 'edit', 'delete'],
-    usuarios:     ['view', 'create', 'edit', 'delete', 'block', 'perms', 'change_role'],
-    reportes:     ['view', 'export'],
-    config:       ['view', 'change_password', 'view_audit'],
+    clientes:     ['view', 'view_cards', 'view_list', 'view_all', 'create', 'edit', 'delete', 'block', 'view_polizas', 'view_facturas', 'view_docs', 'renew', 'adjust', 'manage_beneficiarios', 'manage_bienes'],
+    vehiculos:    ['view', 'view_cards', 'view_list', 'view_poliza', 'view_docs', 'edit', 'delete'],
+    cotizaciones: ['view', 'view_list', 'create', 'edit', 'delete', 'emit', 'underwrite'],
+    productos:    ['view', 'view_cards', 'view_list', 'create', 'edit', 'delete', 'manage_docs', 'manage_beneficios'],
+    tasas:        ['view', 'view_cards', 'view_list', 'create', 'edit', 'delete'],
+    usuarios:     ['view', 'view_cards', 'view_list', 'create', 'edit', 'delete', 'block', 'perms', 'change_role'],
+    reportes:     ['view', 'export', 'manage_leads', 'manage_schedules', 'view_ventas', 'view_oficinas', 'view_personal', 'view_metrics_personal', 'view_metrics_clientes', 'view_metrics_vehiculos', 'view_leads', 'view_externos'],
+    config:       ['view', 'change_password', 'view_audit', 'view_email_logs', 'manage_security'],
   },
   'Oficina': {
     home:         ['view'],
-    clientes:     ['view', 'create', 'edit', 'delete', 'block', 'view_polizas', 'view_facturas', 'view_docs', 'renew', 'adjust'],
-    vehiculos:    ['view', 'view_poliza', 'view_docs', 'edit'],
-    cotizaciones: ['view', 'create', 'edit', 'emit'],
-    tasas:        ['view'],
-    reportes:     ['view', 'export'],
+    clientes:     ['view', 'view_cards', 'view_list', 'view_all', 'create', 'edit', 'delete', 'block', 'view_polizas', 'view_facturas', 'view_docs', 'renew', 'adjust', 'manage_beneficiarios', 'manage_bienes'],
+    vehiculos:    ['view', 'view_cards', 'view_list', 'view_poliza', 'view_docs', 'edit'],
+    cotizaciones: ['view', 'view_list', 'create', 'edit', 'emit', 'underwrite'],
+    productos:    ['view', 'view_cards', 'view_list'],
+    tasas:        ['view', 'view_cards', 'view_list'],
+    reportes:     ['view', 'export', 'manage_leads', 'view_ventas', 'view_oficinas', 'view_personal', 'view_metrics_personal', 'view_metrics_clientes', 'view_metrics_vehiculos', 'view_leads', 'view_externos'],
     config:       ['view', 'change_password'],
   },
   'Vendedor Sucursal': {
     home:         ['view'],
-    clientes:     ['view', 'create', 'view_polizas', 'view_facturas', 'view_docs'],
-    vehiculos:    ['view', 'view_poliza'],
-    cotizaciones: ['view', 'create'],
-    tasas:        ['view'],
+    clientes:     ['view', 'view_cards', 'view_list', 'create', 'view_polizas', 'view_facturas', 'view_docs'],
+    vehiculos:    ['view', 'view_cards', 'view_list', 'view_poliza'],
+    cotizaciones: ['view', 'view_list', 'create'],
+    productos:    ['view', 'view_cards', 'view_list'],
+    tasas:        ['view', 'view_cards', 'view_list'],
     config:       ['view', 'change_password'],
   },
   'Vendedor Calle': {
     home:         ['view'],
-    clientes:     ['view', 'create', 'view_polizas'],
-    vehiculos:    ['view'],
-    cotizaciones: ['view', 'create'],
-    tasas:        ['view'],
+    clientes:     ['view', 'view_cards', 'view_list', 'create', 'view_polizas'],
+    vehiculos:    ['view', 'view_cards', 'view_list'],
+    cotizaciones: ['view', 'view_list', 'create'],
+    productos:    ['view', 'view_cards', 'view_list'],
+    tasas:        ['view', 'view_cards', 'view_list'],
     config:       ['view', 'change_password'],
   },
 }

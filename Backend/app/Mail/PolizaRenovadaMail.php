@@ -38,6 +38,15 @@ class PolizaRenovadaMail extends Mailable
                 ?? $this->polizaNueva->solicitud?->bien?->atributos['placa']
                 ?? '—';
 
+        // Misma corrección que en PolizaEmitidaMail: con pago mensual, lo
+        // recién pagado es solo la primera cuota de la renovación, no el año completo.
+        $esMensual    = $this->polizaNueva->frecuencia_pago === 'Mensual';
+        $recargoPct   = $esMensual ? (float) ($this->polizaNueva->producto?->recargo_mensual_pct ?? 0) : 0;
+        $cuotaMensual = $esMensual
+            ? round(((float) $this->polizaNueva->total / 12) * (1 + $recargoPct / 100), 2)
+            : null;
+        $proximaCuota = $esMensual ? $this->polizaNueva->fecha_emision?->copy()->addMonth()->format('d/m/Y') : null;
+
         return new Content(
             view: 'emails.poliza-renovada',
             with: [
@@ -52,6 +61,9 @@ class PolizaRenovadaMail extends Mailable
                 'fechaEmision'     => $this->polizaNueva->fecha_emision->format('d/m/Y'),
                 'fechaVencimiento' => $this->polizaNueva->fecha_vencimiento->format('d/m/Y'),
                 'prima'            => number_format((float) $this->polizaNueva->total, 2),
+                'esMensual'        => $esMensual,
+                'cuotaMensual'     => $cuotaMensual !== null ? number_format($cuotaMensual, 2) : null,
+                'proximaCuota'     => $proximaCuota,
             ],
         );
     }

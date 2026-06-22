@@ -7,6 +7,7 @@ use App\Models\UnderwritingEvaluacion;
 use App\Rules\NoInjectionChars;
 use App\Services\WorkflowService;
 use App\Traits\LogsActivity;
+use App\Traits\ScopesVendedor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -20,12 +21,13 @@ use Illuminate\Support\Facades\DB;
  */
 class UnderwritingController extends Controller
 {
-    use LogsActivity;
+    use LogsActivity, ScopesVendedor;
 
     /** Lista las evaluaciones de una cotización, de más reciente a más antigua. */
     public function index($solicitudId)
     {
-        Solicitud::findOrFail($solicitudId);
+        $solicitud = Solicitud::findOrFail($solicitudId);
+        $this->assertAccesoSolicitud($solicitud);
 
         $evaluaciones = UnderwritingEvaluacion::where('solicitud_id', $solicitudId)
             ->with('evaluador')
@@ -46,6 +48,7 @@ class UnderwritingController extends Controller
     public function store(Request $request, $solicitudId)
     {
         $solicitud = Solicitud::findOrFail($solicitudId);
+        $this->assertAccesoSolicitud($solicitud);
 
         if ($solicitud->status === 'emitida') {
             return response()->json(['error' => 'No se puede evaluar una cotización ya emitida.'], 409);
@@ -103,6 +106,7 @@ class UnderwritingController extends Controller
     public function update(Request $request, $id)
     {
         $evaluacion = UnderwritingEvaluacion::with('solicitud')->findOrFail($id);
+        $this->assertAccesoSolicitud($evaluacion->solicitud);
 
         $noInjection = new NoInjectionChars();
 
@@ -139,6 +143,19 @@ class UnderwritingController extends Controller
         );
 
         return response()->json($this->row($evaluacion->fresh()->load('evaluador')));
+    }
+
+    /**
+     * Un vendedor solo puede evaluar/ver underwriting de SUS propias
+     * cotizaciones — espejo exacto de SolicitudController::assertAccesoSolicitud
+     * (vendedor_id null tampoco se permite: son leads sin reclamar).
+     */
+    private function assertAccesoSolicitud(Solicitud $solicitud): void
+    {
+        $user = auth()->user();
+        if ($this->esRolRestringido() && $solicitud->vendedor_id !== $user->id) {
+            abort(403, 'No tienes acceso a esta cotización.');
+        }
     }
 
     private function row(UnderwritingEvaluacion $e): array

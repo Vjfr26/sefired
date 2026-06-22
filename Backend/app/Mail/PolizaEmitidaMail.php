@@ -44,6 +44,16 @@ class PolizaEmitidaMail extends Mailable
             $qrCode = null;
         }
 
+        // Si la póliza es de pago mensual, lo que el cliente acaba de pagar es
+        // SOLO la primera cuota — mostrar la prima anual completa como si
+        // fuera lo pagado era engañoso. Se agrega el desglose real.
+        $esMensual    = $pol->frecuencia_pago === 'Mensual';
+        $recargoPct   = $esMensual ? (float) ($pol->producto?->recargo_mensual_pct ?? 0) : 0;
+        $cuotaMensual = $esMensual
+            ? round(((float) $pol->total / 12) * (1 + $recargoPct / 100), 2)
+            : null;
+        $proximaCuota = $esMensual ? $pol->fecha_emision?->copy()->addMonth()->format('d/m/Y') : null;
+
         return new Content(
             view: 'emails.poliza-emitida',
             with: [
@@ -63,6 +73,10 @@ class PolizaEmitidaMail extends Mailable
                 'totalBs'         => number_format((float) $pol->total_bs, 2),
                 'verificarUrl'    => url('/ver/' . $pol->nro_contrato),
                 'qrCode'          => $qrCode,
+                'esMensual'       => $esMensual,
+                'frecuenciaPago'  => $pol->frecuencia_pago ?? 'Anual',
+                'cuotaMensual'    => $cuotaMensual !== null ? number_format($cuotaMensual, 2) : null,
+                'proximaCuota'    => $proximaCuota,
             ],
         );
     }
@@ -84,8 +98,20 @@ class PolizaEmitidaMail extends Mailable
             $qrCode = null;
         }
 
-        $pdf      = Pdf::loadView('poliza-pdf', compact('pol', 'qrCode')
-                         + ['poliza' => $pol])->setPaper('letter', 'portrait');
+        // El template necesita estas 3 variables además de poliza/qrCode —
+        // faltaban aquí (solo se pasaban en PolizaController::pdf/pdfPublico)
+        // y rompían la generación del PDF adjunto en CADA correo de emisión.
+        $bienesAdicionales = $pol->bienesAdicionales();
+        $numeroRecibo      = $pol->numeroRecibo();
+        $esRenovacion      = $pol->esRenovacion();
+
+        $pdf      = Pdf::loadView('poliza-pdf', [
+                        'poliza'            => $pol,
+                        'qrCode'            => $qrCode,
+                        'bienesAdicionales' => $bienesAdicionales,
+                        'numeroRecibo'      => $numeroRecibo,
+                        'esRenovacion'      => $esRenovacion,
+                    ])->setPaper('letter', 'portrait');
         $filename = 'poliza-' . str_replace(['/', ' '], '-', $pol->nro_contrato) . '.pdf';
 
         return [

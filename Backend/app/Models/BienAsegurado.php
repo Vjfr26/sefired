@@ -19,6 +19,7 @@ class BienAsegurado extends Model
         'atributos',
         'valor_declarado',
         'descripcion',
+        'observaciones',
         'created_by',
     ];
 
@@ -45,6 +46,12 @@ class BienAsegurado extends Model
     public function solicitudes(): HasMany
     {
         return $this->hasMany(Solicitud::class, 'bien_asegurado_id');
+    }
+
+    /** Pólizas que cubren este bien a través de poliza_bienes (ver PolizaBien). */
+    public function polizaBienes(): HasMany
+    {
+        return $this->hasMany(PolizaBien::class, 'bien_asegurado_id');
     }
 
     /** Personas con un rol específico sobre este bien */

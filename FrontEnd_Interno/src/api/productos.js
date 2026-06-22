@@ -115,36 +115,37 @@ export async function deleteDocumentoProducto(id, path) {
   return json
 }
 
-/**
- * Importa la tabla de tasas de un producto desde un CSV con cabecera.
- * @param {number} id    ID del producto
- * @param {File}   file  Archivo CSV (separador coma o tabulador, primera fila = cabecera)
- */
-export async function uploadTasasProducto(id, file) {
-  const token = localStorage.getItem('auth_token')
-  const formData = new FormData()
-  formData.append('tasas', file)
-  const res = await fetch(`${API}/${id}/tasas`, {
+// ── Beneficios (lista de coberturas informativas del producto) ───────────────
+
+export async function createBeneficio(productoId, data) {
+  const res = await fetch(`${API}/${productoId}/beneficios`, {
     method: 'POST',
-    headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
-    body: formData,
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(data),
   })
   const json = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(json.message || json.error || 'Error al cargar tasas')
+  if (!res.ok) throw new Error(json.error || json.message || 'Error al agregar beneficio')
   return json
 }
 
-/**
- * Elimina la tabla de tasas de un producto.
- * @param {number} id  ID del producto
- */
-export async function deleteTasasProducto(id) {
-  const token = localStorage.getItem('auth_token')
-  const res = await fetch(`${API}/${id}/tasas`, {
-    method: 'DELETE',
-    headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+export async function updateBeneficio(productoId, benId, data) {
+  const res = await fetch(`${API}/${productoId}/beneficios/${benId}`, {
+    method: 'PUT',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(data),
   })
   const json = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(json.message || json.error || 'Error al eliminar tasas')
+  if (!res.ok) throw new Error(json.error || json.message || 'Error al actualizar beneficio')
   return json
+}
+
+export async function deleteBeneficio(productoId, benId) {
+  const res = await fetch(`${API}/${productoId}/beneficios/${benId}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  })
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({}))
+    throw new Error(json.error || json.message || 'Error al eliminar beneficio')
+  }
 }

@@ -9,6 +9,7 @@ use App\Models\Poliza;
 use App\Models\SolicitudRenovacionQr;
 use App\Rules\NoInjectionChars;
 use App\Services\WorkflowService;
+use App\Traits\LogsActivity;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,6 +17,8 @@ use Illuminate\Support\Facades\Mail;
 
 class SolicitudRenovacionQrController extends Controller
 {
+    use LogsActivity;
+
     /**
      * Lista todas las solicitudes de renovación recibidas por QR.
      * Soporta filtro por status y búsqueda por nro_contrato / nombre.
@@ -133,6 +136,21 @@ class SolicitudRenovacionQrController extends Controller
 
             $nueva->update(['nro_contrato' => $nroContrato]);
 
+            foreach ($polizaAnterior->bienes as $pb) {
+                $nuevoCertificado = null;
+                if ($pb->certificado && preg_match('/-(\d+)$/', $pb->certificado, $m)) {
+                    $nuevoCertificado = $nroContrato . '-' . $m[1];
+                }
+                PolizaBien::create([
+                    'poliza_id'         => $nueva->id,
+                    'bien_asegurado_id' => $pb->bien_asegurado_id,
+                    'certificado'       => $nuevoCertificado,
+                    'cobertura_dolares' => $pb->cobertura_dolares,
+                    'cobertura_bs'      => $pb->cobertura_bs,
+                    'created_by'        => auth()->id(),
+                ]);
+            }
+
             Factura::create([
                 'numero'        => $nroFactura,
                 'sede'          => $sede,
@@ -169,6 +187,13 @@ class SolicitudRenovacionQrController extends Controller
             }
         } catch (\Throwable) {}
 
+        $this->logActivity(
+            'Renovación QR Autorizada',
+            "Póliza {$polizaAnterior->nro_contrato} renovada por QR → {$result['nro_contrato']}",
+            'poliza',
+            auth()->id()
+        );
+
         return response()->json([
             'message'      => 'Póliza renovada correctamente',
             'nro_contrato' => $result['nro_contrato'],
@@ -198,6 +223,13 @@ class SolicitudRenovacionQrController extends Controller
             'nota_agente'   => $data['nota'] ?? null,
             'procesado_por' => auth()->id(),
         ]);
+
+        $this->logActivity(
+            'Renovación QR Rechazada',
+            "Solicitud de renovación #{$id} (póliza {$solicitud->nro_contrato}) rechazada",
+            'poliza',
+            auth()->id()
+        );
 
         return response()->json(['message' => 'Solicitud rechazada.']);
     }

@@ -9,11 +9,15 @@ use App\Mail\FacturaMail;
 use App\Models\EmailLog;
 use App\Models\Solicitud;
 use App\Models\Persona;
+use App\Models\BienAsegurado;
 use App\Models\Poliza;
+use App\Models\PolizaBien;
 use App\Models\Factura;
+use App\Models\Venta;
 use App\Rules\NoInjectionChars;
 use App\Services\WorkflowService;
 use App\Traits\LogsActivity;
+use App\Traits\ScopesVendedor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -32,19 +36,29 @@ use Illuminate\Support\Facades\Mail;
  */
 class SolicitudController extends Controller
 {
-    use LogsActivity;
+    use LogsActivity, ScopesVendedor;
 
     /**
-     * Lista todas las cotizaciones ordenadas de más reciente a más antigua.
+     * Lista las cotizaciones ordenadas de más reciente a más antigua.
      * Incluye datos del cliente (nombre, cédula) y del vendedor.
+     *
+     * Admin y Oficina ven todas las cotizaciones (gestionan la cartera
+     * completa). Los demás roles (vendedores) solo ven las que ellos
+     * mismos crearon — nunca las de otros vendedores ni los leads del
+     * portal público (que no tienen vendedor_id asignado).
      */
     public function index()
     {
-        $solicitudes = Solicitud::with(['persona', 'producto'])
+        $user  = auth()->user();
+        $query = Solicitud::with(['persona', 'producto', 'bien', 'vendedor', 'polizas'])
             ->orderByDesc('fecha_solicitud')
-            ->orderByDesc('id')
-            ->get()
-            ->map(fn($s) => $this->formatRow($s));
+            ->orderByDesc('id');
+
+        if ($this->esRolRestringido()) {
+            $query->where('vendedor_id', $user->id);
+        }
+
+        $solicitudes = $query->get()->map(fn($s) => $this->formatRow($s));
 
         return response()->json($solicitudes);
     }
@@ -73,7 +87,11 @@ class SolicitudController extends Controller
             'ci_tomador'        => ['nullable', 'string', 'max:20', $noInjection],
             'asegurado_nombre'  => ['nullable', 'string', 'max:120', $noInjection],
             'asegurado_ci'      => ['nullable', 'string', 'max:20', $noInjection],
+            'asegurado_telefono'  => ['nullable', 'string', 'max:30', $noInjection],
+            'asegurado_direccion' => ['nullable', 'string', 'max:255', $noInjection],
         ]);
+
+        $this->assertAccesoReferencias($data);
 
         $data['vendedor_id'] = auth()->id();
         $data['status']      = 'en_revision';
@@ -114,6 +132,7 @@ class SolicitudController extends Controller
     public function update(Request $request, $id)
     {
         $solicitud = Solicitud::findOrFail($id);
+        $this->assertAccesoSolicitud($solicitud);
 
         if ($solicitud->status === 'emitida') {
             return response()->json(['error' => 'No se puede editar una cotización ya emitida.'], 409);
@@ -135,7 +154,11 @@ class SolicitudController extends Controller
             'ci_tomador'        => ['nullable', 'string', 'max:20', $noInjection],
             'asegurado_nombre'  => ['nullable', 'string', 'max:120', $noInjection],
             'asegurado_ci'      => ['nullable', 'string', 'max:20', $noInjection],
+            'asegurado_telefono'  => ['nullable', 'string', 'max:30', $noInjection],
+            'asegurado_direccion' => ['nullable', 'string', 'max:255', $noInjection],
         ]);
+
+        $this->assertAccesoReferencias($data);
 
         // Validar transición de estado antes de persistir
         if (isset($data['status'])) {
@@ -181,10 +204,16 @@ class SolicitudController extends Controller
     public function emitir(Request $request, $id)
     {
         $solicitud = Solicitud::findOrFail($id);
+        $this->assertAccesoSolicitud($solicitud);
 
         if ($solicitud->status === 'emitida') {
             return response()->json(['error' => 'Esta cotización ya fue emitida.'], 409);
         }
+
+        // Solo se puede emitir desde 'aprobado' — sin esto, era posible emitir
+        // una póliza directo desde 'en_revision' o 'rechazado', saltándose la
+        // evaluación de underwriting por completo.
+        WorkflowService::assertSolicitud($solicitud->status, 'emitida');
 
         $noInjection = new NoInjectionChars();
 
@@ -257,18 +286,29 @@ class SolicitudController extends Controller
         $coberturaBS = round($coberturaDolares * $tasaBcv, 2);
 
         // Asegurado: si se indicó una persona diferente al tomador, se usa esa; si no, el tomador mismo.
-        $aseguradoNombre = $solicitud->asegurado_nombre ?? $solicitud->nombre_tomador ?? null;
-        $aseguradoCi     = $solicitud->asegurado_ci     ?? $solicitud->ci_tomador     ?? null;
+        // Dirección/teléfono propios del asegurado son opcionales — si no se
+        // indicaron porque es la misma persona (o no se conocen aparte), se
+        // heredan los del tomador.
+        $aseguradoNombre    = $solicitud->asegurado_nombre    ?? $solicitud->nombre_tomador ?? null;
+        $aseguradoCi        = $solicitud->asegurado_ci        ?? $solicitud->ci_tomador     ?? null;
+        $aseguradoTelefono  = $solicitud->asegurado_telefono  ?? null;
+        $aseguradoDireccion = $solicitud->asegurado_direccion ?? null;
 
-        // Snapshot inmutable: datos tal como existían al momento de emisión.
+        // Snapshot inmutable: datos tal como existían al momento de emisión
+        // (incluye teléfono/dirección para que no cambien si el cliente
+        // actualiza sus datos después de emitida la póliza).
         $snapshot = [
             'tomador' => [
-                'nombre' => $solicitud->nombre_tomador ?? $solicitud->persona?->nombre,
-                'ci'     => $solicitud->ci_tomador     ?? $solicitud->persona?->cedula,
+                'nombre'    => $solicitud->nombre_tomador ?? $solicitud->persona?->nombre,
+                'ci'        => $solicitud->ci_tomador     ?? $solicitud->persona?->cedula,
+                'telefono'  => $solicitud->persona?->celular ?? $solicitud->persona?->telefono,
+                'direccion' => $solicitud->persona?->direccion,
             ],
             'asegurado' => [
-                'nombre' => $aseguradoNombre,
-                'ci'     => $aseguradoCi,
+                'nombre'    => $aseguradoNombre,
+                'ci'        => $aseguradoCi,
+                'telefono'  => $aseguradoTelefono,
+                'direccion' => $aseguradoDireccion,
             ],
             'producto' => $solicitud->producto ? [
                 'id'           => $solicitud->producto->id,
@@ -290,9 +330,10 @@ class SolicitudController extends Controller
             'moneda'           => $moneda,
             'pagos'            => $data['pagos'],
             'bien'             => $solicitud->bien ? [
-                'id'        => $solicitud->bien->id,
-                'tipo'      => $solicitud->bien->tipo,
-                'atributos' => $solicitud->bien->atributos,
+                'id'            => $solicitud->bien->id,
+                'tipo'          => $solicitud->bien->tipo,
+                'atributos'     => $solicitud->bien->atributos,
+                'observaciones' => $solicitud->bien->observaciones,
             ] : null,
             'fecha_emision' => $hoy,
             'total_usd'     => $totalUsd,
@@ -330,6 +371,21 @@ class SolicitudController extends Controller
 
             $poliza->update(['nro_contrato' => $nroContrato]);
 
+            // El bien original de la solicitud queda registrado en poliza_bienes
+            // con certificado=NULL (cubierto bajo el propio nro_contrato).
+            // Si más adelante se agregan bienes adicionales a esta póliza,
+            // esos sí recibirán un certificado propio.
+            if ($solicitud->bien_asegurado_id) {
+                PolizaBien::create([
+                    'poliza_id'         => $poliza->id,
+                    'bien_asegurado_id' => $solicitud->bien_asegurado_id,
+                    'certificado'       => null,
+                    'cobertura_dolares' => $coberturaDolares,
+                    'cobertura_bs'      => $coberturaBS,
+                    'created_by'        => auth()->id(),
+                ]);
+            }
+
             Factura::create([
                 'numero'        => $nroFactura,
                 'sede'          => $sede,
@@ -344,6 +400,14 @@ class SolicitudController extends Controller
             ]);
 
             $solicitud->update(['status' => 'emitida']);
+
+            // Registro de venta — un renglón por póliza emitida, para reportes
+            // de comisiones/desempeño por vendedor y producto.
+            Venta::create([
+                'usuario_id'  => $solicitud->vendedor_id ?? auth()->id(),
+                'producto_id' => $solicitud->producto_id,
+                'fecha_venta' => $hoy,
+            ]);
 
             return ['nro_contrato' => $nroContrato, 'nro_factura' => $nroFactura];
         });
@@ -390,6 +454,7 @@ class SolicitudController extends Controller
     public function destroy($id)
     {
         $solicitud = Solicitud::with('polizas')->findOrFail($id);
+        $this->assertAccesoSolicitud($solicitud);
 
         if ($solicitud->polizas->isNotEmpty()) {
             return response()->json(
@@ -404,6 +469,40 @@ class SolicitudController extends Controller
     }
 
     // ── Helper ────────────────────────────────────────────────────────────────
+
+    /**
+     * Un vendedor solo puede operar sobre SUS cotizaciones — igual que el
+     * filtro ya aplicado en index(). A diferencia de Persona, aquí NO se
+     * permite vendedor_id null (esos son leads del portal sin reclamar,
+     * fuera del alcance de un vendedor hasta que Admin/Oficina los asigne,
+     * o que se le otorgue el permiso `clientes.view_all`).
+     */
+    private function assertAccesoSolicitud(Solicitud $solicitud): void
+    {
+        $user = auth()->user();
+        if ($this->esRolRestringido() && $solicitud->vendedor_id !== $user->id) {
+            abort(403, 'No tienes acceso a esta cotización.');
+        }
+    }
+
+    /**
+     * Corta con 403 si persona_id o bien_asegurado_id (cuando vienen en el
+     * payload de store/update) no pertenecen al vendedor actual — sin esto,
+     * un vendedor podía apuntar su propia cotización al cliente de otro
+     * vendedor solo cambiando el ID en la petición.
+     */
+    private function assertAccesoReferencias(array $data): void
+    {
+        if (!empty($data['persona_id'])) {
+            $this->assertAccesoCliente(Persona::findOrFail($data['persona_id']));
+        }
+        if (!empty($data['bien_asegurado_id'])) {
+            $bien = BienAsegurado::with('persona')->findOrFail($data['bien_asegurado_id']);
+            if ($bien->persona) {
+                $this->assertAccesoCliente($bien->persona);
+            }
+        }
+    }
 
     private function formatRow(Solicitud $s): array
     {
@@ -427,6 +526,7 @@ class SolicitudController extends Controller
             'bien_asegurado_id' => $s->bien_asegurado_id,
             'bien_tipo'         => $s->bien?->tipo,
             'bien_atributos'    => $s->bien?->atributos,
+            'bien_observaciones' => $s->bien?->observaciones,
             'producto_id'       => $s->producto_id,
             'producto'          => $s->producto?->nombre ?? '—',
             'tarifario_id'      => $s->tarifario_id,
@@ -434,11 +534,16 @@ class SolicitudController extends Controller
             'total_bs'          => $totalBs,
             'tasa_bcv'          => $tasaBcv,
             'fuente'            => $s->fuente ?? 'interno',
+            'poliza_id'         => $s->polizas->first()?->id,
             'status'            => $s->status ?? 'en_revision',
             'fecha'             => $s->fecha_solicitud?->format('d/m/Y') ?? '—',
             'coberturas'        => $cobs,
-            'asegurado_nombre'  => $s->asegurado_nombre,
-            'asegurado_ci'      => $s->asegurado_ci,
+            'asegurado_nombre'    => $s->asegurado_nombre,
+            'asegurado_ci'        => $s->asegurado_ci,
+            'asegurado_telefono'  => $s->asegurado_telefono,
+            'asegurado_direccion' => $s->asegurado_direccion,
+            'vendedor_id'       => $s->vendedor_id,
+            'vendedor_nombre'   => $s->vendedor?->nombre ?? ($s->fuente === 'portal' ? 'Lead del portal' : '—'),
         ];
     }
 }

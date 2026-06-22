@@ -28,7 +28,12 @@
         ['Producto',        $producto],
         ['Inicio vigencia', $fechaEmision],
         ['Fin vigencia',    $fechaVencimiento],
-        ['Prima',           '$' . $prima . ' USD'],
+        ['Forma de pago',   $esMensual ? 'Mensual (12 cuotas)' : 'Pago único anual'],
+        [$esMensual ? 'Prima Anual Total' : 'Prima', '$' . $prima . ' USD'],
+        ...($esMensual ? [
+          ['Cuota mensual (esta es la que pagó)', '$' . $cuotaMensual . ' USD'],
+          ['Próxima cuota',                       $proximaCuota],
+        ] : []),
       ] as $row)
       <tr>
         <td style="padding:5px 0;font-size:13px;color:#94a3b8;width:45%;border-bottom:1px solid #f1f5f9;">{{ $row[0] }}</td>

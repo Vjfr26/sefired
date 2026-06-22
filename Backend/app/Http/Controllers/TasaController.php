@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\IndicadorEconomico;
+use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
 
 /**
@@ -16,6 +17,8 @@ use Illuminate\Http\Request;
  */
 class TasaController extends Controller
 {
+    use LogsActivity;
+
     /**
      * Devuelve las tasas actuales y el historial de los últimos 60 días.
      *
@@ -69,6 +72,13 @@ class TasaController extends Controller
             ['valor' => $data['eur']]
         );
 
+        $this->logActivity(
+            'Tasas Registradas',
+            "Tasas del {$data['fecha']} → USD {$data['usd']} / EUR {$data['eur']}",
+            'indicador_economico',
+            auth()->id()
+        );
+
         return response()->json([
             'usd'  => $this->formatRow($registroUsd),
             'eur'  => $this->formatRow($registroEur),
@@ -87,7 +97,15 @@ class TasaController extends Controller
             'valor' => 'required|numeric|min:0.0001',
         ]);
 
+        $valorAnterior = $tasa->valor;
         $tasa->update(['valor' => $data['valor']]);
+
+        $this->logActivity(
+            'Tasa Corregida',
+            "Tasa {$tasa->moneda} del " . $tasa->fecha?->format('d/m/Y') . " → {$valorAnterior} a {$data['valor']}",
+            'indicador_economico',
+            auth()->id()
+        );
 
         return response()->json($this->formatRow($tasa->fresh()));
     }
@@ -98,7 +116,10 @@ class TasaController extends Controller
     public function destroy($id)
     {
         $tasa = IndicadorEconomico::tasaCambio()->findOrFail($id);
+        $detalle = "{$tasa->moneda} del " . $tasa->fecha?->format('d/m/Y') . " (valor {$tasa->valor})";
         $tasa->delete();
+
+        $this->logActivity('Tasa Eliminada', "Tasa {$detalle}", 'indicador_economico', auth()->id());
 
         return response()->json(['message' => 'Tasa eliminada correctamente']);
     }

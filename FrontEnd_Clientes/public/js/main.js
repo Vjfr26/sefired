@@ -110,6 +110,7 @@ const T = {
     'res.tasa_bcv_pre': 'Tasa de cambio oficial del Banco Central de Venezuela (BCV):',
     'res.sin_precio': 'Este producto requiere una evaluación personalizada (valor del bien, ubicación, etc.) para calcular el costo exacto. Un asesor te lo confirmará al contactarte.',
     'res.incluye':    'Documentos a presentar',
+    'res.beneficios': 'Beneficios incluidos',
     'res.titular':    'Titular',
     'res.disclaimer': 'Cotización referencial. Puede variar. Un asesor te contactará a la brevedad.',
     /* Paso 1 — sub-tipos */
@@ -125,7 +126,17 @@ const T = {
     'docs.change':        'Cambiar',
     'docs.optional':      'opcional',
     /* Errores */
-    'err.min_age': 'Debes ser mayor de 18 años para solicitar un seguro.',
+    'err.min_age':           'Debes ser mayor de 18 años para solicitar un seguro.',
+    'err.http_fallback':     'Error {status}. Intenta nuevamente.',
+    'err.connection_failed': 'No se pudo conectar con el servidor. Revisa tu conexión e intenta nuevamente, o contacta a un asesor.',
+    /* Paso 5 — coincidencia con cliente existente */
+    's5.match.title.has_policy': '¡Tienes una póliza activa!',
+    's5.match.title.found':      '¡Encontramos tu registro!',
+    's5.match.sub.has_policy':   'Ya cuentas con una póliza activa. Para renovar o añadir cobertura, habla con un asesor.',
+    's5.match.sub.found':        'Estás en nuestro sistema. Un asesor puede cotizarte un nuevo seguro.',
+    /* WhatsApp */
+    'whatsapp.default_name':   'un cliente',
+    'whatsapp.advisor_preset': 'Hola, me gustaría hablar con un asesor de J&M.',
     /* Chat / footer */
     'loading':       'Calculando...',
     'chat.title':    'Asistente J&M',
@@ -233,6 +244,7 @@ const T = {
     'res.tasa_bcv_pre': 'Official exchange rate from the Central Bank of Venezuela (BCV):',
     'res.sin_precio': 'This product requires a personalized evaluation (asset value, location, etc.) to calculate the exact cost. An advisor will confirm it when they contact you.',
     'res.incluye': 'Documents to submit',
+    'res.beneficios': 'Benefits included',
     'res.titular': 'Policyholder',
     'res.disclaimer': 'Referential quote. May vary. An advisor will contact you shortly.',
     's1.loading_planes': 'Loading plans...',
@@ -245,7 +257,15 @@ const T = {
     'docs.attach':        'Attach',
     'docs.change':        'Change',
     'docs.optional':      'optional',
-    'err.min_age': 'You must be at least 18 years old to request insurance.',
+    'err.min_age':           'You must be at least 18 years old to request insurance.',
+    'err.http_fallback':     'Error {status}. Please try again.',
+    'err.connection_failed': 'Could not connect to the server. Check your connection and try again, or contact an advisor.',
+    's5.match.title.has_policy': 'You already have an active policy!',
+    's5.match.title.found':      'We found your record!',
+    's5.match.sub.has_policy':   'You already have an active policy with us. To renew or add coverage, talk to an advisor.',
+    's5.match.sub.found':        'You are in our system. An advisor can give you a new quote.',
+    'whatsapp.default_name':   'a customer',
+    'whatsapp.advisor_preset': "Hi, I'd like to speak with a J&M advisor.",
     'loading': 'Processing...',
     'chat.title': 'J&M Assistant', 'chat.online': 'Online',
     'chat.fab': 'Open chat',
@@ -409,6 +429,7 @@ const sim = {
   derechoPoliza:      0,
   tipoCalculo:        'fijo',
   documentosRequeridos: [],  /* [{nombre, obligatorio}] */
+  beneficios:         [],  /* [{descripcion, monto}] */
 
   /* Paso 4 — archivos en memoria */
   documentosFiles: [],  /* [{nombre, obligatorio, file: File|null}] */
@@ -615,7 +636,8 @@ function _renderCarouselPage(page) {
         data-requiere-vehiculo="${p.requiere_vehiculo ? '1' : '0'}"
         data-tipo-bien="${esc(p.tipo_bien ?? 'ninguno')}"
         data-tiene-subtipos="${p.tiene_subtipos ? '1' : '0'}"
-        data-docs-req='${JSON.stringify(p.documentos_requeridos ?? [])}'>
+        data-docs-req='${JSON.stringify(p.documentos_requeridos ?? [])}'
+        data-beneficios='${JSON.stringify(p.beneficios ?? [])}'>
       <div class="product-card-icon ${meta.bg} ${meta.text}">
         <i class="fa-solid ${meta.icon}"></i>
       </div>
@@ -691,6 +713,7 @@ async function seleccionarProducto(card) {
       requiere_vehiculo:    card.dataset.requiereVehiculo === '1',
       tipo_bien:            card.dataset.tipoBien || 'ninguno',
       documentos_requeridos: JSON.parse(card.dataset.docsReq || '[]'),
+      beneficios:           JSON.parse(card.dataset.beneficios || '[]'),
     });
     document.getElementById('subtipos-section').classList.add('hidden');
     checkStep1();
@@ -747,7 +770,8 @@ function renderSubtipoCards(subtipos, container) {
         data-calculo="${p.tipo_calculo || 'fijo'}"
         data-requiere-vehiculo="${p.requiere_vehiculo ? '1' : '0'}"
         data-tipo-bien="${esc(p.tipo_bien ?? 'ninguno')}"
-        data-docs-req='${JSON.stringify(p.documentos_requeridos ?? [])}'>
+        data-docs-req='${JSON.stringify(p.documentos_requeridos ?? [])}'
+        data-beneficios='${JSON.stringify(p.beneficios ?? [])}'>
       <div class="subtipo-card-icon ${meta.bg} ${meta.text}">
         <i class="fa-solid ${meta.icon}"></i>
       </div>
@@ -782,6 +806,7 @@ function seleccionarSubtipo(card) {
     requiere_vehiculo:     card.dataset.requiereVehiculo === '1',
     tipo_bien:             card.dataset.tipoBien || 'ninguno',
     documentos_requeridos: JSON.parse(card.dataset.docsReq || '[]'),
+    beneficios:            JSON.parse(card.dataset.beneficios || '[]'),
   });
   checkStep1();
 }
@@ -794,6 +819,7 @@ function aplicarProductoEfectivo(p) {
   sim.derechoPoliza        = p.derecho_poliza || 0;
   sim.tipoCalculo          = p.tipo_calculo || 'fijo';
   sim.documentosRequeridos = p.documentos_requeridos || [];
+  sim.beneficios           = p.beneficios || [];
   sim.productoTipo         = p.tipo || '';
   sim.productoDescripcion  = p.descripcion || '';
   sim.productoCategoria    = p.categoria || '';
@@ -1176,6 +1202,23 @@ function setupStep5() {
     }
   }
 
+  /* Beneficios/coberturas informativas del producto elegido */
+  const benefWrap = document.getElementById('s5-beneficios-list-wrap');
+  const benefEl   = document.getElementById('s5-beneficios-list');
+  if (benefWrap && benefEl) {
+    if (sim.beneficios.length > 0) {
+      benefEl.innerHTML = sim.beneficios.map(b =>
+        `<div class="flex justify-between items-center text-[11px] text-gray-700">
+          <span class="flex items-center gap-1"><i class="fa-solid fa-circle-check text-emerald-500 text-[10px]"></i>${esc(b.descripcion)}</span>
+          <span class="font-semibold">$ ${fmt(b.monto)}</span>
+        </div>`
+      ).join('');
+      benefWrap.classList.remove('hidden');
+    } else {
+      benefWrap.classList.add('hidden');
+    }
+  }
+
   /* Equivalente en Bs. y EUR según la tasa BCV vigente */
   const totalOtrasEl = document.getElementById('s5-total-otras');
   const tasaBcvEl     = document.getElementById('s5-tasa-bcv');
@@ -1352,7 +1395,7 @@ async function submitForm() {
       showS5State('confirm');
       const errMsg = data.message || data.error
         || Object.values(data.errors || {}).flat().join(' · ')
-        || `Error ${res.status}. Intenta nuevamente.`;
+        || t('err.http_fallback').replace('{status}', res.status);
       document.getElementById('s5-confirm').insertAdjacentHTML('afterbegin',
         `<div class="mb-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
           ${esc(errMsg)}
@@ -1363,11 +1406,11 @@ async function submitForm() {
 
     if (data.match) {
       const titulo = data.tiene_poliza
-        ? (currentLang === 'es' ? '¡Tienes una póliza activa!' : 'You have an active policy!')
-        : (currentLang === 'es' ? '¡Encontramos tu registro!'  : 'We found your record!');
+        ? t('s5.match.title.has_policy')
+        : t('s5.match.title.found');
       const sub = data.tiene_poliza
-        ? (currentLang === 'es' ? 'Ya cuentas con una póliza activa. Para renovar o añadir cobertura, habla con un asesor.' : 'You already have an active policy. Talk to an advisor to renew or add coverage.')
-        : (currentLang === 'es' ? 'Estás en nuestro sistema. Un asesor puede cotizarte un nuevo seguro.' : 'You are in our system. An advisor can provide a new quote.');
+        ? t('s5.match.sub.has_policy')
+        : t('s5.match.sub.found');
       document.getElementById('s5-match-title').textContent  = titulo;
       document.getElementById('s5-match-nombre').textContent = data.nombre || '';
       document.getElementById('s5-match-sub').textContent    = sub;
@@ -1378,9 +1421,7 @@ async function submitForm() {
 
   } catch (err) {
     showS5State('confirm');
-    const errText = currentLang === 'es'
-      ? 'No se pudo conectar con el servidor. Revisa tu conexión e intenta nuevamente, o contacta a un asesor.'
-      : 'Could not connect to the server. Check your connection and try again, or contact an advisor.';
+    const errText = t('err.connection_failed');
     document.getElementById('s5-confirm').insertAdjacentHTML('afterbegin',
       `<div class="mb-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
         <i class="fa-solid fa-triangle-exclamation mr-1"></i>${errText}
@@ -1437,6 +1478,7 @@ function resetAll() {
     productoEfectivoId: null, productoCat: '', requiereVehiculo: false,
     productoTipo: '', productoDescripcion: '', productoCategoria: '',
     primaBase: 0, derechoPoliza: 0, tipoCalculo: 'fijo', documentosRequeridos: [],
+    beneficios: [],
     documentosFiles: [], turnstileToken: '',
     _pasos: [1,2,5], _pasoActual: 1,
   });
@@ -1448,9 +1490,10 @@ function resetAll() {
 /* WhatsApp */
 document.querySelectorAll('.whatsapp-btn').forEach(btn => {
   btn.addEventListener('click', () => {
+    const nombreCliente = document.getElementById('f-nombre')?.value.trim() || t('whatsapp.default_name');
     const msg = currentLang === 'es'
-      ? `Hola J&M, soy ${document.getElementById('f-nombre')?.value.trim() || 'un cliente'} y me interesa: ${sim.productoParentNombre}${sim.subtipoNombre ? ' — '+sim.subtipoNombre : ''}.`
-      : `Hello J&M, I'm ${document.getElementById('f-nombre')?.value.trim() || 'a client'} and I'm interested in: ${sim.productoParentNombre}${sim.subtipoNombre ? ' — '+sim.subtipoNombre : ''}.`;
+      ? `Hola J&M, soy ${nombreCliente} y me interesa: ${sim.productoParentNombre}${sim.subtipoNombre ? ' — '+sim.subtipoNombre : ''}.`
+      : `Hello J&M, I'm ${nombreCliente} and I'm interested in: ${sim.productoParentNombre}${sim.subtipoNombre ? ' — '+sim.subtipoNombre : ''}.`;
     window.open(`https://wa.me/584148299562?text=${encodeURIComponent(msg)}`, '_blank');
   });
 });
@@ -1547,10 +1590,7 @@ function renderRootButtons() {
     }},
     { key: 'chat.opt.whatsapp', onClick: () => {
       addMessage(esc(t('chat.opt.whatsapp')), 'user');
-      openWhatsApp(
-        'Hola, me gustaría hablar con un asesor de J&M.',
-        'Hello, I would like to speak with a J&M advisor.'
-      );
+      openWhatsApp(T.es['whatsapp.advisor_preset'], T.en['whatsapp.advisor_preset']);
     }},
   ]);
 }

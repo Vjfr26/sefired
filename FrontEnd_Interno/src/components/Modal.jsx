@@ -33,17 +33,18 @@
  */
 import { useRef, useState, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Trash2, Pencil, Check, Lock, LockOpen, ShieldCheck, Building, UserCheck, Truck, UserCog, Car, Shield, DollarSign, RotateCcw, FileText, SlidersHorizontal, Receipt, FileCheck, Eye, Upload, ClipboardList, Search, AlertTriangle, CheckCircle, Clock, User, Phone, MapPin, Briefcase, Download, RefreshCw } from 'lucide-react'
+import { X, Trash2, Pencil, Check, Lock, LockOpen, ShieldCheck, Building, UserCheck, Truck, UserCog, Car, Shield, DollarSign, RotateCcw, FileText, SlidersHorizontal, Receipt, FileCheck, Eye, Upload, ClipboardList, Search, AlertTriangle, AlertCircle, CheckCircle, Clock, User, Phone, MapPin, Briefcase, Download, RefreshCw, Users, Plus, ChevronRight, Package } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import FormGrid from './FormGrid.jsx'
-import { fmtMonto, fmtTasa, PERMISOS_POR_ROL, getEffectivePerms, getEffectivePermsObj, PERMS_CATALOG, PERMS_ORDER, LOCKED_PERMS, pdfPage, pdfHdr, pdfSec, pdfRow, pdfTotal, pdfFooterSimple } from '../utils/helpers.jsx'
+import { fmtMonto, fmtTasa, PERMISOS_POR_ROL, getEffectivePerms, getEffectivePermsObj, PERMS_CATALOG, PERMS_ORDER, LOCKED_PERMS, pdfPage, pdfHdr, pdfSec, pdfRow, pdfTotal, pdfFooterSimple, useModalLock } from '../utils/helpers.jsx'
 import { TIPOS_PRODUCTO, TIPOS_CALCULO, tipoBadge } from '../utils/productos.jsx'
-import { storeUsuario, updateUsuario, verifyPassword } from '../api/usuarios.js'
+import { storeUsuario, updateUsuario, verifyPassword, fetchVendedoresDisponibles } from '../api/usuarios.js'
 import { uploadDocumentoProducto, deleteDocumentoProducto } from '../api/productos.js'
 import { fetchPolizasCliente, fetchFacturasCliente, fetchSolicitudesCliente } from '../api/clientes.js'
 import { fetchDocumentosCliente, uploadDocumentoCliente, deleteDocumentoCliente } from '../api/clienteDocumentos.js'
 import { fetchProductos } from '../api/productos.js'
-import { updatePoliza, renovarPoliza, downloadPolizaPdf } from '../api/polizas.js'
+import { updatePoliza, renovarPoliza, downloadPolizaPdf, fetchBeneficiarios, createBeneficiario, updateBeneficiario, deleteBeneficiario, fetchBienesPoliza, agregarBienPoliza, quitarBienPoliza } from '../api/polizas.js'
+import { fetchBienes } from '../api/bienes.js'
 import { emitirCotizacion } from '../api/solicitudes.js'
 import { fetchTasas } from '../api/tasas.js'
 
@@ -51,13 +52,18 @@ import { fetchTasas } from '../api/tasas.js'
 function ModalShell({ title, children, footer, wide = false, maxW }) {
   const { closeModal } = useApp()
   const sizeClass = maxW || (wide ? 'max-w-2xl' : 'max-w-xl')
+  const panelRef = useRef(null)
+
+  // Mientras el modal está abierto: el fondo no debe scrollear ni recibir
+  // foco por teclado (Tab no debe poder "escapar" hacia botones de atrás).
+  useModalLock(panelRef)
+
   return (
-    // Fondo oscuro; clic en él cierra el modal
+    // Fondo oscuro — no cierra al hacer clic; solo la X o "Cancelar/Cerrar" cierran el modal
     <div
       className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4 sm:p-6 backdrop-blur-sm"
-      onClick={e => { if (e.target === e.currentTarget) closeModal() }}
     >
-      <div className={`bg-white rounded-3xl shadow-2xl w-full ${sizeClass} max-h-[90vh] overflow-y-auto animate-in zoom-in duration-200`}>
+      <div ref={panelRef} tabIndex={-1} className={`bg-white rounded-3xl shadow-2xl w-full ${sizeClass} max-h-[90vh] overflow-y-auto animate-in zoom-in duration-200 outline-none`}>
         <div className="p-6 sm:p-8">
           <div className="flex items-center justify-between mb-5">
             <h3 className="text-lg font-bold text-slate-800">{title}</h3>
@@ -93,8 +99,8 @@ function ConfirmDeleteModal({ name, onConfirm }) {
     setSaving(true); setPassErr('')
     try {
       await verifyPassword(password)
-    } catch {
-      setPassErr('Contraseña incorrecta.')
+    } catch (err) {
+      setPassErr(err.message || 'Contraseña incorrecta.')
       setSaving(false)
       return
     }
@@ -141,6 +147,211 @@ function ConfirmDeleteModal({ name, onConfirm }) {
           />
           {passErr && <p className="text-xs text-rose-600 mt-1">{passErr}</p>}
         </div>
+      </div>
+    </ModalShell>
+  )
+}
+
+// ── Confirmar registro/actualización de tasas del día ───────────────────────
+function ConfirmTasaModal({ fecha, usd, eur, isUpdate, onConfirm }) {
+  const { closeModal, showToast } = useApp()
+  const [password, setPassword] = useState('')
+  const [passErr,  setPassErr]  = useState('')
+  const [saving,   setSaving]   = useState(false)
+
+  const handleConfirm = async () => {
+    if (!password.trim()) { setPassErr('Ingresa tu contraseña para confirmar.'); return }
+    setSaving(true); setPassErr('')
+    try {
+      await verifyPassword(password)
+    } catch (err) {
+      setPassErr(err.message || 'Contraseña incorrecta.')
+      setSaving(false)
+      return
+    }
+    try {
+      await onConfirm()
+      closeModal()
+    } catch (err) {
+      showToast(err.message || 'Error al guardar las tasas', 'error')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <ModalShell title={isUpdate ? 'Confirmar actualización de tasas' : 'Confirmar registro de tasas'} footer={
+      <>
+        <button onClick={closeModal} disabled={saving} className="btn-secondary">Cancelar</button>
+        <button onClick={handleConfirm} disabled={saving} className="btn-primary disabled:opacity-50">
+          {saving
+            ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+            : <Check className="w-4 h-4" />}
+          {saving ? 'Verificando…' : isUpdate ? 'Actualizar Tasas' : 'Registrar Tasas'}
+        </button>
+      </>
+    }>
+      <div className="flex flex-col items-center text-center gap-4 py-2">
+        <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center">
+          <DollarSign className="w-7 h-7 text-emerald-600" />
+        </div>
+        <div>
+          <p className="font-semibold text-slate-800 mb-1">
+            {isUpdate ? 'Vas a actualizar las tasas de' : 'Vas a registrar las tasas de'} {fecha}
+          </p>
+          <p className="text-sm text-slate-500">Este valor se aplicará a todos los cálculos del sistema a partir de ahora.</p>
+        </div>
+        <div className="w-full flex items-center justify-center gap-4">
+          <div className="px-4 py-2 rounded-xl bg-slate-50 border border-slate-100">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">USD</p>
+            <p className="text-sm font-bold text-emerald-600">{usd}</p>
+          </div>
+          <div className="px-4 py-2 rounded-xl bg-slate-50 border border-slate-100">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">EUR</p>
+            <p className="text-sm font-bold text-amber-600">{eur}</p>
+          </div>
+        </div>
+        <div className="w-full text-left">
+          <label className="field-label">Contraseña <span className="text-rose-500">*</span></label>
+          <input
+            type="password"
+            className={`input-field ${passErr ? 'border-rose-400' : ''}`}
+            placeholder="Ingresa tu contraseña para confirmar"
+            value={password}
+            onChange={e => { setPassword(e.target.value); setPassErr('') }}
+            onKeyDown={e => e.key === 'Enter' && handleConfirm()}
+            autoFocus
+          />
+          {passErr && <p className="text-xs text-rose-600 mt-1">{passErr}</p>}
+        </div>
+      </div>
+    </ModalShell>
+  )
+}
+
+// ── Confirmar una acción sensible genérica + contraseña ─────────────────────
+/**
+ * Para acciones que no son "eliminar" pero igual cambian algo visible
+ * públicamente o de forma delicada (ej. publicar/despublicar un producto en
+ * el portal). Mismo patrón de ConfirmDeleteModal: mensaje + contraseña.
+ *
+ * @param {string}   title
+ * @param {string}   message
+ * @param {Component} icon
+ * @param {string}   color        nombre de color tailwind (bg-{color}-100 / text-{color}-600)
+ * @param {string}   confirmLabel texto del botón de confirmar
+ * @param {Function} onConfirm
+ */
+function ConfirmActionModal({ title, message, icon: Icon = CheckCircle, color = 'blue', confirmLabel = 'Confirmar', onConfirm }) {
+  const { closeModal, showToast } = useApp()
+  const [password, setPassword] = useState('')
+  const [passErr,  setPassErr]  = useState('')
+  const [saving,   setSaving]   = useState(false)
+  // Tailwind no resuelve clases armadas con template strings en build time:
+  // hay que listar las combinaciones completas para que el JIT las incluya.
+  const COLOR = {
+    blue:    'bg-blue-100 text-blue-600',
+    emerald: 'bg-emerald-100 text-emerald-600',
+    amber:   'bg-amber-100 text-amber-600',
+    rose:    'bg-rose-100 text-rose-600',
+    slate:   'bg-slate-100 text-slate-600',
+  }
+  const [bgCls, textCls] = (COLOR[color] ?? COLOR.blue).split(' ')
+
+  const handleConfirm = async () => {
+    if (!password.trim()) { setPassErr('Ingresa tu contraseña para confirmar.'); return }
+    setSaving(true); setPassErr('')
+    try {
+      await verifyPassword(password)
+    } catch (err) {
+      setPassErr(err.message || 'Contraseña incorrecta.')
+      setSaving(false)
+      return
+    }
+    try {
+      await onConfirm()
+      closeModal()
+    } catch (err) {
+      showToast(err.message || 'Error al confirmar la acción', 'error')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <ModalShell title={title} footer={
+      <>
+        <button onClick={closeModal} disabled={saving} className="btn-secondary">Cancelar</button>
+        <button onClick={handleConfirm} disabled={saving} className="btn-primary disabled:opacity-50">
+          {saving
+            ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+            : <Icon className="w-4 h-4" />}
+          {saving ? 'Verificando…' : confirmLabel}
+        </button>
+      </>
+    }>
+      <div className="flex flex-col items-center text-center gap-4 py-2">
+        <div className={`w-14 h-14 rounded-full ${bgCls} flex items-center justify-center`}>
+          <Icon className={`w-7 h-7 ${textCls}`} />
+        </div>
+        <p className="text-sm text-slate-600">{message}</p>
+        <div className="w-full text-left">
+          <label className="field-label">Contraseña <span className="text-rose-500">*</span></label>
+          <input
+            type="password"
+            className={`input-field ${passErr ? 'border-rose-400' : ''}`}
+            placeholder="Ingresa tu contraseña para confirmar"
+            value={password}
+            onChange={e => { setPassword(e.target.value); setPassErr('') }}
+            onKeyDown={e => e.key === 'Enter' && handleConfirm()}
+            autoFocus
+          />
+          {passErr && <p className="text-xs text-rose-600 mt-1">{passErr}</p>}
+        </div>
+      </div>
+    </ModalShell>
+  )
+}
+
+// ── Menú de acciones (uso en filas de tabla en pantallas chicas) ────────────
+/**
+ * En móvil no caben todos los botones de acción de una fila sin desbordar
+ * o amontonarse. Este modal centraliza esas mismas acciones como una lista
+ * de opciones full-width, tocables, una por línea.
+ *
+ * @param {string} title    Título del modal (ej. nombre del cliente/fila)
+ * @param {Array}  actions  [{ icon: Component, label, onClick, color, disabled? }]
+ */
+function ActionMenuModal({ title, actions }) {
+  const { closeModal } = useApp()
+  const COLOR = {
+    slate:   'bg-slate-50 text-slate-600',
+    indigo:  'bg-indigo-50 text-indigo-600',
+    amber:   'bg-amber-50 text-amber-600',
+    blue:    'bg-blue-50 text-blue-600',
+    teal:    'bg-teal-50 text-teal-600',
+    orange:  'bg-orange-50 text-orange-600',
+    rose:    'bg-rose-50 text-rose-500',
+    emerald: 'bg-emerald-50 text-emerald-600',
+    violet:  'bg-violet-50 text-violet-600',
+  }
+  return (
+    <ModalShell title={title} footer={
+      <button onClick={closeModal} className="btn-secondary ml-auto">Cerrar</button>
+    }>
+      <div className="space-y-1.5">
+        {actions.filter(Boolean).map((a, i) => (
+          <button
+            key={i}
+            onClick={() => { closeModal(); a.onClick() }}
+            disabled={a.disabled}
+            className="w-full flex items-center gap-3 p-3 rounded-xl border border-slate-100 hover:border-slate-200 hover:bg-slate-50 transition text-left disabled:opacity-40 disabled:pointer-events-none"
+          >
+            <span className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${COLOR[a.color] ?? COLOR.slate}`}>
+              <a.icon className="w-[18px] h-[18px]" />
+            </span>
+            <span className="flex-1 text-sm font-semibold text-slate-700">{a.label}</span>
+            <ChevronRight className="w-4 h-4 text-slate-300 shrink-0" />
+          </button>
+        ))}
       </div>
     </ModalShell>
   )
@@ -240,7 +451,15 @@ function RenovarModal({ client, diasVencimiento, onSaved, onCancel }) {
   const addPago    = () => setPagos(p => [...p, pagoVacio()])
   const removePago = i  => setPagos(p => p.filter((_, idx) => idx !== i))
 
-  const primaUsd = parseFloat(client.prima?.replace(/[^0-9.]/g, '')) || 0
+  const primaUsd            = parseFloat(client.prima?.replace(/[^0-9.]/g, '')) || 0
+  const permiteMensualidades = !!client.producto_permite_mensualidades
+  const recargoMensualPct    = parseFloat(client.producto_recargo_mensual_pct) || 0
+  // Al renovar con pago mensual solo se cobra la primera cuota (con su
+  // recargo de financiamiento, si el producto tiene uno configurado) — las
+  // 11 cuotas restantes se cobran después, fuera de este paso.
+  const montoEsperadoUsd = frecuencia === 'Mensual' && permiteMensualidades
+    ? Math.round((primaUsd / 12) * (1 + recargoMensualPct / 100) * 100) / 100
+    : primaUsd
 
   const pagoEnUsd = (p) => {
     const m = parseFloat(p.monto) || 0
@@ -253,7 +472,7 @@ function RenovarModal({ client, diasVencimiento, onSaved, onCancel }) {
   }
 
   const totalIngresadoUsd = pagos.reduce((sum, p) => sum + pagoEnUsd(p), 0)
-  const diferencia        = Math.abs(Math.round(totalIngresadoUsd * 100) - Math.round(primaUsd * 100)) / 100
+  const diferencia        = Math.abs(Math.round(totalIngresadoUsd * 100) - Math.round(montoEsperadoUsd * 100)) / 100
   const totalOk           = diferencia === 0
 
   const handleRenovar = async () => {
@@ -263,7 +482,7 @@ function RenovarModal({ client, diasVencimiento, onSaved, onCancel }) {
       if (!p.monto || parseFloat(p.monto) <= 0) errs[`monto_${i}`] = 'Ingrese el monto.'
       if (!PAGOS_SIN_REF.has(p.forma) && !p.referencia.trim()) errs[`ref_${i}`] = 'Referencia requerida.'
     })
-    if (!totalOk) errs.total = `El total ($ ${totalIngresadoUsd.toFixed(2)}) no coincide con la prima ($ ${primaUsd.toFixed(2)} USD).`
+    if (!totalOk) errs.total = `El total ($ ${totalIngresadoUsd.toFixed(2)}) no coincide con ${frecuencia === 'Mensual' ? 'la primera cuota mensual' : 'la prima'} ($ ${montoEsperadoUsd.toFixed(2)} USD).`
     if (Object.keys(errs).length) { setFormErr(errs); return }
     setSaving(true)
     try {
@@ -343,24 +562,31 @@ function RenovarModal({ client, diasVencimiento, onSaved, onCancel }) {
               </div>
             </div>
 
-            {/* Frecuencia de pago */}
+            {/* Frecuencia de pago — Mensual solo si el producto lo admite */}
             <div>
               <label className="field-label">Frecuencia de Pago <span className="text-rose-500">*</span></label>
-              <div className="flex gap-3 mt-1">
-                {['Anual', 'Mensual'].map(f => (
-                  <button key={f} onClick={() => setFrecuencia(f)}
-                    className={`flex-1 py-2 rounded-xl text-sm font-semibold border transition ${
-                      frecuencia === f
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white text-slate-600 border-slate-300 hover:border-blue-400'
-                    }`}>
-                    {f === 'Anual' ? '📅 Un solo pago anual' : '🗓 Pagos mensuales (12 cuotas)'}
-                  </button>
-                ))}
-              </div>
-              {frecuencia === 'Mensual' && primaUsd > 0 && (
+              {permiteMensualidades ? (
+                <div className="flex gap-3 mt-1">
+                  {['Anual', 'Mensual'].map(f => (
+                    <button key={f} onClick={() => setFrecuencia(f)}
+                      className={`flex-1 py-2 rounded-xl text-sm font-semibold border transition ${
+                        frecuencia === f
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white text-slate-600 border-slate-300 hover:border-blue-400'
+                      }`}>
+                      {f === 'Anual' ? '📅 Un solo pago anual' : '🗓 Pagos mensuales (12 cuotas)'}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500 mt-1.5 p-2 bg-slate-50 rounded-xl border border-slate-200">
+                  📅 Este producto solo admite pago anual en un solo desembolso.
+                </p>
+              )}
+              {frecuencia === 'Mensual' && permiteMensualidades && primaUsd > 0 && (
                 <p className="text-xs text-slate-500 mt-1.5">
-                  Cuota mensual estimada: <strong>${(primaUsd / 12).toFixed(2)} USD</strong> / mes
+                  Primera cuota a cobrar ahora{recargoMensualPct > 0 ? ` (incluye recargo de ${recargoMensualPct}%)` : ''}: <strong>${montoEsperadoUsd.toFixed(2)} USD</strong>
+                  <span className="block text-[10px] text-slate-400 mt-0.5">Las 11 cuotas restantes se cobran fuera de este paso.</span>
                 </p>
               )}
             </div>
@@ -382,7 +608,7 @@ function RenovarModal({ client, diasVencimiento, onSaved, onCancel }) {
                       <span className="text-xs font-semibold text-slate-500">Pago {i + 1}</span>
                       {pagos.length > 1 && <button onClick={() => removePago(i)} className="text-xs text-rose-500 hover:text-rose-700 font-semibold">Eliminar</button>}
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div>
                         <label className="field-label">Forma</label>
                         <select className="select-field" value={p.forma} onChange={e => setPago(i, 'forma', e.target.value)}>
@@ -476,9 +702,17 @@ function EmitirCotizacionModal({ cot, onSaved }) {
     return m
   }
 
+  const totalPoliza          = Number(cot.total)
+  const permiteMensualidades = !!cot.producto_permite_mensualidades
+  const recargoMensualPct    = parseFloat(cot.producto_recargo_mensual_pct) || 0
+  // Igual que en renovación: con pago mensual solo se cobra la primera
+  // cuota (con su recargo de financiamiento, si aplica) en este paso.
+  const montoEsperadoUsd = frecuencia === 'Mensual' && permiteMensualidades
+    ? Math.round((totalPoliza / 12) * (1 + recargoMensualPct / 100) * 100) / 100
+    : totalPoliza
+
   const totalIngresadoUsd = pagos.reduce((sum, p) => sum + pagoEnUsd(p), 0)
-  const totalPoliza       = Number(cot.total)
-  const diferencia = Math.abs(Math.round(totalIngresadoUsd * 100) - Math.round(totalPoliza * 100)) / 100
+  const diferencia = Math.abs(Math.round(totalIngresadoUsd * 100) - Math.round(montoEsperadoUsd * 100)) / 100
   const totalOk    = diferencia === 0
 
   const handleEmitir = async () => {
@@ -487,7 +721,7 @@ function EmitirCotizacionModal({ cot, onSaved }) {
       if (!p.monto || parseFloat(p.monto) <= 0) errs[`monto_${i}`] = 'Ingrese el monto.'
       if (!PAGOS_SIN_REF.has(p.forma) && !p.referencia.trim()) errs[`ref_${i}`] = 'Referencia requerida.'
     })
-    if (!totalOk) errs.total = `El total ($ ${totalIngresadoUsd.toFixed(2)} USD) no coincide con la póliza ($ ${totalPoliza.toFixed(2)} USD).`
+    if (!totalOk) errs.total = `El total ($ ${totalIngresadoUsd.toFixed(2)} USD) no coincide con ${frecuencia === 'Mensual' ? 'la primera cuota mensual' : 'la póliza'} ($ ${montoEsperadoUsd.toFixed(2)} USD).`
     if (Object.keys(errs).length) { setFormErr(errs); return }
     setFormErr({})
     setSaving(true)
@@ -543,22 +777,29 @@ function EmitirCotizacionModal({ cot, onSaved }) {
           </div>
         </div>
 
-        {/* Frecuencia de pago */}
+        {/* Frecuencia de pago — Mensual solo si el producto lo admite */}
         <div>
           <label className="field-label">Frecuencia de Pago <span className="text-rose-500">*</span></label>
-          <div className="flex gap-3 mt-1">
-            {['Anual', 'Mensual'].map(f => (
-              <button key={f} onClick={() => setFrecuencia(f)}
-                className={`flex-1 py-2 rounded-xl text-sm font-semibold border transition ${
-                  frecuencia === f ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-300 hover:border-blue-400'
-                }`}>
-                {f === 'Anual' ? '📅 Un solo pago anual' : '🗓 Pagos mensuales (12 cuotas)'}
-              </button>
-            ))}
-          </div>
-          {frecuencia === 'Mensual' && Number(cot.total) > 0 && (
+          {permiteMensualidades ? (
+            <div className="flex gap-3 mt-1">
+              {['Anual', 'Mensual'].map(f => (
+                <button key={f} onClick={() => setFrecuencia(f)}
+                  className={`flex-1 py-2 rounded-xl text-sm font-semibold border transition ${
+                    frecuencia === f ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-300 hover:border-blue-400'
+                  }`}>
+                  {f === 'Anual' ? '📅 Un solo pago anual' : '🗓 Pagos mensuales (12 cuotas)'}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-slate-500 mt-1.5 p-2 bg-slate-50 rounded-xl border border-slate-200">
+              📅 Este producto solo admite pago anual en un solo desembolso.
+            </p>
+          )}
+          {frecuencia === 'Mensual' && permiteMensualidades && totalPoliza > 0 && (
             <p className="text-xs text-slate-500 mt-1.5">
-              Cuota mensual: <strong>${(Number(cot.total) / 12).toFixed(2)} USD</strong> / mes
+              Primera cuota a cobrar ahora{recargoMensualPct > 0 ? ` (incluye recargo de ${recargoMensualPct}%)` : ''}: <strong>${montoEsperadoUsd.toFixed(2)} USD</strong>
+              <span className="block text-[10px] text-slate-400 mt-0.5">Las 11 cuotas restantes se cobran fuera de este paso.</span>
             </p>
           )}
         </div>
@@ -584,7 +825,7 @@ function EmitirCotizacionModal({ cot, onSaved }) {
                     </button>
                   )}
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
                     <label className="field-label">Forma</label>
                     <select className="select-field" value={p.forma} onChange={e => setPago(i, 'forma', e.target.value)}>
@@ -666,6 +907,7 @@ function NewUserModal({ onSave }) {
     nombre: '', nick: '', genero: 'M',
     tipo: 'Vendedor Sucursal', sede: 'Valencia',
     password: '', password_confirmation: '',
+    temp: false, temp_expira_en: '',
   })
   const [saving, setSaving] = useState(false)
   const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }))
@@ -678,6 +920,7 @@ function NewUserModal({ onSave }) {
     if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(form.password)) {
       showToast('Debe contener al menos una mayúscula, una minúscula y un número', 'error'); return
     }
+    if (form.temp && !form.temp_expira_en) { showToast('Indica hasta cuándo dura el acceso temporal', 'error'); return }
     setSaving(true)
     try {
       await storeUsuario({ ...form, cargo: form.tipo, nro_sede: 1 })
@@ -697,7 +940,7 @@ function NewUserModal({ onSave }) {
         </button>
       </>
     }>
-      <div className="grid grid-cols-2 gap-x-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
         {/* ── Izquierda: identidad ── */}
         <div>
           <SecHdr Icon={User}>Datos del usuario</SecHdr>
@@ -706,7 +949,7 @@ function NewUserModal({ onSave }) {
               <label className="field-label">Nombre completo <span className="text-rose-500">*</span></label>
               <input className="input-field" value={form.nombre} onChange={f('nombre')} placeholder="Nombre y Apellido" />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="field-label">Usuario / Nick <span className="text-rose-500">*</span></label>
                 <input className="input-field font-mono" value={form.nick} onChange={f('nick')} placeholder="jdoe" />
@@ -723,7 +966,7 @@ function NewUserModal({ onSave }) {
         </div>
 
         {/* ── Derecha: rol + contraseña ── */}
-        <div className="space-y-5 pl-6 border-l border-slate-100">
+        <div className="space-y-5 sm:pl-6 sm:border-l border-slate-100">
           <div>
             <SecHdr Icon={Shield}>Rol y acceso</SecHdr>
             <div className="space-y-3">
@@ -744,7 +987,7 @@ function NewUserModal({ onSave }) {
 
           <div>
             <SecHdr Icon={Lock}>Contraseña de acceso</SecHdr>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="field-label">Contraseña <span className="text-rose-500">*</span></label>
                 <input type="password" className="input-field" value={form.password} onChange={f('password')} placeholder="••••••••" />
@@ -755,6 +998,21 @@ function NewUserModal({ onSave }) {
               </div>
             </div>
             <p className="text-[10px] text-slate-400 mt-2">Mínimo 8 caracteres · mayúscula, minúscula y número.</p>
+          </div>
+
+          <div>
+            <SecHdr Icon={Clock}>Acceso temporal</SecHdr>
+            <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer mb-2">
+              <input type="checkbox" checked={form.temp} onChange={e => setForm(p => ({ ...p, temp: e.target.checked }))} className="w-4 h-4 accent-jm-blue" />
+              Esta cuenta es temporal (ej. contratista, auditor externo)
+            </label>
+            {form.temp && (
+              <div>
+                <label className="field-label">Vence el <span className="text-rose-500">*</span></label>
+                <input type="date" className="input-field" value={form.temp_expira_en} onChange={f('temp_expira_en')} min={new Date().toISOString().slice(0,10)} />
+                <p className="text-[10px] text-slate-400 mt-1">Al llegar esta fecha la cuenta se desactiva automáticamente.</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -769,6 +1027,7 @@ function EditUserModal({ user, onSave }) {
     nombre: user.nombre || '', nick: user.nick || '',
     genero: user.genero || 'M', tipo: user.tipo || '',
     sede: user.sede || '', password: '',
+    temp: !!user.temp, temp_expira_en: user.temp_expira_en?.slice(0,10) || '',
   })
   const [saving, setSaving] = useState(false)
   const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }))
@@ -781,6 +1040,7 @@ function EditUserModal({ user, onSave }) {
         showToast('Debe contener al menos una mayúscula, minúscula y número', 'error'); return
       }
     }
+    if (form.temp && !form.temp_expira_en) { showToast('Indica hasta cuándo dura el acceso temporal', 'error'); return }
     setSaving(true)
     const payload = { ...form, cargo: form.tipo, nro_sede: 1 }
     if (!payload.password) delete payload.password
@@ -802,7 +1062,7 @@ function EditUserModal({ user, onSave }) {
         </button>
       </>
     }>
-      <div className="grid grid-cols-2 gap-x-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
         {/* ── Izquierda: identidad ── */}
         <div>
           <SecHdr Icon={User}>Datos del usuario</SecHdr>
@@ -811,7 +1071,7 @@ function EditUserModal({ user, onSave }) {
               <label className="field-label">Nombre completo <span className="text-rose-500">*</span></label>
               <input className="input-field" value={form.nombre} onChange={f('nombre')} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="field-label">Usuario / Nick</label>
                 <input className="input-field font-mono" value={form.nick} onChange={f('nick')} />
@@ -828,7 +1088,7 @@ function EditUserModal({ user, onSave }) {
         </div>
 
         {/* ── Derecha: rol + contraseña ── */}
-        <div className="space-y-5 pl-6 border-l border-slate-100">
+        <div className="space-y-5 sm:pl-6 sm:border-l border-slate-100">
           <div>
             <SecHdr Icon={Shield}>Rol y acceso</SecHdr>
             <div className="space-y-3">
@@ -854,6 +1114,21 @@ function EditUserModal({ user, onSave }) {
               <input type="password" className="input-field" value={form.password} onChange={f('password')} placeholder="Dejar vacío para no cambiar" />
             </div>
             <p className="text-[10px] text-slate-400 mt-2">Mínimo 8 caracteres · mayúscula, minúscula y número.</p>
+          </div>
+
+          <div>
+            <SecHdr Icon={Clock}>Acceso temporal</SecHdr>
+            <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer mb-2">
+              <input type="checkbox" checked={form.temp} onChange={e => setForm(p => ({ ...p, temp: e.target.checked }))} className="w-4 h-4 accent-jm-blue" />
+              Esta cuenta es temporal (ej. contratista, auditor externo)
+            </label>
+            {form.temp && (
+              <div>
+                <label className="field-label">Vence el <span className="text-rose-500">*</span></label>
+                <input type="date" className="input-field" value={form.temp_expira_en} onChange={f('temp_expira_en')} min={new Date().toISOString().slice(0,10)} />
+                <p className="text-[10px] text-slate-400 mt-1">Al llegar esta fecha la cuenta se desactiva automáticamente.</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -931,6 +1206,8 @@ function UserPermsModal({ user, onSave }) {
   }
   const [permsObj, setPermsObj] = useState(initialPermsObj)
   const [saving, setSaving]     = useState(false)
+  const [password, setPassword] = useState('')
+  const [passErr,  setPassErr]  = useState('')
 
   const toggleModuleView = (moduleId) => {
     if (LOCKED_PERMS.has(moduleId)) return
@@ -952,30 +1229,35 @@ function UserPermsModal({ user, onSave }) {
   }
 
   const resetToDefaults = () => {
-    const defaults = PERMISOS_POR_ROL[user.tipo] || { home: ['view'], config: ['view'] }
+    const defaults = PERMISOS_POR_ROL[user.tipo] || { home: ['view'] }
     const obj = Object.fromEntries(Object.entries(defaults).map(([k, v]) => [k, new Set(v)]))
-    if (!obj.home)   obj.home   = new Set(['view'])
-    if (!obj.config) obj.config = new Set(['view'])
+    if (!obj.home) obj.home = new Set(['view'])
     setPermsObj(obj)
   }
 
   const handleSave = async () => {
+    if (!password.trim()) { setPassErr('Ingresa tu contraseña para confirmar.'); return }
+    setSaving(true); setPassErr('')
     try {
-      setSaving(true)
+      await verifyPassword(password)
+    } catch (err) {
+      setPassErr(err.message || 'Contraseña incorrecta.')
+      setSaving(false)
+      return
+    }
+    try {
       const perms = Object.fromEntries(
         Object.entries(permsObj)
           .filter(([k, s]) => LOCKED_PERMS.has(k) || s.has('view'))
           .map(([k, s]) => [k, [...s]])
       )
-      if (!perms.home)   perms.home   = ['view']
-      if (!perms.config) perms.config = ['view']
+      if (!perms.home) perms.home = ['view']
       await updateUsuario(user.id, { permisos: perms })
       showToast('Permisos actualizados correctamente', 'success')
       closeModal()
       if (onSave) onSave()
     } catch (err) {
       showToast(err.message || 'Error al guardar permisos', 'error')
-    } finally {
       setSaving(false)
     }
   }
@@ -1009,7 +1291,7 @@ function UserPermsModal({ user, onSave }) {
           }
         </div>
         <span className="ml-auto text-[10px] text-slate-400 shrink-0 flex items-center gap-1">
-          <Lock className="w-3 h-3" /> siempre activo
+          <Lock className="w-3 h-3" /> Inicio siempre activo
         </span>
       </div>
 
@@ -1082,6 +1364,19 @@ function UserPermsModal({ user, onSave }) {
           )
         })}
       </div>
+
+      <div className="mt-4 pt-4 border-t border-slate-100">
+        <label className="field-label">Confirma tu contraseña para guardar <span className="text-rose-500">*</span></label>
+        <input
+          type="password"
+          className={`input-field ${passErr ? 'border-rose-400' : ''}`}
+          placeholder="Tu contraseña"
+          value={password}
+          onChange={e => { setPassword(e.target.value); setPassErr('') }}
+          onKeyDown={e => e.key === 'Enter' && handleSave()}
+        />
+        {passErr && <p className="text-xs text-rose-600 mt-1">{passErr}</p>}
+      </div>
     </ModalShell>
   )
 }
@@ -1109,7 +1404,7 @@ function VehiculoDetailModal({ v }) {
   const Section = ({ title, children }) => (
     <div>
       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pb-1.5 border-b border-slate-100 mb-3">{title}</p>
-      <div className="grid grid-cols-2 gap-x-6 gap-y-4">{children}</div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">{children}</div>
     </div>
   )
 
@@ -1151,7 +1446,7 @@ function VehiculoDetailModal({ v }) {
           <Field label="Cert. Tránsito"     value={v.certificado_transito} />
           <Field label="Cert. Origen"       value={v.certificado_origen} />
           <Field label="F. Adquisición"     value={v.fecha_adquisicion} />
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
             <Field label="Título" value={v.titulo} />
           </div>
         </Section>
@@ -1260,7 +1555,7 @@ function ProductoDetailModal({ p }) {
       </div>
 
       {/* Prima base y Cobertura */}
-      <div className="grid grid-cols-2 gap-3 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
         <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl">
           <div className="flex items-center gap-1.5 mb-1.5">
             <DollarSign className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
@@ -1358,14 +1653,14 @@ function ProductoTasasModal({ p }) {
  * @param {Function} onSaved  Callback para refrescar la tabla de productos
  */
 function ProductoDocumentosModal({ p, onSaved }) {
-  const { closeModal, showToast, currentUser } = useApp()
+  const { closeModal, showToast, canAct } = useApp()
   const [docs, setDocs]             = useState(p?.documentos ?? [])
   const [nombre, setNombre]         = useState('')
   const [file, setFile]             = useState(null)
   const [uploading, setUploading]   = useState(false)
   const [deletingPath, setDeletingPath] = useState(null)
   const fileRef = useRef(null)
-  const isAdmin = currentUser?.tipo === 'Admin'
+  const canManageDocs = canAct('productos', 'manage_docs')
 
   if (!p) return null
 
@@ -1432,7 +1727,7 @@ function ProductoDocumentosModal({ p, onSaved }) {
                   >
                     <Eye className="w-4 h-4" />
                   </a>
-                  {isAdmin && (
+                  {canManageDocs && (
                     <button
                       onClick={() => handleDelete(d.path)}
                       disabled={deletingPath === d.path}
@@ -1451,7 +1746,7 @@ function ProductoDocumentosModal({ p, onSaved }) {
           </div>
         )}
 
-        {isAdmin && (
+        {canManageDocs && (
           <div className="pt-3 border-t border-slate-100">
             <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Agregar Documento</p>
             <div className="space-y-3">
@@ -1526,8 +1821,8 @@ function BlockClienteModal({ nom, activo, onConfirm }) {
     setSaving(true)
     try {
       await verifyPassword(password)
-    } catch {
-      setPassErr('Contraseña incorrecta.')
+    } catch (e) {
+      setPassErr(e.message || 'Contraseña incorrecta.')
       setSaving(false)
       return
     }
@@ -1627,7 +1922,7 @@ function ClienteDetailModal({ c }) {
   const Section = ({ title, children }) => (
     <div>
       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pb-1.5 border-b border-slate-100 mb-3">{title}</p>
-      <div className="grid grid-cols-2 gap-x-6 gap-y-4">{children}</div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">{children}</div>
     </div>
   )
 
@@ -1654,6 +1949,24 @@ function ClienteDetailModal({ c }) {
       </div>
 
       <div className="space-y-5 max-h-[55vh] overflow-y-auto pr-1">
+        <Section title="Cuenta">
+          <Field label="Vendedor asignado" value={c.vendedor_nombre} />
+          <Field label="Fecha de registro" value={c.fecha_registro} />
+          {c.motivo_bloqueo && (
+            <div className="sm:col-span-2">
+              <Field label="Motivo de bloqueo" value={c.motivo_bloqueo} />
+            </div>
+          )}
+        </Section>
+
+        <Section title="Póliza">
+          <Field label="N° de póliza" value={c.pol} />
+          <Field label="Prima"        value={c.prima} />
+          <div className="sm:col-span-2">
+            <Field label="Vigencia"   value={c.vig} />
+          </div>
+        </Section>
+
         <Section title="Datos Personales">
           <Field label="Sexo"          value={c.sexo} />
           <Field label="Condición"     value={c.condicion} />
@@ -1664,7 +1977,7 @@ function ClienteDetailModal({ c }) {
         <Section title="Contacto">
           <Field label="Teléfono"      value={c.telefono} />
           <Field label="Celular"       value={c.celular} />
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
             <Field label="Correo"      value={c.correo || c.email} />
           </div>
         </Section>
@@ -1673,7 +1986,7 @@ function ClienteDetailModal({ c }) {
           <Field label="Estado"        value={c.estado} />
           <Field label="Ciudad"        value={c.ciudad} />
           <Field label="Código Postal" value={c.codigo_postal} />
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
             <Field label="Dirección"   value={c.direccion} />
           </div>
         </Section>
@@ -1699,25 +2012,33 @@ function ClienteDetailModal({ c }) {
 function BlockUserModal({ nom, est, onConfirm }) {
   const { closeModal, showToast } = useApp()
   const isBlocked = est === 'Bloqueado'
-  
+  const [motivo,   setMotivo]   = useState('')
+  const [password, setPassword] = useState('')
+  const [err,      setErr]      = useState('')
+  const [passErr,  setPassErr]  = useState('')
+  const [saving,   setSaving]   = useState(false)
+
   const handleConfirm = async () => {
+    if (!isBlocked && !motivo.trim()) { setErr('Debe ingresar un motivo para bloquear al usuario.'); return }
+    if (!password.trim()) { setPassErr('Ingresa tu contraseña para confirmar.'); return }
+    if (saving) return
+    setErr(''); setPassErr('')
+    setSaving(true)
+    try {
+      await verifyPassword(password)
+    } catch (e) {
+      setPassErr(e.message || 'Contraseña incorrecta.')
+      setSaving(false)
+      return
+    }
     if (onConfirm) {
       try {
-        let motivo = null
-        if (!isBlocked) {
-          const textarea = document.getElementById('motivo-bloqueo')
-          if (!textarea.value.trim()) {
-            showToast('Debe ingresar un motivo para bloquear al usuario', 'error')
-            return
-          }
-          motivo = textarea.value.trim()
-        }
-        
-        await onConfirm(motivo)
+        await onConfirm(isBlocked ? null : motivo.trim())
         closeModal()
         showToast(isBlocked ? 'Usuario desbloqueado' : 'Usuario bloqueado', isBlocked ? 'success' : 'error')
-      } catch (err) {
-        showToast(err.message || 'Error al cambiar estado', 'error')
+      } catch (e) {
+        showToast(e.message || 'Error al cambiar estado', 'error')
+        setSaving(false)
       }
     } else {
       closeModal()
@@ -1727,17 +2048,17 @@ function BlockUserModal({ nom, est, onConfirm }) {
   return (
     <ModalShell title={isBlocked ? 'Desbloquear usuario' : 'Bloquear usuario'} footer={
       <>
-        <button onClick={closeModal} className="btn-secondary">Cancelar</button>
-        <button
-          onClick={handleConfirm}
-          className={isBlocked ? 'btn-success' : 'btn-danger'}
-        >
-          {isBlocked ? <LockOpen className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
-          {isBlocked ? 'Desbloquear' : 'Bloquear'}
+        <button onClick={closeModal} disabled={saving} className="btn-secondary">Cancelar</button>
+        <button onClick={handleConfirm} disabled={saving} className={`${isBlocked ? 'btn-success' : 'btn-danger'} disabled:opacity-50`}>
+          {saving
+            ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+            : isBlocked ? <LockOpen className="w-4 h-4" /> : <Lock className="w-4 h-4" />
+          }
+          {saving ? 'Procesando…' : isBlocked ? 'Desbloquear' : 'Bloquear'}
         </button>
       </>
     }>
-      <div className="flex items-start gap-4">
+      <div className="flex items-start gap-4 mb-4">
         <div className={`w-12 h-12 rounded-full ${isBlocked ? 'bg-emerald-100' : 'bg-orange-100'} flex items-center justify-center shrink-0`}>
           {isBlocked ? <LockOpen className="w-6 h-6 text-emerald-600" /> : <Lock className="w-6 h-6 text-orange-600" />}
         </div>
@@ -1748,13 +2069,34 @@ function BlockUserModal({ nom, est, onConfirm }) {
               ? 'El usuario recuperará el acceso al sistema con su rol y permisos actuales.'
               : 'El usuario no podrá iniciar sesión. Sus datos, cotizaciones y pólizas se conservarán intactos.'}
           </p>
-          {!isBlocked && (
-            <div className="mt-4">
-              <label className="field-label">Motivo del bloqueo <span className="text-rose-500">*</span></label>
-              <textarea id="motivo-bloqueo" rows={2} maxLength={255} className="input-field resize-none" placeholder="Describe el motivo del bloqueo…" />
-            </div>
-          )}
         </div>
+      </div>
+      {!isBlocked && (
+        <div>
+          <label className="field-label">Motivo del bloqueo <span className="text-rose-500">*</span></label>
+          <textarea
+            rows={3}
+            maxLength={255}
+            className={`input-field resize-none ${err ? 'border-rose-400 focus:ring-rose-300' : ''}`}
+            placeholder="Describe el motivo del bloqueo…"
+            value={motivo}
+            onChange={e => { setMotivo(e.target.value); setErr('') }}
+          />
+          {err && <p className="text-xs text-rose-600 mt-1">{err}</p>}
+        </div>
+      )}
+      {/* Confirmación con contraseña — siempre requerida */}
+      <div className="mt-2">
+        <label className="field-label">Tu contraseña <span className="text-rose-500">*</span></label>
+        <input
+          type="password"
+          className={`input-field ${passErr ? 'border-rose-400' : ''}`}
+          placeholder="Ingresa tu contraseña para confirmar"
+          value={password}
+          onChange={e => { setPassword(e.target.value); setPassErr('') }}
+          onKeyDown={e => e.key === 'Enter' && handleConfirm()}
+        />
+        {passErr && <p className="text-xs text-rose-600 mt-1">{passErr}</p>}
       </div>
     </ModalShell>
   )
@@ -2044,6 +2386,14 @@ function ClienteFacturasModal({ c }) {
     const tel   = c.telefono || ''
     const cel   = c.celular  || ''
     const dir   = c.direccion || ''
+
+    // f.valor_bs es el monto realmente pagado (con impuesto incluido si aplica).
+    // Se descompone en base + IVA usando el % real del producto de la póliza,
+    // en vez del "Impuesto sobre el 0% (IVA): 0 Bs." fijo que mostraba antes
+    // sin importar el producto.
+    const ivaPct  = f.iva_aplica ? (parseFloat(f.iva_porcentaje) || 0) : 0
+    const baseBs  = ivaPct > 0 ? f.valor_bs / (1 + ivaPct / 100) : f.valor_bs
+    const ivaBs   = f.valor_bs - baseBs
     const ref   = (f.referencia && f.referencia !== '—') ? f.referencia : ''
 
     const copy = `
@@ -2112,7 +2462,7 @@ function ClienteFacturasModal({ c }) {
             <tr>
               <td style="padding:14px 8px;border:1px solid #ccc;text-align:center;vertical-align:top">1</td>
               <td style="padding:14px 8px;border:1px solid #ccc;vertical-align:top">POLIZA NRO: ${f.poliza_nro}</td>
-              <td style="padding:14px 8px;border:1px solid #ccc;text-align:right;vertical-align:top">Subtotal Bs.: ${fmtBs(f.valor_bs)}</td>
+              <td style="padding:14px 8px;border:1px solid #ccc;text-align:right;vertical-align:top">Subtotal Bs.: ${fmtBs(baseBs)}</td>
             </tr>
           </tbody>
         </table>
@@ -2120,7 +2470,7 @@ function ClienteFacturasModal({ c }) {
         <table style="width:100%;border-collapse:collapse;font-size:11px">
           <tr>
             <td style="padding:4px 8px;font-weight:bold;border-top:1px solid #555">ESTA FACTURA VA SIN TACHADURAS NI ENMENDADURAS</td>
-            <td style="padding:4px 8px;text-align:right;border-top:1px solid #555;white-space:nowrap">Impuesto sobre el 0% (IVA): 0 Bs.</td>
+            <td style="padding:4px 8px;text-align:right;border-top:1px solid #555;white-space:nowrap">Impuesto sobre el ${ivaPct}% (IVA): ${fmtBs(ivaBs)} Bs.</td>
           </tr>
           <tr>
             <td style="padding:4px 8px">
@@ -2244,20 +2594,34 @@ function ClienteFacturasModal({ c }) {
   )
 }
 
-// ── Ajustar póliza de un cliente ─────────────────────────────────────────────
+// Espejo de WorkflowService::POLIZA_TRANSITIONS (Backend/app/Services/WorkflowService.php) —
+// mantener sincronizado si cambian las transiciones válidas en el backend.
+const POLIZA_TRANSITIONS = {
+  ACTIVA:     ['VENCIDA', 'ANULADA', 'SUSPENDIDA', 'RENOVADA'],
+  SUSPENDIDA: ['ACTIVA', 'ANULADA'],
+  VENCIDA:    ['RENOVADA'],
+  ANULADA:    [],
+  RENOVADA:   [],
+}
+
+// ── Editar póliza de un cliente ──────────────────────────────────────────────
 /**
  * Muestra la lista de pólizas del cliente. Al seleccionar una, aparece un
- * formulario para editar: status, fecha de vencimiento, prima y forma de pago.
+ * formulario para editar: status, fecha de vencimiento, prima, forma de pago
+ * y el vendedor asignado (reasignación de cartera).
  */
 function AjustarPolizaModal({ c, onSave, polizaId, onCancel }) {
   const { closeModal, showToast } = useApp()
   const handleCancel = () => { if (onCancel) onCancel(); else closeModal() }
   const [polizas, setPolizas]   = useState([])
+  const [vendedores, setVendedores] = useState([])
   const [loading, setLoading]   = useState(true)
   const [selected, setSelected] = useState(null)
   const [form, setForm]         = useState({})
   const [saving, setSaving]     = useState(false)
   const [searchPol, setSearchPol] = useState('')
+  const [password, setPassword] = useState('')
+  const [passErr,  setPassErr]  = useState('')
 
   useEffect(() => {
     if (!c) return
@@ -2271,6 +2635,7 @@ function AjustarPolizaModal({ c, onSave, polizaId, onCancel }) {
       })
       .catch(() => setPolizas([]))
       .finally(() => setLoading(false))
+    fetchVendedoresDisponibles().then(setVendedores).catch(() => setVendedores([]))
   }, [c?.id])
 
   const selectPoliza = (pol) => {
@@ -2280,11 +2645,22 @@ function AjustarPolizaModal({ c, onSave, polizaId, onCancel }) {
       fecha_vencimiento: pol.fecha_vencimiento_iso,
       pago:              pol.pago,
       total:             pol.total,
+      nro_venezolana:    pol.nro_venezolana || '',
+      papeleria:         pol.papeleria || '',
+      vendedor_id:       pol.vendedor_id ?? '',
     })
   }
 
   const handleSave = async () => {
-    setSaving(true)
+    if (!password.trim()) { setPassErr('Ingresa tu contraseña para confirmar.'); return }
+    setSaving(true); setPassErr('')
+    try {
+      await verifyPassword(password)
+    } catch (err) {
+      setPassErr(err.message || 'Contraseña incorrecta.')
+      setSaving(false)
+      return
+    }
     try {
       await updatePoliza(selected.id, form)
       showToast('Póliza actualizada correctamente', 'success')
@@ -2308,7 +2684,7 @@ function AjustarPolizaModal({ c, onSave, polizaId, onCancel }) {
   }
 
   return (
-    <ModalShell title={`Ajustar Póliza — ${c.nombre || c.nom}`} wide footer={
+    <ModalShell title={`Editar Póliza — ${c.nombre || c.nom}`} wide footer={
       <>
         {selected && !polizaId && polizas.length > 1 && (
           <button onClick={() => setSelected(null)} className="btn-secondary">
@@ -2389,20 +2765,23 @@ function AjustarPolizaModal({ c, onSave, polizaId, onCancel }) {
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            {/* Estatus */}
-            <div className="col-span-2 input-group">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Estatus — solo se ofrecen transiciones válidas desde el estado actual */}
+            <div className="sm:col-span-2 input-group">
               <label className="input-label">Estatus</label>
               <select
                 className="select-field"
                 value={form.status ?? ''}
                 onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
               >
-                <option value="ACTIVA">ACTIVA</option>
-                <option value="RENOVADA">RENOVADA</option>
-                <option value="VENCIDA">VENCIDA</option>
-                <option value="ANULADA">ANULADA</option>
+                <option value={selected.status}>{selected.status} (actual)</option>
+                {(POLIZA_TRANSITIONS[selected.status] ?? []).map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
               </select>
+              {(POLIZA_TRANSITIONS[selected.status] ?? []).length === 0 && (
+                <p className="text-[11px] text-slate-400 mt-1">Este estado es terminal, no admite cambios de estatus.</p>
+              )}
             </div>
 
             {/* Fecha vencimiento */}
@@ -2430,7 +2809,7 @@ function AjustarPolizaModal({ c, onSave, polizaId, onCancel }) {
             </div>
 
             {/* Forma de pago */}
-            <div className="col-span-2 input-group">
+            <div className="sm:col-span-2 input-group">
               <label className="input-label">Forma de Pago</label>
               <input
                 type="text"
@@ -2439,6 +2818,45 @@ function AjustarPolizaModal({ c, onSave, polizaId, onCancel }) {
                 placeholder="Ej. Transferencia, Zelle, Efectivo USD…"
                 onChange={e => setForm(f => ({ ...f, pago: e.target.value }))}
               />
+            </div>
+
+            {/* N° de póliza asignado por la aseguradora */}
+            <div className="input-group">
+              <label className="input-label">N° Póliza (La Venezolana)</label>
+              <input
+                type="text"
+                className="input-field"
+                value={form.nro_venezolana ?? ''}
+                placeholder="Asignado por la aseguradora"
+                onChange={e => setForm(f => ({ ...f, nro_venezolana: e.target.value }))}
+              />
+            </div>
+
+            {/* Papelería / certificado físico usado */}
+            <div className="input-group">
+              <label className="input-label">Papelería</label>
+              <input
+                type="text"
+                className="input-field"
+                value={form.papeleria ?? ''}
+                placeholder="N° de certificado físico"
+                onChange={e => setForm(f => ({ ...f, papeleria: e.target.value }))}
+              />
+            </div>
+
+            {/* Vendedor asignado — reasignación de cartera, no se notifica al cliente */}
+            <div className="sm:col-span-2 input-group">
+              <label className="input-label">Vendedor asignado</label>
+              <select
+                className="select-field"
+                value={form.vendedor_id ?? ''}
+                onChange={e => setForm(f => ({ ...f, vendedor_id: e.target.value ? Number(e.target.value) : '' }))}
+              >
+                <option value="">Sin asignar</option>
+                {vendedores.map(v => (
+                  <option key={v.id} value={v.id}>{v.nombre} ({v.tipo})</option>
+                ))}
+              </select>
             </div>
 
           </div>
@@ -2469,6 +2887,323 @@ function AjustarPolizaModal({ c, onSave, polizaId, onCancel }) {
               </div>
             )
           })()}
+
+          <div className="pt-2 border-t border-slate-100">
+            <label className="field-label">Confirma tu contraseña para guardar <span className="text-rose-500">*</span></label>
+            <input
+              type="password"
+              className={`input-field ${passErr ? 'border-rose-400' : ''}`}
+              placeholder="Tu contraseña"
+              value={password}
+              onChange={e => { setPassword(e.target.value); setPassErr('') }}
+              onKeyDown={e => e.key === 'Enter' && handleSave()}
+            />
+            {passErr && <p className="text-xs text-rose-600 mt-1">{passErr}</p>}
+          </div>
+        </div>
+      )}
+    </ModalShell>
+  )
+}
+
+// ── Beneficiarios de una póliza ───────────────────────────────────────────────
+/**
+ * Gestiona los beneficiarios de una póliza (relevante para pólizas de vida,
+ * muerte accidental, etc.). El porcentaje total entre todos los beneficiarios
+ * no puede exceder 100% — el backend valida esto, aquí solo se muestra el
+ * acumulado para guiar al usuario.
+ */
+function PolizaBeneficiariosModal({ poliza, onClose }) {
+  const { closeModal, showToast } = useApp()
+  const [items,   setItems]   = useState([])
+  const [config,  setConfig]  = useState({ aplica_beneficiarios: true, min_beneficiarios: null, max_beneficiarios: null })
+  const [loading, setLoading] = useState(true)
+  const [saving,  setSaving]  = useState(false)
+  const [editId,  setEditId]  = useState(null)
+  const [form,    setForm]    = useState({ nombre: '', cedula: '', parentesco: '', porcentaje: '' })
+  const handleClose = () => { if (onClose) onClose(); else closeModal() }
+
+  const load = async () => {
+    setLoading(true)
+    try {
+      const res = await fetchBeneficiarios(poliza.id)
+      setItems(res.items || [])
+      setConfig(res.config || { aplica_beneficiarios: true, min_beneficiarios: null, max_beneficiarios: null })
+    }
+    catch (e) { showToast(e.message, 'error') }
+    finally { setLoading(false) }
+  }
+  useEffect(() => { load() }, [poliza.id])
+
+  const limiteAlcanzado = config.max_beneficiarios != null && items.length >= config.max_beneficiarios
+  const puedeAgregar    = config.aplica_beneficiarios && !limiteAlcanzado
+
+  const totalAsignado = items.reduce((s, b) => s + Number(b.porcentaje || 0), 0)
+  const disponible    = Math.max(0, 100 - totalAsignado + (editId ? Number(items.find(b => b.id === editId)?.porcentaje || 0) : 0))
+
+  const resetForm = () => { setEditId(null); setForm({ nombre: '', cedula: '', parentesco: '', porcentaje: '' }) }
+
+  const startEdit = (b) => {
+    setEditId(b.id)
+    setForm({ nombre: b.nombre || '', cedula: b.cedula || '', parentesco: b.parentesco || '', porcentaje: String(b.porcentaje ?? '') })
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!form.nombre.trim() || !form.porcentaje) {
+      showToast('Nombre y porcentaje son obligatorios.', 'warning')
+      return
+    }
+    setSaving(true)
+    try {
+      const payload = { ...form, porcentaje: parseFloat(form.porcentaje) }
+      if (editId) await updateBeneficiario(poliza.id, editId, payload)
+      else        await createBeneficiario(poliza.id, payload)
+      showToast(editId ? 'Beneficiario actualizado' : 'Beneficiario agregado', 'success')
+      resetForm()
+      await load()
+    } catch (e) {
+      showToast(e.message, 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async (b) => {
+    try {
+      await deleteBeneficiario(poliza.id, b.id)
+      showToast('Beneficiario eliminado', 'success')
+      if (editId === b.id) resetForm()
+      await load()
+    } catch (e) {
+      showToast(e.message, 'error')
+    }
+  }
+
+  return (
+    <ModalShell title={`Beneficiarios — ${poliza.nro_contrato}`} footer={
+      <button onClick={handleClose} className="btn-secondary ml-auto">Cerrar</button>
+    }>
+      {loading ? (
+        <div className="flex items-center gap-2 py-8 text-slate-400 text-sm justify-center">
+          <div className="w-4 h-4 border-2 border-slate-300 border-t-blue-500 rounded-full animate-spin" />
+          Cargando beneficiarios…
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs">
+            <span className="text-slate-500">
+              Porcentaje asignado
+              {config.max_beneficiarios != null && <span className="text-slate-400"> · {items.length} de {config.max_beneficiarios} beneficiarios</span>}
+              {config.min_beneficiarios != null && items.length < config.min_beneficiarios && <span className="text-amber-600"> · se recomiendan al menos {config.min_beneficiarios}</span>}
+            </span>
+            <span className={`font-bold ${totalAsignado > 100 ? 'text-rose-600' : 'text-slate-700'}`}>
+              {totalAsignado.toFixed(2)}% de 100%
+            </span>
+          </div>
+
+          {!config.aplica_beneficiarios && (
+            <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              El tipo de póliza "{poliza.producto}" no está configurado para admitir beneficiarios. Puedes ver/quitar los ya registrados, pero no agregar nuevos salvo que ajustes el producto.
+            </div>
+          )}
+
+          {items.length === 0 ? (
+            <div className="py-6 text-center">
+              <Users className="w-9 h-9 text-slate-200 mx-auto mb-2" />
+              <p className="text-sm text-slate-400">Esta póliza aún no tiene beneficiarios registrados.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {items.map(b => (
+                <div key={b.id} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                  <div className="w-9 h-9 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
+                    <Users className="w-4 h-4 text-violet-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-800 truncate">{b.nombre}</p>
+                    <p className="text-[11px] text-slate-400">
+                      {b.cedula || '—'}{b.parentesco ? ` · ${b.parentesco}` : ''}
+                    </p>
+                  </div>
+                  <span className="text-sm font-bold text-violet-700 shrink-0">{Number(b.porcentaje).toFixed(2)}%</span>
+                  <button onClick={() => startEdit(b)} className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition shrink-0" title="Editar">
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => handleDelete(b)} className="p-2 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition shrink-0" title="Eliminar">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {(editId || puedeAgregar) && (
+          <form onSubmit={handleSubmit} className="p-3 rounded-xl border border-dashed border-slate-200 space-y-2">
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">
+              {editId ? 'Editar beneficiario' : 'Agregar beneficiario'}
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <input className="input-field text-sm sm:col-span-2" placeholder="Nombre completo *" value={form.nombre}
+                onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} />
+              <input className="input-field text-sm" placeholder="Cédula" value={form.cedula}
+                onChange={e => setForm(f => ({ ...f, cedula: e.target.value }))} />
+              <input className="input-field text-sm" placeholder="Parentesco" value={form.parentesco}
+                onChange={e => setForm(f => ({ ...f, parentesco: e.target.value }))} />
+              <input type="number" min="0.01" max="100" step="0.01" className="input-field text-sm sm:col-span-2"
+                placeholder={`Porcentaje % (disponible: ${disponible.toFixed(2)}%)`} value={form.porcentaje}
+                onChange={e => setForm(f => ({ ...f, porcentaje: e.target.value }))} />
+            </div>
+            <div className="flex gap-2">
+              <button type="submit" disabled={saving} className="btn-primary text-xs !py-1.5 flex-1 justify-center disabled:opacity-50">
+                {editId ? <Check className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                {saving ? 'Guardando…' : editId ? 'Guardar cambios' : 'Agregar'}
+              </button>
+              {editId && (
+                <button type="button" onClick={resetForm} className="btn-secondary text-xs !py-1.5">Cancelar</button>
+              )}
+            </div>
+          </form>
+          )}
+        </div>
+      )}
+    </ModalShell>
+  )
+}
+
+// ── Bienes cubiertos por una póliza ──────────────────────────────────────────
+/**
+ * Gestiona los bienes que cubre una póliza (ej. una póliza que admite hasta
+ * 5 vehículos pero al solicitarla solo se registró 1). El bien original
+ * (es_original=true) viene de la solicitud que emitió la póliza y se
+ * identifica con el propio nro_contrato; los agregados después reciben un
+ * certificado propio (POL-xxxx-02, -03...).
+ */
+function PolizaBienesModal({ poliza, personaId, onClose }) {
+  const { closeModal, showToast } = useApp()
+  const [items,      setItems]      = useState([])
+  const [config,     setConfig]     = useState({ permite_multiples_bienes: true, max_bienes: null })
+  const [disponibles, setDisponibles] = useState([])
+  const [loading,    setLoading]    = useState(true)
+  const [saving,     setSaving]     = useState(false)
+  const [seleccion,  setSeleccion]  = useState('')
+  const handleClose = () => { if (onClose) onClose(); else closeModal() }
+
+  const load = async () => {
+    setLoading(true)
+    try {
+      const [bienesRes, todos] = await Promise.all([
+        fetchBienesPoliza(poliza.id),
+        personaId ? fetchBienes({ persona_id: personaId }) : Promise.resolve([]),
+      ])
+      const cubiertos = bienesRes.items || []
+      setItems(cubiertos)
+      setConfig(bienesRes.config || { permite_multiples_bienes: true, max_bienes: null })
+      const idsActuales = new Set(cubiertos.map(b => b.bien_asegurado_id))
+      setDisponibles(todos.filter(b => !idsActuales.has(b.id)))
+    } catch (e) {
+      showToast(e.message, 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+  useEffect(() => { load() }, [poliza.id])
+
+  const limiteAlcanzado = (items.length >= 1 && !config.permite_multiples_bienes) ||
+    (config.max_bienes != null && items.length >= config.max_bienes)
+
+  const bienRef = (b) => b.atributos?.placa || b.atributos?.descripcion || b.descripcion || `Bien #${b.id}`
+
+  const handleAgregar = async () => {
+    if (!seleccion) return
+    setSaving(true)
+    try {
+      await agregarBienPoliza(poliza.id, { bien_asegurado_id: Number(seleccion) })
+      showToast('Bien agregado a la póliza', 'success')
+      setSeleccion('')
+      await load()
+    } catch (e) {
+      showToast(e.message, 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleQuitar = async (item) => {
+    try {
+      await quitarBienPoliza(poliza.id, item.id)
+      showToast('Bien quitado de la póliza', 'success')
+      await load()
+    } catch (e) {
+      showToast(e.message, 'error')
+    }
+  }
+
+  return (
+    <ModalShell title={`Bienes Cubiertos — ${poliza.nro_contrato}`} footer={
+      <button onClick={handleClose} className="btn-secondary ml-auto">Cerrar</button>
+    }>
+      {loading ? (
+        <div className="flex items-center gap-2 py-8 text-slate-400 text-sm justify-center">
+          <div className="w-4 h-4 border-2 border-slate-300 border-t-blue-500 rounded-full animate-spin" />
+          Cargando bienes…
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="space-y-2">
+            {items.map(it => (
+              <div key={it.id} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
+                  {it.tipo === 'vehiculo' ? <Car className="w-4 h-4 text-blue-600" /> : <Package className="w-4 h-4 text-blue-600" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-800 truncate">{it.referencia}</p>
+                  <p className="text-[11px] text-slate-400 font-mono">
+                    Certificado {it.certificado}{it.es_original && <span className="text-slate-300"> (original)</span>}
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleQuitar(it)}
+                  className="p-2 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition shrink-0"
+                  title="Quitar bien de la póliza"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="pt-3 border-t border-slate-100">
+            <label className="field-label">
+              Agregar otro bien de este cliente
+              {config.max_bienes != null && <span className="text-slate-400 font-normal"> · {items.length} de {config.max_bienes}</span>}
+            </label>
+            {limiteAlcanzado ? (
+              <div className="flex items-start gap-2 p-3 mt-1 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                {config.permite_multiples_bienes
+                  ? `Esta póliza ya alcanzó el máximo de ${config.max_bienes} bienes cubiertos para el tipo "${poliza.producto}".`
+                  : `El tipo de póliza "${poliza.producto}" no admite más de un bien cubierto.`}
+              </div>
+            ) : disponibles.length === 0 ? (
+              <p className="text-xs text-slate-400 mt-1">
+                Este cliente no tiene más bienes registrados. Crea uno nuevo desde la sección Bienes y luego vuelve aquí para asociarlo.
+              </p>
+            ) : (
+              <div className="flex gap-2 mt-1">
+                <select className="select-field flex-1" value={seleccion} onChange={e => setSeleccion(e.target.value)}>
+                  <option value="">— Seleccionar bien —</option>
+                  {disponibles.map(b => (
+                    <option key={b.id} value={b.id}>{bienRef(b)} ({b.tipo})</option>
+                  ))}
+                </select>
+                <button onClick={handleAgregar} disabled={!seleccion || saving} className="btn-primary shrink-0 disabled:opacity-50">
+                  <Plus className="w-4 h-4" />Agregar
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </ModalShell>
@@ -2674,10 +3409,10 @@ function ClienteSolicitudesModal({ c }) {
                     <td className="px-3 py-2.5 text-center">
                       <button
                         onClick={() => generateCotPdf(s)}
-                        className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition inline-flex items-center justify-center"
+                        className="p-2.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition inline-flex items-center justify-center"
                         title="Ver documento"
                       >
-                        <FileText className="w-3.5 h-3.5" />
+                        <FileText className="w-[18px] h-[18px]" />
                       </button>
                     </td>
                   </tr>
@@ -2696,12 +3431,16 @@ function ClienteHistorialModal({ c, onSaved }) {
   const { closeModal, showToast, showModal, canAct } = useApp()
   const canRenew  = canAct('clientes', 'renew')
   const canAdjust = canAct('clientes', 'adjust')
+  const canManageBeneficiarios = canAct('clientes', 'manage_beneficiarios')
+  const canManageBienes        = canAct('clientes', 'manage_bienes')
   const [polizas, setPolizas]         = useState([])
   const [loading, setLoading]         = useState(true)
   const [search, setSearch]           = useState('')
   const [showRechazadas, setShowRechazadas] = useState(false)
   const [pdfLoading, setPdfLoading]   = useState(null)
   const [pdfVisor, setPdfVisor]       = useState(null) // { url, title, nro }
+  const pdfVisorPanelRef = useRef(null)
+  useModalLock(pdfVisorPanelRef, !!pdfVisor)
 
   const loadPolizas = () => {
     if (!c) return
@@ -2806,27 +3545,30 @@ function ClienteHistorialModal({ c, onSaved }) {
           {emitFiltered.length > 0 && (
             <div className="space-y-2">
               {emitFiltered.map(pol => (
-                <div key={pol.id} className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
-                  <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center shrink-0 mt-0.5">
-                    <FileText className="w-4 h-4 text-blue-600" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                      <span className="text-xs font-bold text-blue-700 font-mono">{pol.nro_contrato}</span>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${POL_STATUS_STYLE[pol.status] ?? 'bg-slate-100 text-slate-500'}`}>
-                        {pol.status}
-                      </span>
+                <div key={pol.id} className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center shrink-0 mt-0.5">
+                      <FileText className="w-4 h-4 text-blue-600" />
                     </div>
-                    <p className="text-xs font-semibold text-slate-700 truncate">{pol.producto}</p>
-                    <p className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
-                      {pol.bien_ref && pol.bien_ref !== '—' && <><Car className="w-3 h-3 shrink-0" />{pol.bien_ref} · </>}
-                      {pol.fecha_emision} → {pol.fecha_vencimiento}
-                    </p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                        <span className="text-xs font-bold text-blue-700 font-mono">{pol.nro_contrato}</span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${POL_STATUS_STYLE[pol.status] ?? 'bg-slate-100 text-slate-500'}`}>
+                          {pol.status}
+                        </span>
+                      </div>
+                      <p className="text-xs font-semibold text-slate-700 truncate">{pol.producto}</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
+                        {pol.bien_ref && pol.bien_ref !== '—' && <><Car className="w-3 h-3 shrink-0" />{pol.bien_ref} · </>}
+                        {pol.fecha_emision} → {pol.fecha_vencimiento}
+                      </p>
+                    </div>
+                    <p className="shrink-0 text-sm font-bold text-slate-800">${Number(pol.total).toFixed(2)}</p>
                   </div>
-                  <div className="shrink-0 flex flex-col items-end gap-2">
-                    <p className="text-sm font-bold text-slate-800">${Number(pol.total).toFixed(2)}</p>
-                    {/* Acciones en fila horizontal */}
-                    <div className="flex items-center gap-1 flex-wrap justify-end">
+                  {/* Acciones — fila propia de ancho completo: con 5 botones posibles
+                      (Ver póliza/Renovar/Editar/Beneficiarios/Bienes) nunca caben junto
+                      al texto sin aplastarlo a un hilo de unos pocos píxeles. */}
+                  <div className="flex items-center gap-1.5 flex-wrap justify-end mt-2.5">
                       {pol.id && (
                         <button
                           onClick={() => handleVerPoliza(pol)}
@@ -2849,7 +3591,6 @@ function ClienteHistorialModal({ c, onSaved }) {
                               client: { ...c, poliza_id: pol.id },
                               diasVencimiento: dias,
                               onSaved: () => { loadPolizas(); onSaved?.() },
-                              onCancel: () => showModal('clienteHistorial', { c, onSaved }),
                             })
                           }}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-xs font-semibold text-emerald-600 hover:bg-emerald-100 transition whitespace-nowrap"
@@ -2863,22 +3604,36 @@ function ClienteHistorialModal({ c, onSaved }) {
                             c,
                             polizaId: pol.id,
                             onSave: () => { loadPolizas(); onSaved?.() },
-                            onCancel: () => showModal('clienteHistorial', { c, onSaved }),
                           })}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-50 text-xs font-semibold text-violet-600 hover:bg-violet-100 transition whitespace-nowrap"
                         >
-                          <SlidersHorizontal className="w-4 h-4 shrink-0" /> Ajustar
+                          <SlidersHorizontal className="w-4 h-4 shrink-0" /> Editar
+                        </button>
+                      )}
+                      {pol.id && canManageBeneficiarios && pol.status !== 'RECHAZADA' && (
+                        <button
+                          onClick={() => showModal('polizaBeneficiarios', { poliza: pol })}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-fuchsia-50 text-xs font-semibold text-fuchsia-600 hover:bg-fuchsia-100 transition whitespace-nowrap"
+                        >
+                          <Users className="w-4 h-4 shrink-0" /> Beneficiarios
+                        </button>
+                      )}
+                      {pol.id && canManageBienes && pol.status !== 'RECHAZADA' && (
+                        <button
+                          onClick={() => showModal('polizaBienes', { poliza: pol, personaId: c.id })}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-50 text-xs font-semibold text-sky-600 hover:bg-sky-100 transition whitespace-nowrap"
+                        >
+                          <Package className="w-4 h-4 shrink-0" /> Bienes
                         </button>
                       )}
                     </div>
-                    {pol.producto_documentos?.map((d, i) => (
-                      <a key={i} href={d.url} target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-violet-600 hover:text-violet-800 hover:underline"
-                      >
-                        <FileText className="w-3.5 h-3.5 shrink-0" /> {d.nombre}
-                      </a>
-                    ))}
-                  </div>
+                  {pol.producto_documentos?.map((d, i) => (
+                    <a key={i} href={d.url} target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-violet-600 hover:text-violet-800 hover:underline justify-end mt-1.5"
+                    >
+                      <FileText className="w-3.5 h-3.5 shrink-0" /> {d.nombre}
+                    </a>
+                  ))}
                 </div>
               ))}
             </div>
@@ -2921,9 +3676,8 @@ function ClienteHistorialModal({ c, onSaved }) {
     {pdfVisor && createPortal(
       <div
         className="fixed inset-0 z-[65] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 sm:p-8"
-        onClick={e => { if (e.target === e.currentTarget) closePdfVisor() }}
       >
-        <div className="flex flex-col w-full max-w-3xl rounded-xl overflow-hidden shadow-2xl" style={{ height: '80vh' }}>
+        <div ref={pdfVisorPanelRef} tabIndex={-1} className="flex flex-col w-full max-w-3xl rounded-xl overflow-hidden shadow-2xl outline-none animate-in zoom-in duration-200" style={{ height: '80vh' }}>
           <div className="flex items-center gap-2 px-4 h-11 bg-[#323639] shrink-0">
             <button onClick={closePdfVisor} className="p-1.5 hover:bg-white/10 rounded-lg transition text-white" title="Cerrar">
               <X className="w-4 h-4" />
@@ -3143,7 +3897,8 @@ function VehiculoFormModal({ v = {}, clienteOpts = [], onSave }) {
  * @param {Function} onSaved  Callback para notificar al padre tras subir/eliminar
  */
 function ClienteDocumentosPanel({ c, onSaved }) {
-  const { closeModal, showToast } = useApp()
+  const { closeModal, showToast, canAct } = useApp()
+  const canManage = canAct('clientes', 'view_docs')
   const [docs, setDocs]             = useState([])
   const [solicitudes, setSolicitudes] = useState([])
   const [productos, setProductos]   = useState([])
@@ -3301,22 +4056,24 @@ function ClienteDocumentosPanel({ c, onSaved }) {
                         href={d.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition inline-flex items-center justify-center"
+                        className="p-2.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition inline-flex items-center justify-center"
                         title="Ver documento"
                       >
-                        <Eye className="w-3.5 h-3.5" />
+                        <Eye className="w-[18px] h-[18px]" />
                       </a>
-                      <button
-                        onClick={() => handleDelete(d.id)}
-                        disabled={deletingId === d.id}
-                        className="p-1.5 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition inline-flex items-center justify-center disabled:opacity-50"
-                        title="Eliminar"
-                      >
-                        {deletingId === d.id
-                          ? <div className="w-3.5 h-3.5 border-2 border-rose-300 border-t-rose-600 rounded-full animate-spin" />
-                          : <Trash2 className="w-3.5 h-3.5" />
-                        }
-                      </button>
+                      {canManage && (
+                        <button
+                          onClick={() => handleDelete(d.id)}
+                          disabled={deletingId === d.id}
+                          className="p-2.5 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition inline-flex items-center justify-center disabled:opacity-50"
+                          title="Eliminar"
+                        >
+                          {deletingId === d.id
+                            ? <div className="w-[18px] h-[18px] border-2 border-rose-300 border-t-rose-600 rounded-full animate-spin" />
+                            : <Trash2 className="w-[18px] h-[18px]" />
+                          }
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -3325,6 +4082,7 @@ function ClienteDocumentosPanel({ c, onSaved }) {
           </div>
 
           {/* Formulario de subida */}
+          {canManage && (
           <div className="pt-3 border-t border-slate-100">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Agregar Documento</p>
             <div className="space-y-2.5">
@@ -3396,6 +4154,7 @@ function ClienteDocumentosPanel({ c, onSaved }) {
               <p className="text-[10px] text-slate-400">PDF, JPG, PNG, DOC · Máx. 10 MB</p>
             </div>
           </div>
+          )}
 
           {/* Estado de requerimientos */}
           {allRequired.length > 0 && (
@@ -3525,12 +4284,12 @@ function ClienteFormModal({ cliente, onSave }) {
         </>
       }
     >
-      <div className="grid grid-cols-2 gap-x-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
         {/* ── Columna izquierda: Datos Personales ── */}
         <div>
           <SecHdr Icon={UserCheck}>Datos Personales</SecHdr>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="sm:col-span-2">
               <Lbl req>Nombre completo</Lbl>
               <input className="input-field" value={form.nombre} onChange={f('nombre')} placeholder="Nombre y Apellido" />
             </div>
@@ -3556,7 +4315,7 @@ function ClienteFormModal({ cliente, onSave }) {
               <Lbl req>Fecha de nacimiento</Lbl>
               <input type="date" className="input-field" value={form.nacimiento} onChange={f('nacimiento')} />
             </div>
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <Lbl req>Nacionalidad</Lbl>
               <select className="select-field" value={form.nacionalidad} onChange={f('nacionalidad')}>
                 <option value="">— Seleccionar —</option>
@@ -3567,10 +4326,10 @@ function ClienteFormModal({ cliente, onSave }) {
         </div>
 
         {/* ── Columna derecha: Contacto + Dirección + Actividad ── */}
-        <div className="space-y-5 pl-6 border-l border-slate-100">
+        <div className="space-y-5 mt-5 sm:mt-0 sm:pl-6 sm:border-l border-slate-100">
           <div>
             <SecHdr Icon={Phone}>Contacto</SecHdr>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Lbl>Teléfono fijo</Lbl>
                 <input className="input-field" value={form.telefono} onChange={f('telefono')} placeholder="0212-000-0000" />
@@ -3579,7 +4338,7 @@ function ClienteFormModal({ cliente, onSave }) {
                 <Lbl>Celular</Lbl>
                 <input className="input-field" value={form.celular} onChange={f('celular')} placeholder="+58 414-000-0000" />
               </div>
-              <div className="col-span-2">
+              <div className="sm:col-span-2">
                 <Lbl req>Correo electrónico</Lbl>
                 <input type="email" className="input-field" value={form.correo} onChange={f('correo')} placeholder="correo@ejemplo.com" />
               </div>
@@ -3588,7 +4347,7 @@ function ClienteFormModal({ cliente, onSave }) {
 
           <div>
             <SecHdr Icon={MapPin}>Dirección</SecHdr>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Lbl req>Estado</Lbl>
                 <select className="select-field" value={form.estado} onChange={f('estado')}>
@@ -3604,7 +4363,7 @@ function ClienteFormModal({ cliente, onSave }) {
                 <Lbl>Código postal</Lbl>
                 <input className="input-field" value={form.codigo_postal} onChange={f('codigo_postal')} placeholder="1010" />
               </div>
-              <div className="col-span-2">
+              <div className="sm:col-span-2">
                 <Lbl req>Dirección</Lbl>
                 <textarea rows={2} className="input-field resize-none" value={form.direccion} onChange={f('direccion')} placeholder="Av. Principal, Edif. …" />
               </div>
@@ -3613,7 +4372,7 @@ function ClienteFormModal({ cliente, onSave }) {
 
           <div>
             <SecHdr Icon={Briefcase}>Actividad Económica</SecHdr>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Lbl>Profesión</Lbl>
                 <input className="input-field" value={form.profesion} onChange={f('profesion')} placeholder="Ej. Ingeniero, Médico…" />
@@ -3642,6 +4401,9 @@ export default function Modal() {
   const { type, props } = modal
   switch (type) {
     case 'confirmDelete':   return <ConfirmDeleteModal {...props} />
+    case 'confirmTasa':     return <ConfirmTasaModal {...props} />
+    case 'confirmAction':   return <ConfirmActionModal {...props} />
+    case 'actionMenu':      return <ActionMenuModal {...props} />
     case 'editForm':        return <EditFormModal {...props} />
     case 'renovar':              return <RenovarModal {...props} />
     case 'emitirCotizacion':     return <EmitirCotizacionModal {...props} />
@@ -3661,6 +4423,8 @@ export default function Modal() {
     case 'clienteDocs':     return <ClienteDocsModal {...props} />
     case 'clienteFacturas': return <ClienteFacturasModal {...props} />
     case 'ajustarPoliza':        return <AjustarPolizaModal {...props} />
+    case 'polizaBeneficiarios':  return <PolizaBeneficiariosModal {...props} />
+    case 'polizaBienes':         return <PolizaBienesModal {...props} />
     case 'clienteSolicitudes':  return <ClienteSolicitudesModal {...props} />
     case 'clienteHistorial':      return <ClienteHistorialModal {...props} />
     case 'clienteDocumentos':     return <ClienteDocumentosPanel {...props} />

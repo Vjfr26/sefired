@@ -6,28 +6,79 @@
 </head>
 
 @php
+    // El bien original de la póliza siempre tiene certificado=NULL (los
+    // certificados numerados son solo para bienes ADICIONALES agregados
+    // después) — "0" es la representación estándar de ese bien base.
+    $bienPrincipal       = $poliza->bienes->firstWhere('certificado', null) ?? $poliza->bienes->first();
+    $certificadoPrincipal = $bienPrincipal?->certificado ?? '0';
+
     $snap        = $poliza->snapshot_datos ?? [];
     $tomador     = $snap['tomador']    ?? [];
     $asegurado   = $snap['asegurado']  ?? [];
-    $prodSnap    = $snap['producto']   ?? [];
-    $bien        = $snap['bien']       ?? [];
-    $attrs       = $bien['atributos']  ?? [];
+    // Pólizas anteriores al snapshot enriquecido no tienen 'bien'/'producto'
+    // dentro de snapshot_datos — se cae a las relaciones en vivo para que no
+    // se vean vacíos los datos del vehículo ni el tipo de cálculo.
+    $prodSnap    = $snap['producto']   ?? ($poliza->producto ? [
+        'nombre'       => $poliza->producto->nombre,
+        'tipo'         => $poliza->producto->tipo,
+        'tipo_calculo' => $poliza->producto->tipo_calculo,
+        'cobertura'    => $poliza->producto->cobertura,
+    ] : []);
+    $bien        = $snap['bien'] ?? ($poliza->solicitud?->bien ? [
+        'tipo'          => $poliza->solicitud->bien->tipo,
+        'atributos'     => $poliza->solicitud->bien->atributos ?? [],
+        'observaciones' => $poliza->solicitud->bien->observaciones,
+    ] : []);
+    $attrs            = $bien['atributos'] ?? [];
+    $bienObservaciones = $bien['observaciones'] ?? $poliza->solicitud?->bien?->observaciones ?? '—';
+    // Antes el encabezado decía "Automóvil" siempre, sin importar el tipo de
+    // bien real (inmueble, vida, mascota…) — se deriva del bien asegurado,
+    // y si la póliza no asegura un bien físico (vida, accidentes…) del ramo.
+    $ramoLabel = match ($bien['tipo'] ?? null) {
+        'vehiculo'           => 'Automóvil',
+        'inmueble'           => 'Inmueble',
+        'bicicleta'          => 'Bicicleta',
+        'mascota'            => 'Mascota',
+        'embarcacion'        => 'Embarcación',
+        'equipo_electronico' => 'Equipo Electrónico',
+        'joya'               => 'Joyas',
+        'vida'               => 'Vida',
+        default              => match ($prodSnap['tipo'] ?? null) {
+            'vida'       => 'Vida',
+            'salud'      => 'Salud',
+            'hogar'      => 'Hogar',
+            'accidentes' => 'Accidentes Personales',
+            'funeraria'  => 'Asistencia Funeraria',
+            default      => $prodSnap['nombre'] ?? 'Póliza',
+        },
+    };
     $cobs        = $snap['coberturas'] ?? [];
-    $tipoCal     = $prodSnap['tipo_calculo'] ?? 'fijo';
+    $tipoCal     = $prodSnap['tipo_calculo'] ?? $poliza->producto?->tipo_calculo ?? 'fijo';
     $tarifaDatos = $cobs['tarifa']['datos'] ?? ($snap['tarifario']['datos'] ?? []);
 
     $tomadorNombre = $tomador['nombre']   ?? ($poliza->asegurado_nombre ?? '—');
     $tomadorCi     = $tomador['ci']       ?? ($poliza->asegurado_ci     ?? '—');
     $asegNombre    = $asegurado['nombre'] ?? ($poliza->asegurado_nombre ?? $tomadorNombre);
     $asegCi        = $asegurado['ci']     ?? ($poliza->asegurado_ci     ?? $tomadorCi);
+    $asegPartes    = \App\Support\NombreSplitter::partes($asegNombre);
 
-    // Teléfono: del snapshot (pólizas futuras con campo) o de la relación persona
-    $persona    = $poliza->solicitud?->persona;
-    $tomadorTel = $tomador['telefono'] ?? ($persona?->celular ?? ($persona?->telefono ?? '—'));
+    // Teléfono y dirección: del snapshot (pólizas futuras con esos campos) o
+    // de la relación persona en vivo.
+    $persona         = $poliza->solicitud?->persona;
+    $tomadorTel      = $tomador['telefono']  ?? ($persona?->celular ?? ($persona?->telefono ?? '—'));
+    $tomadorDireccion = $tomador['direccion'] ?? ($persona?->direccion ?? '—');
+    // El asegurado no siempre tiene su propio registro de Persona (puede ser
+    // un familiar indicado solo por nombre/CI al cotizar) — si no hay datos
+    // propios, se asume la misma dirección/teléfono del tomador.
+    $asegDireccion   = $asegurado['direccion'] ?? $tomadorDireccion;
+    $asegTel         = $asegurado['telefono']  ?? $tomadorTel;
 
     // Vendedor / intermediario desde la relación cargada
     $vendedorNombre = strtoupper($poliza->vendedor?->nombre ?? '—');
     $vendedorCodigo = $poliza->vendedor?->nro_sede ?? '—';
+    // Canal de venta: "Vendedor Calle" vende como intermediario externo;
+    // "Oficina"/"Admin" gestionan la venta directa desde la cooperativa.
+    $canalVenta     = $poliza->vendedor?->cargo === 'Vendedor Calle' ? 'INTERMEDIARIO' : 'DIRECTO';
 
     $marca   = strtoupper($attrs['marca']  ?? '—');
     $modelo  = strtoupper($attrs['modelo'] ?? '—');
@@ -43,11 +94,20 @@
 
     $cobertura_items = [];
     if ($tipoCal === 'por_valor') {
-        $cobertura_items[] = ['Responsabilidad Civil Obligatoria', number_format((float)$poliza->cobertura_dolares, 2)];
+        // "por_valor" no es exclusivo de vehículos (ej. Póliza Muebles también
+        // lo usa) — antes decía "Responsabilidad Civil Obligatoria" siempre,
+        // aunque el bien fuera un inmueble o cualquier otro bien de valor.
+        $labelPorValor = ($bien['tipo'] ?? null) === 'vehiculo' ? 'Responsabilidad Civil Obligatoria' : 'Suma Asegurada';
+        $cobertura_items[] = [$labelPorValor, number_format((float)$poliza->cobertura_dolares, 2)];
     } elseif ($tipoCal === 'por_plan' && is_array($tarifaDatos)) {
-        foreach (['muerte_accidental'=>'Muerte Accidental','invalidez'=>'Invalidez Permanente','medicos'=>'Gastos Médicos','funerarios'=>'Funerarios'] as $key => $label) {
-            if (isset($tarifaDatos[$key]['suma'])) {
-                $cobertura_items[] = [$label, number_format((float)$tarifaDatos[$key]['suma'], 2)];
+        // Las coberturas de un plan son un mapa de claves nombradas (ver
+        // TarifarioController) — antes solo se reconocían 4 claves fijas que
+        // no coincidían con los datos reales (p.ej. "invalidez_total" vs
+        // "invalidez"), así que la mayoría de las coberturas no aparecían.
+        foreach ($tarifaDatos as $key => $val) {
+            if (is_array($val) && isset($val['suma'])) {
+                $label = $val['label'] ?? ucwords(str_replace('_', ' ', (string) $key));
+                $cobertura_items[] = [$label, number_format((float)$val['suma'], 2)];
             }
         }
     } elseif ($tipoCal === 'fijo' && is_array($tarifaDatos)) {
@@ -56,10 +116,31 @@
     } elseif ($tipoCal === 'por_nivel' && is_array($tarifaDatos)) {
         if (!empty($tarifaDatos['suma'])) $cobertura_items[] = [$tarifaDatos['nivel'] ?? 'Suma Asegurada', number_format((float)$tarifaDatos['suma'], 2)];
     }
+    // Pólizas sin tarifario enlazado (anteriores a esa relación): la suma
+    // asegurada se guarda directamente en la póliza, sin depender del snapshot.
+    if (empty($cobertura_items) && (float) $poliza->cobertura_dolares > 0) {
+        $cobertura_items[] = ['Suma Asegurada', number_format((float) $poliza->cobertura_dolares, 2)];
+    }
+
+    // Para vehículos el cuadro póliza estándar (modelo La Venezolana) usa un
+    // grid fijo de 8 coberturas típicas de auto en vez de una lista simple —
+    // las que el producto no tenga configuradas se muestran en 0,00, igual
+    // que en un cuadro póliza real cuando esa cobertura no aplica.
+    $coberturaGrid = null;
+    if (($bien['tipo'] ?? null) === 'vehiculo' && $tipoCal === 'fijo' && is_array($tarifaDatos)) {
+        $g = fn($k) => number_format((float) ($tarifaDatos[$k] ?? 0), 2);
+        $coberturaGrid = [
+            ['Daños a Personas', $g('suma_persona'), 'Exceso de Límite', $g('exceso_limite'), 'Muerte e Invalidez', $g('muerte_invalidez')],
+            ['Daños a Cosas',    $g('suma_cosa'),    'Defensa Penal',    $g('defensa_penal'), 'Gastos Médicos',     $g('gastos_medicos')],
+            ['Asistencia Vial',  $g('asistencia_vial'), null, null,     'Gastos Funerarios',  $g('gastos_funerarios')],
+        ];
+    }
 
     $tasaEmision    = (float) ($poliza->tasa_emision     ?? $snap['tasa_emision']     ?? 0);
     $tasaEmisionEur = (float) ($poliza->tasa_emision_eur ?? $snap['tasa_emision_eur'] ?? 0);
     $monedaPago     = $poliza->moneda ?? $snap['moneda'] ?? 'USD';
+    $monedaLabel    = ['USD' => 'DÓLARES', 'EUR' => 'EUROS', 'BS' => 'BOLÍVARES'][$monedaPago] ?? $monedaPago;
+    $frecuenciaPago = strtoupper($poliza->frecuencia_pago ?? 'Anual');
 
     $imgLogon  = 'data:image/jpeg;base64,' . base64_encode(file_get_contents(public_path('images/logon.jpg')));
     $imgIcono  = 'data:image/png;base64,'  . base64_encode(file_get_contents(public_path('images/icono.png')));
@@ -122,18 +203,29 @@
         </td>
         <td style="text-align:center; vertical-align:middle; padding:0 12px;">
             <strong style="font-size:17px; color:#127481;">Cuadro Póliza — Recibo de Prima</strong><br/>
-            <span style="font-size:12px; color:#444;">Automóvil · {{ $poliza->tipo ?? 'Individual' }}</span>
+            <span style="font-size:12px; color:#444;">{{ $ramoLabel }} · {{ $poliza->tipo ?? 'Individual' }}</span>
         </td>
-        <td style="width:190px; vertical-align:top;">
-            <div class="cuadro">
-                <table>
-                    <tr><td>Póliza:</td>       <td><strong>{{ $poliza->nro_contrato }}</strong></td></tr>
-                    <tr><td>Certificado:</td>   <td><strong>{{ $asegCi }}</strong></td></tr>
-                    <tr><td>Fecha:</td>         <td><strong>{{ $poliza->fecha_emision?->format('d-m-Y') }}</strong></td></tr>
-                    <tr><td>Páginas:</td>       <td><strong>1</strong></td></tr>
-                    <tr><td>Inicio Póliza:</td> <td><strong>{{ $poliza->fecha_emision?->format('Y') }}</strong></td></tr>
-                </table>
-            </div>
+        <td style="width:280px; vertical-align:top;">
+            <table width="100%" cellspacing="0" cellpadding="0">
+                <tr>
+                    @if($qrCode)
+                    <td style="width:90px; vertical-align:middle; padding-right:6px;">
+                        <img src="{{ $qrCode }}" style="width:86px; height:86px;" alt="QR"/>
+                    </td>
+                    @endif
+                    <td style="vertical-align:middle;">
+                        <div class="cuadro">
+                            <table>
+                                <tr><td>Póliza:</td>       <td><strong>{{ $poliza->nro_contrato }}</strong></td></tr>
+                                <tr><td>Certificado:</td>   <td><strong>{{ $certificadoPrincipal }}</strong></td></tr>
+                                <tr><td>Fecha:</td>         <td><strong>{{ $poliza->fecha_emision?->format('d-m-Y') }}</strong></td></tr>
+                                <tr><td>Páginas:</td>       <td><strong>1</strong></td></tr>
+                                <tr><td>Inicio Póliza:</td> <td><strong>{{ $poliza->fecha_emision?->format('Y') }}</strong></td></tr>
+                            </table>
+                        </div>
+                    </td>
+                </tr>
+            </table>
         </td>
     </tr>
 </table>
@@ -149,6 +241,13 @@
         <th style="width:30%; text-align:center;">{{ $tomadorCi }}</th>
     </tr>
     <tr class="titu">
+        <td>Dirección Tomador:</td><td>Teléfonos</td>
+    </tr>
+    <tr class="titu2">
+        <th style="width:70%;">{{ $tomadorDireccion }}</th>
+        <th style="width:30%; text-align:center;">{{ $tomadorTel }}</th>
+    </tr>
+    <tr class="titu">
         <td>Asegurado:</td><td>C.I. / RIF</td>
     </tr>
     <tr class="titu2">
@@ -156,11 +255,11 @@
         <th style="width:30%; text-align:center;">{{ $asegCi }}</th>
     </tr>
     <tr class="titu">
-        <td>Dirección / Sede:</td><td>Teléfono</td>
+        <td>Dirección Asegurado:</td><td>Teléfonos</td>
     </tr>
     <tr class="titu2">
-        <th style="width:70%;">{{ $poliza->sede_poliza }}</th>
-        <th style="width:30%; text-align:center;">{{ $tomadorTel }}</th>
+        <th style="width:70%;">{{ $asegDireccion }}</th>
+        <th style="width:30%; text-align:center;">{{ $asegTel }}</th>
     </tr>
 </table>
 
@@ -174,7 +273,7 @@
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Hasta: {{ $poliza->fecha_vencimiento?->format('d-m-Y') }}
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Hora: {{ now()->format('H:i') }}
         </th>
-        <th>DÓLARES</th>
+        <th>{{ $monedaLabel }}</th>
     </tr>
     <tr class="titu">
         <td style="border-right:none;">Sucursal de Cobro:</td>
@@ -183,8 +282,8 @@
     </tr>
     <tr class="titu2">
         <th style="border-right:none;">{{ $poliza->sede_poliza }}</th>
-        <th style="border:none; border-bottom:1px solid #888;">DIRECTO/INTERMEDIARIO</th>
-        <th>ANUAL</th>
+        <th style="border:none; border-bottom:1px solid #888;">{{ $canalVenta }}</th>
+        <th>{{ $frecuenciaPago }}</th>
     </tr>
     <tr class="titu"><td colspan="2">Código del Intermediario</td><td>Participación</td></tr>
     <tr class="titu2">
@@ -197,14 +296,15 @@
 <!-- ════════════════════════════════════════════════ DATOS RECIBO -->
 <table class="person" style="margin-top:5px;" width="100%" cellspacing="0">
     <tr><th colspan="4" class="linea">Datos del Recibo</th></tr>
-    <tr class="titu"><td colspan="3">Vigencia:</td><td>Tipo de Movimiento</td></tr>
+    <tr class="titu"><td>Número de Recibo:</td><td colspan="2">Vigencia:</td><td>Tipo de Movimiento</td></tr>
     <tr class="titu2">
-        <th colspan="3">
+        <th style="border-right:none;">{{ $numeroRecibo }}</th>
+        <th colspan="2" style="border:none;">
             &nbsp;&nbsp;&nbsp;Desde: {{ $poliza->fecha_emision?->format('d-m-Y') }}
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Hasta: {{ $poliza->fecha_vencimiento?->format('d-m-Y') }}
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Hora: {{ now()->format('H:i') }}
         </th>
-        <th>EMISIÓN / ALTA</th>
+        <th>{{ $esRenovacion ? 'RENOVACIÓN' : 'EMISIÓN / ALTA' }}</th>
     </tr>
     <tr class="titu">
         <td style="border-right:none;">Sucursal de Oficina:</td>
@@ -214,8 +314,8 @@
     </tr>
     <tr class="titu2">
         <th style="border-right:none;">{{ $poliza->sede_poliza }}</th>
-        <th style="border:none; border-bottom:1px solid #888;">DIRECTO/INTERMEDIARIO</th>
-        <th>ANUAL</th>
+        <th style="border:none; border-bottom:1px solid #888;">{{ $canalVenta }}</th>
+        <th>{{ $frecuenciaPago }}</th>
         <th>$ {{ number_format((float)$poliza->total, 2) }}</th>
     </tr>
     <tr class="titu">
@@ -244,6 +344,7 @@
         </td>
     </tr>
 
+    @if(($bien['tipo'] ?? null) === 'vehiculo')
     <tr><th colspan="6" class="linea">Datos del Vehículo</th></tr>
     <tr>
         <td style="width:13%; text-align:right; border-left:1px solid #888; padding:1.5px 3px; color:#555; font-size:9px;">Marca:</td>
@@ -275,18 +376,67 @@
         <td style="width:13%; text-align:right; padding:1.5px 3px; color:#555; font-size:9px; border-bottom:1px solid #888;">Serial Carrocería:</td>
         <td style="padding:3px 5px; border-bottom:1px solid #888;"><strong>{{ $serCar }}</strong></td>
         <td style="width:14%; text-align:right; padding:1.5px 3px; color:#555; font-size:9px; border-bottom:1px solid #888;">Otros:</td>
-        <td style="border-right:1px solid #888; padding:3px 5px; border-bottom:1px solid #888;"><strong>—</strong></td>
+        <td style="border-right:1px solid #888; padding:3px 5px; border-bottom:1px solid #888;"><strong>{{ $bienObservaciones ?: '—' }}</strong></td>
     </tr>
+    @elseif(!empty($bien['tipo']))
+    <tr><th colspan="6" class="linea">Datos del Bien Asegurado — {{ ucfirst(str_replace('_', ' ', $bien['tipo'])) }}</th></tr>
+    @php $attrsPares = collect($attrs)->filter(fn($v) => $v !== null && $v !== '')->all(); @endphp
+    @if(count($attrsPares) > 0)
+        @foreach(array_chunk(array_keys($attrsPares), 3) as $grupo)
+        <tr>
+            @foreach($grupo as $k)
+            <td style="width:13%; text-align:right; border-left:1px solid #888; padding:1.5px 3px; color:#555; font-size:9px;">{{ ucfirst(str_replace('_', ' ', $k)) }}:</td>
+            <td style="{{ $loop->last ? 'border-right:1px solid #888;' : '' }} padding:1.5px 4px;"><strong>{{ strtoupper((string) $attrsPares[$k]) }}</strong></td>
+            @endforeach
+            @if(count($grupo) < 3)
+                @for($i = count($grupo); $i < 3; $i++)
+                <td style="width:13%;"></td><td style="{{ $i === 2 ? 'border-right:1px solid #888;' : '' }}"></td>
+                @endfor
+            @endif
+        </tr>
+        @endforeach
+    @endif
+    @endif
 
-    <tr><th colspan="6" class="linea">Coberturas</th></tr>
-    @foreach($cobertura_items as $item)
+    @if($bienesAdicionales->isNotEmpty())
+    <tr><th colspan="6" class="linea">Bienes Adicionales Cubiertos por esta Póliza</th></tr>
+    @foreach($bienesAdicionales as $pb)
     <tr>
-        <td style="text-align:right; border-left:1px solid #888; padding:1.5px 4px; color:#555; font-size:9px;" colspan="2">{{ $item[0] }}:</td>
-        <td colspan="4" style="border-right:1px solid #888; padding:3px 6px;">
-            <strong>$ {{ $item[1] }}</strong>
-        </td>
+        <td style="width:13%; text-align:right; border-left:1px solid #888; padding:1.5px 3px; color:#555; font-size:9px;">Certificado:</td>
+        <td style="padding:1.5px 4px;"><strong>{{ $pb->certificado }}</strong></td>
+        <td style="width:13%; text-align:right; padding:1.5px 3px; color:#555; font-size:9px;">Tipo:</td>
+        <td style="padding:1.5px 4px;"><strong>{{ ucfirst($pb->bien?->tipo ?? '—') }}</strong></td>
+        <td style="width:14%; text-align:right; padding:1.5px 3px; color:#555; font-size:9px;">Referencia:</td>
+        <td style="border-right:1px solid #888; padding:1.5px 4px;"><strong>{{ strtoupper($pb->bien?->atributos['placa'] ?? $pb->bien?->atributos['descripcion'] ?? $pb->bien?->descripcion ?? '—') }}</strong></td>
     </tr>
     @endforeach
+    @endif
+
+    <tr><th colspan="6" class="linea">Coberturas / Sumas Aseguradas</th></tr>
+    @if($coberturaGrid)
+        @foreach($coberturaGrid as $fila)
+        <tr>
+            @for($i = 0; $i < 6; $i += 2)
+                @if($fila[$i] !== null)
+                <td style="width:13%; text-align:right; border-left:{{ $i === 0 ? '1px solid #888' : 'none' }}; padding:1.5px 3px; color:#555; font-size:9px;">{{ $fila[$i] }}:</td>
+                <td style="{{ $i === 4 ? 'border-right:1px solid #888;' : '' }} padding:1.5px 4px;"><strong>$ {{ $fila[$i + 1] }}</strong></td>
+                @else
+                <td style="width:13%; border-left:{{ $i === 0 ? '1px solid #888' : 'none' }};"></td>
+                <td style="{{ $i === 4 ? 'border-right:1px solid #888;' : '' }}"></td>
+                @endif
+            @endfor
+        </tr>
+        @endforeach
+    @else
+        @foreach($cobertura_items as $item)
+        <tr>
+            <td style="text-align:right; border-left:1px solid #888; padding:1.5px 4px; color:#555; font-size:9px;" colspan="2">{{ $item[0] }}:</td>
+            <td colspan="4" style="border-right:1px solid #888; padding:3px 6px;">
+                <strong>$ {{ $item[1] }}</strong>
+            </td>
+        </tr>
+        @endforeach
+    @endif
 
     <tr>
         <td style="text-align:right; border-left:1px solid #888; border-bottom:1px solid #888; padding:1.5px 4px; color:#555; font-size:9px;" colspan="2">Prima Neta:</td>
@@ -299,6 +449,11 @@
         @endif
     </tr>
 
+    <tr>
+        <td style="padding:3px 5px 1px; font-size:8px; color:#555; text-align:justify;" colspan="6">
+            El Asegurador entregará al Tomador este Cuadro Póliza, junto con las condiciones generales, las condiciones particulares, los anexos, si los hubiere, copia de la solicitud de seguro y demás documentos que formen parte del contrato. En las renovaciones la obligación se mantendrá si se modifican las condiciones originalmente contratadas. El Asegurador se obliga a atender y resolver cualquier denuncia, queja, reclamo o sugerencia que presente el Tomador, Asegurado o Beneficiario, con ocasión de las controversias derivadas de la ejecución del presente contrato de seguro, a través de la figura del Defensor del Tomador, Asegurado o Beneficiario. A tales fines, el Tomador, Asegurado o Beneficiario, podrá acudir a la respectiva Unidad de Defensa, o comunicarse a través de los mecanismos dispuestos para ello.
+        </td>
+    </tr>
     <tr>
         <td style="padding:3px 5px 1px; font-size:8px; color:#555;" colspan="6">
             El presente documento será entregado a El Tomador conjuntamente con las Condiciones Generales, Condiciones Particulares, anexos y demás documentos que formen parte de la póliza.
@@ -341,7 +496,7 @@
     <tr>
         <!-- Carnet Frontal -->
         <td style="width:290px; height:182px; border:2px solid #127481; font-size:9px; vertical-align:top; position:relative; overflow:hidden;">
-            <img src="{{ $imgCarnet }}" style="position:absolute; z-index:-1; width:100%; height:100%; top:0; left:0; opacity:0.65;"/>
+            <img src="{{ $imgCarnet }}" style="position:absolute; z-index:-1; width:100%; height:100%; top:0; left:0; opacity:0.07;"/>
             <img src="{{ $imgIcono }}"  style="position:absolute; z-index:-1; width:1.6cm; height:1.1cm; top:2px; left:5px; opacity:0.45;"/>
             <table style="text-align:center; width:100%; margin-top:8px;">
                 <!-- N° esquina superior derecha -->
@@ -359,15 +514,18 @@
                 <!-- DATOS DEL ASEGURADO -->
                 <tr><th colspan="3" style="font-size:9px; padding:2px 6px;">DATOS DEL ASEGURADO</th></tr>
                 <tr>
-                    <th style="font-size:8px; padding:1px 4px;">Asegurado</th>
-                    <th style="font-size:8px; padding:1px 4px;">C.I / RIF</th>
-                    <th style="font-size:8px; padding:1px 4px;">Teléfono</th>
+                    <th style="width:33.3%; font-size:8px; padding:1px 4px;">Nombres / Apellidos</th>
+                    <th style="width:33.3%; font-size:8px; padding:1px 4px;">C.I / RIF</th>
+                    <th style="width:33.3%; font-size:8px; padding:1px 4px;">Teléfono</th>
                 </tr>
                 <tr>
-                    <td style="font-size:8.5px; font-weight:600; padding:1px 4px;">{{ $asegNombre }}</td>
-                    <td style="font-size:8.5px; font-weight:600; padding:1px 4px;">{{ $asegCi }}</td>
-                    <td style="font-size:8.5px; font-weight:600; padding:1px 4px;">{{ $tomadorTel }}</td>
+                    <td style="width:33.3%; font-size:8.5px; font-weight:600; padding:1px 4px; vertical-align:top;">
+                        {{ $asegPartes['nombres'] ?: '—' }}<br/>{{ $asegPartes['apellidos'] ?: '—' }}
+                    </td>
+                    <td style="width:33.3%; font-size:8.5px; font-weight:600; padding:1px 4px; vertical-align:top;">{{ $asegCi }}</td>
+                    <td style="width:33.3%; font-size:8.5px; font-weight:600; padding:1px 4px; vertical-align:top;">{{ $asegTel }}</td>
                 </tr>
+                @if(($bien['tipo'] ?? null) === 'vehiculo')
                 <!-- VEHÍCULO ASEGURADO -->
                 <tr><th colspan="3" style="font-size:9px; padding:2px 6px;">VEHÍCULO ASEGURADO</th></tr>
                 <tr>
@@ -390,6 +548,23 @@
                     <td style="font-size:8.5px; font-weight:600; padding:1px 4px;">{{ $serCar }}</td>
                     <td style="font-size:8.5px; font-weight:600; padding:1px 4px;">{{ $anio }}</td>
                 </tr>
+                @elseif(!empty($bien['tipo']))
+                @php $attrsCarnet = array_slice(collect($attrs)->filter(fn($v) => $v !== null && $v !== '')->all(), 0, 6, true); @endphp
+                <!-- BIEN ASEGURADO (no vehículo) -->
+                <tr><th colspan="3" style="font-size:9px; padding:2px 6px;">BIEN ASEGURADO — {{ strtoupper(str_replace('_', ' ', $bien['tipo'])) }}</th></tr>
+                @foreach(array_chunk(array_keys($attrsCarnet), 3) as $grupoCarnet)
+                <tr>
+                    @foreach($grupoCarnet as $k)
+                    <th style="font-size:8px; padding:1px 4px;">{{ strtoupper(str_replace('_', ' ', $k)) }}</th>
+                    @endforeach
+                </tr>
+                <tr>
+                    @foreach($grupoCarnet as $k)
+                    <td style="font-size:8.5px; font-weight:600; padding:1px 4px;">{{ strtoupper((string) $attrsCarnet[$k]) }}</td>
+                    @endforeach
+                </tr>
+                @endforeach
+                @endif
             </table>
         </td>
 
@@ -397,7 +572,7 @@
 
         <!-- Carnet Reverso: EMISIÓN | QR | VENCIMIENTO -->
         <td style="width:290px; height:182px; border:2px solid #127481; font-size:9px; vertical-align:top; position:relative; overflow:hidden;">
-            <img src="{{ $imgCarnet }}" style="position:absolute; z-index:-1; width:100%; height:100%; top:0; left:0; opacity:0.65;"/>
+            <img src="{{ $imgCarnet }}" style="position:absolute; z-index:-1; width:100%; height:100%; top:0; left:0; opacity:0.07;"/>
             <img src="{{ $imgIcono }}"  style="position:absolute; z-index:-1; width:1.6cm; height:1.1cm; top:2px; left:5px; opacity:0.45;"/>
             <table width="100%" cellspacing="0" cellpadding="0" style="margin-top:15px;">
                 <!-- Providencia -->

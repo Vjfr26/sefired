@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { KeyRound, Activity, Info, Check, CheckCircle, AlertTriangle, Lock } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
-import { fetchLogs } from '../api/reports.js'
+import { fetchLogs, fetchAuditLog, fetchEmailLogs, fetchIpsBloqueadas, desbloquearIp } from '../api/reports.js'
 import { changePassword } from '../api/usuarios.js'
 import { badge } from '../utils/helpers.jsx'
+import DataTable from '../components/DataTable.jsx'
 
 // ── Tab: Seguridad ───────────────────────────────────────────
 function TabSeguridad() {
@@ -93,19 +94,104 @@ function TabSeguridad() {
           </div>
         )}
       </div>
+
+      {canAct('config', 'view_audit') && (
+        <div className="lg:col-span-2">
+          <TabIpsBloqueadas />
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Sub-sección: IPs bloqueadas ──────────────────────────────
+/**
+ * IPs bloqueadas por intentos de login fallidos, patrones de ataque, o al
+ * desactivar un usuario. Ya bloqueaban accesos reales, pero no había forma
+ * de verlas ni de desbloquear una por error (ej. IP de oficina compartida).
+ */
+function TabIpsBloqueadas() {
+  const { showToast, showModal, canAct } = useApp()
+  const canUnblock = canAct('config', 'manage_security')
+  const [items, setItems]     = useState([])
+  const [loading, setLoading] = useState(true)
+
+  const load = async () => {
+    setLoading(true)
+    try {
+      const data = await fetchIpsBloqueadas()
+      setItems(data.data || [])
+    } catch (error) {
+      showToast(error.message, 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { load() }, [])
+
+  const handleUnblock = (ip) => {
+    showModal('confirmAction', {
+      title: 'Desbloquear IP',
+      message: `La IP ${ip.ip} podrá volver a intentar iniciar sesión.`,
+      icon: Lock,
+      color: 'emerald',
+      confirmLabel: 'Desbloquear',
+      onConfirm: async () => {
+        await desbloquearIp(ip.id)
+        showToast(`IP ${ip.ip} desbloqueada`, 'success')
+        load()
+      },
+    })
+  }
+
+  const rows = items.map(ip => ({
+    id: ip.id,
+    fecha: ip.created_at ? new Date(ip.created_at).toLocaleString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : '—',
+    ip: ip.ip,
+    usuario: ip.usuario?.nombre || '—',
+    motivo: ip.motivo || '—',
+    accion: canUnblock ? (
+      <button onClick={() => handleUnblock(ip)} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition" title="Desbloquear IP">
+        Desbloquear
+      </button>
+    ) : null,
+  }))
+
+  return (
+    <div className="card p-6">
+      <h4 className="font-semibold text-slate-700 text-sm mb-4">IPs Bloqueadas</h4>
+      {!loading && items.length === 0 ? (
+        <p className="text-xs text-slate-400 text-center py-6">No hay ninguna IP bloqueada actualmente.</p>
+      ) : (
+        <DataTable
+          searchable
+          loading={loading}
+          cols={[
+            { k: 'fecha',   l: 'Fecha',    nw: true },
+            { k: 'ip',      l: 'IP',       m: true },
+            { k: 'usuario', l: 'Usuario',  hide: 'sm' },
+            { k: 'motivo',  l: 'Motivo',   tr: true },
+            { k: 'accion',  l: '', acc: true },
+          ]}
+          rows={rows}
+        />
+      )}
     </div>
   )
 }
 
 // ── Tab: Auditoría ───────────────────────────────────────────
 function TabAuditoria() {
-  const { showToast } = useApp()
+  const { showToast, canAct } = useApp()
+  const canViewEmailLogs = canAct('config', 'view_email_logs')
+  const [vista, setVista] = useState('resumen') // 'resumen' | 'detallado' | 'correos'
   const [logs, setLogs] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    loadLogs()
-  }, [])
+    if (vista === 'resumen') loadLogs()
+  }, [vista])
 
   const loadLogs = async () => {
     try {
@@ -150,58 +236,207 @@ function TabAuditoria() {
     })
   }
 
+  const rows = logs.map(r => ({
+    id: r.id,
+    fecha: formatDate(r.created_at),
+    usuario: r.usuario?.nick || r.usuario?.nombre || 'Sistema',
+    accion: getActionBadge(r.accion),
+    tabla: r.tabla || 'Sistema',
+    descripcion: r.descripcion || '—',
+    ip: r.ip || '—',
+    dispositivo: parseUA(r.user_agent),
+  }))
+
   return (
     <div>
-      <div className="card p-3.5 mb-4 flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-44">
-          <input type="text" placeholder="Buscar…" className="w-full pl-9 pr-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition" />
-          <Activity className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-        </div>
-        <input type="date" defaultValue="2026-05-01" className="min-w-0 text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500" />
-        <input type="date" defaultValue="2026-05-07" className="min-w-0 text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500" />
-        <button onClick={() => showToast('Exportando reporte…', 'info')} className="btn-secondary ml-auto shrink-0">Exportar</button>
+      <div className="flex gap-2 mb-4">
+        <button
+          onClick={() => setVista('resumen')}
+          className={`text-xs font-semibold px-3 py-1.5 rounded-xl border transition ${vista === 'resumen' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}
+        >
+          Resumen de actividad
+        </button>
+        <button
+          onClick={() => setVista('detallado')}
+          className={`text-xs font-semibold px-3 py-1.5 rounded-xl border transition ${vista === 'detallado' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}
+        >
+          Cambios detallados
+        </button>
+        {canViewEmailLogs && (
+          <button
+            onClick={() => setVista('correos')}
+            className={`text-xs font-semibold px-3 py-1.5 rounded-xl border transition ${vista === 'correos' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}
+          >
+            Logs de correos
+          </button>
+        )}
       </div>
 
-      <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-100 text-slate-600 text-xs font-semibold uppercase tracking-wider">
-              <tr>
-                <th className="th-cell text-left hidden sm:table-cell">Fecha/Hora</th>
-                <th className="th-cell text-left">Usuario</th>
-                <th className="th-cell text-left">Acción</th>
-                <th className="th-cell text-left hidden sm:table-cell">Módulo</th>
-                <th className="th-cell text-left hidden lg:table-cell">Detalle</th>
-                <th className="th-cell text-left hidden lg:table-cell">IP</th>
-                <th className="th-cell text-left hidden xl:table-cell">Dispositivo</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {loading ? (
-                <tr><td colSpan="7" className="text-center py-8 text-slate-400">Cargando registros...</td></tr>
-              ) : logs.length === 0 ? (
-                <tr><td colSpan="7" className="text-center py-8 text-slate-400">No hay registros de auditoría</td></tr>
-              ) : (
-                logs.map((r) => (
-                  <tr key={r.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="td-cell hidden sm:table-cell text-xs whitespace-nowrap">{formatDate(r.created_at)}</td>
-                    <td className="td-cell font-mono text-xs">{r.usuario?.nick || r.usuario?.nombre || 'Sistema'}</td>
-                    <td className="td-cell">{getActionBadge(r.accion)}</td>
-                    <td className="td-cell hidden sm:table-cell text-xs">{r.tabla || 'Sistema'}</td>
-                    <td className="td-cell hidden lg:table-cell max-w-0"><span className="break-words">{r.descripcion}</span></td>
-                    <td className="td-cell hidden lg:table-cell font-mono text-xs">{r.ip || '—'}</td>
-                    <td className="td-cell hidden xl:table-cell text-xs text-slate-500 max-w-[180px] truncate" title={r.user_agent || ''}>{parseUA(r.user_agent)}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-        <div className="px-5 py-3 border-t border-slate-100 text-xs text-slate-400 flex justify-between">
-          <span>{logs.length} registros</span>
-        </div>
-      </div>
+      {vista === 'resumen' ? (
+        <DataTable
+          searchable
+          loading={loading}
+          cols={[
+            { k: 'fecha',       l: 'Fecha/Hora',  hide: 'sm', nw: true },
+            { k: 'usuario',     l: 'Usuario',     m: true },
+            { k: 'accion',      l: 'Acción' },
+            { k: 'tabla',       l: 'Módulo',      hide: 'sm' },
+            { k: 'descripcion', l: 'Detalle',     hide: 'lg', tr: true },
+            { k: 'ip',          l: 'IP',          hide: 'lg', m: true },
+            { k: 'dispositivo', l: 'Dispositivo', hide: 'xl' },
+          ]}
+          rows={rows}
+        />
+      ) : vista === 'detallado' ? (
+        <TabCambiosDetallados />
+      ) : canViewEmailLogs ? (
+        <TabEmailLogs />
+      ) : null}
     </div>
+  )
+}
+
+// ── Sub-vista: Logs de correos (email_log) ───────────────────
+/**
+ * Historial de todos los correos que el sistema intentó enviar (bienvenida,
+ * cambios de cliente, pólizas/facturas emitidas, recordatorios, reportes
+ * programados...). Se registraba en BD desde hace tiempo vía
+ * EmailLog::registrar() pero no tenía ninguna vista — quedaba invisible.
+ */
+function TabEmailLogs() {
+  const { showToast } = useApp()
+  const [items, setItems]     = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    (async () => {
+      try {
+        setLoading(true)
+        const data = await fetchEmailLogs()
+        setItems(data.data || [])
+      } catch (error) {
+        showToast(error.message, 'error')
+      } finally {
+        setLoading(false)
+      }
+    })()
+  }, [])
+
+  const formatDate = (dateString) => {
+    if (!dateString) return '—'
+    return new Date(dateString).toLocaleString('es-VE', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', hour12: true
+    })
+  }
+
+  const rows = items.map(e => ({
+    id: e.id,
+    fecha: formatDate(e.sent_at),
+    tipo: badge(e.tipo, 'slate'),
+    destinatario: e.destinatario,
+    asunto: e.asunto,
+    cliente: e.persona?.nombre || '—',
+    status: e.status === 'enviado' ? badge('Enviado', 'green') : badge('Error', 'red'),
+    error: e.error_msg || '—',
+  }))
+
+  return (
+    <DataTable
+      searchable
+      loading={loading}
+      cols={[
+        { k: 'fecha',        l: 'Fecha/Hora',    nw: true },
+        { k: 'tipo',         l: 'Tipo' },
+        { k: 'destinatario', l: 'Destinatario',  m: true, hide: 'sm' },
+        { k: 'asunto',       l: 'Asunto',        tr: true },
+        { k: 'cliente',      l: 'Cliente',       hide: 'md' },
+        { k: 'status',       l: 'Estado' },
+        { k: 'error',        l: 'Error',         hide: 'lg', tr: true },
+      ]}
+      rows={rows}
+    />
+  )
+}
+
+// ── Sub-vista: Cambios detallados (audit_log) ────────────────
+/**
+ * Historial campo a campo de Solicitud/Póliza/Factura/Producto, registrado
+ * automáticamente por AuditObserver. Complementa el resumen descriptivo de
+ * arriba con el detalle exacto de qué valor cambió a cuál.
+ */
+function TabCambiosDetallados() {
+  const { showToast } = useApp()
+  const [items, setItems]     = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    (async () => {
+      try {
+        setLoading(true)
+        const data = await fetchAuditLog()
+        setItems(data.data || [])
+      } catch (error) {
+        showToast(error.message, 'error')
+      } finally {
+        setLoading(false)
+      }
+    })()
+  }, [])
+
+  const formatDate = (dateString) => {
+    if (!dateString) return ''
+    const d = new Date(dateString)
+    return d.toLocaleString('es-VE', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', hour12: true
+    })
+  }
+
+  const formatCambios = (cambios, accion) => {
+    if (accion === 'created') return <span className="text-emerald-600 font-medium">Registro creado</span>
+    if (accion === 'deleted') return <span className="text-rose-600 font-medium">Registro eliminado</span>
+    if (!cambios?.antes || !cambios?.despues) return '—'
+    const campos = Object.keys(cambios.despues)
+    if (campos.length === 0) return '—'
+    return (
+      <div className="space-y-0.5">
+        {campos.map(campo => (
+          <p key={campo} className="text-xs">
+            <span className="font-semibold text-slate-600">{campo}:</span>{' '}
+            <span className="text-slate-400">{JSON.stringify(cambios.antes[campo] ?? null)}</span>
+            {' → '}
+            <span className="text-slate-700 font-medium">{JSON.stringify(cambios.despues[campo] ?? null)}</span>
+          </p>
+        ))}
+      </div>
+    )
+  }
+
+  const rows = items.map(a => ({
+    id: a.id,
+    fecha: formatDate(a.created_at),
+    modelo: `${a.modelo} #${a.modelo_id ?? '—'}`,
+    accion: badge(a.accion, a.accion === 'created' ? 'green' : a.accion === 'deleted' ? 'red' : 'amber'),
+    usuario: a.usuario?.nick || a.usuario?.nombre || 'Sistema',
+    cambios: formatCambios(a.cambios, a.accion),
+    ip: a.ip || '—',
+  }))
+
+  return (
+    <DataTable
+      searchable
+      loading={loading}
+      cols={[
+        { k: 'fecha',   l: 'Fecha/Hora', hide: 'sm', nw: true },
+        { k: 'modelo',  l: 'Registro',   nw: true },
+        { k: 'accion',  l: 'Acción' },
+        { k: 'usuario', l: 'Usuario',    m: true, hide: 'sm' },
+        { k: 'cambios', l: 'Cambios',    tr: true },
+        { k: 'ip',      l: 'IP',         hide: 'lg', m: true },
+      ]}
+      rows={rows}
+    />
   )
 }
 
@@ -277,7 +512,7 @@ export default function Configuracion() {
   const ActiveTab = (tabs.find(t => t.key === active) ?? tabs[0])?.Component ?? TabSeguridad
 
   return (
-    <div>
+    <div className="animate-in fade-in duration-500">
       <div className="flex flex-wrap gap-2 mb-5">
         {tabs.map(t => (
           <button key={t.key} onClick={() => setActive(t.key)}
@@ -287,7 +522,9 @@ export default function Configuracion() {
           </button>
         ))}
       </div>
-      <ActiveTab />
+      <div key={active} className="animate-in fade-in duration-300">
+        <ActiveTab />
+      </div>
     </div>
   )
 }

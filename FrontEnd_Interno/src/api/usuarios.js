@@ -24,6 +24,17 @@ export async function fetchUsuarios() {
   return res.json()
 }
 
+/** Lista liviana (id, nombre, tipo) de usuarios activos, para reasignar el
+ *  vendedor de una póliza desde el modal de ajuste. No requiere usuarios.view. */
+export async function fetchVendedoresDisponibles() {
+  const res = await fetch(`${API}/vendedores-disponibles`, {
+    cache: 'no-store',
+    headers: getAuthHeaders(),
+  })
+  if (!res.ok) throw new Error('Error al cargar vendedores')
+  return res.json()
+}
+
 export async function storeUsuario(data) {
   const res = await fetch(API, {
     method: 'POST',
@@ -97,13 +108,23 @@ export async function changePassword(data) {
 }
 
 /** Verifica que la contraseña ingresada coincide con la del usuario en sesión.
- *  Lanza error si es incorrecta. */
+ *  Lanza error con el motivo real (contraseña incorrecta, sesión expirada,
+ *  demasiados intentos, sin conexión) en vez de uno genérico siempre igual. */
 export async function verifyPassword(password) {
-  const res = await fetch(`${API_BASE_URL}/api/user/verify-password`, {
-    method: 'POST',
-    headers: getAuthHeaders(),
-    body: JSON.stringify({ password }),
-  })
-  if (!res.ok) throw new Error('Contraseña incorrecta')
+  let res
+  try {
+    res = await fetch(`${API_BASE_URL}/api/user/verify-password`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ password }),
+    })
+  } catch {
+    throw new Error('No se pudo conectar con el servidor. Verifica tu conexión.')
+  }
+  if (!res.ok) {
+    if (res.status === 429) throw new Error('Demasiados intentos. Espera un momento e intenta de nuevo.')
+    const json = await res.json().catch(() => ({}))
+    throw new Error(json.error || json.message || 'Contraseña incorrecta')
+  }
   return true
 }
