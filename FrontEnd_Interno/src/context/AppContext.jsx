@@ -171,7 +171,9 @@ export function AppProvider({ children, onLogout }) {
     const meta = VIEW_META[viewId]
     const navId = meta?.navId
     // Si la sección no está en los permisos efectivos, redirigir a inicio silenciosamente
-    if (navId && navId !== 'home' && !userPerms.includes(navId)) {
+    const navItem = NAV.find(item => item.id === navId)
+    const requiredPerm = navItem ? (navItem.permId || navItem.id) : navId
+    if (navId && navId !== 'home' && !userPerms.includes(requiredPerm)) {
       setActiveNavId('home')
       setCurrentView('home')
       localStorage.setItem('nav_view', 'home')
