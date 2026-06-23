@@ -108,11 +108,36 @@ export async function fetchOficinas(params = {}) {
   return res.json()
 }
 
-export async function fetchPersonal(params = {}) {
+export async function fetchOficinasPagos(params = {}) {
   const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v != null && v !== '')))
-  const res = await fetch(`${API_BASE_URL}/api/reports/personal?${qs}`, { headers: getAuthHeaders() })
-  if (!res.ok) throw new Error('Error al cargar reporte de personal')
+  const res = await fetch(`${API_BASE_URL}/api/reports/oficinas/pagos?${qs}`, { headers: getAuthHeaders() })
+  if (!res.ok) throw new Error('Error al cargar reporte de pólizas cobradas')
   return res.json()
+}
+
+/**
+ * Marca (o desmarca) el retiro de efectivo de una oficina/forma de pago
+ * para un período dado, con notas y documento de entrega opcionales.
+ */
+export async function marcarRetiroEfectivo({ sede, forma_pago, fecha_inicio, fecha_fin, retirado, notas, documento }) {
+  const token = localStorage.getItem('auth_token')
+  const form = new FormData()
+  form.append('sede', sede)
+  form.append('forma_pago', forma_pago)
+  form.append('fecha_inicio', fecha_inicio)
+  form.append('fecha_fin', fecha_fin)
+  form.append('retirado', retirado ? '1' : '0')
+  if (notas != null) form.append('notas', notas)
+  if (documento) form.append('documento', documento)
+
+  const res = await fetch(`${API_BASE_URL}/api/reports/oficinas/retiro-efectivo`, {
+    method: 'POST',
+    headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+    body: form,
+  })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json.message || 'Error al marcar el retiro de efectivo')
+  return json
 }
 
 export async function exportVentas(params = {}) {
@@ -137,14 +162,14 @@ export async function exportOficinas(params = {}) {
   return res.blob()
 }
 
-export async function exportPersonal(params = {}) {
+export async function exportOficinasPagos(params = {}) {
   const token = localStorage.getItem('auth_token')
-  const res = await fetch(`${API_BASE_URL}/api/reports/personal/exportar`, {
+  const res = await fetch(`${API_BASE_URL}/api/reports/oficinas/pagos/exportar`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Accept': '*/*', 'Authorization': `Bearer ${token}` },
     body: JSON.stringify(params)
   })
-  if (!res.ok) throw new Error('Error al exportar personal')
+  if (!res.ok) throw new Error('Error al exportar pólizas cobradas')
   return res.blob()
 }
 
@@ -153,6 +178,48 @@ export async function fetchUsuariosReport(params = {}) {
   const res = await fetch(`${API_BASE_URL}/api/reports/usuarios?${qs}`, { headers: getAuthHeaders() })
   if (!res.ok) throw new Error('Error al cargar reporte de usuarios')
   return res.json()
+}
+
+export async function exportUsuariosReport(params = {}) {
+  const token = localStorage.getItem('auth_token')
+  const res = await fetch(`${API_BASE_URL}/api/reports/usuarios/exportar`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': '*/*', 'Authorization': `Bearer ${token}` },
+    body: JSON.stringify(params)
+  })
+  if (!res.ok) throw new Error('Error al exportar métricas de personal')
+  return res.blob()
+}
+
+/** Marca una comisión como pagada o la revierte a pendiente. */
+export async function marcarComision(id, status) {
+  const token = localStorage.getItem('auth_token')
+  const res = await fetch(`${API_BASE_URL}/api/reports/comisiones/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': `Bearer ${token}` },
+    body: JSON.stringify({ status })
+  })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json.message || 'Error al actualizar la comisión')
+  return json
+}
+
+/**
+ * Pago por lotes — marca como pagadas varias comisiones de una vez. El
+ * llamador debe haber verificado la contraseña del usuario ANTES de llamar
+ * esto (ver verifyPassword en api/usuarios.js), igual que el resto de las
+ * acciones sensibles de la app.
+ */
+export async function pagarLoteComisiones(comisionIds) {
+  const token = localStorage.getItem('auth_token')
+  const res = await fetch(`${API_BASE_URL}/api/reports/comisiones/pagar-lote`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': `Bearer ${token}` },
+    body: JSON.stringify({ comision_ids: comisionIds })
+  })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json.message || 'Error al pagar las comisiones por lote')
+  return json
 }
 
 export async function fetchClientesReport(params = {}) {

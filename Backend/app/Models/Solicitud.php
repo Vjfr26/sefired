@@ -23,6 +23,7 @@ class Solicitud extends Model
         'tarifario_id',
         'total',
         'total_bs',
+        'moneda_producto',
         'suma_cobertura_bs',
         'suma_prima_bs',
         'fecha_solicitud',

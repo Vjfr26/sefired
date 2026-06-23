@@ -13,7 +13,10 @@ use App\Models\Poliza;
 use App\Models\Producto;
 use App\Models\Solicitud;
 use App\Models\SolicitudContacto;
+use App\Rules\CedulaValida;
 use App\Rules\NoInjectionChars;
+use App\Rules\TelefonoValido;
+use App\Support\Documento;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -80,9 +83,10 @@ class PortalController extends Controller
     ───────────────────────────────────────────────────────────── */
     public function verificarCliente(Request $request)
     {
-        $request->validate(['cedula' => 'required|string|max:20']);
+        $request->merge(['cedula' => Documento::normalizarCedula($request->input('cedula'))]);
+        $request->validate(['cedula' => ['required', 'string', 'max:20', new CedulaValida()]]);
 
-        $cedula = strtoupper(preg_replace('/[^A-Z0-9]/i', '', trim($request->cedula)));
+        $cedula = Documento::soloAlfanumerico($request->cedula);
 
         $persona = Persona::whereRaw(
             "UPPER(REPLACE(REPLACE(REPLACE(cedula, '-', ''), '.', ''), ' ', '')) = ?",
@@ -131,12 +135,14 @@ class PortalController extends Controller
         // comillas, punto y coma, backtick, < >, backslash y "--" en los
         // campos de texto libre por política explícita — mismo set de
         // caracteres que ya filtra el frontend en sanitizeInput().
+        $request->merge(['cedula' => Documento::normalizarCedula($request->input('cedula'))]);
+
         $noInjectionChars = new NoInjectionChars();
         $data = $request->validate([
             // Datos del cliente
             'nombre_completo'     => ['required', 'string', 'max:200', $noInjectionChars],
-            'cedula'              => 'required|string|max:20',
-            'telefono'            => ['required', 'string', 'max:30', $noInjectionChars],
+            'cedula'              => ['required', 'string', 'max:20', new CedulaValida()],
+            'telefono'            => ['required', 'string', 'max:30', new TelefonoValido()],
             'email'               => 'required|email|max:120|confirmed',
             'estado'              => ['required', 'string', 'max:60', $noInjectionChars],
             'ciudad'              => ['required', 'string', 'max:80', $noInjectionChars],
@@ -170,10 +176,11 @@ class PortalController extends Controller
             'documentos_nombres.*'=> ['nullable', 'string', 'max:100', $noInjectionChars],
         ]);
 
-        // 3. Normalizar cédula, nombre, teléfono y correo para comparar duplicados
-        $cedula      = strtoupper(preg_replace('/[^A-Z0-9]/i', '', trim($data['cedula'])));
+        // 3. Normalizar nombre, teléfono y correo para comparar duplicados
+        // (cedula ya quedó normalizada antes de validar, paso 2)
+        $cedula      = Documento::soloAlfanumerico($data['cedula']);
         $nombre      = trim($data['nombre_completo']);
-        $telefono    = preg_replace('/\D/', '', $data['telefono']);
+        $telefono    = Documento::soloDigitos($data['telefono']);
         $correoNorm  = strtolower(trim($data['email']));
 
         // 4. No se permiten solicitudes de alguien que ya es cliente — se

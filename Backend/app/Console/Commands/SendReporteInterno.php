@@ -7,6 +7,7 @@ use App\Models\EmailLog;
 use App\Models\Factura;
 use App\Models\Persona;
 use App\Models\Poliza;
+use App\Support\Moneda;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Mail;
 
@@ -20,14 +21,23 @@ class SendReporteInterno extends Command
         $desde = now()->subWeek()->startOfWeek()->toDateString();
         $hasta = now()->subWeek()->endOfWeek()->toDateString();
 
+        // Pólizas de la semana en colección PHP (no ->sum() en SQL) porque
+        // primaTotalUsd debe convertir cada póliza a USD según su moneda
+        // nativa antes de sumar — mezclar total en USD/EUR/Bs sin convertir
+        // daría un número sin sentido.
+        $polizasSemana = Poliza::whereBetween('fecha_emision', [$desde, $hasta])->get();
+        $primaTotalUsd = $polizasSemana->sum(
+            fn($p) => Moneda::aUsd((float) $p->total, $p->monedaNativa(), (float) $p->tasa_emision, (float) $p->tasa_emision_eur)
+        );
+
         $stats = [
             'semanaDesde'      => date('d/m/Y', strtotime($desde)),
             'semanaHasta'      => date('d/m/Y', strtotime($hasta)),
-            'polizasEmitidas'  => Poliza::whereBetween('fecha_emision', [$desde, $hasta])->count(),
+            'polizasEmitidas'  => $polizasSemana->count(),
             'facturasEmitidas' => Factura::whereBetween('fecha_factura', [$desde, $hasta])->count(),
             'clientesNuevos'   => Persona::whereBetween('fecha_creacion', [$desde . ' 00:00:00', $hasta . ' 23:59:59'])->count(),
-            'primaTotalUsd'    => number_format(Poliza::whereBetween('fecha_emision', [$desde, $hasta])->sum('total'), 2),
-            'primaTotalBs'     => number_format(Poliza::whereBetween('fecha_emision', [$desde, $hasta])->sum('total_bs'), 2),
+            'primaTotalUsd'    => number_format($primaTotalUsd, 2),
+            'primaTotalBs'     => number_format($polizasSemana->sum('total_bs'), 2),
             'polizasPorVencer' => Poliza::where('status', 'ACTIVA')->whereBetween('fecha_vencimiento', [now()->toDateString(), now()->addDays(30)->toDateString()])->count(),
             'polizasVencidas'  => Poliza::where('status', 'VENCIDA')->count(),
         ];

@@ -32,7 +32,7 @@
       Prima Anual Estimada
     </p>
     <p style="margin:0;font-size:36px;font-weight:900;color:#4c1d95;line-height:1.1;">
-      ${{ $primaUsd }} <span style="font-size:16px;font-weight:600;color:#7c3aed;">USD</span>
+      {{ $simboloNativo }}{{ $primaPrincipal }} <span style="font-size:16px;font-weight:600;color:#7c3aed;">{{ $monedaNativa }}</span>
     </p>
     @if($primaBs || $primaEur)
     <p style="margin:6px 0 0;font-size:14px;color:#6d28d9;">
@@ -81,7 +81,7 @@
         ['Dirección',       $direccion],
         ['Producto',        $productoNombre],
         ['Bien asegurado',  $bienRef],
-        ['Suma asegurada',  '$' . $cobertura . ' USD'],
+        ['Suma asegurada',  $cobertura],
       ] as $row)
       @if($row[1] && $row[1] !== '—')
       <tr>

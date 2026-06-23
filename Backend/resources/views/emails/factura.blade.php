@@ -1,5 +1,5 @@
 @extends('emails.layout')
-@section('title', 'Factura — J&M Seguros')
+@section('title', 'Recibo — J&M Seguros')
 
 @section('content')
 <table width="100%" cellpadding="0" cellspacing="0">
@@ -9,10 +9,10 @@
 </table>
 
 <h1 style="margin:0 0 8px;font-size:22px;font-weight:800;color:#1e293b;text-align:center;">
-  Factura {{ $nroFactura }}
+  Recibo {{ $nroFactura }}
 </h1>
 <p style="margin:0 0 24px;font-size:14px;color:#64748b;text-align:center;line-height:1.6;">
-  Estimado/a <strong>{{ $clienteNombre }}</strong>, adjuntamos su factura de pago.
+  Estimado/a <strong>{{ $clienteNombre }}</strong>, adjuntamos su recibo de pago.
 </p>
 
 <table width="100%" cellpadding="0" cellspacing="0"
@@ -20,13 +20,13 @@
   <tr><td style="padding:20px 24px;">
     <table width="100%" cellpadding="0" cellspacing="0">
       @foreach([
-        ['N° Factura',       $nroFactura],
+        ['N° Recibo',        $nroFactura],
         ['Póliza',           $nroPoliza],
         ['Fecha',            $fechaFactura],
         ['Forma de pago',    $formaPago . ' / ' . $moneda],
         ['Referencia',       $referencia ?? '—'],
-        ['Monto USD',        '$' . $valorUsd],
-        ['Tasa BCV',         'Bs. ' . $tasaEmision . ' / USD'],
+        ['Monto',            $simboloNativo . $valorPrincipal . ' ' . $monedaNativa],
+        ['Tasa BCV',         'Bs. ' . $tasaEmision . ' / ' . $monedaNativa],
         ['Total Bs.',        'Bs. ' . $valorBs],
       ] as $row)
       <tr>
@@ -39,6 +39,6 @@
 </table>
 
 <p style="margin:0;font-size:13px;color:#94a3b8;text-align:center;">
-  La factura en formato PDF se adjunta a este correo.
+  Este correo es su recibo de pago — consérvelo como comprobante.
 </p>
 @endsection

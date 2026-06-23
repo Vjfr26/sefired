@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use App\Models\Poliza;
+use App\Support\Moneda;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
@@ -47,6 +48,8 @@ class PolizaRenovadaMail extends Mailable
             : null;
         $proximaCuota = $esMensual ? $this->polizaNueva->fecha_emision?->copy()->addMonth()->format('d/m/Y') : null;
 
+        $monedaNativa = $this->polizaNueva->monedaNativa();
+
         return new Content(
             view: 'emails.poliza-renovada',
             with: [
@@ -61,6 +64,8 @@ class PolizaRenovadaMail extends Mailable
                 'fechaEmision'     => $this->polizaNueva->fecha_emision->format('d/m/Y'),
                 'fechaVencimiento' => $this->polizaNueva->fecha_vencimiento->format('d/m/Y'),
                 'prima'            => number_format((float) $this->polizaNueva->total, 2),
+                'monedaNativa'     => $monedaNativa,
+                'simboloNativo'    => Moneda::simbolo($monedaNativa),
                 'esMensual'        => $esMensual,
                 'cuotaMensual'     => $cuotaMensual !== null ? number_format($cuotaMensual, 2) : null,
                 'proximaCuota'     => $proximaCuota,

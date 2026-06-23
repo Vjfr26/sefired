@@ -325,7 +325,7 @@
             <div class="row"><span class="lbl">Emisión</span>        <span class="val">{{ $fecha_emision }}</span></div>
             <div class="row"><span class="lbl">Vencimiento</span>    <span class="val">{{ $fecha_vencimiento }}</span></div>
             @if(isset($total) && $total)
-            <div class="row"><span class="lbl">Prima Total</span>    <span class="val">$ {{ number_format((float)$total, 2) }}</span></div>
+            <div class="row"><span class="lbl">Prima Total</span>    <span class="val">{{ $moneda_simbolo ?? '$' }}{{ number_format((float)$total, 2) }}</span></div>
             @endif
 
             @if($placa !== '—')
@@ -365,25 +365,28 @@
                 <strong>Titular:</strong> {{ $asegurado_nombre }}<br>
                 <strong>Vencimiento actual:</strong> {{ $fecha_vencimiento }}<br>
                 @if(isset($total) && $total)
+                @php
+                    // La moneda nativa del producto va primero y resaltada;
+                    // las otras dos son solo conversión de referencia — nunca
+                    // se mezclan montos de monedas distintas en la misma cifra.
+                    $cajasMoneda = [
+                        'USD' => ['label' => 'Dólares',   'simbolo' => '$',    'valor' => $total_usd_equiv ?? null, 'color' => '#127481'],
+                        'EUR' => ['label' => 'Euros',     'simbolo' => '€',    'valor' => $total_eur        ?? null, 'color' => '#b45309'],
+                        'BS'  => ['label' => 'Bolívares', 'simbolo' => 'Bs. ', 'valor' => $total_bs         ?? null, 'color' => '#374151'],
+                    ];
+                    $cajasMoneda[$moneda ?? 'USD']['valor'] = $total;
+                @endphp
                 <div style="margin-top:10px; padding-top:10px; border-top:1px solid #b2e0e6;">
                     <div style="font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:#6b7280; margin-bottom:6px;">Monto a cancelar</div>
                     <div style="display:flex; flex-wrap:wrap; gap:8px; justify-content:center;">
-                        <div style="background:white; border:1px solid #d1d5db; border-radius:8px; padding:8px 14px; text-align:center; min-width:110px;">
-                            <div style="font-size:10px; color:#6b7280; margin-bottom:2px;">Dólares</div>
-                            <div style="font-size:18px; font-weight:800; color:#127481;">$ {{ number_format((float)$total, 2) }}</div>
-                        </div>
-                        @if(isset($total_eur) && $total_eur)
-                        <div style="background:white; border:1px solid #d1d5db; border-radius:8px; padding:8px 14px; text-align:center; min-width:110px;">
-                            <div style="font-size:10px; color:#6b7280; margin-bottom:2px;">Euros</div>
-                            <div style="font-size:18px; font-weight:800; color:#b45309;">€ {{ number_format($total_eur, 2) }}</div>
+                        @foreach($cajasMoneda as $cod => $caja)
+                        @if($caja['valor'])
+                        <div style="background:white; border:1px solid {{ $cod === ($moneda ?? 'USD') ? $caja['color'] : '#d1d5db' }}; border-radius:8px; padding:8px 14px; text-align:center; min-width:110px;">
+                            <div style="font-size:10px; color:#6b7280; margin-bottom:2px;">{{ $caja['label'] }}{{ $cod === ($moneda ?? 'USD') ? ' (a pagar)' : '' }}</div>
+                            <div style="font-size:18px; font-weight:800; color:{{ $caja['color'] }};">{{ $caja['simbolo'] }}{{ number_format((float)$caja['valor'], 2) }}</div>
                         </div>
                         @endif
-                        @if(isset($total_bs) && $total_bs)
-                        <div style="background:white; border:1px solid #d1d5db; border-radius:8px; padding:8px 14px; text-align:center; min-width:110px;">
-                            <div style="font-size:10px; color:#6b7280; margin-bottom:2px;">Bolívares</div>
-                            <div style="font-size:18px; font-weight:800; color:#374151;">Bs. {{ number_format($total_bs, 2) }}</div>
-                        </div>
-                        @endif
+                        @endforeach
                     </div>
                     @if(isset($tasa_usd) && $tasa_usd)
                     <div style="font-size:10px; color:#9ca3af; margin-top:6px; text-align:center;">
@@ -453,9 +456,33 @@
 
 <script>
     // ── Constantes ────────────────────────────────────────────────────────────
-    const TOTAL_POLIZA = {{ isset($total) && $total ? (float)$total : 0 }};
-    const TASA_USD     = {{ isset($tasa_usd) && $tasa_usd ? (float)$tasa_usd : 0 }};
-    const TASA_EUR     = {{ isset($tasa_eur) && $tasa_eur ? (float)$tasa_eur : 0 }};
+    // TOTAL_POLIZA está en MONEDA_NATIVA (la moneda del producto, no siempre
+    // USD) — todo pago se convierte a MONEDA_NATIVA antes de comparar, nunca
+    // al revés, para no mezclar montos de monedas distintas en el balance.
+    const TOTAL_POLIZA  = {{ isset($total) && $total ? (float)$total : 0 }};
+    const TASA_USD      = {{ isset($tasa_usd) && $tasa_usd ? (float)$tasa_usd : 0 }};
+    const TASA_EUR      = {{ isset($tasa_eur) && $tasa_eur ? (float)$tasa_eur : 0 }};
+    const MONEDA_NATIVA = "{{ $moneda ?? 'USD' }}";
+    const SIMBOLO_NATIVO = "{{ $moneda_simbolo ?? '$' }}";
+
+    function normalizarMoneda(m) {
+        const x = String(m || '').toUpperCase().replace(/[.\s]/g, '');
+        if (['BS', 'BOLIVAR', 'BOLIVARES'].includes(x)) return 'BS';
+        if (['EUR', 'EURO', 'EUROS'].includes(x))        return 'EUR';
+        return 'USD';
+    }
+    // Pivotea por bolívares, igual que Moneda::convertir() en el backend.
+    function convertirMoneda(valor, desde, hacia) {
+        desde = normalizarMoneda(desde); hacia = normalizarMoneda(hacia);
+        if (desde === hacia) return { valor, sinTasa: false };
+        const enBs = desde === 'USD' ? (TASA_USD ? valor * TASA_USD : null)
+                   : desde === 'EUR' ? (TASA_EUR ? valor * TASA_EUR : null)
+                   : valor;
+        if (enBs === null) return { valor: 0, sinTasa: true };
+        if (hacia === 'USD') return TASA_USD ? { valor: enBs / TASA_USD, sinTasa: false } : { valor: 0, sinTasa: true };
+        if (hacia === 'EUR') return TASA_EUR ? { valor: enBs / TASA_EUR, sinTasa: false } : { valor: 0, sinTasa: true };
+        return { valor: enBs, sinTasa: false };
+    }
     const METODOS = ['Transferencia Bancaria','Pago Móvil','Zelle','Binance / Cripto'];
     const MAX_PAGOS = 5;
     let contadorPago = 0;
@@ -567,9 +594,8 @@
         const box = document.getElementById('balance-box');
         if (!box) return;
 
-        let totalUSD     = 0;
-        let sinTasaBs    = false; // hay Bs. pero no hay tasa registrada
-        let sinTasaEur   = false;
+        let totalNativo = 0;
+        let sinTasa      = false; // algún pago necesitó una tasa que no está registrada
 
         document.querySelectorAll('.pago-row').forEach(row => {
             const inputs  = row.querySelectorAll('input[type="number"]');
@@ -577,49 +603,31 @@
             const monto   = parseFloat(inputs[0]?.value) || 0;
             const moneda  = selects[1]?.value || 'USD';
 
-            if (moneda === 'USD') {
-                totalUSD += monto;
-            } else if (moneda === 'EUR') {
-                if (TASA_EUR > 0 && TASA_USD > 0) {
-                    totalUSD += monto * (TASA_EUR / TASA_USD);
-                } else {
-                    totalUSD += monto; // sin tasa EUR: tratamos 1:1
-                    sinTasaEur = true;
-                }
-            } else if (moneda === 'Bs.') {
-                if (TASA_USD > 0) {
-                    totalUSD += monto / TASA_USD;
-                } else {
-                    sinTasaBs = true; // no hay tasa registrada
-                }
-            }
+            const { valor, sinTasa: faltaTasa } = convertirMoneda(monto, moneda, MONEDA_NATIVA);
+            totalNativo += valor;
+            if (faltaTasa) sinTasa = true;
         });
 
-        const diff  = Math.round((totalUSD - TOTAL_POLIZA) * 100) / 100;
-        const falta = Math.round((TOTAL_POLIZA - totalUSD) * 100) / 100;
+        const diff  = Math.round((totalNativo - TOTAL_POLIZA) * 100) / 100;
+        const falta = Math.round((TOTAL_POLIZA - totalNativo) * 100) / 100;
 
         box.style.display = 'block';
 
         const BASE = 'border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px;text-align:center;';
 
-        if (sinTasaBs) {
-            box.innerHTML = '⚠️ Hay pagos en Bs. sin tasa registrada — el asesor verificará el total.';
+        if (sinTasa) {
+            box.innerHTML = '⚠️ Hay pagos en una moneda sin tasa registrada — el asesor verificará el total.';
             box.style.cssText = BASE + 'background:#fef3c7;color:#92400e;';
-        } else if (totalUSD <= 0) {
+        } else if (totalNativo <= 0) {
             box.style.display = 'none';
         } else if (Math.abs(diff) < 0.01) {
             box.innerHTML = '✅ <strong>Monto completo</strong> — listo para enviar.';
             box.style.cssText = BASE + 'font-weight:bold;background:#d1fae5;color:#065f46;';
         } else if (diff > 0) {
-            const extra = diff.toFixed(2);
-            const extraBs = TASA_USD > 0 ? ` (Bs. ${(diff * TASA_USD).toFixed(2)})` : '';
-            box.innerHTML = `ℹ️ Saldo a favor: <strong>$ ${extra} USD${extraBs}</strong> — el asesor lo considerará.`;
+            box.innerHTML = `ℹ️ Saldo a favor: <strong>${SIMBOLO_NATIVO}${diff.toFixed(2)} ${MONEDA_NATIVA}</strong> — el asesor lo considerará.`;
             box.style.cssText = BASE + 'background:#dbeafe;color:#1e40af;';
         } else {
-            const pendUsd = falta.toFixed(2);
-            const pendBs  = TASA_USD > 0 ? ` / Bs. ${(falta * TASA_USD).toFixed(2)}` : '';
-            const pendEur = (TASA_EUR > 0 && TASA_USD > 0) ? ` / € ${(falta * TASA_USD / TASA_EUR).toFixed(2)}` : '';
-            box.innerHTML = `⚠️ Falta por pagar: <strong>$ ${pendUsd} USD${pendEur}${pendBs}</strong>`;
+            box.innerHTML = `⚠️ Falta por pagar: <strong>${SIMBOLO_NATIVO}${falta.toFixed(2)} ${MONEDA_NATIVA}</strong>`;
             box.style.cssText = BASE + 'font-weight:bold;background:#fef3c7;color:#92400e;';
         }
     }

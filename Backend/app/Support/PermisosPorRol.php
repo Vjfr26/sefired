@@ -25,7 +25,7 @@ class PermisosPorRol
             'productos'    => ['view', 'view_cards', 'view_list', 'create', 'edit', 'delete', 'manage_docs', 'manage_beneficios'],
             'tasas'        => ['view', 'view_cards', 'view_list', 'create', 'edit', 'delete'],
             'usuarios'     => ['view', 'view_cards', 'view_list', 'create', 'edit', 'delete', 'block', 'perms', 'change_role'],
-            'reportes'     => ['view', 'export', 'manage_leads', 'manage_schedules', 'view_ventas', 'view_oficinas', 'view_personal', 'view_metrics_personal', 'view_metrics_clientes', 'view_metrics_vehiculos', 'view_leads', 'view_externos'],
+            'reportes'     => ['view', 'export', 'manage_leads', 'manage_schedules', 'manage_comisiones', 'manage_oficinas', 'revertir_comisiones', 'view_ventas', 'view_ventas_todos', 'view_oficinas', 'view_metrics_personal', 'view_metrics_personal_todos', 'view_metrics_clientes', 'view_metrics_vehiculos', 'view_leads', 'view_externos'],
             'config'       => ['view', 'change_password', 'view_audit', 'view_email_logs', 'manage_security'],
         ],
         'Oficina' => [
@@ -35,7 +35,7 @@ class PermisosPorRol
             'cotizaciones' => ['view', 'view_list', 'create', 'edit', 'emit', 'underwrite'],
             'productos'    => ['view', 'view_cards', 'view_list'],
             'tasas'        => ['view', 'view_cards', 'view_list'],
-            'reportes'     => ['view', 'export', 'manage_leads', 'view_ventas', 'view_oficinas', 'view_personal', 'view_metrics_personal', 'view_metrics_clientes', 'view_metrics_vehiculos', 'view_leads', 'view_externos'],
+            'reportes'     => ['view', 'export', 'manage_leads', 'manage_comisiones', 'manage_oficinas', 'view_ventas', 'view_ventas_todos', 'view_oficinas', 'view_metrics_personal', 'view_metrics_personal_todos', 'view_metrics_clientes', 'view_metrics_vehiculos', 'view_leads', 'view_externos'],
             'config'       => ['view', 'change_password'],
         ],
         'Vendedor Sucursal' => [
@@ -45,6 +45,7 @@ class PermisosPorRol
             'cotizaciones' => ['view', 'view_list', 'create'],
             'productos'    => ['view', 'view_cards', 'view_list'],
             'tasas'        => ['view', 'view_cards', 'view_list'],
+            'reportes'     => ['view', 'view_ventas', 'view_metrics_personal'],
             'config'       => ['view', 'change_password'],
         ],
         'Vendedor Calle' => [
@@ -54,6 +55,7 @@ class PermisosPorRol
             'cotizaciones' => ['view', 'view_list', 'create'],
             'productos'    => ['view', 'view_cards', 'view_list'],
             'tasas'        => ['view', 'view_cards', 'view_list'],
+            'reportes'     => ['view', 'view_ventas', 'view_metrics_personal'],
             'config'       => ['view', 'change_password'],
         ],
     ];

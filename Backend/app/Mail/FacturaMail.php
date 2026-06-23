@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use App\Models\Factura;
+use App\Support\Moneda;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
@@ -18,20 +19,22 @@ class FacturaMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Factura ' . $this->factura->numero . ' | J&M Seguros',
+            subject: 'Recibo ' . $this->factura->numero . ' | J&M Seguros',
         );
     }
 
     public function content(): Content
     {
         $f = $this->factura;
+        $monedaNativa  = $f->poliza?->monedaNativa() ?? 'USD';
+        $tasaRelevante = $monedaNativa === 'EUR' ? $f->poliza?->tasa_emision_eur : $f->poliza?->tasa_emision;
 
         return new Content(
             view: 'emails.factura',
             with: [
                 'accentColor'   => '#001463',
                 'badgeColor'    => '#6366f1',
-                'badgeText'     => 'Factura de Pago',
+                'badgeText'     => 'Recibo de Pago',
                 'logoUrl'       => url('logo-sinfondo.png'),
                 'clienteNombre' => $this->clienteNombre,
                 'nroFactura'    => $f->numero,
@@ -40,8 +43,10 @@ class FacturaMail extends Mailable
                 'formaPago'     => $f->forma_pago,
                 'moneda'        => $f->moneda ?? 'USD',
                 'referencia'    => $f->referencia,
-                'valorUsd'      => number_format((float) $f->valor, 2),
-                'tasaEmision'   => number_format((float) ($f->poliza?->tasa_emision ?? 0), 4),
+                'valorPrincipal' => number_format((float) $f->valor, 2),
+                'monedaNativa'  => $monedaNativa,
+                'simboloNativo' => Moneda::simbolo($monedaNativa),
+                'tasaEmision'   => number_format((float) ($tasaRelevante ?? 0), 4),
                 'valorBs'       => number_format((float) $f->valor_bs, 2),
             ],
         );

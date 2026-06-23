@@ -111,10 +111,51 @@ export function UserAvatar({ rol, genero, className = '', blocked = false }) {
   )
 }
 
+// ── Filtros de entrada para formularios ──────────────────────────────────────
+// Limpian el valor en cada tecla para que no se pueda ni escribir basura —
+// el backend vuelve a validar/normalizar igual (ver App\Rules\CedulaValida,
+// TelefonoValido, CodigoPostalValido), esto es solo para que el usuario lo
+// vea filtrado de inmediato en vez de enterarse recién al guardar.
+
+/** Cédula/RIF: letra de nacionalidad (V/E/J/G/P) + dígitos + guion opcional. */
+export const filtrarCedula = (v) => v.toUpperCase().replace(/[^VEJGP0-9-]/g, '')
+
+/** Teléfono: dígitos, espacios, "+", "-" y paréntesis. */
+export const filtrarTelefono = (v) => v.replace(/[^0-9+\-()\s]/g, '')
+
+/** Código postal y otros campos puramente numéricos. */
+export const filtrarSoloDigitos = (v) => v.replace(/\D/g, '')
+
 // ── Formateadores de moneda ──────────────────────────────────────────────────
 
 /** Formatea un número como dólares: "$1,234.56" */
 export const usd = n => '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+/**
+ * Colapsa los distintos vocabularios de moneda del proyecto (producto.moneda
+ * usa 'BS', pagos.*.moneda usa 'Bs.', datos legacy pueden venir en minúscula)
+ * a un código canónico único. Espejo de App\Support\Moneda::normalizar en el backend.
+ */
+export const normalizarMoneda = (moneda) => {
+  const m = String(moneda ?? '').toUpperCase().trim().replace(/[.\s]/g, '')
+  if (['BS', 'BOLIVAR', 'BOLIVARES'].includes(m)) return 'BS'
+  if (['EUR', 'EURO', 'EUROS'].includes(m))       return 'EUR'
+  if (['USD', 'DOLAR', 'DOLARES'].includes(m))    return 'USD'
+  return m || 'USD'
+}
+
+/** Convierte un monto entre monedas pivoteando por bolívares (Bs.), usando las tasas BCV del día. */
+export const convertirMoneda = (valor, desde, hacia, tasaUsd, tasaEur) => {
+  const d = normalizarMoneda(desde)
+  const h = normalizarMoneda(hacia)
+  if (d === h) return valor
+  const enBs = d === 'USD' ? (tasaUsd ? valor * tasaUsd : 0)
+             : d === 'EUR' ? (tasaEur ? valor * tasaEur : 0)
+             : valor
+  if (h === 'USD') return tasaUsd ? enBs / tasaUsd : 0
+  if (h === 'EUR') return tasaEur ? enBs / tasaEur : 0
+  return enBs
+}
 
 /**
  * Formatea un monto con el símbolo de la moneda indicada.
@@ -124,8 +165,9 @@ export const usd = n => '$' + Number(n).toLocaleString('en-US', { minimumFractio
  */
 export const fmtMonto = (n, moneda) => {
   const num = Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  if (moneda === 'BS')  return 'Bs. ' + num
-  if (moneda === 'EUR') return '€'    + num
+  const m = normalizarMoneda(moneda)
+  if (m === 'BS')  return 'Bs. ' + num
+  if (m === 'EUR') return '€'    + num
   return '$' + num
 }
 
@@ -147,8 +189,9 @@ export const abrevNum = (n) => {
 /** Igual que fmtMonto pero con el número abreviado. Ideal para cards y columnas compactas. */
 export const fmtMontoAbrev = (n, moneda) => {
   const num = abrevNum(n)
-  if (moneda === 'BS')  return 'Bs. ' + num
-  if (moneda === 'EUR') return '€'    + num
+  const m = normalizarMoneda(moneda)
+  if (m === 'BS')  return 'Bs. ' + num
+  if (m === 'EUR') return '€'    + num
   return '$' + num
 }
 
@@ -263,7 +306,7 @@ export const PERMS_CATALOG = {
       { id: 'delete',        label: 'Eliminar cliente (requiere contraseña)' },
       { id: 'block',         label: 'Bloquear / Desbloquear cliente (requiere contraseña)' },
       { id: 'view_polizas',  label: 'Ver pólizas e historial del cliente' },
-      { id: 'view_facturas', label: 'Ver facturas del cliente' },
+      { id: 'view_facturas', label: 'Ver recibos del cliente' },
       { id: 'view_docs',     label: 'Ver documentos del cliente' },
       { id: 'renew',         label: 'Renovar póliza del cliente' },
       { id: 'adjust',        label: 'Ajustar póliza (estado, fechas, prima, vendedor)' },
@@ -346,10 +389,14 @@ export const PERMS_CATALOG = {
       { id: 'export',           label: 'Exportar e imprimir reportes' },
       { id: 'manage_leads',     label: 'Gestionar solicitudes de contacto (marcar atendidas)' },
       { id: 'manage_schedules', label: 'Gestionar programaciones automáticas y envíos por correo' },
+      { id: 'manage_comisiones', label: 'Marcar comisiones como pagadas' },
+      { id: 'revertir_comisiones', label: 'Revertir una comisión pagada a pendiente (corrección de errores)' },
+      { id: 'manage_oficinas',   label: 'Marcar retiro de efectivo en Oficinas' },
       { id: 'view_ventas',             label: 'Ver pestaña: Ventas / Comisiones' },
+      { id: 'view_ventas_todos',       label: 'Ver ventas/comisiones de TODOS los vendedores (sin esto, solo ve lo propio)' },
       { id: 'view_oficinas',           label: 'Ver pestaña: Oficinas' },
-      { id: 'view_personal',           label: 'Ver pestaña: Personal' },
       { id: 'view_metrics_personal',   label: 'Ver pestaña: Métricas de Personal' },
+      { id: 'view_metrics_personal_todos', label: 'Ver métricas de TODOS los asesores (sin esto, solo ve las propias)' },
       { id: 'view_metrics_clientes',   label: 'Ver pestaña: Métricas de Clientes' },
       { id: 'view_metrics_vehiculos',  label: 'Ver pestaña: Métricas de Vehículos' },
       { id: 'view_leads',              label: 'Ver pestaña: Solicitudes de Contacto' },
@@ -391,7 +438,7 @@ export const PERMISOS_POR_ROL = {
     productos:    ['view', 'view_cards', 'view_list', 'create', 'edit', 'delete', 'manage_docs', 'manage_beneficios'],
     tasas:        ['view', 'view_cards', 'view_list', 'create', 'edit', 'delete'],
     usuarios:     ['view', 'view_cards', 'view_list', 'create', 'edit', 'delete', 'block', 'perms', 'change_role'],
-    reportes:     ['view', 'export', 'manage_leads', 'manage_schedules', 'view_ventas', 'view_oficinas', 'view_personal', 'view_metrics_personal', 'view_metrics_clientes', 'view_metrics_vehiculos', 'view_leads', 'view_externos'],
+    reportes:     ['view', 'export', 'manage_leads', 'manage_schedules', 'manage_comisiones', 'manage_oficinas', 'revertir_comisiones', 'view_ventas', 'view_ventas_todos', 'view_oficinas', 'view_metrics_personal', 'view_metrics_personal_todos', 'view_metrics_clientes', 'view_metrics_vehiculos', 'view_leads', 'view_externos'],
     config:       ['view', 'change_password', 'view_audit', 'view_email_logs', 'manage_security'],
   },
   'Oficina': {
@@ -401,7 +448,7 @@ export const PERMISOS_POR_ROL = {
     cotizaciones: ['view', 'view_list', 'create', 'edit', 'emit', 'underwrite'],
     productos:    ['view', 'view_cards', 'view_list'],
     tasas:        ['view', 'view_cards', 'view_list'],
-    reportes:     ['view', 'export', 'manage_leads', 'view_ventas', 'view_oficinas', 'view_personal', 'view_metrics_personal', 'view_metrics_clientes', 'view_metrics_vehiculos', 'view_leads', 'view_externos'],
+    reportes:     ['view', 'export', 'manage_leads', 'manage_comisiones', 'manage_oficinas', 'view_ventas', 'view_ventas_todos', 'view_oficinas', 'view_metrics_personal', 'view_metrics_personal_todos', 'view_metrics_clientes', 'view_metrics_vehiculos', 'view_leads', 'view_externos'],
     config:       ['view', 'change_password'],
   },
   'Vendedor Sucursal': {
@@ -411,6 +458,7 @@ export const PERMISOS_POR_ROL = {
     cotizaciones: ['view', 'view_list', 'create'],
     productos:    ['view', 'view_cards', 'view_list'],
     tasas:        ['view', 'view_cards', 'view_list'],
+    reportes:     ['view', 'view_ventas', 'view_metrics_personal'],
     config:       ['view', 'change_password'],
   },
   'Vendedor Calle': {
@@ -420,6 +468,7 @@ export const PERMISOS_POR_ROL = {
     cotizaciones: ['view', 'view_list', 'create'],
     productos:    ['view', 'view_cards', 'view_list'],
     tasas:        ['view', 'view_cards', 'view_list'],
+    reportes:     ['view', 'view_ventas', 'view_metrics_personal'],
     config:       ['view', 'change_password'],
   },
 }
@@ -502,7 +551,7 @@ export function canAct(user, moduleId, action = 'view') {
  */
 export const NAV = [
   { id: 'home',          label: 'Inicio',              icon: 'home',          viewId: 'home' },
-  { id: 'cotizaciones',  label: 'Simulador',            icon: 'calculator',    viewId: 'cot-simulador' },
+  { id: 'cotizaciones',  label: 'Cotizador/Emision',    icon: 'calculator',    viewId: 'cot-simulador' },
   { id: 'productos',     label: 'Productos',             icon: 'package',       viewId: 'cat-productos' },
   { id: 'usuarios',      label: 'Usuarios',             icon: 'user-cog',      viewId: 'usr-lista' },
   { id: 'clientes',      label: 'Clientes & Pólizas',   icon: 'users',         viewId: 'cli-cliente' },
@@ -523,7 +572,7 @@ export const VIEW_META = {
   'cat-productos': { navId: 'productos',    title: 'Productos',           sub: 'Catálogo de productos y coberturas' },
   'cli-cliente':   { navId: 'clientes',     title: 'Clientes & Pólizas', sub: 'Gestión de clientes, pólizas y renovaciones' },
   'cli-vehiculo':  { navId: 'vehiculos',    title: 'Bienes Asegurados',  sub: 'Registro y consulta de bienes asegurados' },
-  'cot-simulador': { navId: 'cotizaciones', title: 'Simulador',          sub: 'Simulador de cotizaciones de seguros vehiculares' },
+  'cot-simulador': { navId: 'cotizaciones', title: 'Cotizador/Emision',  sub: 'Simulador de cotizaciones de seguros vehiculares' },
   'rep-menu':      { navId: 'reportes',     title: 'Reportes',           sub: 'Generación y exportación de reportes' },
   'tas-registro':  { navId: 'tasas',        title: 'Tasas del Día',      sub: 'Registro de tasas BCV — Dólar y Euro' },
   'usr-lista':     { navId: 'usuarios',     title: 'Usuarios',           sub: 'Gestión de usuarios, roles y permisos' },
@@ -568,7 +617,7 @@ export function pdfHdr(docTitle, docSub, ref, date, logoUrl = '') {
       ${logoUrl ? `<img src="${logoUrl}" alt="J&M" style="height:52px;width:auto;object-fit:contain" />` : ''}
       <div>
         <p style="font-size:22px;font-weight:900;color:#001463;letter-spacing:-0.5px">J&M</p>
-        <p style="font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:2px;margin-top:2px">Cooperativa de Seguros de Vehículos R.L.</p>
+        <p style="font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:2px;margin-top:2px">La Venezolana de Seguros y Vida</p>
         <p style="font-size:9px;color:#94a3b8;margin-top:2px">RIF J-12.345.678-9 · Av. Principal, Caracas 1010</p>
       </div>
     </div>
@@ -589,7 +638,7 @@ export function pdfHdr(docTitle, docSub, ref, date, logoUrl = '') {
 export function pdfFooterSimple() {
   const now = new Date().toLocaleDateString('es-VE', { day:'2-digit', month:'long', year:'numeric' })
   return `<div style="margin-top:48px;padding-top:16px;border-top:1px solid #e2e8f0;text-align:center">
-    <p style="font-size:11px;font-weight:700;color:#001463">J&M — Cooperativa de Seguros de Vehículos R.L.</p>
+    <p style="font-size:11px;font-weight:700;color:#001463">J&M — La Venezolana de Seguros y Vida</p>
     <p style="font-size:9px;color:#94a3b8;margin-top:4px">RIF J-12.345.678-9 · Av. Principal, Caracas 1010 · Tel. (0212) 000-0000</p>
     <p style="font-size:8px;color:#cbd5e1;margin-top:8px;line-height:1.6">Documento generado el ${now} · Autorizado por SUDEASEG · Válido únicamente con sello oficial.</p>
   </div>`

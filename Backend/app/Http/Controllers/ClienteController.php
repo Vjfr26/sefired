@@ -12,7 +12,12 @@ use App\Models\EmailLog;
 use App\Models\IndicadorEconomico;
 use App\Models\Persona;
 use App\Models\Poliza;
+use App\Rules\CedulaValida;
+use App\Rules\CodigoPostalValido;
 use App\Rules\NoInjectionChars;
+use App\Rules\TelefonoValido;
+use App\Support\Documento;
+use App\Support\Moneda;
 use App\Traits\LogsActivity;
 use App\Traits\ScopesVendedor;
 use Illuminate\Http\Request;
@@ -53,13 +58,14 @@ class ClienteController extends Controller
                 if ($ultima) {
                     $pol      = $ultima->nro_contrato;
                     $vig      = $ultima->fecha_emision->format('d/m/Y') . ' – ' . $ultima->fecha_vencimiento->format('d/m/Y');
-                    $prima    = '$' . number_format($ultima->total, 2);
+                    $prima    = Moneda::simbolo($ultima->monedaNativa()) . number_format($ultima->total, 2);
                     $polizaId = $ultima->id;
                 } elseif ($ultimaSolicitud) {
                     $anno     = $ultimaSolicitud->fecha_solicitud?->format('Y') ?? now()->year;
                     $pol      = 'COT-' . $anno . '-' . str_pad($ultimaSolicitud->id, 5, '0', STR_PAD_LEFT);
                     $vig      = '—';
-                    $prima    = $ultimaSolicitud->total ? '$' . number_format($ultimaSolicitud->total, 2) : '—';
+                    $monedaCot = Moneda::normalizar($ultimaSolicitud->moneda_producto ?? $ultimaSolicitud->producto?->moneda ?? 'USD');
+                    $prima    = $ultimaSolicitud->total ? Moneda::simbolo($monedaCot) . number_format($ultimaSolicitud->total, 2) : '—';
                     $polizaId = null;
                 } else {
                     $pol = '—'; $vig = '—'; $prima = '—'; $polizaId = null;
@@ -77,7 +83,10 @@ class ClienteController extends Controller
                     $est = 'Inactivo';
                 }
 
-                $row = $this->formatRow($p, $est, $pol, $vig, $prima, $polizaId);
+                $monedaProducto = $ultima
+                    ? $ultima->monedaNativa()
+                    : Moneda::normalizar($ultimaSolicitud?->moneda_producto ?? $ultimaSolicitud?->producto?->moneda ?? 'USD');
+                $row = $this->formatRow($p, $est, $pol, $vig, $prima, $polizaId, $monedaProducto);
                 $row['fecha_vencimiento_iso'] = $ultima?->fecha_vencimiento?->format('Y-m-d');
                 $row['dias_vencimiento']      = $ultima?->fecha_vencimiento
                     ? (int) now()->diffInDays($ultima->fecha_vencimiento, false)
@@ -92,20 +101,22 @@ class ClienteController extends Controller
 
     public function store(Request $request)
     {
+        $request->merge(['cedula' => Documento::normalizarCedula($request->input('cedula'))]);
+
         $noInjection = new NoInjectionChars();
         $data = $request->validate([
             'nombre'        => ['required', 'string', 'max:120', $noInjection],
-            'cedula'        => ['required', 'string', 'max:20', 'unique:persona,cedula', $noInjection],
+            'cedula'        => ['required', 'string', 'max:20', 'unique:persona,cedula', new CedulaValida()],
             'condicion'     => ['required', 'string', 'max:40', $noInjection],
             'sexo'          => ['required', 'string', 'max:15', $noInjection],
             'nacimiento'    => 'required|date',
             'nacionalidad'  => ['required', 'string', 'max:30', $noInjection],
-            'telefono'      => ['nullable', 'string', 'max:20', $noInjection],
-            'celular'       => ['nullable', 'string', 'max:20', $noInjection],
+            'telefono'      => ['nullable', 'string', 'max:20', new TelefonoValido()],
+            'celular'       => ['nullable', 'string', 'max:20', new TelefonoValido()],
             'correo'        => 'required|email|max:100',
             'estado'        => ['required', 'string', 'max:70', $noInjection],
             'ciudad'        => ['required', 'string', 'max:60', $noInjection],
-            'codigo_postal' => ['nullable', 'string', 'max:10', $noInjection],
+            'codigo_postal' => ['nullable', 'string', 'max:10', new CodigoPostalValido()],
             'direccion'     => ['required', 'string', $noInjection],
             'profesion'     => ['nullable', 'string', 'max:50', $noInjection],
             'actividad'     => ['nullable', 'string', 'max:50', $noInjection],
@@ -140,20 +151,24 @@ class ClienteController extends Controller
         $persona = Persona::findOrFail($id);
         $this->assertAccesoCliente($persona);
 
+        if ($request->filled('cedula')) {
+            $request->merge(['cedula' => Documento::normalizarCedula($request->input('cedula'))]);
+        }
+
         $noInjection = new NoInjectionChars();
         $data = $request->validate([
             'nombre'        => ['sometimes', 'required', 'string', 'max:120', $noInjection],
-            'cedula'        => ['sometimes', 'required', 'string', 'max:20', 'unique:persona,cedula,' . $persona->id, $noInjection],
+            'cedula'        => ['sometimes', 'required', 'string', 'max:20', 'unique:persona,cedula,' . $persona->id, new CedulaValida()],
             'condicion'     => ['sometimes', 'required', 'string', 'max:40', $noInjection],
             'sexo'          => ['sometimes', 'required', 'string', 'max:15', $noInjection],
             'nacimiento'    => 'sometimes|required|date',
             'nacionalidad'  => ['sometimes', 'required', 'string', 'max:30', $noInjection],
-            'telefono'      => ['nullable', 'string', 'max:20', $noInjection],
-            'celular'       => ['nullable', 'string', 'max:20', $noInjection],
+            'telefono'      => ['nullable', 'string', 'max:20', new TelefonoValido()],
+            'celular'       => ['nullable', 'string', 'max:20', new TelefonoValido()],
             'correo'        => 'sometimes|required|email|max:100',
             'estado'        => ['sometimes', 'required', 'string', 'max:70', $noInjection],
             'ciudad'        => ['sometimes', 'required', 'string', 'max:60', $noInjection],
-            'codigo_postal' => ['nullable', 'string', 'max:10', $noInjection],
+            'codigo_postal' => ['nullable', 'string', 'max:10', new CodigoPostalValido()],
             'direccion'     => ['sometimes', 'required', 'string', $noInjection],
             'profesion'     => ['nullable', 'string', 'max:50', $noInjection],
             'actividad'     => ['nullable', 'string', 'max:50', $noInjection],
@@ -322,6 +337,7 @@ class ClienteController extends Controller
                         'tasa_emision'          => $tasaUsd,
                         'tasa_emision_eur'      => $tasaEur,
                         'moneda'                => $poliza->moneda ?? 'USD',
+                        'moneda_producto'       => $poliza->monedaNativa(),
                         'cobertura_dolares'     => (float) $poliza->cobertura_dolares,
                         'cobertura_bs'          => (float) $poliza->cobertura_bs,
                         'pago'                  => $poliza->pago,
@@ -395,6 +411,7 @@ class ClienteController extends Controller
                     'producto'       => $s->producto?->nombre ?? '—',
                     'total'          => (float) $s->total,
                     'total_bs'       => (float) $s->total_bs,
+                    'moneda_producto' => Moneda::normalizar($s->moneda_producto ?? $s->producto?->moneda ?? 'USD'),
                     'status'         => $s->status ?? 'en_revision',
                     'fecha'          => $s->fecha_solicitud?->format('d/m/Y') ?? '—',
                     'nombre_tomador' => $s->nombre_tomador,
@@ -431,6 +448,7 @@ class ClienteController extends Controller
                         'tasa_emision'    => $tasaUsd,
                         'tasa_emision_eur' => $tasaEur,
                         'moneda'          => $f->moneda ?? $poliza->moneda ?? 'USD',
+                        'moneda_producto' => $poliza->monedaNativa(),
                         'forma_pago'      => $f->forma_pago,
                         'referencia'      => $f->referencia ?? '—',
                         'cajero'          => $f->usuario?->nombre ?? '—',
@@ -553,7 +571,7 @@ class ClienteController extends Controller
         return $requeridos->contains(fn($nombre) => !$subidos->contains($nombre));
     }
 
-    private function formatRow(Persona $p, string $est, string $pol, string $vig, string $prima, ?int $polizaId): array
+    private function formatRow(Persona $p, string $est, string $pol, string $vig, string $prima, ?int $polizaId, string $monedaProducto = 'USD'): array
     {
         return [
             'id'            => $p->id,
@@ -571,6 +589,7 @@ class ClienteController extends Controller
             'pol'           => $pol,
             'vig'           => $vig,
             'prima'         => $prima,
+            'moneda_producto' => $monedaProducto,
             'nombre'        => $p->nombre,
             'cedula'        => $p->cedula,
             'condicion'     => $p->condicion,

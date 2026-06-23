@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Mail\ReporteAdjuntoMail;
 use App\Models\AuditLog;
+use App\Models\Comision;
 use App\Models\EmailLog;
 use App\Models\IpBloqueada;
 use App\Models\Log;
@@ -11,6 +12,7 @@ use App\Models\Usuario;
 use App\Models\Persona;
 use App\Models\BienAsegurado;
 use App\Models\Poliza;
+use App\Models\RetiroEfectivo;
 use App\Models\ReporteExternoProgramacion;
 use App\Models\ReporteInternoProgramacion;
 use App\Models\Solicitud;
@@ -18,6 +20,8 @@ use App\Models\UnderwritingEvaluacion;
 use App\Models\Venta;
 use App\Rules\NoInjectionChars;
 use App\Services\ReporteGeneratorService;
+use App\Support\Moneda;
+use App\Support\PermisosPorRol;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -25,7 +29,9 @@ use Illuminate\Support\Facades\Storage;
 use App\Exports\ExternalReportExport;
 use App\Exports\VentasExport;
 use App\Exports\OficinasExport;
-use App\Exports\PersonalExport;
+use App\Exports\OficinasPagosExport;
+use App\Exports\UsuariosMetricsExport;
+use App\Exports\UsuarioPolizasExport;
 
 class ReportController extends Controller
 {
@@ -365,6 +371,19 @@ class ReportController extends Controller
      * del arreglo completo enviado por el frontend (reemplaza al antiguo
      * TRUNCATE + reinsert, que borraba los destinatarios en cada guardado).
      */
+    /**
+     * Suma `total` de un grupo de pólizas convirtiendo cada una a USD según
+     * su moneda nativa (vía tasa_emision/tasa_emision_eur del día en que se
+     * emitió) — sin esto, sumar `total` directo mezclaría unidades distintas
+     * si hay pólizas en USD, EUR y Bs en el mismo grupo.
+     */
+    private function sumTotalUsd($policies): float
+    {
+        return (float) $policies->sum(
+            fn($p) => Moneda::aUsd((float) $p->total, $p->monedaNativa(), (float) $p->tasa_emision, (float) $p->tasa_emision_eur)
+        );
+    }
+
     private function upsertProgramaciones(array $schedules, string $modelClass): void
     {
         DB::transaction(function () use ($schedules, $modelClass) {
@@ -470,15 +489,17 @@ class ReportController extends Controller
 
     public function getVentasComisiones(Request $request)
     {
+        $noInjection = new NoInjectionChars();
         $request->validate([
             'fecha_inicio' => 'nullable|date',
             'fecha_fin'    => 'nullable|date|after_or_equal:fecha_inicio',
+            'search'       => ['nullable', 'string', 'max:100', $noInjection],
         ]);
 
-        $query = Poliza::with(['vendedor', 'producto']);
+        $query = Poliza::with(['vendedor', 'producto', 'comision']);
 
         $user = auth()->user();
-        if ($user && str_starts_with((string) $user->tipo, 'Vendedor')) {
+        if ($user && !PermisosPorRol::tiene($user, 'reportes', 'view_ventas_todos')) {
             $query->where('vendedor_id', $user->id);
         }
 
@@ -491,50 +512,80 @@ class ReportController extends Controller
 
         $policies = $query->orderBy('fecha_emision', 'desc')->get();
 
-        $ventas = $policies->map(function ($p) {
-            return [
-                'id'     => $p->id,
-                'fecha'  => $p->fecha_emision ? $p->fecha_emision->format('d/m/Y') : '—',
-                'pol'    => $p->nro_contrato,
-                'agente' => $p->vendedor?->nombre ?? '—',
-                'tipo'   => $p->producto?->nombre ?? '—',
-                'prima'  => (float) $p->total,
-                'est'    => $p->status === 'ACTIVA' ? 'Vigente' : ($p->status === 'ANULADA' ? 'Anulada' : $p->status),
-            ];
-        });
-
-        $comisiones = [];
-        foreach ($policies->groupBy('vendedor_id') as $vendedorId => $pols) {
-            $vendedor = $pols->first()->vendedor;
-            if (!$vendedor) continue;
-            $base  = (float) $pols->sum('total');
-            $tasa  = strtolower($vendedor->cargo) === 'agente' ? 0.10 : 0.05;
-            $comisiones[] = [
-                'id'   => $vendedor->id,
-                'ben'  => $vendedor->nombre,
-                'rol'  => $vendedor->cargo,
-                'pol'  => $pols->count(),
-                'base' => $base,
-                'tasa' => ($tasa * 100) . '%',
-                'com'  => round($base * $tasa, 2),
-                'est'  => 'Pendiente',
-            ];
+        if ($request->filled('search')) {
+            $search = mb_strtolower($request->search);
+            $policies = $policies->filter(fn ($p) =>
+                str_contains(mb_strtolower((string) $p->nro_contrato), $search) ||
+                str_contains(mb_strtolower((string) $p->vendedor?->nombre), $search) ||
+                str_contains(mb_strtolower((string) $p->producto?->nombre), $search)
+            )->values();
         }
 
-        return response()->json(['ventas' => $ventas, 'comisiones' => $comisiones]);
+        // Cada venta queda vinculada a su comisión (1 a 1) — el botón de
+        // pagado/pendiente en la pestaña actúa sobre comision_id, no sobre
+        // la póliza, así que ambas vistas (ventas y comisiones) siempre
+        // reflejan el mismo registro.
+        $ventas = $policies->map(function ($p) {
+            return [
+                'id'                  => $p->id,
+                'fecha'               => $p->fecha_emision ? $p->fecha_emision->format('d/m/Y') : '—',
+                'pol'                 => $p->nro_contrato,
+                'agente'              => $p->vendedor?->nombre ?? '—',
+                'tipo'                => $p->producto?->nombre ?? '—',
+                'prima'               => (float) $p->total,
+                'est'                 => $p->status === 'ACTIVA' ? 'Vigente' : ($p->status === 'ANULADA' ? 'Anulada' : $p->status),
+                'comision_id'         => $p->comision?->id,
+                'comision_monto'      => $p->comision ? (float) $p->comision->monto : null,
+                'comision_tasa_pct'   => $p->comision ? (float) $p->comision->tasa_pct : null,
+                'comision_status'     => $p->comision?->status,
+                'comision_fecha_pago' => $p->comision?->fecha_pago?->format('d/m/Y'),
+            ];
+        })->values();
+
+        // Resumen general — totales agregados de las ventas visibles para
+        // este usuario (todas, o solo las propias) en el período/filtro
+        // actual, para el bloque de "lo pagado / lo pendiente" global. El
+        // desglose por vendedor se movió a la pestaña Personal.
+        $totalGenerada  = $this->sumComision($policies);
+        $totalPagada    = $this->sumComision($policies, 'PAGADA');
+        $totalPendiente = $this->sumComision($policies, 'PENDIENTE');
+
+        return response()->json([
+            'ventas'      => $ventas,
+            'resumen'     => [
+                'comision_generada'  => $totalGenerada,
+                'comision_pagada'    => $totalPagada,
+                'comision_pendiente' => $totalPendiente,
+                'pct_pagado'         => $totalGenerada > 0 ? round($totalPagada / $totalGenerada * 100, 1) : 0,
+            ],
+        ]);
     }
 
     public function exportVentas(Request $request)
     {
-        $query = Poliza::with(['vendedor', 'producto']);
+        $query = Poliza::with(['vendedor', 'producto', 'comision']);
         $user = auth()->user();
-        if ($user && str_starts_with((string) $user->tipo, 'Vendedor')) {
+        if ($user && !PermisosPorRol::tiene($user, 'reportes', 'view_ventas_todos')) {
             $query->where('vendedor_id', $user->id);
         }
         if ($request->filled('fecha_inicio')) $query->whereDate('fecha_emision', '>=', $request->fecha_inicio);
         if ($request->filled('fecha_fin'))    $query->whereDate('fecha_emision', '<=', $request->fecha_fin);
 
-        return (new VentasExport($query->orderBy('fecha_emision', 'desc')->get()))
+        $policies = $query->orderBy('fecha_emision', 'desc')->get();
+
+        // Mismo filtro de texto que la vista en pantalla — sin esto, exportar
+        // mientras se busca un agente/póliza específico descargaba el reporte
+        // completo del rango de fechas, ignorando lo que se ve filtrado.
+        if ($request->filled('search')) {
+            $search = mb_strtolower((string) $request->search);
+            $policies = $policies->filter(fn ($p) =>
+                str_contains(mb_strtolower((string) $p->nro_contrato), $search) ||
+                str_contains(mb_strtolower((string) $p->vendedor?->nombre), $search) ||
+                str_contains(mb_strtolower((string) $p->producto?->nombre), $search)
+            )->values();
+        }
+
+        return (new VentasExport($policies))
             ->download('reporte_ventas_' . now()->format('Ymd_His') . '.xlsx');
     }
 
@@ -552,14 +603,14 @@ class ReportController extends Controller
         if ($request->filled('fecha_fin'))    $query->whereDate('fecha_emision', '<=', $request->fecha_fin);
 
         $policies     = $query->get();
-        $totalPremium = (float) $policies->sum('total');
+        $totalPremium = $this->sumTotalUsd($policies);
         $rows = [];
         $tAg = 0; $tPol = 0; $tPri = 0;
 
         foreach ($policies->groupBy(fn ($p) => $p->vendedor?->sede ?? 'Sede Central') as $sede => $pols) {
             $ag  = count($pols->pluck('vendedor_id')->unique()->filter()->toArray());
             $po  = $pols->count();
-            $pr  = (float) $pols->sum('total');
+            $pr  = $this->sumTotalUsd($pols);
             $pct = $totalPremium > 0 ? round(($pr / $totalPremium) * 100, 1) . '%' : '0%';
 
             $rows[] = ['ofi' => $sede, 'ag' => $ag, 'pol' => $po, 'prima' => $pr, 'pct' => $pct, 'est' => 'Activa'];
@@ -580,14 +631,14 @@ class ReportController extends Controller
         if ($request->filled('fecha_fin'))    $query->whereDate('fecha_emision', '<=', $request->fecha_fin);
 
         $policies  = $query->get();
-        $totalPrem = (float) $policies->sum('total');
+        $totalPrem = $this->sumTotalUsd($policies);
         $rows = collect();
         $tAg = 0; $tPol = 0; $tPri = 0;
 
         foreach ($policies->groupBy(fn ($p) => $p->vendedor?->sede ?? 'Sede Central') as $sede => $pols) {
             $ag  = count($pols->pluck('vendedor_id')->unique()->filter()->toArray());
             $po  = $pols->count();
-            $pr  = (float) $pols->sum('total');
+            $pr  = $this->sumTotalUsd($pols);
             $pct = $totalPrem > 0 ? round(($pr / $totalPrem) * 100, 1) . '%' : '0%';
             $rows->push(['ofi' => $sede, 'ag' => $ag, 'pol' => $po, 'prima' => $pr, 'pct' => $pct, 'est' => 'Activa']);
             $tAg += $ag; $tPol += $po; $tPri += $pr;
@@ -600,9 +651,8 @@ class ReportController extends Controller
             ->download('reporte_oficinas_' . now()->format('Ymd_His') . '.xlsx');
     }
 
-    // ── PERSONAL ─────────────────────────────────────────────────────────────────
-
-    public function getPersonal(Request $request)
+    /** Pólizas cobradas por oficina, desglosadas por forma de pago. */
+    private function oficinasPagosRows(Request $request)
     {
         $request->validate([
             'fecha_inicio' => 'nullable|date',
@@ -614,58 +664,108 @@ class ReportController extends Controller
         if ($request->filled('fecha_fin'))    $query->whereDate('fecha_emision', '<=', $request->fecha_fin);
 
         $policies = $query->get();
-        $grouped  = $policies->groupBy('vendedor_id');
-        $rows     = [];
 
-        foreach ($grouped as $vendedorId => $pols) {
-            $vendedor = $pols->first()->vendedor;
-            if (!$vendedor) continue;
-            $pr   = (float) $pols->sum('total');
-            $tasa = strtolower($vendedor->cargo) === 'agente' ? 0.10 : 0.05;
-            $rows[] = ['nom' => $vendedor->nombre, 'rol' => $vendedor->cargo, 'ofi' => $vendedor->sede, 'pol' => $pols->count(), 'prima' => $pr, 'com' => round($pr * $tasa, 2), 'est' => $vendedor->activo ? 'Activo' : 'Inactivo'];
-        }
+        $fechaInicio = $request->input('fecha_inicio');
+        $fechaFin    = $request->input('fecha_fin');
+        $retiros = ($fechaInicio && $fechaFin)
+            ? RetiroEfectivo::where('fecha_inicio', $fechaInicio)->where('fecha_fin', $fechaFin)->get()
+                ->keyBy(fn ($r) => $r->sede . '||' . $r->forma_pago)
+            : collect();
 
-        $ids = array_keys($grouped->toArray());
-        foreach (Usuario::whereNotIn('id', $ids)->whereIn('cargo', ['Agente', 'Supervisor'])->get() as $ov) {
-            $rows[] = ['nom' => $ov->nombre, 'rol' => $ov->cargo, 'ofi' => $ov->sede, 'pol' => '—', 'prima' => '—', 'com' => '—', 'est' => $ov->activo ? 'Activo' : 'Inactivo'];
-        }
+        $grouped = $policies->groupBy(fn ($p) => ($p->vendedor?->sede ?? 'Sede Central') . '||' . ($p->pago ?: 'Sin especificar'));
 
-        return response()->json($rows);
+        $rows = $grouped->map(function ($pols, $key) use ($retiros) {
+            [$ofi, $formaPago] = explode('||', $key, 2);
+            $row = [
+                'ofi'        => $ofi,
+                'forma_pago' => $formaPago,
+                'pol'        => $pols->count(),
+                'prima'      => $this->sumTotalUsd($pols),
+            ];
+
+            if (str_contains(mb_strtolower($formaPago), 'efectivo')) {
+                $retiro = $retiros->get($ofi . '||' . $formaPago);
+                $row['retiro_id']         = $retiro?->id;
+                $row['retirado']          = (bool) ($retiro?->retirado ?? false);
+                $row['notas']             = $retiro?->notas;
+                $row['documento_nombre']  = $retiro?->documento_nombre;
+                $row['documento_url']     = $retiro?->documento_path
+                    ? Storage::disk('public')->url($retiro->documento_path)
+                    : null;
+            }
+
+            return $row;
+        })->sortBy(fn ($r) => $r['ofi'] . '|' . $r['forma_pago'])->values();
+
+        return $rows;
     }
 
-    public function exportPersonal(Request $request)
+    public function marcarRetiroEfectivo(Request $request)
     {
-        $query = Poliza::with(['vendedor']);
-        if ($request->filled('fecha_inicio')) $query->whereDate('fecha_emision', '>=', $request->fecha_inicio);
-        if ($request->filled('fecha_fin'))    $query->whereDate('fecha_emision', '<=', $request->fecha_fin);
+        $noInjection = new NoInjectionChars();
+        $data = $request->validate([
+            'sede'         => ['required', 'string', 'max:60', $noInjection],
+            'forma_pago'   => ['required', 'string', 'max:35', $noInjection],
+            'fecha_inicio' => 'required|date',
+            'fecha_fin'    => 'required|date|after_or_equal:fecha_inicio',
+            'retirado'     => 'required|boolean',
+            'notas'        => ['nullable', 'string', 'max:1000', $noInjection],
+            'documento'    => 'nullable|file|max:10240',
+        ]);
 
-        $policies = $query->get();
-        $grouped  = $policies->groupBy('vendedor_id');
-        $rows     = collect();
+        $retiro = RetiroEfectivo::firstOrNew([
+            'sede'         => $data['sede'],
+            'forma_pago'   => $data['forma_pago'],
+            'fecha_inicio' => $data['fecha_inicio'],
+            'fecha_fin'    => $data['fecha_fin'],
+        ]);
 
-        foreach ($grouped as $vid => $pols) {
-            $v = $pols->first()->vendedor;
-            if (!$v) continue;
-            $pr   = (float) $pols->sum('total');
-            $tasa = strtolower($v->cargo) === 'agente' ? 0.10 : 0.05;
-            $rows->push(['nom' => $v->nombre, 'rol' => $v->cargo, 'ofi' => $v->sede, 'pol' => $pols->count(), 'prima' => $pr, 'com' => round($pr * $tasa, 2), 'est' => $v->activo ? 'Activo' : 'Inactivo']);
+        if ($request->hasFile('documento')) {
+            if ($retiro->documento_path) {
+                Storage::disk('public')->delete($retiro->documento_path);
+            }
+            $file = $request->file('documento');
+            $retiro->documento_path   = $file->store('retiros_efectivo', 'public');
+            $retiro->documento_nombre = $file->getClientOriginalName();
         }
 
-        $ids = array_keys($grouped->toArray());
-        foreach (Usuario::whereNotIn('id', $ids)->whereIn('cargo', ['Agente', 'Supervisor'])->get() as $ov) {
-            $rows->push(['nom' => $ov->nombre, 'rol' => $ov->cargo, 'ofi' => $ov->sede, 'pol' => '—', 'prima' => '—', 'com' => '—', 'est' => $ov->activo ? 'Activo' : 'Inactivo']);
+        if (array_key_exists('notas', $data)) {
+            $retiro->notas = $data['notas'];
         }
 
-        return (new PersonalExport($rows))
-            ->download('reporte_personal_' . now()->format('Ymd_His') . '.xlsx');
+        $retiro->retirado     = $data['retirado'];
+        $retiro->usuario_id   = auth()->id();
+        $retiro->fecha_marcado = now();
+        $retiro->save();
+
+        return response()->json([
+            ...$retiro->toArray(),
+            'documento_url' => $retiro->documento_path ? Storage::disk('public')->url($retiro->documento_path) : null,
+        ]);
     }
+
+    public function getOficinasPagos(Request $request)
+    {
+        return response()->json($this->oficinasPagosRows($request));
+    }
+
+    public function exportOficinasPagos(Request $request)
+    {
+        return (new OficinasPagosExport($this->oficinasPagosRows($request)))
+            ->download('reporte_oficinas_pagos_' . now()->format('Ymd_His') . '.xlsx');
+    }
+
+    // ── PERSONAL ─────────────────────────────────────────────────────────────────
 
     // ── REPORTE DE USUARIOS ───────────────────────────────────────────────────────
 
     public function getUsuariosReport(Request $request)
     {
         $user = auth()->user();
-        if ($user && str_starts_with((string) $user->tipo, 'Vendedor')) {
+        if ($user && !PermisosPorRol::tiene($user, 'reportes', 'view_metrics_personal_todos')) {
+            // Sin el permiso "ver de todos", se ignora cualquier usuario_id
+            // recibido y se fuerza al propio — evita que alguien con acceso
+            // restringido vea las métricas de otro asesor manipulando el parámetro.
             $request->merge(['usuario_id' => $user->id]);
         }
 
@@ -683,14 +783,13 @@ class ReportController extends Controller
 
         if ($request->filled('usuario_id')) {
             $usuario  = Usuario::findOrFail($request->usuario_id);
-            $policies = Poliza::with(['producto', 'solicitud.persona'])
+            $policies = Poliza::with(['producto', 'solicitud.persona', 'comision'])
                 ->where('vendedor_id', $usuario->id)
                 ->whereBetween('fecha_emision', [$fechaInicio, $fechaFin])
                 ->orderBy('fecha_emision', 'desc')
                 ->get();
 
-            $totalPremium = (float) $policies->sum('total');
-            $tasa         = strtolower($usuario->cargo) === 'agente' ? 0.10 : 0.05;
+            $totalPremium = $this->sumTotalUsd($policies);
 
             return response()->json([
                 'usuario' => [
@@ -702,23 +801,31 @@ class ReportController extends Controller
                     'activo' => $usuario->activo,
                 ],
                 'stats' => [
-                    'total_polizas'     => $policies->count(),
-                    'total_prima'       => $totalPremium,
-                    'total_prima_bs'    => (float) $policies->sum('total_bs'),
-                    'comision_estimada' => round($totalPremium * $tasa, 2),
-                    'polizas_activas'   => $policies->where('status', 'ACTIVA')->count(),
-                    'polizas_anuladas'  => $policies->where('status', 'ANULADA')->count(),
+                    'total_polizas'      => $policies->count(),
+                    'total_prima'        => $totalPremium,
+                    'total_prima_bs'     => (float) $policies->sum('total_bs'),
+                    'primas_por_moneda'  => $this->primasPorMoneda($policies),
+                    'comision_generada'  => $this->sumComision($policies),
+                    'comision_pagada'    => $this->sumComision($policies, 'PAGADA'),
+                    'comision_pendiente' => $this->sumComision($policies, 'PENDIENTE'),
+                    'polizas_activas'    => $policies->where('status', 'ACTIVA')->count(),
+                    'polizas_anuladas'   => $policies->where('status', 'ANULADA')->count(),
                 ],
                 'polizas' => $policies->map(function ($p) {
                     return [
-                        'id'                 => $p->id,
-                        'fecha_emision'      => $p->fecha_emision ? $p->fecha_emision->format('d/m/Y') : '—',
-                        'fecha_vencimiento'  => $p->fecha_vencimiento ? $p->fecha_vencimiento->format('d/m/Y') : '—',
-                        'nro_contrato'       => $p->nro_contrato,
-                        'cliente_nombre'     => $p->solicitud?->persona?->nombre ?? $p->asegurado_nombre ?? '—',
-                        'producto_nombre'    => $p->producto?->nombre ?? '—',
-                        'total'              => (float) $p->total,
-                        'status'             => $p->status,
+                        'id'                   => $p->id,
+                        'fecha_emision'        => $p->fecha_emision ? $p->fecha_emision->format('d/m/Y') : '—',
+                        'fecha_vencimiento'    => $p->fecha_vencimiento ? $p->fecha_vencimiento->format('d/m/Y') : '—',
+                        'nro_contrato'         => $p->nro_contrato,
+                        'cliente_nombre'       => $p->solicitud?->persona?->nombre ?? $p->asegurado_nombre ?? '—',
+                        'producto_nombre'      => $p->producto?->nombre ?? '—',
+                        'total'                => (float) $p->total,
+                        'moneda_producto'      => $p->monedaNativa(),
+                        'status'               => $p->status,
+                        'comision_id'          => $p->comision?->id,
+                        'comision_monto'       => $p->comision ? (float) $p->comision->monto : null,
+                        'comision_status'      => $p->comision?->status,
+                        'comision_fecha_pago'  => $p->comision?->fecha_pago?->format('d/m/Y'),
                     ];
                 }),
             ]);
@@ -740,22 +847,235 @@ class ReportController extends Controller
         }
 
         $rows = $vendedoresQuery->get()->map(function ($v) use ($fechaInicio, $fechaFin) {
-            $policies     = Poliza::where('vendedor_id', $v->id)->whereBetween('fecha_emision', [$fechaInicio, $fechaFin])->get();
-            $totalPremium = (float) $policies->sum('total');
-            $tasa         = strtolower($v->cargo) === 'agente' ? 0.10 : 0.05;
+            $policies     = Poliza::with('comision')->where('vendedor_id', $v->id)->whereBetween('fecha_emision', [$fechaInicio, $fechaFin])->get();
+            $totalPremium = $this->sumTotalUsd($policies);
             return [
-                'id'    => $v->id,
-                'nom'   => $v->nombre,
-                'rol'   => $v->cargo,
-                'ofi'   => $v->sede ?? 'Sede Central',
-                'pol'   => $policies->count(),
-                'prima' => $totalPremium,
-                'com'   => round($totalPremium * $tasa, 2),
-                'est'   => $v->activo ? 'Activo' : 'Inactivo',
+                'id'                      => $v->id,
+                'nom'                     => $v->nombre,
+                'rol'                     => $v->cargo,
+                'ofi'                     => $v->sede ?? 'Sede Central',
+                'pol'                     => $policies->count(),
+                'prima'                   => $totalPremium,
+                'com_gen'                 => $this->sumComision($policies),
+                'com_pagada'              => $this->sumComision($policies, 'PAGADA'),
+                'com_pend'                => $this->sumComision($policies, 'PENDIENTE'),
+                'comision_ids_pendientes' => $policies->filter(fn ($p) => $p->comision?->status === 'PENDIENTE')->pluck('comision.id')->values(),
+                'est'                     => $v->activo ? 'Activo' : 'Inactivo',
             ];
-        });
+        })->values();
+
+        if ($rows->isNotEmpty()) {
+            $rows->push([
+                'id'         => null,
+                'nom'        => 'TOTAL',
+                'rol'        => '',
+                'ofi'        => '',
+                'pol'        => $rows->sum('pol'),
+                'prima'      => round($rows->sum('prima'), 2),
+                'com_gen'    => round($rows->sum('com_gen'), 2),
+                'com_pagada' => round($rows->sum('com_pagada'), 2),
+                'com_pend'   => round($rows->sum('com_pend'), 2),
+                'est'        => '',
+            ]);
+        }
 
         return response()->json($rows);
+    }
+
+    /** Suma de comision.monto de un grupo de pólizas, opcionalmente filtrado por status. */
+    private function sumComision($policies, ?string $status = null): float
+    {
+        return round((float) $policies->sum(function ($p) use ($status) {
+            if (!$p->comision) return 0;
+            if ($status && $p->comision->status !== $status) return 0;
+            return (float) $p->comision->monto;
+        }), 2);
+    }
+
+    /**
+     * Desglosa la prima por moneda nativa SIN convertir — a diferencia de
+     * sumTotalUsd(), que normaliza todo a USD para sumar pólizas de
+     * distinta moneda en un único total comparable.
+     */
+    private function primasPorMoneda($policies): array
+    {
+        $out = [];
+        foreach ($policies->groupBy(fn ($p) => $p->monedaNativa()) as $moneda => $pols) {
+            $out[$moneda] = [
+                'monto'   => round((float) $pols->sum('total'), 2),
+                'polizas' => $pols->count(),
+            ];
+        }
+        return $out;
+    }
+
+    /** Marca una comisión como pagada o la revierte a pendiente. */
+    /**
+     * Marca una comisión como pagada (flujo normal, un solo sentido:
+     * PENDIENTE → PAGADA). Revertir una ya pagada a pendiente es una
+     * corrección de errores y requiere el permiso `revertir_comisiones`
+     * (por defecto solo Admin) — no es parte del flujo normal de cobro.
+     */
+    public function marcarComision(Request $request, $id)
+    {
+        $data = $request->validate([
+            'status' => 'required|string|in:PAGADA,PENDIENTE',
+        ]);
+
+        $comision = Comision::findOrFail($id);
+
+        if ($data['status'] === 'PENDIENTE' && $comision->status === 'PAGADA') {
+            if (!PermisosPorRol::tiene(auth()->user(), 'reportes', 'revertir_comisiones')) {
+                return response()->json(['message' => 'No tiene permiso para revertir una comisión pagada.'], 403);
+            }
+        }
+
+        $comision->update([
+            'status'     => $data['status'],
+            'fecha_pago' => $data['status'] === 'PAGADA' ? now()->toDateString() : null,
+            'pagado_por' => $data['status'] === 'PAGADA' ? auth()->id() : null,
+        ]);
+
+        $this->logActivity(
+            'Comisión Actualizada',
+            "Comisión #{$comision->id} (póliza {$comision->poliza?->nro_contrato}) → {$data['status']}",
+            'comision',
+            auth()->id()
+        );
+
+        return response()->json([
+            'id'         => $comision->id,
+            'status'     => $comision->status,
+            'fecha_pago' => $comision->fecha_pago?->format('d/m/Y'),
+        ]);
+    }
+
+    /**
+     * Pago por lotes: marca como PAGADA todas las comisiones pendientes de
+     * la lista recibida. El frontend ya verificó la contraseña del usuario
+     * (POST /api/user/verify-password) antes de llamar este endpoint — acá
+     * no se vuelve a pedir, igual que el resto de las acciones sensibles
+     * de la app (ver ConfirmActionModal). Si el usuario no tiene
+     * `view_ventas_todos`/`view_metrics_personal_todos`, solo puede pagar
+     * comisiones de sus propias pólizas, sin importar qué ids le manden —
+     * evita que alguien con `manage_comisiones` pero sin visibilidad de
+     * "todos" pague comisiones de otro vendedor.
+     */
+    public function pagarLoteComisiones(Request $request)
+    {
+        $data = $request->validate([
+            'comision_ids'   => 'required|array|min:1',
+            'comision_ids.*' => 'integer',
+        ]);
+
+        $user = auth()->user();
+        $puedeVerTodos = PermisosPorRol::tiene($user, 'reportes', 'view_ventas_todos')
+            || PermisosPorRol::tiene($user, 'reportes', 'view_metrics_personal_todos');
+
+        $query = Comision::whereIn('id', $data['comision_ids'])->where('status', 'PENDIENTE');
+        if (!$puedeVerTodos) {
+            $query->where('vendedor_id', $user->id);
+        }
+        $comisiones = $query->get();
+
+        foreach ($comisiones as $c) {
+            $c->update([
+                'status'     => 'PAGADA',
+                'fecha_pago' => now()->toDateString(),
+                'pagado_por' => $user->id,
+            ]);
+        }
+
+        if ($comisiones->isNotEmpty()) {
+            $this->logActivity(
+                'Pago de Comisiones por Lote',
+                "Se marcaron {$comisiones->count()} comisiones como pagadas: " . $comisiones->pluck('id')->implode(', '),
+                'comision',
+                $user->id
+            );
+        }
+
+        return response()->json([
+            'pagadas' => $comisiones->count(),
+            'ids'     => $comisiones->pluck('id'),
+        ]);
+    }
+
+    public function exportUsuariosReport(Request $request)
+    {
+        $user = auth()->user();
+        if ($user && !PermisosPorRol::tiene($user, 'reportes', 'view_metrics_personal_todos')) {
+            $request->merge(['usuario_id' => $user->id]);
+        }
+
+        $request->validate([
+            'fecha_inicio' => 'nullable|date',
+            'fecha_fin'    => 'nullable|date|after_or_equal:fecha_inicio',
+            'usuario_id'   => 'nullable|integer|exists:usuarios,id',
+        ]);
+
+        $fechaInicio = $request->filled('fecha_inicio') ? $request->fecha_inicio : now()->startOfMonth()->toDateString();
+        $fechaFin    = $request->filled('fecha_fin')    ? $request->fecha_fin    : now()->toDateString();
+
+        if ($request->filled('usuario_id')) {
+            $usuario = Usuario::findOrFail($request->usuario_id);
+            $rows = Poliza::with(['producto', 'solicitud.persona', 'comision'])
+                ->where('vendedor_id', $usuario->id)
+                ->whereBetween('fecha_emision', [$fechaInicio, $fechaFin])
+                ->orderBy('fecha_emision', 'desc')
+                ->get()
+                ->map(fn ($p) => [
+                    'fecha_emision'       => $p->fecha_emision ? $p->fecha_emision->format('d/m/Y') : '—',
+                    'nro_contrato'        => $p->nro_contrato,
+                    'cliente_nombre'      => $p->solicitud?->persona?->nombre ?? $p->asegurado_nombre ?? '—',
+                    'producto_nombre'     => $p->producto?->nombre ?? '—',
+                    'total'               => (float) $p->total,
+                    'moneda_producto'     => $p->monedaNativa(),
+                    'status'              => $p->status,
+                    'comision_monto'      => $p->comision ? (float) $p->comision->monto : null,
+                    'comision_status'     => $p->comision?->status,
+                    'comision_fecha_pago' => $p->comision?->fecha_pago?->format('d/m/Y'),
+                ]);
+
+            return (new UsuarioPolizasExport($rows, $usuario->nombre))
+                ->download('metricas_personal_' . str_replace(' ', '_', $usuario->nombre) . '_' . now()->format('Ymd_His') . '.xlsx');
+        }
+
+        $vendedoresQuery = Usuario::whereIn('cargo', ['Agente', 'Supervisor'])
+            ->orWhereExists(function ($q) {
+                $q->select(DB::raw(1))->from('poliza')->whereColumn('poliza.vendedor_id', 'usuarios.id');
+            });
+
+        $rows = $vendedoresQuery->get()->map(function ($v) use ($fechaInicio, $fechaFin) {
+            $policies     = Poliza::with('comision')->where('vendedor_id', $v->id)->whereBetween('fecha_emision', [$fechaInicio, $fechaFin])->get();
+            $totalPremium = $this->sumTotalUsd($policies);
+            return [
+                'nom'        => $v->nombre,
+                'rol'        => $v->cargo,
+                'ofi'        => $v->sede ?? 'Sede Central',
+                'pol'        => $policies->count(),
+                'prima'      => $totalPremium,
+                'com_gen'    => $this->sumComision($policies),
+                'com_pagada' => $this->sumComision($policies, 'PAGADA'),
+                'com_pend'   => $this->sumComision($policies, 'PENDIENTE'),
+                'est'        => $v->activo ? 'Activo' : 'Inactivo',
+            ];
+        })->values();
+
+        if ($rows->isNotEmpty()) {
+            $rows->push([
+                'nom' => 'TOTAL', 'rol' => '', 'ofi' => '',
+                'pol' => $rows->sum('pol'),
+                'prima' => round($rows->sum('prima'), 2),
+                'com_gen' => round($rows->sum('com_gen'), 2),
+                'com_pagada' => round($rows->sum('com_pagada'), 2),
+                'com_pend' => round($rows->sum('com_pend'), 2),
+                'est' => '',
+            ]);
+        }
+
+        return (new UsuariosMetricsExport($rows))
+            ->download('metricas_personal_' . now()->format('Ymd_His') . '.xlsx');
     }
 
     // ── REPORTE DE CLIENTES ───────────────────────────────────────────────────────
@@ -938,7 +1258,7 @@ class ReportController extends Controller
                 'pol_act'        => $polizasActivas->count(),
                 'prox_venc'      => $proxVencFecha,
                 'prox_venc_sort' => $proxVencSort,
-                'prima'          => (float) $polizas->sum('total'),
+                'prima'          => $this->sumTotalUsd($polizas),
                 'est'            => $c->activo ? 'Activo' : 'Bloqueado',
             ];
         });
@@ -985,6 +1305,7 @@ class ReportController extends Controller
             'fecha_fin'    => 'nullable|date|after_or_equal:fecha_inicio',
             'placa'        => ['nullable', 'string', 'max:20', $noInjection],
             'search'       => ['nullable', 'string', 'max:100', $noInjection],
+            'tipo_veh'     => ['nullable', 'string', 'max:50', $noInjection],
         ]);
 
         $fechaInicio = $request->filled('fecha_inicio') ? $request->fecha_inicio : now()->startOfMonth()->toDateString();
@@ -1100,6 +1421,15 @@ class ReportController extends Controller
             });
         }
 
+        // Mismo cálculo que distribucion_tipo arriba: el tipo puede venir en
+        // 'tipo' o, en bienes más viejos, en 'tipo_carroceria'.
+        if ($request->filled('tipo_veh')) {
+            $bienesQuery->whereRaw(
+                "COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(atributos, '$.tipo')), 'null'), JSON_UNQUOTE(JSON_EXTRACT(atributos, '$.tipo_carroceria'))) = ?",
+                [$request->tipo_veh]
+            );
+        }
+
         $rows = $bienesQuery->get()->map(function ($v) {
             $attr     = $v->atributos ?? [];
             $polizas  = $v->solicitudes->flatMap->polizas;
@@ -1113,6 +1443,7 @@ class ReportController extends Controller
                 'mod' => $attr['modelo'] ?? '—',
                 'ani' => $attr['anio'] ?? '—',
                 'col' => $attr['color'] ?? '—',
+                'tip' => $attr['tipo'] ?? $attr['tipo_carroceria'] ?? '—',
                 'pro' => $v->persona?->nombre ?? '—',
                 'est' => $activa ? 'Asegurado' : 'Sin Seguro',
                 'pol' => $ultima?->nro_contrato ?? '—',

@@ -19,7 +19,7 @@ const QUICK_ITEMS = [
     perm: 'cotizaciones',
     view: 'cot-simulador',
     Icon: Calculator,
-    label: 'Simulador',
+    label: 'Cotizador/Emision',
     sub: 'Cotizar',
     iconBg: 'bg-emerald-100',
     iconColor: 'text-emerald-600',

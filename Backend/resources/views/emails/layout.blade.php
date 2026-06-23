@@ -16,7 +16,7 @@
           <td style="background:{{ $accentColor ?? '#001463' }};border-radius:12px 12px 0 0;padding:28px 36px;text-align:center;">
             <p style="margin:0;font-size:22px;font-weight:800;color:#ffffff;letter-spacing:2px;">J&amp;M Seguros</p>
             <p style="margin:4px 0 0;font-size:12px;color:rgba(255,255,255,0.75);letter-spacing:1px;text-transform:uppercase;">
-              Cooperativa de Seguros J&amp;M R.L.
+              La Venezolana de Seguros y Vida.
             </p>
           </td>
         </tr>

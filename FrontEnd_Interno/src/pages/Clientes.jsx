@@ -214,7 +214,7 @@ export default function Clientes() {
           { icon: Eye, label: 'Ver detalles', color: 'slate', onClick: () => showModal('clienteDetail', { c }) },
           canViewPolizas && { icon: ClipboardList, label: 'Ver pólizas', color: 'indigo', onClick: () => showModal('clienteHistorial', { c, onSaved: loadClientes }) },
           canViewDocs && { icon: FolderOpen, label: sinDocumentos ? 'Documentos (faltan obligatorios)' : 'Documentos del cliente', color: 'amber', onClick: () => showModal('clienteDocumentos', { c, onSaved: loadClientes }) },
-          tienePoliza && canViewFacturas && { icon: Receipt, label: 'Ver facturas', color: 'amber', onClick: () => showModal('clienteFacturas', { c }) },
+          tienePoliza && canViewFacturas && { icon: Receipt, label: 'Ver recibos', color: 'amber', onClick: () => showModal('clienteFacturas', { c }) },
           canEditClientes && { icon: Pencil, label: 'Editar datos', color: 'blue', onClick: () => showModal('clienteForm', {
             cliente: c,
             onSave: async (data) => { await updateCliente(c.id, data); await loadClientes() },

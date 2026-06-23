@@ -20,7 +20,7 @@
   <tr>
     @foreach([
       ['Pólizas emitidas',   $polizasEmitidas,  '#0ea5e9', '📄'],
-      ['Facturas generadas', $facturasEmitidas, '#6366f1', '🧾'],
+      ['Recibos generados',  $facturasEmitidas, '#6366f1', '🧾'],
       ['Clientes nuevos',    $clientesNuevos,   '#10b981', '👤'],
     ] as $kpi)
     <td style="width:33%;padding:0 6px 0 {{ $loop->first ? '0' : '6px' }};">

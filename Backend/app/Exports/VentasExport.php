@@ -25,7 +25,7 @@ class VentasExport extends BaseExport
 
     public function headings(): array
     {
-        return ['Fecha', 'Póliza', 'Agente', 'Producto', 'Prima (USD)', 'Prima (Bs)', 'Estado'];
+        return ['Fecha', 'Póliza', 'Agente', 'Producto', 'Prima (USD)', 'Prima (Bs)', 'Estado', 'Comisión (USD)', 'Estado Comisión'];
     }
 
     public function collection(): Collection
@@ -42,7 +42,9 @@ class VentasExport extends BaseExport
             $p->producto?->nombre ?? '—',
             (float)$p->total,
             (float)($p->total_bs ?? 0),
-            $p->estatus === 'ACTIVA' ? 'Vigente' : ($p->estatus === 'ANULADA' ? 'Anulada' : ($p->status ?? $p->estatus ?? '—')),
+            $p->status === 'ACTIVA' ? 'Vigente' : ($p->status === 'ANULADA' ? 'Anulada' : ($p->status ?? '—')),
+            $p->comision ? (float) $p->comision->monto : null,
+            $p->comision?->status ?? '—',
         ];
     }
 
@@ -55,7 +57,7 @@ class VentasExport extends BaseExport
         $comSheet = $spreadsheet->createSheet();
         $comSheet->setTitle('Comisiones');
 
-        $comHeaders = ['Beneficiario', 'Rol', 'Pólizas', 'Base (USD)', 'Tasa', 'Comisión (USD)', 'Estado'];
+        $comHeaders = ['Beneficiario', 'Rol', 'Pólizas', 'Base (USD)', 'Tasa', 'Comisión Generada', 'Comisión Pagada', 'Comisión Pendiente'];
         foreach ($comHeaders as $i => $h) {
             $comSheet->setCellValue([$i + 1, 1], $h);
         }
@@ -76,17 +78,20 @@ class VentasExport extends BaseExport
             $vendedor = $pols->first()->vendedor;
             if (!$vendedor) continue;
 
-            $base = (float)$pols->sum('total');
-            $tasa = strtolower($vendedor->cargo) === 'agente' ? 0.10 : 0.05;
-            $comision = $base * $tasa;
+            $base       = (float) $pols->sum('total');
+            $tasa       = \App\Models\Comision::tasaParaCargo($vendedor->cargo);
+            $sumEstado  = fn (?string $status) => round((float) $pols->sum(
+                fn ($p) => ($p->comision && (!$status || $p->comision->status === $status)) ? (float) $p->comision->monto : 0
+            ), 2);
 
             $comSheet->setCellValue([1, $rowIndex], $vendedor->nombre);
             $comSheet->setCellValue([2, $rowIndex], $vendedor->cargo);
             $comSheet->setCellValue([3, $rowIndex], $pols->count());
             $comSheet->setCellValue([4, $rowIndex], $base);
             $comSheet->setCellValue([5, $rowIndex], ($tasa * 100) . '%');
-            $comSheet->setCellValue([6, $rowIndex], $comision);
-            $comSheet->setCellValue([7, $rowIndex], 'Pendiente');
+            $comSheet->setCellValue([6, $rowIndex], $sumEstado(null));
+            $comSheet->setCellValue([7, $rowIndex], $sumEstado('PAGADA'));
+            $comSheet->setCellValue([8, $rowIndex], $sumEstado('PENDIENTE'));
             $rowIndex++;
         }
 

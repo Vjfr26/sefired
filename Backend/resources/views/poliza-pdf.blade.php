@@ -24,6 +24,12 @@
         'tipo_calculo' => $poliza->producto->tipo_calculo,
         'cobertura'    => $poliza->producto->cobertura,
     ] : []);
+    // Certificado = pólizas colectivas; las individuales muestran el número
+    // de recibo en su lugar. `producto.lleva_certificado` solo dice si el
+    // PRODUCTO admite certificados (RCV/APOV se venden individual o en
+    // flota) — la póliza es colectiva de verdad cuando además tiene más de
+    // un bien asociado (el bien original + adicionales con certificado).
+    $llevaCertificado = (bool) ($poliza->producto?->lleva_certificado ?? false) && $poliza->bienes->count() > 1;
     $bien        = $snap['bien'] ?? ($poliza->solicitud?->bien ? [
         'tipo'          => $poliza->solicitud->bien->tipo,
         'atributos'     => $poliza->solicitud->bien->atributos ?? [],
@@ -52,9 +58,30 @@
             default      => $prodSnap['nombre'] ?? 'Póliza',
         },
     };
+    // El documento no debe usar la palabra genérica "Certificado": debe
+    // reflejar el tipo de póliza real (RCV, APOV, EC...) según el producto.
+    $tipoPolizaLabel = match ($prodSnap['tipo'] ?? null) {
+        'rcv'        => 'RCV',
+        'apov'       => 'APOV',
+        'alpd'       => 'ALPD',
+        'ec'         => 'EC',
+        'ep'         => 'EP',
+        'vida'       => 'Vida',
+        'salud'      => 'Salud',
+        'hogar'      => 'Hogar',
+        'accidentes' => 'Accidentes',
+        'funeraria'  => 'Funeraria',
+        default      => $prodSnap['nombre'] ?? 'Póliza',
+    };
+
     $cobs        = $snap['coberturas'] ?? [];
     $tipoCal     = $prodSnap['tipo_calculo'] ?? $poliza->producto?->tipo_calculo ?? 'fijo';
     $tarifaDatos = $cobs['tarifa']['datos'] ?? ($snap['tarifario']['datos'] ?? []);
+
+    // Todos los montos del documento (prima, sumas aseguradas, IVA, total a
+    // cobrar) van en la moneda nativa del producto — nunca mezclada con otra.
+    $monedaProducto = $poliza->monedaNativa();
+    $monedaSimbolo  = \App\Support\Moneda::simbolo($monedaProducto);
 
     $tomadorNombre = $tomador['nombre']   ?? ($poliza->asegurado_nombre ?? '—');
     $tomadorCi     = $tomador['ci']       ?? ($poliza->asegurado_ci     ?? '—');
@@ -139,14 +166,13 @@
     $tasaEmision    = (float) ($poliza->tasa_emision     ?? $snap['tasa_emision']     ?? 0);
     $tasaEmisionEur = (float) ($poliza->tasa_emision_eur ?? $snap['tasa_emision_eur'] ?? 0);
     $monedaPago     = $poliza->moneda ?? $snap['moneda'] ?? 'USD';
-    $monedaLabel    = ['USD' => 'DÓLARES', 'EUR' => 'EUROS', 'BS' => 'BOLÍVARES'][$monedaPago] ?? $monedaPago;
+    $monedaLabel    = \App\Support\Moneda::etiqueta($monedaProducto);
     $frecuenciaPago = strtoupper($poliza->frecuencia_pago ?? 'Anual');
 
     $imgLogon  = 'data:image/jpeg;base64,' . base64_encode(file_get_contents(public_path('images/logon.jpg')));
     $imgIcono  = 'data:image/png;base64,'  . base64_encode(file_get_contents(public_path('images/icono.png')));
     $imgCarnet = 'data:image/jpeg;base64,' . base64_encode(file_get_contents(public_path('images/logocarnet.jpg')));
     $imgFirma  = 'data:image/png;base64,'  . base64_encode(file_get_contents(public_path('images/firma.png')));
-    $imgSello  = 'data:image/png;base64,'  . base64_encode(file_get_contents(public_path('images/sello.png')));
 @endphp
 
 <style>
@@ -217,7 +243,11 @@
                         <div class="cuadro">
                             <table>
                                 <tr><td>Póliza:</td>       <td><strong>{{ $poliza->nro_contrato }}</strong></td></tr>
-                                <tr><td>Certificado:</td>   <td><strong>{{ $certificadoPrincipal }}</strong></td></tr>
+                                @if($llevaCertificado)
+                                <tr><td>{{ $tipoPolizaLabel }}:</td>   <td><strong>{{ $certificadoPrincipal }}</strong></td></tr>
+                                @else
+                                <tr><td>Recibo:</td>       <td><strong>{{ $numeroRecibo }}</strong></td></tr>
+                                @endif
                                 <tr><td>Fecha:</td>         <td><strong>{{ $poliza->fecha_emision?->format('d-m-Y') }}</strong></td></tr>
                                 <tr><td>Páginas:</td>       <td><strong>1</strong></td></tr>
                                 <tr><td>Inicio Póliza:</td> <td><strong>{{ $poliza->fecha_emision?->format('Y') }}</strong></td></tr>
@@ -316,7 +346,7 @@
         <th style="border-right:none;">{{ $poliza->sede_poliza }}</th>
         <th style="border:none; border-bottom:1px solid #888;">{{ $canalVenta }}</th>
         <th>{{ $frecuenciaPago }}</th>
-        <th>$ {{ number_format((float)$poliza->total, 2) }}</th>
+        <th>{{ $monedaSimbolo }}{{ number_format((float)$poliza->total, 2) }}</th>
     </tr>
     <tr class="titu">
         <td>Forma de Pago / Moneda</td>
@@ -402,7 +432,7 @@
     <tr><th colspan="6" class="linea">Bienes Adicionales Cubiertos por esta Póliza</th></tr>
     @foreach($bienesAdicionales as $pb)
     <tr>
-        <td style="width:13%; text-align:right; border-left:1px solid #888; padding:1.5px 3px; color:#555; font-size:9px;">Certificado:</td>
+        <td style="width:13%; text-align:right; border-left:1px solid #888; padding:1.5px 3px; color:#555; font-size:9px;">{{ $tipoPolizaLabel }}:</td>
         <td style="padding:1.5px 4px;"><strong>{{ $pb->certificado }}</strong></td>
         <td style="width:13%; text-align:right; padding:1.5px 3px; color:#555; font-size:9px;">Tipo:</td>
         <td style="padding:1.5px 4px;"><strong>{{ ucfirst($pb->bien?->tipo ?? '—') }}</strong></td>
@@ -419,7 +449,7 @@
             @for($i = 0; $i < 6; $i += 2)
                 @if($fila[$i] !== null)
                 <td style="width:13%; text-align:right; border-left:{{ $i === 0 ? '1px solid #888' : 'none' }}; padding:1.5px 3px; color:#555; font-size:9px;">{{ $fila[$i] }}:</td>
-                <td style="{{ $i === 4 ? 'border-right:1px solid #888;' : '' }} padding:1.5px 4px;"><strong>$ {{ $fila[$i + 1] }}</strong></td>
+                <td style="{{ $i === 4 ? 'border-right:1px solid #888;' : '' }} padding:1.5px 4px;"><strong>{{ $monedaSimbolo }}{{ $fila[$i + 1] }}</strong></td>
                 @else
                 <td style="width:13%; border-left:{{ $i === 0 ? '1px solid #888' : 'none' }};"></td>
                 <td style="{{ $i === 4 ? 'border-right:1px solid #888;' : '' }}"></td>
@@ -432,7 +462,7 @@
         <tr>
             <td style="text-align:right; border-left:1px solid #888; padding:1.5px 4px; color:#555; font-size:9px;" colspan="2">{{ $item[0] }}:</td>
             <td colspan="4" style="border-right:1px solid #888; padding:3px 6px;">
-                <strong>$ {{ $item[1] }}</strong>
+                <strong>{{ $monedaSimbolo }}{{ $item[1] }}</strong>
             </td>
         </tr>
         @endforeach
@@ -440,10 +470,10 @@
 
     <tr>
         <td style="text-align:right; border-left:1px solid #888; border-bottom:1px solid #888; padding:1.5px 4px; color:#555; font-size:9px;" colspan="2">Prima Neta:</td>
-        <td style="border-bottom:1px solid #888; padding:1.5px 4px;" align="center"><strong>$ {{ number_format((float)($cobs['subtotal'] ?? $poliza->total), 2) }}</strong></td>
+        <td style="border-bottom:1px solid #888; padding:1.5px 4px;" align="center"><strong>{{ $monedaSimbolo }}{{ number_format((float)($cobs["subtotal"] ?? $poliza->total), 2) }}</strong></td>
         @if(($cobs['iva'] ?? 0) > 0)
         <td style="border-bottom:1px solid #888; text-align:right; padding:3px 5px; color:#555; font-size:9px;">IVA:</td>
-        <td style="border-bottom:1px solid #888; border-right:1px solid #888; padding:3px 5px;" colspan="2" align="center"><strong>$ {{ number_format((float)$cobs['iva'], 2) }}</strong></td>
+        <td style="border-bottom:1px solid #888; border-right:1px solid #888; padding:3px 5px;" colspan="2" align="center"><strong>{{ $monedaSimbolo }}{{ number_format((float)$cobs["iva"], 2) }}</strong></td>
         @else
         <td colspan="3" style="border-bottom:1px solid #888; border-right:1px solid #888;"></td>
         @endif
@@ -455,13 +485,8 @@
         </td>
     </tr>
     <tr>
-        <td style="padding:3px 5px 1px; font-size:8px; color:#555;" colspan="6">
-            El presente documento será entregado a El Tomador conjuntamente con las Condiciones Generales, Condiciones Particulares, anexos y demás documentos que formen parte de la póliza.
-        </td>
-    </tr>
-    <tr>
         <td style="padding:1px 5px 3px; font-size:8px; color:#555;" colspan="6">
-            Aprobado por la Superintendencia de la Actividad Aseguradora mediante PROVIDENCIA ADMINISTRATIVA N° SAA-01-0512-2024
+            Aprobado por la Superintendencia de la Actividad Aseguradora mediante PROVIDENCIA ADMINISTRATIVA N° SAA-09-0138-2025 de fecha 21/02/2025.
         </td>
     </tr>
 </table>
@@ -474,8 +499,7 @@
             <span style="font-size:9px; color:#333;">{{ $tomadorNombre }}</span>
         </td>
         <td width="50%" style="text-align:center; vertical-align:bottom; padding:2px 6px;">
-            <img src="{{ $imgFirma }}" style="width:2.2cm; height:1cm; vertical-align:bottom;" alt="firma"/>
-            <img src="{{ $imgSello }}" style="width:3.5cm; height:1.7cm; vertical-align:bottom;" alt="sello"/>
+            <img src="{{ $imgFirma }}" style="width:3cm; height:1.4cm; vertical-align:bottom;" alt="firma"/>
             <div class="lineaf"></div>
             <span style="font-size:9px; color:#333;">Por la Venezolana de Seguros y Vida, C.A.</span>
         </td>
@@ -505,10 +529,10 @@
                         <strong style="font-size:9px;">N° {{ $poliza->nro_contrato }}</strong>
                     </th>
                 </tr>
-                <!-- Certificado centrado -->
+                <!-- Tipo de póliza centrado -->
                 <tr>
                     <th colspan="3" style="text-align:center; padding:3px 0 5px;">
-                        <strong style="font-size:15px;">Certificado</strong>
+                        <strong style="font-size:15px;">{{ $tipoPolizaLabel }}</strong>
                     </th>
                 </tr>
                 <!-- DATOS DEL ASEGURADO -->
@@ -578,7 +602,7 @@
                 <!-- Providencia -->
                 <tr>
                     <td colspan="3" style="font-size:7px; padding:2px 8px 4px; line-height:1.35; text-align:center;">
-                        <strong>Aprobado por la Superintendencia de la Actividad Aseguradora mediante PROVIDENCIA ADMINISTRATIVA N° SAA-01-0512-2024</strong>
+                        <strong>Aprobado por la Superintendencia de la Actividad Aseguradora mediante PROVIDENCIA ADMINISTRATIVA N° SAA-09-0138-2025 de fecha 21/02/2025.</strong>
                     </td>
                 </tr>
                 <!-- EMISIÓN | QR | VENCIMIENTO -->

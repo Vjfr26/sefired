@@ -450,7 +450,7 @@ function TabAbout() {
           <img src="/logo2.png" alt="J&M" className="h-14 object-contain" />
           <div>
             <h3 className="font-bold text-slate-800 text-lg">Seguros J&M</h3>
-            <p className="text-sm text-slate-500">Cooperativa de Seguros de Vehículos R.L.</p>
+            <p className="text-sm text-slate-500">La Venezolana de Seguros y Vida</p>
           </div>
         </div>
         <div className="space-y-3 text-sm">

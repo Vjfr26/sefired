@@ -17,11 +17,15 @@ import {
   downloadExternalReportFile,
   fetchVentasComisiones,
   fetchOficinas,
-  fetchPersonal,
+  fetchOficinasPagos,
   exportVentas,
   exportOficinas,
-  exportPersonal,
+  exportOficinasPagos,
+  marcarRetiroEfectivo,
   fetchUsuariosReport,
+  exportUsuariosReport,
+  marcarComision,
+  pagarLoteComisiones,
   fetchClientesReport,
   fetchVehiculosReport,
   uploadReporteAdjunto
@@ -30,7 +34,7 @@ import { fetchClientes } from '../api/clientes.js'
 import { fetchDocumentosCliente } from '../api/clienteDocumentos.js'
 import { fetchSolicitudesContacto, actualizarSolicitudContacto } from '../api/solicitudesContacto.js'
 import { useApp } from '../context/AppContext.jsx'
-import { usd, bs, badge, rsbadge, sbadge } from '../utils/helpers.jsx'
+import { usd, bs, fmtMonto, badge, rsbadge, sbadge } from '../utils/helpers.jsx'
 import DataTable from '../components/DataTable.jsx'
 import { Paperclip, FileText, UserSearch, MessageCircle } from 'lucide-react'
 
@@ -86,17 +90,20 @@ const downloadBlob = (blob, filename) => {
 
 // ── Tab: Ventas / Comisiones ─────────────────────────────────
 function TabVentas() {
-  const { showToast, canAct } = useApp()
+  const { showToast, showModal, canAct } = useApp()
   const { start, today } = getInitialDates()
   const [fechaInicio, setFechaInicio] = useState(start)
   const [fechaFin, setFechaFin] = useState(today)
   const [search, setSearch] = useState('')
   const [ventas, setVentas] = useState([])
-  const [comisiones, setComisiones] = useState([])
+  const [resumen, setResumen] = useState({ comision_generada: 0, comision_pagada: 0, comision_pendiente: 0, pct_pagado: 0 })
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [selected, setSelected] = useState(new Set())
 
   const canExport = canAct('reportes', 'export')
+  const canManageComisiones = canAct('reportes', 'manage_comisiones')
+  const canRevertirComisiones = canAct('reportes', 'revertir_comisiones')
 
   const loadData = async () => {
     setLoading(true)
@@ -107,7 +114,8 @@ function TabVentas() {
         search: search
       })
       setVentas(data.ventas || [])
-      setComisiones(data.comisiones || [])
+      setResumen(data.resumen || { comision_generada: 0, comision_pagada: 0, comision_pendiente: 0, pct_pagado: 0 })
+      setSelected(new Set())
     } catch (err) {
       showToast('Error al cargar ventas y comisiones', 'error')
     } finally {
@@ -121,7 +129,8 @@ function TabVentas() {
     try {
       const blob = await exportVentas({
         fecha_inicio: fechaInicio,
-        fecha_fin: fechaFin
+        fecha_fin: fechaFin,
+        search: search
       })
       downloadBlob(blob, `reporte_ventas_${new Date().toISOString().slice(0, 10)}.xlsx`)
       showToast('Reporte de ventas exportado correctamente', 'success')
@@ -132,49 +141,109 @@ function TabVentas() {
     }
   }
 
+  // Pagar es de un solo sentido: pendiente → pagada, con confirmación (y la
+  // contraseña del usuario, vía ConfirmActionModal). Revertir una ya pagada
+  // es una corrección de errores aparte, solo para quien tenga el permiso
+  // `revertir_comisiones` (por defecto, Admin).
+  const handleMarcarPagada = (venta) => {
+    showModal('confirmAction', {
+      title: 'Marcar comisión como pagada',
+      message: `¿Confirmas que la comisión de la póliza ${venta.pol} (${usd(venta.comision_monto)}) fue pagada? No podrás revertirlo desde aquí.`,
+      confirmLabel: 'Marcar pagada',
+      color: 'emerald',
+      icon: CheckCircle2,
+      onConfirm: async () => {
+        await marcarComision(venta.comision_id, 'PAGADA')
+        showToast('Comisión marcada como pagada', 'success')
+        loadData()
+      },
+    })
+  }
+
+  const handleRevertirComision = (venta) => {
+    showModal('confirmAction', {
+      title: 'Revertir pago de comisión',
+      message: `¿Revertir a pendiente la comisión de la póliza ${venta.pol}? Usa esto solo para corregir un error.`,
+      confirmLabel: 'Revertir',
+      color: 'amber',
+      icon: AlertTriangle,
+      onConfirm: async () => {
+        await marcarComision(venta.comision_id, 'PENDIENTE')
+        showToast('Comisión revertida a pendiente', 'success')
+        loadData()
+      },
+    })
+  }
+
+  const toggleSelected = (comisionId) => {
+    setSelected(prev => {
+      const next = new Set(prev)
+      next.has(comisionId) ? next.delete(comisionId) : next.add(comisionId)
+      return next
+    })
+  }
+
+  const handlePagarLote = () => {
+    const ids = Array.from(selected)
+    const totalLote = ventas
+      .filter(v => selected.has(v.comision_id))
+      .reduce((sum, v) => sum + (v.comision_monto || 0), 0)
+    showModal('confirmAction', {
+      title: 'Pagar comisiones seleccionadas',
+      message: `Se marcarán ${ids.length} comisiones como pagadas por un total de ${usd(totalLote)}. No podrás revertirlo desde aquí.`,
+      confirmLabel: 'Pagar lote',
+      color: 'emerald',
+      icon: CheckCircle2,
+      onConfirm: async () => {
+        const res = await pagarLoteComisiones(ids)
+        showToast(`${res.pagadas} comisiones marcadas como pagadas`, 'success')
+        loadData()
+      },
+    })
+  }
+
   useEffect(() => {
     loadData()
   }, [fechaInicio, fechaFin])
 
-  const filteredVentas = ventas.filter(v => 
-    v.pol.toLowerCase().includes(search.toLowerCase()) || 
+  // El filtro de texto ya se envía al backend (search) — se vuelve a aplicar
+  // aquí mismo solo para que escribir se sienta instantáneo sin esperar la
+  // respuesta del servidor en cada tecla.
+  const filteredVentas = ventas.filter(v =>
+    v.pol.toLowerCase().includes(search.toLowerCase()) ||
     v.agente.toLowerCase().includes(search.toLowerCase()) ||
     v.tipo.toLowerCase().includes(search.toLowerCase())
-  )
-
-  const filteredComisiones = comisiones.filter(c => 
-    c.ben.toLowerCase().includes(search.toLowerCase()) || 
-    c.rol.toLowerCase().includes(search.toLowerCase())
   )
 
   return (
     <div>
       <div className="card p-3.5 mb-4 flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-44">
-          <input 
-            type="text" 
-            placeholder="Buscar…" 
+          <input
+            type="text"
+            placeholder="Buscar…"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition" 
+            onKeyDown={e => e.key === 'Enter' && loadData()}
+            className="w-full pl-9 pr-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
           />
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
         </div>
-        <input 
-          type="date" 
-          value={fechaInicio} 
+        <input
+          type="date"
+          value={fechaInicio}
           onChange={e => setFechaInicio(e.target.value)}
-          className="min-w-0 text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500" 
+          className="min-w-0 text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
         />
-        <input 
-          type="date" 
-          value={fechaFin} 
+        <input
+          type="date"
+          value={fechaFin}
           onChange={e => setFechaFin(e.target.value)}
-          className="min-w-0 text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500" 
+          className="min-w-0 text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
         />
         {canExport && (
-          <button 
-            onClick={handleExport} 
+          <button
+            onClick={handleExport}
             disabled={exporting}
             className="btn-secondary ml-auto shrink-0"
           >
@@ -190,43 +259,161 @@ function TabVentas() {
         </div>
       ) : (
         <>
-          <h4 className="font-semibold text-slate-700 mb-3 text-sm">Ventas del Período</h4>
+          {/* Resumen general: lo generado, lo pagado y lo pendiente de TODOS los vendedores del período filtrado */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+            {[
+              { label: 'Comisión Generada', val: usd(resumen.comision_generada), sub: 'Total del período', cls: 'border-t-indigo-500', vcls: 'text-indigo-700' },
+              { label: 'Comisión Pagada', val: usd(resumen.comision_pagada), sub: `${resumen.pct_pagado}% del total`, cls: 'border-t-emerald-500', vcls: 'text-emerald-700' },
+              { label: 'Comisión Pendiente', val: usd(resumen.comision_pendiente), sub: `${(100 - resumen.pct_pagado).toFixed(1)}% del total`, cls: 'border-t-amber-500', vcls: 'text-amber-700' },
+            ].map(c => (
+              <div key={c.label} className={`card p-4 text-center border-t-4 ${c.cls}`}>
+                <p className="text-xs text-slate-600 uppercase tracking-wide">{c.label}</p>
+                <p className={`text-2xl font-black mt-1 ${c.vcls}`}>{c.val}</p>
+                <p className="text-xs text-slate-400">{c.sub}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="font-semibold text-slate-700 text-sm">Ventas del Período</h4>
+            {canManageComisiones && selected.size > 0 && (
+              <button
+                onClick={handlePagarLote}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-xs font-semibold text-white hover:bg-emerald-700 transition whitespace-nowrap"
+              >
+                <CheckCircle2 className="w-4 h-4 shrink-0" /> Pagar seleccionadas ({selected.size})
+              </button>
+            )}
+          </div>
           <DataTable
             cols={[
+              ...(canManageComisiones ? [{ k: 'sel', l: 'Sel.', acc: true }] : []),
               { k: 'fecha', l: 'Fecha',      hide: 'sm' },
               { k: 'pol',   l: 'Póliza',     m: true, hide: 'md' },
               { k: 'agente',l: 'Agente',     tr: true },
               { k: 'tipo',  l: 'Tipo',       hide: 'lg', tr: true },
               { k: 'prima', l: 'Prima Neta', r: true },
               { k: 'est',   l: 'Estado' },
+              { k: 'comision_monto', l: 'Comisión (individual)', r: true },
+              { k: 'comision_status', l: 'Comisión' },
+              ...(canManageComisiones || canRevertirComisiones ? [{ k: 'accion', l: '', acc: true }] : []),
             ]}
             rows={filteredVentas.map(v => ({
               ...v,
               prima: usd(v.prima),
-              est: rsbadge(v.est)
-            }))}
-          />
-
-          <h4 className="font-semibold text-slate-700 mb-3 mt-6 text-sm">Comisiones del Período</h4>
-          <DataTable
-            cols={[
-              { k: 'ben',  l: 'Beneficiario', tr: true },
-              { k: 'rol',  l: 'Rol',          hide: 'sm' },
-              { k: 'pol',  l: 'Pólizas',      r: true, hide: 'sm' },
-              { k: 'base', l: 'Base',         r: true, hide: 'md' },
-              { k: 'tasa', l: 'Tasa',         r: true, hide: 'md' },
-              { k: 'com',  l: 'Comisión',     r: true },
-              { k: 'est',  l: 'Estado' },
-            ]}
-            rows={filteredComisiones.map(c => ({
-              ...c,
-              base: usd(c.base),
-              com: usd(c.com),
-              est: rsbadge(c.est)
+              est: rsbadge(v.est),
+              comision_monto: v.comision_monto != null ? `${usd(v.comision_monto)} (${v.comision_tasa_pct}%)` : '—',
+              comision_status: v.comision_status
+                ? badge(v.comision_status === 'PAGADA' ? 'Pagada' : 'Pendiente', v.comision_status === 'PAGADA' ? 'green' : 'amber')
+                : '—',
+              sel: v.comision_id && v.comision_status === 'PENDIENTE' && canManageComisiones ? (
+                <input
+                  type="checkbox"
+                  checked={selected.has(v.comision_id)}
+                  onChange={() => toggleSelected(v.comision_id)}
+                  className="w-4 h-4 accent-jm-blue cursor-pointer"
+                />
+              ) : null,
+              accion: v.comision_id && v.comision_status === 'PENDIENTE' && canManageComisiones ? (
+                <button
+                  onClick={() => handleMarcarPagada(v)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-xs font-semibold text-emerald-600 hover:bg-emerald-100 transition whitespace-nowrap"
+                >
+                  Marcar pagada
+                </button>
+              ) : v.comision_id && v.comision_status === 'PAGADA' && canRevertirComisiones ? (
+                <button
+                  onClick={() => handleRevertirComision(v)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 text-xs font-semibold text-amber-600 hover:bg-amber-100 transition whitespace-nowrap"
+                >
+                  Revertir
+                </button>
+              ) : null,
             }))}
           />
         </>
       )}
+    </div>
+  )
+}
+
+// Modal de notas/documento de entrega para un retiro de efectivo
+function RetiroEfectivoModal({ row, fechaInicio, fechaFin, onClose, onSaved }) {
+  const { showToast } = useApp()
+  const [notas, setNotas] = useState(row.notas || '')
+  const [documento, setDocumento] = useState(null)
+  const [saving, setSaving] = useState(false)
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await marcarRetiroEfectivo({
+        sede: row.ofi,
+        forma_pago: row.forma_pago,
+        fecha_inicio: fechaInicio,
+        fecha_fin: fechaFin,
+        retirado: row.retirado,
+        notas,
+        documento,
+      })
+      showToast('Retiro de efectivo actualizado', 'success')
+      onSaved()
+      onClose()
+    } catch (err) {
+      showToast(err.message || 'Error al guardar el retiro de efectivo', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-[80] flex items-center justify-center p-4 backdrop-blur-sm">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in duration-200">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
+          <div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{row.ofi}</p>
+            <h3 className="text-base font-black text-slate-800">{row.forma_pago}</h3>
+          </div>
+          <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-xl transition">
+            <X className="w-4 h-4 text-slate-500" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          <div>
+            <label className="field-label">Notas</label>
+            <textarea
+              className="input-field text-sm min-h-[90px]"
+              value={notas}
+              onChange={e => setNotas(e.target.value)}
+              placeholder="Observaciones sobre el retiro de efectivo…"
+            />
+          </div>
+          <div>
+            <label className="field-label">Documento de entrega</label>
+            <input
+              type="file"
+              onChange={e => setDocumento(e.target.files?.[0] || null)}
+              className="input-field text-sm"
+            />
+            {row.documento_url && !documento && (
+              <a
+                href={row.documento_url}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-1.5 inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+              >
+                <Paperclip className="w-3.5 h-3.5" /> {row.documento_nombre || 'Ver documento actual'}
+              </a>
+            )}
+          </div>
+        </div>
+        <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-2 shrink-0">
+          <button onClick={onClose} className="btn-secondary">Cancelar</button>
+          <button onClick={handleSave} disabled={saving} className="btn-primary">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Guardar'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -241,7 +428,13 @@ function TabOficinas() {
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
 
+  const [pagosRows, setPagosRows] = useState([])
+  const [pagosLoading, setPagosLoading] = useState(false)
+  const [pagosExporting, setPagosExporting] = useState(false)
+  const [retiroEdit, setRetiroEdit] = useState(null)
+
   const canExport = canAct('reportes', 'export')
+  const canManageOficinas = canAct('reportes', 'manage_oficinas')
 
   const loadData = async () => {
     setLoading(true)
@@ -252,6 +445,35 @@ function TabOficinas() {
       showToast('Error al cargar reporte de oficinas', 'error')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadPagosData = async () => {
+    setPagosLoading(true)
+    try {
+      const data = await fetchOficinasPagos({ fecha_inicio: fechaInicio, fecha_fin: fechaFin })
+      setPagosRows(data || [])
+    } catch (err) {
+      showToast('Error al cargar reporte de pólizas cobradas', 'error')
+    } finally {
+      setPagosLoading(false)
+    }
+  }
+
+  const handleToggleRetirado = async (row) => {
+    try {
+      await marcarRetiroEfectivo({
+        sede: row.ofi,
+        forma_pago: row.forma_pago,
+        fecha_inicio: fechaInicio,
+        fecha_fin: fechaFin,
+        retirado: !row.retirado,
+        notas: row.notas,
+      })
+      showToast(row.retirado ? 'Marcado como pendiente de retiro' : 'Efectivo marcado como retirado', 'success')
+      loadPagosData()
+    } catch (err) {
+      showToast(err.message || 'Error al actualizar el retiro de efectivo', 'error')
     }
   }
 
@@ -272,8 +494,26 @@ function TabOficinas() {
     }
   }
 
+  const handleExportPagos = async () => {
+    setPagosExporting(true)
+    showToast('Exportando pólizas cobradas…', 'info')
+    try {
+      const blob = await exportOficinasPagos({
+        fecha_inicio: fechaInicio,
+        fecha_fin: fechaFin
+      })
+      downloadBlob(blob, `reporte_oficinas_pagos_${new Date().toISOString().slice(0, 10)}.xlsx`)
+      showToast('Pólizas cobradas exportadas correctamente', 'success')
+    } catch (err) {
+      showToast('Error al exportar pólizas cobradas', 'error')
+    } finally {
+      setPagosExporting(false)
+    }
+  }
+
   useEffect(() => {
     loadData()
+    loadPagosData()
   }, [fechaInicio, fechaFin])
 
   return (
@@ -324,130 +564,72 @@ function TabOficinas() {
           }))}
         />
       )}
-    </div>
-  )
-}
 
-function TabPersonal() {
-  const { showToast, canAct } = useApp()
-  const { start, today } = getInitialDates()
-  const [fechaInicio, setFechaInicio] = useState(start)
-  const [fechaFin, setFechaFin] = useState(today)
-  const [search, setSearch] = useState('')
-  const [roleFilter, setRoleFilter] = useState('Todos los roles')
-  const [rows, setRows] = useState([])
-  const [loading, setLoading] = useState(false)
-  const [exporting, setExporting] = useState(false)
-
-  const canExport = canAct('reportes', 'export')
-
-  const loadData = async () => {
-    setLoading(true)
-    try {
-      const data = await fetchPersonal({ fecha_inicio: fechaInicio, fecha_fin: fechaFin })
-      setRows(data || [])
-    } catch (err) {
-      showToast('Error al cargar reporte de personal', 'error')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleExport = async () => {
-    setExporting(true)
-    showToast('Exportando reporte de personal…', 'info')
-    try {
-      const blob = await exportPersonal({
-        fecha_inicio: fechaInicio,
-        fecha_fin: fechaFin
-      })
-      downloadBlob(blob, `reporte_personal_${new Date().toISOString().slice(0, 10)}.xlsx`)
-      showToast('Reporte de personal exportado correctamente', 'success')
-    } catch (err) {
-      showToast('Error al exportar reporte de personal', 'error')
-    } finally {
-      setExporting(false)
-    }
-  }
-
-  useEffect(() => {
-    loadData()
-  }, [fechaInicio, fechaFin])
-
-  const filteredRows = rows.filter(r => {
-    const matchSearch = r.nom.toLowerCase().includes(search.toLowerCase()) || 
-                        r.ofi.toLowerCase().includes(search.toLowerCase())
-    const matchRole = roleFilter === 'Todos los roles' || r.rol === roleFilter
-    return matchSearch && matchRole
-  })
-
-  return (
-    <div>
-      <div className="card p-3.5 mb-4 flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-44">
-          <input 
-            type="text" 
-            placeholder="Buscar personal…" 
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition" 
-          />
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-        </div>
-        <select 
-          value={roleFilter}
-          onChange={e => setRoleFilter(e.target.value)}
-          className="text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option>Todos los roles</option>
-          <option>Agente</option>
-          <option>Supervisor</option>
-        </select>
-        <input 
-          type="date" 
-          value={fechaInicio} 
-          onChange={e => setFechaInicio(e.target.value)}
-          className="min-w-0 text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500" 
-        />
-        <input 
-          type="date" 
-          value={fechaFin} 
-          onChange={e => setFechaFin(e.target.value)}
-          className="min-w-0 text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500" 
-        />
+      <div className="flex items-center justify-between mt-6 mb-3">
+        <h3 className="text-sm font-semibold text-slate-700">Pólizas cobradas por forma de pago</h3>
         {canExport && (
-          <button 
-            onClick={handleExport} 
-            disabled={exporting}
-            className="btn-secondary ml-auto shrink-0"
+          <button
+            onClick={handleExportPagos}
+            disabled={pagosExporting}
+            className="btn-secondary shrink-0"
           >
-            {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            {pagosExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
             Exportar
           </button>
         )}
       </div>
 
-      {loading ? (
+      {pagosLoading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
         </div>
       ) : (
         <DataTable
           cols={[
-            { k: 'nom',   l: 'Nombre',          tr: true },
-            { k: 'rol',   l: 'Rol',             hide: 'sm' },
-            { k: 'ofi',   l: 'Oficina',         hide: 'md' },
-            { k: 'pol',   l: 'Pólizas',         r: true, hide: 'sm' },
-            { k: 'prima', l: 'Prima Generada',  r: true },
-            { k: 'com',   l: 'Comisión',        r: true, hide: 'md' },
-            { k: 'est',   l: 'Estado' },
+            { k: 'ofi',        l: 'Oficina',          tr: true },
+            { k: 'forma_pago', l: 'Forma de Pago' },
+            { k: 'pol',        l: 'Pólizas Cobradas', r: true },
+            { k: 'prima',      l: 'Prima Neta',       r: true, hide: 'sm' },
+            { k: 'retirado',   l: 'Efectivo Retirado' },
+            ...(canManageOficinas ? [{ k: 'acciones', l: '', acc: true }] : []),
           ]}
-          rows={filteredRows.map(r => ({
-            ...r,
-            prima: typeof r.prima === 'number' ? usd(r.prima) : r.prima,
-            com: typeof r.com === 'number' ? usd(r.com) : r.com,
-            est: rsbadge(r.est)
-          }))}
+          rows={pagosRows.map(r => {
+            const esEfectivo = r.retirado !== undefined
+            return {
+              ...r,
+              prima: usd(r.prima),
+              retirado: esEfectivo ? (r.retirado ? badge('Retirado', 'green') : badge('Pendiente', 'amber')) : '—',
+              acciones: esEfectivo && canManageOficinas ? (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => handleToggleRetirado(r)}
+                    className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition whitespace-nowrap ${
+                      r.retirado ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                    }`}
+                  >
+                    {r.retirado ? 'Marcar pendiente' : 'Marcar retirado'}
+                  </button>
+                  <button
+                    onClick={() => setRetiroEdit(r)}
+                    title="Notas / documento de entrega"
+                    className="p-1.5 rounded-lg hover:bg-slate-100 transition"
+                  >
+                    <Paperclip className={`w-4 h-4 ${r.documento_url ? 'text-blue-600' : 'text-slate-400'}`} />
+                  </button>
+                </div>
+              ) : null,
+            }
+          })}
+        />
+      )}
+
+      {retiroEdit && (
+        <RetiroEfectivoModal
+          row={retiroEdit}
+          fechaInicio={fechaInicio}
+          fechaFin={fechaFin}
+          onClose={() => setRetiroEdit(null)}
+          onSaved={loadPagosData}
         />
       )}
     </div>
@@ -1342,19 +1524,26 @@ function TabExternos() {
 
 // ── Tab: Métricas de Personal ───────────────────────────────
 function TabUsuariosMetrics() {
-  const { showToast, currentUser } = useApp()
-  const isVendedor = currentUser?.tipo?.startsWith('Vendedor') || currentUser?.tipo === 'Vendedor' || currentUser?.cargo === 'Agente'
+  const { showToast, showModal, currentUser, canAct } = useApp()
+  // Sin este permiso, el usuario solo puede ver sus propias métricas — no
+  // se ata al rol (un Admin lo puede otorgar/quitar a quien quiera).
+  const canViewTodos = canAct('reportes', 'view_metrics_personal_todos')
+  const canExport = canAct('reportes', 'export')
+  const canManageComisiones = canAct('reportes', 'manage_comisiones')
+  const canRevertirComisiones = canAct('reportes', 'revertir_comisiones')
   const { start, today } = getInitialDates()
   const [fechaInicio, setFechaInicio] = useState(start)
   const [fechaFin, setFechaFin] = useState(today)
   const [search, setSearch] = useState('')
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(false)
+  const [exporting, setExporting] = useState(false)
 
   // Para ver el detalle de un usuario
   const [selectedUser, setSelectedUser] = useState(null)
   const [detailData, setDetailData] = useState(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
+  const [selected, setSelected] = useState(new Set())
 
   const loadData = async () => {
     setLoading(true)
@@ -1381,6 +1570,7 @@ function TabUsuariosMetrics() {
         usuario_id: userId
       })
       setDetailData(data)
+      setSelected(new Set())
     } catch (err) {
       showToast('Error al cargar detalle del usuario', 'error')
     } finally {
@@ -1389,10 +1579,10 @@ function TabUsuariosMetrics() {
   }
 
   useEffect(() => {
-    if (isVendedor && currentUser?.id) {
+    if (!canViewTodos && currentUser?.id) {
       setSelectedUser(currentUser.id)
     }
-  }, [isVendedor, currentUser, selectedUser])
+  }, [canViewTodos, currentUser, selectedUser])
 
   useEffect(() => {
     if (selectedUser) {
@@ -1407,12 +1597,106 @@ function TabUsuariosMetrics() {
     if (!selectedUser) loadData()
   }
 
+  const handleExport = async () => {
+    setExporting(true)
+    showToast('Exportando métricas de personal…', 'info')
+    try {
+      const blob = await exportUsuariosReport({
+        fecha_inicio: fechaInicio,
+        fecha_fin: fechaFin,
+        ...(selectedUser ? { usuario_id: selectedUser } : { search })
+      })
+      downloadBlob(blob, `metricas_personal_${new Date().toISOString().slice(0, 10)}.xlsx`)
+      showToast('Métricas de personal exportadas correctamente', 'success')
+    } catch (err) {
+      showToast(err.message || 'Error al exportar métricas de personal', 'error')
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const handleMarcarPagada = (poliza) => {
+    showModal('confirmAction', {
+      title: 'Marcar comisión como pagada',
+      message: `¿Confirmas que la comisión de la póliza ${poliza.nro_contrato} (${usd(poliza.comision_monto)}) fue pagada? No podrás revertirlo desde aquí.`,
+      confirmLabel: 'Marcar pagada',
+      color: 'emerald',
+      icon: CheckCircle2,
+      onConfirm: async () => {
+        await marcarComision(poliza.comision_id, 'PAGADA')
+        showToast('Comisión marcada como pagada', 'success')
+        loadUserDetail(selectedUser)
+      },
+    })
+  }
+
+  const handleRevertirComision = (poliza) => {
+    showModal('confirmAction', {
+      title: 'Revertir pago de comisión',
+      message: `¿Revertir a pendiente la comisión de la póliza ${poliza.nro_contrato}? Usa esto solo para corregir un error.`,
+      confirmLabel: 'Revertir',
+      color: 'amber',
+      icon: AlertTriangle,
+      onConfirm: async () => {
+        await marcarComision(poliza.comision_id, 'PENDIENTE')
+        showToast('Comisión revertida a pendiente', 'success')
+        loadUserDetail(selectedUser)
+      },
+    })
+  }
+
+  const toggleSelected = (comisionId) => {
+    setSelected(prev => {
+      const next = new Set(prev)
+      next.has(comisionId) ? next.delete(comisionId) : next.add(comisionId)
+      return next
+    })
+  }
+
+  const handlePagarLote = (polizas) => {
+    const ids = Array.from(selected)
+    const totalLote = polizas
+      .filter(p => selected.has(p.comision_id))
+      .reduce((sum, p) => sum + (p.comision_monto || 0), 0)
+    showModal('confirmAction', {
+      title: 'Pagar comisiones seleccionadas',
+      message: `Se marcarán ${ids.length} comisiones como pagadas por un total de ${usd(totalLote)}. No podrás revertirlo desde aquí.`,
+      confirmLabel: 'Pagar lote',
+      color: 'emerald',
+      icon: CheckCircle2,
+      onConfirm: async () => {
+        const res = await pagarLoteComisiones(ids)
+        showToast(`${res.pagadas} comisiones marcadas como pagadas`, 'success')
+        loadUserDetail(selectedUser)
+      },
+    })
+  }
+
+  // Pagar de una vez todas las comisiones pendientes de un vendedor, desde
+  // la fila resumen del listado (sin entrar al detalle).
+  const handlePagarPendientesVendedor = (row) => {
+    const ids = row.comision_ids_pendientes || []
+    if (ids.length === 0) return
+    showModal('confirmAction', {
+      title: 'Pagar comisiones pendientes',
+      message: `Se marcarán ${ids.length} comisiones de ${row.nom} como pagadas por un total de ${usd(row.com_pend)}. No podrás revertirlo desde aquí.`,
+      confirmLabel: 'Pagar pendientes',
+      color: 'emerald',
+      icon: CheckCircle2,
+      onConfirm: async () => {
+        const res = await pagarLoteComisiones(ids)
+        showToast(`${res.pagadas} comisiones de ${row.nom} marcadas como pagadas`, 'success')
+        loadData()
+      },
+    })
+  }
+
   if (selectedUser && detailData) {
     const { usuario, stats, polizas } = detailData
     return (
       <div>
         <div className="card p-3.5 mb-4 flex items-center gap-3">
-          {!isVendedor && (
+          {canViewTodos && (
             <button onClick={() => { setSelectedUser(null); setDetailData(null) }} className="btn-secondary">
               ← Volver a la lista
             </button>
@@ -1433,6 +1717,12 @@ function TabUsuariosMetrics() {
               onChange={e => setFechaFin(e.target.value)}
               className="text-xs border border-slate-200 rounded-xl px-2.5 py-1.5 bg-slate-50 text-slate-600 focus:ring-2 focus:ring-blue-500 outline-none"
             />
+            {canExport && (
+              <button onClick={handleExport} disabled={exporting} className="btn-secondary shrink-0">
+                {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                Exportar
+              </button>
+            )}
           </div>
         </div>
 
@@ -1442,12 +1732,12 @@ function TabUsuariosMetrics() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-3">
               {[
                 { label: 'Pólizas Emitidas', val: stats.total_polizas, sub: 'Ventas del período', cls: 'border-t-blue-500', vcls: 'text-slate-800' },
-                { label: 'Prima Emitida', val: usd(stats.total_prima), sub: 'USD', cls: 'border-t-emerald-500', vcls: 'text-emerald-700' },
-                { label: 'Prima en Bs', val: bs(stats.total_prima_bs), sub: 'VES', cls: 'border-t-amber-500', vcls: 'text-amber-700' },
-                { label: 'Comisión Estimada', val: usd(stats.comision_estimada), sub: `${usuario.cargo === 'Agente' ? '10%' : '5%'} de base`, cls: 'border-t-indigo-500', vcls: 'text-indigo-700' },
+                { label: 'Prima Emitida', val: usd(stats.total_prima), sub: 'USD equivalente', cls: 'border-t-emerald-500', vcls: 'text-emerald-700' },
+                { label: 'Comisión Generada', val: usd(stats.comision_generada), sub: `${usuario.cargo === 'Agente' ? '10%' : '5%'} de base`, cls: 'border-t-indigo-500', vcls: 'text-indigo-700' },
+                { label: 'Comisión Pendiente', val: usd(stats.comision_pendiente), sub: `Pagada: ${usd(stats.comision_pagada)}`, cls: 'border-t-amber-500', vcls: 'text-amber-700' },
               ].map(c => (
                 <div key={c.label} className={`card p-4 text-center border-t-4 ${c.cls}`}>
                   <p className="text-xs text-slate-600 uppercase tracking-wide">{c.label}</p>
@@ -1457,6 +1747,19 @@ function TabUsuariosMetrics() {
               ))}
             </div>
 
+            {/* Prima por moneda nativa — sin convertir, a diferencia del total USD de arriba */}
+            {Object.keys(stats.primas_por_moneda || {}).length > 0 && (
+              <div className="card p-3 mb-4 border border-slate-100 flex flex-wrap gap-x-6 gap-y-1.5 text-sm bg-white rounded-xl">
+                <span className="text-xs text-slate-400 uppercase tracking-wide font-semibold">Prima por moneda (sin convertir):</span>
+                {Object.entries(stats.primas_por_moneda).map(([moneda, d]) => (
+                  <span key={moneda} className="text-sm">
+                    <strong className="text-slate-700">{fmtMonto(d.monto, moneda)}</strong>
+                    <span className="text-slate-400"> ({d.polizas} póliza{d.polizas === 1 ? '' : 's'})</span>
+                  </span>
+                ))}
+              </div>
+            )}
+
             <div className="card p-4 mb-4 border border-slate-100 flex flex-wrap gap-x-8 gap-y-2 text-sm bg-white rounded-xl">
               <div><strong className="text-slate-500">Usuario:</strong> <span className="font-semibold text-slate-800">{usuario.nick}</span></div>
               <div><strong className="text-slate-500">Cargo:</strong> <span className="font-semibold text-slate-800">{usuario.cargo}</span></div>
@@ -1464,20 +1767,61 @@ function TabUsuariosMetrics() {
               <div><strong className="text-slate-500">Estado:</strong> <span className="font-semibold text-slate-800">{usuario.activo ? 'Activo' : 'Inactivo'}</span></div>
             </div>
 
-            <h4 className="font-semibold text-slate-700 mb-3 text-sm">Pólizas Vendidas</h4>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-semibold text-slate-700 text-sm">Pólizas Vendidas</h4>
+              {canManageComisiones && selected.size > 0 && (
+                <button
+                  onClick={() => handlePagarLote(polizas)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-xs font-semibold text-white hover:bg-emerald-700 transition whitespace-nowrap"
+                >
+                  <CheckCircle2 className="w-4 h-4 shrink-0" /> Pagar seleccionadas ({selected.size})
+                </button>
+              )}
+            </div>
             <DataTable
               cols={[
+                ...(canManageComisiones ? [{ k: 'sel', l: 'Sel.', acc: true }] : []),
                 { k: 'fecha_emision', l: 'Fecha Emisión' },
                 { k: 'nro_contrato', l: 'Nro. Contrato', m: true },
                 { k: 'cliente_nombre', l: 'Asegurado/Cliente', tr: true },
                 { k: 'producto_nombre', l: 'Producto' },
-                { k: 'total', l: 'Prima (USD)', r: true },
+                { k: 'total', l: 'Prima', r: true },
                 { k: 'status', l: 'Estado' },
+                { k: 'comision_monto', l: 'Comisión', r: true },
+                { k: 'comision_status', l: 'Estado Comisión' },
+                ...(canManageComisiones || canRevertirComisiones ? [{ k: 'accion', l: '', acc: true }] : []),
               ]}
               rows={polizas.map(p => ({
                 ...p,
-                total: usd(p.total),
-                status: rsbadge(p.status)
+                total: fmtMonto(p.total, p.moneda_producto),
+                status: rsbadge(p.status),
+                comision_monto: p.comision_monto != null ? usd(p.comision_monto) : '—',
+                comision_status: p.comision_status
+                  ? badge(p.comision_status === 'PAGADA' ? 'Pagada' : 'Pendiente', p.comision_status === 'PAGADA' ? 'green' : 'amber')
+                  : '—',
+                sel: p.comision_id && p.comision_status === 'PENDIENTE' && canManageComisiones ? (
+                  <input
+                    type="checkbox"
+                    checked={selected.has(p.comision_id)}
+                    onChange={() => toggleSelected(p.comision_id)}
+                    className="w-4 h-4 accent-jm-blue cursor-pointer"
+                  />
+                ) : null,
+                accion: p.comision_id && p.comision_status === 'PENDIENTE' && canManageComisiones ? (
+                  <button
+                    onClick={() => handleMarcarPagada(p)}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-xs font-semibold text-emerald-600 hover:bg-emerald-100 transition whitespace-nowrap"
+                  >
+                    Marcar pagada
+                  </button>
+                ) : p.comision_id && p.comision_status === 'PAGADA' && canRevertirComisiones ? (
+                  <button
+                    onClick={() => handleRevertirComision(p)}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 text-xs font-semibold text-amber-600 hover:bg-amber-100 transition whitespace-nowrap"
+                  >
+                    Revertir
+                  </button>
+                ) : null,
               }))}
             />
           </>
@@ -1512,6 +1856,12 @@ function TabUsuariosMetrics() {
           className="min-w-0 text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
         />
         <button type="submit" className="btn-primary">Filtrar</button>
+        {canExport && (
+          <button type="button" onClick={handleExport} disabled={exporting} className="btn-secondary shrink-0">
+            {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            Exportar
+          </button>
+        )}
       </form>
 
       {loading ? (
@@ -1526,20 +1876,35 @@ function TabUsuariosMetrics() {
             { k: 'ofi', l: 'Sede/Oficina', hide: 'md' },
             { k: 'pol', l: 'Pólizas Vendidas', r: true },
             { k: 'prima', l: 'Prima Generada (USD)', r: true },
-            { k: 'com', l: 'Comisión Estimada', r: true, hide: 'md' },
+            { k: 'com_gen', l: 'Com. Generada', r: true, hide: 'md' },
+            { k: 'com_pagada', l: 'Com. Pagada', r: true, hide: 'md' },
+            { k: 'com_pend', l: 'Com. Pendiente', r: true, hide: 'md' },
             { k: 'est', l: 'Estado' },
-            { k: 'action', l: 'Detalle', acc: true }
+            { k: 'action', l: '', acc: true }
           ]}
           rows={rows.map(r => ({
             ...r,
+            nom: r.id === null ? <strong>{r.nom}</strong> : r.nom,
             prima: usd(r.prima),
-            com: usd(r.com),
-            est: rsbadge(r.est),
-            action: (
-              <button onClick={() => setSelectedUser(r.id)} className="text-xs text-blue-600 hover:underline font-semibold bg-transparent border-none p-0 cursor-pointer">
-                Ver Detalle
-              </button>
-            )
+            com_gen: usd(r.com_gen),
+            com_pagada: usd(r.com_pagada),
+            com_pend: usd(r.com_pend),
+            est: r.est ? rsbadge(r.est) : '',
+            action: r.id !== null ? (
+              <div className="flex items-center gap-2.5">
+                <button onClick={() => setSelectedUser(r.id)} className="text-xs text-blue-600 hover:underline font-semibold bg-transparent border-none p-0 cursor-pointer whitespace-nowrap">
+                  Ver Detalle
+                </button>
+                {canManageComisiones && r.comision_ids_pendientes?.length > 0 && (
+                  <button
+                    onClick={() => handlePagarPendientesVendedor(r)}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-xs font-semibold text-emerald-600 hover:bg-emerald-100 transition whitespace-nowrap"
+                  >
+                    Pagar pendientes
+                  </button>
+                )}
+              </div>
+            ) : null
           }))}
         />
       )}
@@ -2052,6 +2417,7 @@ function TabVehiculosMetrics() {
   const [fechaInicio, setFechaInicio] = useState(start)
   const [fechaFin, setFechaFin] = useState(today)
   const [search, setSearch] = useState('')
+  const [tipoFiltro, setTipoFiltro] = useState('')
   const [stats, setStats] = useState({ vehiculos_asegurados_periodo: 0, asegurados_esta_semana: 0, distribucion_tipo: {}, distribucion_uso: {} })
   const [vehiculos, setVehiculos] = useState([])
   const [loading, setLoading] = useState(false)
@@ -2067,7 +2433,8 @@ function TabVehiculosMetrics() {
       const data = await fetchVehiculosReport({
         fecha_inicio: fechaInicio,
         fecha_fin: fechaFin,
-        search: search
+        search: search,
+        tipo_veh: tipoFiltro
       })
       setStats(data.stats || { vehiculos_asegurados_periodo: 0, asegurados_esta_semana: 0, distribucion_tipo: {}, distribucion_uso: {} })
       setVehiculos(data.vehiculos || [])
@@ -2100,7 +2467,7 @@ function TabVehiculosMetrics() {
     } else {
       loadData()
     }
-  }, [fechaInicio, fechaFin, selectedPlaca])
+  }, [fechaInicio, fechaFin, selectedPlaca, tipoFiltro])
 
   const handleSearchSubmit = (e) => {
     e?.preventDefault()
@@ -2175,6 +2542,16 @@ function TabVehiculosMetrics() {
           />
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
         </div>
+        <select
+          value={tipoFiltro}
+          onChange={e => setTipoFiltro(e.target.value)}
+          className="text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">Todos los tipos</option>
+          {Object.keys(stats.distribucion_tipo || {}).sort().map(tipo => (
+            <option key={tipo} value={tipo}>{tipo}</option>
+          ))}
+        </select>
         <input
           type="date"
           value={fechaInicio}
@@ -2230,6 +2607,7 @@ function TabVehiculosMetrics() {
               { k: 'pla', l: 'Placa', m: true },
               { k: 'mar', l: 'Marca' },
               { k: 'mod', l: 'Modelo', tr: true },
+              { k: 'tip', l: 'Tipo', hide: 'md' },
               { k: 'ani', l: 'Año', r: true, hide: 'sm' },
               { k: 'col', l: 'Color', hide: 'sm' },
               { k: 'pro', l: 'Propietario', tr: true },
@@ -2261,7 +2639,6 @@ function TabVehiculosMetrics() {
 const TABS = [
   { key: 'ventas',           label: 'Ventas / Comisiones', Icon: TrendingUp,  Component: TabVentas,           viewPerm: 'view_ventas' },
   { key: 'oficinas',         label: 'Oficinas',            Icon: Building2,   Component: TabOficinas,         viewPerm: 'view_oficinas' },
-  { key: 'personal',         label: 'Personal',            Icon: Users,       Component: TabPersonal,         viewPerm: 'view_personal' },
   { key: 'usuarios_metrics', label: 'Métricas de Personal',Icon: Users,       Component: TabUsuariosMetrics,  viewPerm: 'view_metrics_personal' },
   { key: 'clientes_metrics', label: 'Métricas de Clientes',Icon: Users,       Component: TabClientesMetrics,  viewPerm: 'view_metrics_clientes' },
   { key: 'vehiculos_metrics',label: 'Métricas de Vehículos',Icon: Car,        Component: TabVehiculosMetrics, viewPerm: 'view_metrics_vehiculos' },
@@ -2270,8 +2647,10 @@ const TABS = [
 ]
 
 export default function Reportes() {
-  const { canAct, currentUser } = useApp()
-  const isVendedor = currentUser?.tipo?.startsWith('Vendedor') || currentUser?.tipo === 'Vendedor' || currentUser?.cargo === 'Agente'
+  const { canAct } = useApp()
+  // Sin "ver de todos" solo ve sus propias métricas — la pestaña se renombra
+  // para que quede claro que el detalle es siempre el propio.
+  const soloPropiasMetricas = !canAct('reportes', 'view_metrics_personal_todos')
 
   const activeTabs = TABS.filter(t => canAct('reportes', t.viewPerm))
 
@@ -2310,7 +2689,7 @@ export default function Reportes() {
             <button key={t.key} onClick={() => setActive(t.key)}
               className={`text-xs px-4 py-2 shrink-0 flex items-center gap-1.5 ${active === t.key ? 'btn-primary' : 'btn-secondary'}`}
             >
-              <t.Icon className="w-4 h-4" />{t.key === 'usuarios_metrics' && isVendedor ? 'Mis Métricas' : t.label}
+              <t.Icon className="w-4 h-4" />{t.key === 'usuarios_metrics' && soloPropiasMetricas ? 'Mis Métricas' : t.label}
             </button>
           ))}
         </div>

@@ -3,12 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Mail\PolizaRenovadaMail;
+use App\Models\Comision;
 use App\Models\EmailLog;
 use App\Models\Factura;
 use App\Models\Poliza;
 use App\Models\SolicitudRenovacionQr;
 use App\Rules\NoInjectionChars;
 use App\Services\WorkflowService;
+use App\Support\CodigoPoliza;
+use App\Support\Moneda;
 use App\Traits\LogsActivity;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
@@ -96,16 +99,16 @@ class SolicitudRenovacionQrController extends Controller
         $sede       = auth()->user()?->sede ?? 'Principal';
         $hoy        = now()->toDateString();
         $vence      = now()->addYear()->toDateString();
-        $anno       = now()->year;
-        $totalBs    = round((float) $polizaAnterior->total * $tasaBcv, 2);
-        $cobBs      = round((float) $polizaAnterior->cobertura_dolares * $tasaBcv, 2);
+        $monedaNativa = $polizaAnterior->monedaNativa();
+        $totalBs    = round(Moneda::aBs((float) $polizaAnterior->total, $monedaNativa, $tasaBcv, $tasaEur), 2);
+        $cobBs      = round(Moneda::aBs((float) $polizaAnterior->cobertura_dolares, $monedaNativa, $tasaBcv, $tasaEur), 2);
         $pagos       = $solicitud->pagos ?? [];
         $pagoResumen = collect($pagos)->map(fn($p) => $p['metodo'] . ' ' . $p['moneda'])->join(' / ');
         $monedaPrincipal = $pagos[0]['moneda'] ?? 'USD';
 
         $result = DB::transaction(function () use (
-            $polizaAnterior, $solicitud, $pagos, $hoy, $vence, $anno,
-            $sede, $pagoResumen, $monedaPrincipal, $tasaBcv, $tasaEur, $totalBs, $cobBs
+            $polizaAnterior, $solicitud, $pagos, $hoy, $vence,
+            $sede, $pagoResumen, $monedaPrincipal, $monedaNativa, $tasaBcv, $tasaEur, $totalBs, $cobBs
         ) {
             $polizaAnterior->update(['status' => 'RENOVADA']);
 
@@ -115,6 +118,7 @@ class SolicitudRenovacionQrController extends Controller
                 'producto_id'       => $polizaAnterior->producto_id,
                 'total'             => $polizaAnterior->total,
                 'total_bs'          => $totalBs,
+                'moneda_producto'   => $monedaNativa,
                 'tasa_emision'      => $tasaBcv,
                 'tasa_emision_eur'  => $tasaEur,
                 'cobertura_dolares' => $polizaAnterior->cobertura_dolares,
@@ -131,10 +135,29 @@ class SolicitudRenovacionQrController extends Controller
                 'snapshot_datos'    => $polizaAnterior->snapshot_datos,
             ]);
 
-            $nroContrato = 'POL-' . $anno . '-' . str_pad($nueva->id, 5, '0', STR_PAD_LEFT);
-            $nroFactura  = 'FAC-' . $anno . '-' . str_pad($nueva->id, 5, '0', STR_PAD_LEFT);
+            $nroContrato = CodigoPoliza::generar(
+                $sede,
+                $polizaAnterior->solicitud?->persona?->estado,
+                $nueva->producto_id,
+                CodigoPoliza::INDICADOR_RENOVACION,
+                $nueva->id
+            );
+            $nroFactura  = CodigoPoliza::codigoRecibo($nroContrato);
 
             $nueva->update(['nro_contrato' => $nroContrato]);
+
+            if ($nueva->vendedor_id) {
+                $baseUsd = Moneda::aUsd((float) $polizaAnterior->total, $monedaNativa, $tasaBcv, $tasaEur);
+                $tasaPct = Comision::tasaParaCargo($nueva->vendedor?->cargo) * 100;
+                Comision::create([
+                    'poliza_id'      => $nueva->id,
+                    'vendedor_id'    => $nueva->vendedor_id,
+                    'base_usd'       => round($baseUsd, 2),
+                    'tasa_pct'       => $tasaPct,
+                    'monto'          => round($baseUsd * $tasaPct / 100, 2),
+                    'fecha_generada' => $hoy,
+                ]);
+            }
 
             foreach ($polizaAnterior->bienes as $pb) {
                 $nuevoCertificado = null;

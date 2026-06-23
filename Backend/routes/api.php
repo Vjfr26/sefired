@@ -77,7 +77,7 @@ Route::middleware([\App\Http\Middleware\ApiTokenMiddleware::class, 'throttle:120
     Route::get('/reportes/externos/descargar/{id}',  [ReportController::class, 'downloadExternalReport'])->middleware('perm:reportes,export');
     Route::get('/reports/ventas-comisiones',         [ReportController::class, 'getVentasComisiones'])->middleware('perm:reportes,view_ventas');
     Route::get('/reports/oficinas',                  [ReportController::class, 'getOficinas'])->middleware('perm:reportes,view_oficinas');
-    Route::get('/reports/personal',                  [ReportController::class, 'getPersonal'])->middleware('perm:reportes,view_personal');
+    Route::get('/reports/oficinas/pagos',             [ReportController::class, 'getOficinasPagos'])->middleware('perm:reportes,view_oficinas');
     Route::get('/reports/usuarios',                  [ReportController::class, 'getUsuariosReport'])->middleware('perm:reportes,view_metrics_personal');
     Route::get('/reports/clientes',                  [ReportController::class, 'getClientesReport'])->middleware('perm:reportes,view_metrics_clientes');
     Route::get('/reports/vehiculos',                 [ReportController::class, 'getVehiculosReport'])->middleware('perm:reportes,view_metrics_vehiculos');
@@ -128,7 +128,11 @@ Route::middleware([\App\Http\Middleware\ApiTokenMiddleware::class, 'throttle:120
         Route::post('/reportes/externos/historial/ejecutar',  [ReportController::class, 'runExternalReportSchedule'])->middleware('perm:reportes,manage_schedules');
         Route::post('/reports/ventas-comisiones/exportar',    [ReportController::class, 'exportVentas'])->middleware('perm:reportes,export');
         Route::post('/reports/oficinas/exportar',             [ReportController::class, 'exportOficinas'])->middleware('perm:reportes,export');
-        Route::post('/reports/personal/exportar',             [ReportController::class, 'exportPersonal'])->middleware('perm:reportes,export');
+        Route::post('/reports/oficinas/pagos/exportar',       [ReportController::class, 'exportOficinasPagos'])->middleware('perm:reportes,export');
+        Route::post('/reports/oficinas/retiro-efectivo',      [ReportController::class, 'marcarRetiroEfectivo'])->middleware('perm:reportes,manage_oficinas');
+        Route::post('/reports/usuarios/exportar',             [ReportController::class, 'exportUsuariosReport'])->middleware('perm:reportes,export');
+        Route::patch('/reports/comisiones/{id}',              [ReportController::class, 'marcarComision'])->middleware('perm:reportes,manage_comisiones');
+        Route::post('/reports/comisiones/pagar-lote',         [ReportController::class, 'pagarLoteComisiones'])->middleware('perm:reportes,manage_comisiones');
         Route::post('/reportes/adjuntos',                     [ReportController::class, 'uploadReporteAdjunto'])->middleware('perm:reportes,manage_schedules');
         Route::put('/solicitudes-contacto/{id}',              [SolicitudContactoController::class, 'update'])->middleware('perm:reportes,manage_leads');
         Route::delete('/reports/ips-bloqueadas/{id}',         [ReportController::class, 'unbloquearIp'])->middleware('perm:config,manage_security');

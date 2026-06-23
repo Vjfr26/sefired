@@ -29,9 +29,9 @@
         ['Inicio vigencia', $fechaEmision],
         ['Fin vigencia',    $fechaVencimiento],
         ['Forma de pago',   $esMensual ? 'Mensual (12 cuotas)' : 'Pago único anual'],
-        [$esMensual ? 'Prima Anual Total' : 'Prima', '$' . $prima . ' USD'],
+        [$esMensual ? 'Prima Anual Total' : 'Prima', $simboloNativo . $prima . ' ' . $monedaNativa],
         ...($esMensual ? [
-          ['Cuota mensual (esta es la que pagó)', '$' . $cuotaMensual . ' USD'],
+          ['Cuota mensual (esta es la que pagó)', $simboloNativo . $cuotaMensual . ' ' . $monedaNativa],
           ['Próxima cuota',                       $proximaCuota],
         ] : []),
       ] as $row)

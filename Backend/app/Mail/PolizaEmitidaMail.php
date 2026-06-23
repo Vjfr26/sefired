@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use App\Models\Poliza;
+use App\Support\Moneda;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
@@ -54,6 +55,12 @@ class PolizaEmitidaMail extends Mailable
             : null;
         $proximaCuota = $esMensual ? $pol->fecha_emision?->copy()->addMonth()->format('d/m/Y') : null;
 
+        $monedaNativa = $pol->monedaNativa();
+        $simbolo      = Moneda::simbolo($monedaNativa);
+        // La tasa BCV relevante es la del par moneda-nativa/Bs — para un
+        // producto en EUR es tasa_emision_eur, no la de USD.
+        $tasaRelevante = $monedaNativa === 'EUR' ? $pol->tasa_emision_eur : $pol->tasa_emision;
+
         return new Content(
             view: 'emails.poliza-emitida',
             with: [
@@ -68,8 +75,10 @@ class PolizaEmitidaMail extends Mailable
                 'bienRef'         => $bienRef,
                 'fechaEmision'    => $pol->fecha_emision?->format('d/m/Y'),
                 'fechaVencimiento'=> $pol->fecha_vencimiento?->format('d/m/Y'),
-                'primaDolares'    => number_format((float) $pol->total, 2),
-                'tasaEmision'     => number_format((float) ($pol->tasa_emision ?? 0), 4),
+                'primaPrincipal'  => number_format((float) $pol->total, 2),
+                'monedaNativa'    => $monedaNativa,
+                'simboloNativo'   => $simbolo,
+                'tasaEmision'     => number_format((float) ($tasaRelevante ?? 0), 4),
                 'totalBs'         => number_format((float) $pol->total_bs, 2),
                 'verificarUrl'    => url('/ver/' . $pol->nro_contrato),
                 'qrCode'          => $qrCode,

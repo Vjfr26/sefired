@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use App\Models\Poliza;
+use App\Support\Moneda;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
@@ -32,6 +33,7 @@ class RenovacionReminderMail extends Mailable
 
         $badge  = $this->diasRestantes <= 0 ? 'Póliza Vencida' : 'Recordatorio de Renovación';
         $accent = $this->diasRestantes <= 0 ? '#dc2626' : '#f59e0b';
+        $monedaNativa = $pol->monedaNativa();
 
         return new Content(
             view: 'emails.renovacion-reminder',
@@ -45,7 +47,9 @@ class RenovacionReminderMail extends Mailable
                 'producto'         => $snap['producto']['nombre'] ?? $pol->producto?->nombre ?? '—',
                 'bienRef'          => $attrs['placa'] ?? $attrs['descripcion'] ?? '—',
                 'fechaVencimiento' => $pol->fecha_vencimiento?->format('d/m/Y'),
-                'primaDolares'     => number_format((float) $pol->total, 2),
+                'primaPrincipal'   => number_format((float) $pol->total, 2),
+                'monedaNativa'     => $monedaNativa,
+                'simboloNativo'    => Moneda::simbolo($monedaNativa),
                 'diasRestantes'    => $this->diasRestantes,
                 'telefonoOficina'  => '04148299562',
             ],

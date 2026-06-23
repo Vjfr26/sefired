@@ -5,7 +5,7 @@ import {
   Car, Package, Users, AlertCircle, Globe, EyeOff,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
-import { usd, fmtMonto, fmtMontoAbrev, useModalLock } from '../utils/helpers.jsx'
+import { usd, fmtMonto, fmtMontoAbrev, convertirMoneda, useModalLock } from '../utils/helpers.jsx'
 import SearchBar from '../components/SearchBar.jsx'
 import DataTable from '../components/DataTable.jsx'
 import { fetchProductos, createProducto, updateProducto, deleteProducto, createBeneficio, updateBeneficio, deleteBeneficio } from '../api/productos.js'
@@ -194,6 +194,7 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
     aplica_beneficiarios:  producto?.aplica_beneficiarios ?? false,
     min_beneficiarios:     producto?.min_beneficiarios ?? '',
     max_beneficiarios:     producto?.max_beneficiarios ?? '',
+    lleva_certificado:     producto?.lleva_certificado ?? false,
     tipo_calculo:          producto?.tipo_calculo  || 'fijo',
     derecho_poliza:        producto?.derecho_poliza ?? 0,
     descripcion:           producto?.descripcion  || '',
@@ -604,6 +605,13 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
                     </div>
                   </div>
                 )}
+              </div>
+              <div className="p-3 rounded-xl border border-slate-200 space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={form.lleva_certificado} onChange={e => set('lleva_certificado', e.target.checked)} className="w-4 h-4 accent-jm-blue" />
+                  <span className="text-xs font-semibold text-slate-700">¿Lleva certificado?</span>
+                </label>
+                <p className="text-[10px] text-slate-400">Pólizas colectivas (varios bienes o beneficiarios). Si no, el cuadro póliza muestra el número de recibo en vez del certificado.</p>
               </div>
             </div>
           </section>
@@ -1405,19 +1413,9 @@ export default function Productos() {
   const tasaUsd = tasas.usd ? Number(tasas.usd.valor) : null
   const tasaEur = tasas.eur ? Number(tasas.eur.valor) : null
 
-  const convertir = (val, desde, hacia) => {
-    const inBs = desde === 'USD' ? (tasaUsd ? val * tasaUsd : null)
-               : desde === 'EUR' ? (tasaEur ? val * tasaEur : null)
-               : val
-    if (inBs === null) return 0
-    if (hacia === 'USD') return tasaUsd ? inBs / tasaUsd : 0
-    if (hacia === 'EUR') return tasaEur ? inBs / tasaEur : 0
-    return inBs
-  }
-
   const sumaEnMoneda = (campo, cur) => productos.reduce((sum, p) => {
     const val = p[campo] || 0
-    return sum + (p.moneda === cur ? val : convertir(val, p.moneda, cur))
+    return sum + (p.moneda === cur ? val : convertirMoneda(val, p.moneda, cur, tasaUsd, tasaEur))
   }, 0)
 
   const tasasOk         = tasaUsd && tasaEur

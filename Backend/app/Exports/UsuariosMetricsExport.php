@@ -5,15 +5,15 @@ namespace App\Exports;
 use Illuminate\Support\Collection;
 
 /**
- * Exportación del Reporte de Personal.
- * Desempeño de vendedores/agentes con pólizas, primas y comisiones.
+ * Exportación de Métricas de Personal (listado de vendedores), incluyendo
+ * el desglose de comisión generada/pagada/pendiente y la fila TOTAL.
  */
-class PersonalExport extends BaseExport
+class UsuariosMetricsExport extends BaseExport
 {
     protected Collection $rows;
 
     /**
-     * @param Collection $rows  Colección de arrays con claves: nom, rol, ofi, pol, prima, com, est
+     * @param Collection $rows  Filas con claves: nom, rol, ofi, pol, prima, com_gen, com_pagada, com_pend, est
      */
     public function __construct(Collection $rows)
     {
@@ -22,12 +22,12 @@ class PersonalExport extends BaseExport
 
     public function title(): string
     {
-        return 'Personal';
+        return 'Metricas de Personal';
     }
 
     public function headings(): array
     {
-        return ['Nombre', 'Rol', 'Oficina', 'Pólizas', 'Prima (USD)', 'Comisión (USD)', 'Estado'];
+        return ['Nombre', 'Cargo', 'Sede', 'Pólizas', 'Prima (USD)', 'Comisión Generada', 'Comisión Pagada', 'Comisión Pendiente', 'Estado'];
     }
 
     public function collection(): Collection
@@ -43,7 +43,9 @@ class PersonalExport extends BaseExport
             $row['ofi'],
             $row['pol'],
             $row['prima'],
-            $row['com'],
+            $row['com_gen'],
+            $row['com_pagada'],
+            $row['com_pend'],
             $row['est'],
         ];
     }

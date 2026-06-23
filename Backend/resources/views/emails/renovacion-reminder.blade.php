@@ -39,7 +39,7 @@
         ['Producto',      $producto],
         ['Bien asegurado',$bienRef],
         ['Vencimiento',   $fechaVencimiento],
-        ['Prima anterior','$' . $primaDolares . ' USD'],
+        ['Prima anterior', $simboloNativo . $primaPrincipal . ' ' . $monedaNativa],
       ] as $row)
       <tr>
         <td style="padding:6px 0;font-size:13px;color:#94a3b8;width:45%;border-bottom:1px solid #f1f5f9;">{{ $row[0] }}</td>

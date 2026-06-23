@@ -36,7 +36,7 @@ import { createPortal } from 'react-dom'
 import { X, Trash2, Pencil, Check, Lock, LockOpen, ShieldCheck, Building, UserCheck, Truck, UserCog, Car, Shield, DollarSign, RotateCcw, FileText, SlidersHorizontal, Receipt, FileCheck, Eye, Upload, ClipboardList, Search, AlertTriangle, AlertCircle, CheckCircle, Clock, User, Phone, MapPin, Briefcase, Download, RefreshCw, Users, Plus, ChevronRight, Package } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import FormGrid from './FormGrid.jsx'
-import { fmtMonto, fmtTasa, PERMISOS_POR_ROL, getEffectivePerms, getEffectivePermsObj, PERMS_CATALOG, PERMS_ORDER, LOCKED_PERMS, pdfPage, pdfHdr, pdfSec, pdfRow, pdfTotal, pdfFooterSimple, useModalLock } from '../utils/helpers.jsx'
+import { fmtMonto, fmtTasa, convertirMoneda, PERMISOS_POR_ROL, getEffectivePerms, getEffectivePermsObj, PERMS_CATALOG, PERMS_ORDER, LOCKED_PERMS, pdfPage, pdfHdr, pdfSec, pdfRow, pdfTotal, pdfFooterSimple, useModalLock, filtrarCedula, filtrarTelefono, filtrarSoloDigitos } from '../utils/helpers.jsx'
 import { TIPOS_PRODUCTO, TIPOS_CALCULO, tipoBadge } from '../utils/productos.jsx'
 import { storeUsuario, updateUsuario, verifyPassword, fetchVendedoresDisponibles } from '../api/usuarios.js'
 import { uploadDocumentoProducto, deleteDocumentoProducto } from '../api/productos.js'
@@ -451,6 +451,9 @@ function RenovarModal({ client, diasVencimiento, onSaved, onCancel }) {
   const addPago    = () => setPagos(p => [...p, pagoVacio()])
   const removePago = i  => setPagos(p => p.filter((_, idx) => idx !== i))
 
+  // La prima de client.prima ya viene en la moneda nativa del producto (no
+  // siempre USD) — el nombre "Usd" se conserva por compatibilidad histórica.
+  const monedaNativa        = client.moneda_producto || 'USD'
   const primaUsd            = parseFloat(client.prima?.replace(/[^0-9.]/g, '')) || 0
   const permiteMensualidades = !!client.producto_permite_mensualidades
   const recargoMensualPct    = parseFloat(client.producto_recargo_mensual_pct) || 0
@@ -461,15 +464,9 @@ function RenovarModal({ client, diasVencimiento, onSaved, onCancel }) {
     ? Math.round((primaUsd / 12) * (1 + recargoMensualPct / 100) * 100) / 100
     : primaUsd
 
-  const pagoEnUsd = (p) => {
-    const m = parseFloat(p.monto) || 0
-    const usd = tasas.usd || 1
-    const eur = tasas.eur || usd
-    if (p.moneda === 'USD') return m
-    if (p.moneda === 'EUR') return eur > 0 ? m * (eur / usd) : m
-    if (p.moneda === 'Bs.') return usd > 0 ? m / usd : 0
-    return m
-  }
+  // Convierte cada pago a la moneda nativa del producto (no siempre USD)
+  // antes de comparar contra el monto esperado — igual que Moneda::convertir() en el backend.
+  const pagoEnUsd = (p) => convertirMoneda(parseFloat(p.monto) || 0, p.moneda, monedaNativa, tasas.usd || 0, tasas.eur || 0)
 
   const totalIngresadoUsd = pagos.reduce((sum, p) => sum + pagoEnUsd(p), 0)
   const diferencia        = Math.abs(Math.round(totalIngresadoUsd * 100) - Math.round(montoEsperadoUsd * 100)) / 100
@@ -482,7 +479,7 @@ function RenovarModal({ client, diasVencimiento, onSaved, onCancel }) {
       if (!p.monto || parseFloat(p.monto) <= 0) errs[`monto_${i}`] = 'Ingrese el monto.'
       if (!PAGOS_SIN_REF.has(p.forma) && !p.referencia.trim()) errs[`ref_${i}`] = 'Referencia requerida.'
     })
-    if (!totalOk) errs.total = `El total ($ ${totalIngresadoUsd.toFixed(2)}) no coincide con ${frecuencia === 'Mensual' ? 'la primera cuota mensual' : 'la prima'} ($ ${montoEsperadoUsd.toFixed(2)} USD).`
+    if (!totalOk) errs.total = `El total (${fmtMonto(totalIngresadoUsd, monedaNativa)}) no coincide con ${frecuencia === 'Mensual' ? 'la primera cuota mensual' : 'la prima'} (${fmtMonto(montoEsperadoUsd, monedaNativa)}).`
     if (Object.keys(errs).length) { setFormErr(errs); return }
     setSaving(true)
     try {
@@ -585,7 +582,7 @@ function RenovarModal({ client, diasVencimiento, onSaved, onCancel }) {
               )}
               {frecuencia === 'Mensual' && permiteMensualidades && primaUsd > 0 && (
                 <p className="text-xs text-slate-500 mt-1.5">
-                  Primera cuota a cobrar ahora{recargoMensualPct > 0 ? ` (incluye recargo de ${recargoMensualPct}%)` : ''}: <strong>${montoEsperadoUsd.toFixed(2)} USD</strong>
+                  Primera cuota a cobrar ahora{recargoMensualPct > 0 ? ` (incluye recargo de ${recargoMensualPct}%)` : ''}: <strong>{fmtMonto(montoEsperadoUsd, monedaNativa)}</strong>
                   <span className="block text-[10px] text-slate-400 mt-0.5">Las 11 cuotas restantes se cobran fuera de este paso.</span>
                 </p>
               )}
@@ -643,8 +640,8 @@ function RenovarModal({ client, diasVencimiento, onSaved, onCancel }) {
               <div className={`mt-3 p-2.5 rounded-xl border text-xs flex items-center justify-between ${
                 totalOk ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'
               }`}>
-                <span>{totalOk ? '✓ Total cuadra' : `⚠ Diferencia: $ ${diferencia.toFixed(2)} USD`}</span>
-                <span className="font-bold font-mono">$ {totalIngresadoUsd.toFixed(2)} / $ {primaUsd.toFixed(2)} USD</span>
+                <span>{totalOk ? '✓ Total cuadra' : `⚠ Diferencia: ${fmtMonto(diferencia, monedaNativa)}`}</span>
+                <span className="font-bold font-mono">{fmtMonto(totalIngresadoUsd, monedaNativa)} / {fmtMonto(primaUsd, monedaNativa)}</span>
               </div>
               {formErr.total && <p className="text-xs text-rose-600 mt-1">{formErr.total}</p>}
             </div>
@@ -658,7 +655,7 @@ function RenovarModal({ client, diasVencimiento, onSaved, onCancel }) {
 // ── Emitir cotización ────────────────────────────────────────────────────────
 /**
  * Formulario para emitir una cotización aprobada como póliza oficial.
- * Crea automáticamente la póliza y la factura en el backend.
+ * Crea automáticamente la póliza y el recibo en el backend.
  *
  * @param {Object}   cot      Fila de cotización (id, nro, nombre, placa, total)
  * @param {Function} onSaved  Callback para refrescar la tabla
@@ -691,16 +688,9 @@ function EmitirCotizacionModal({ cot, onSaved }) {
   const addPago    = () => setPagos(p => [...p, pagoVacio()])
   const removePago = i  => setPagos(p => p.filter((_, idx) => idx !== i))
 
-  // Convierte cada pago a USD usando las tasas del día
-  const pagoEnUsd = (p) => {
-    const m = parseFloat(p.monto) || 0
-    const usd = tasas.usd || 1
-    const eur = tasas.eur || usd
-    if (p.moneda === 'USD') return m
-    if (p.moneda === 'EUR') return eur > 0 ? m * (eur / usd) : m
-    if (p.moneda === 'Bs.') return usd > 0 ? m / usd : 0
-    return m
-  }
+  const monedaNativa = cot.moneda_producto || 'USD'
+  // Convierte cada pago a la moneda nativa del producto usando las tasas del día.
+  const pagoEnUsd = (p) => convertirMoneda(parseFloat(p.monto) || 0, p.moneda, monedaNativa, tasas.usd || 0, tasas.eur || 0)
 
   const totalPoliza          = Number(cot.total)
   const permiteMensualidades = !!cot.producto_permite_mensualidades
@@ -721,7 +711,7 @@ function EmitirCotizacionModal({ cot, onSaved }) {
       if (!p.monto || parseFloat(p.monto) <= 0) errs[`monto_${i}`] = 'Ingrese el monto.'
       if (!PAGOS_SIN_REF.has(p.forma) && !p.referencia.trim()) errs[`ref_${i}`] = 'Referencia requerida.'
     })
-    if (!totalOk) errs.total = `El total ($ ${totalIngresadoUsd.toFixed(2)} USD) no coincide con ${frecuencia === 'Mensual' ? 'la primera cuota mensual' : 'la póliza'} ($ ${montoEsperadoUsd.toFixed(2)} USD).`
+    if (!totalOk) errs.total = `El total (${fmtMonto(totalIngresadoUsd, monedaNativa)}) no coincide con ${frecuencia === 'Mensual' ? 'la primera cuota mensual' : 'la póliza'} (${fmtMonto(montoEsperadoUsd, monedaNativa)}).`
     if (Object.keys(errs).length) { setFormErr(errs); return }
     setFormErr({})
     setSaving(true)
@@ -757,7 +747,7 @@ function EmitirCotizacionModal({ cot, onSaved }) {
         <div className="p-3 bg-blue-50 rounded-xl border border-blue-100 space-y-1">
           <p className="text-xs font-bold text-blue-700 font-mono">{cot.nro}</p>
           <p className="text-xs text-blue-600">{cot.nombre}{cot.bien_atributos?.placa ? ` · Placa: ${cot.bien_atributos.placa}` : ''}</p>
-          <p className="text-sm font-bold text-blue-800">${Number(cot.total).toFixed(2)} USD</p>
+          <p className="text-sm font-bold text-blue-800">{fmtMonto(cot.total, cot.moneda_producto)} {cot.moneda_producto || 'USD'}</p>
         </div>
 
         {/* Tasas BCV — solo lectura */}
@@ -798,7 +788,7 @@ function EmitirCotizacionModal({ cot, onSaved }) {
           )}
           {frecuencia === 'Mensual' && permiteMensualidades && totalPoliza > 0 && (
             <p className="text-xs text-slate-500 mt-1.5">
-              Primera cuota a cobrar ahora{recargoMensualPct > 0 ? ` (incluye recargo de ${recargoMensualPct}%)` : ''}: <strong>${montoEsperadoUsd.toFixed(2)} USD</strong>
+              Primera cuota a cobrar ahora{recargoMensualPct > 0 ? ` (incluye recargo de ${recargoMensualPct}%)` : ''}: <strong>{fmtMonto(montoEsperadoUsd, monedaNativa)}</strong>
               <span className="block text-[10px] text-slate-400 mt-0.5">Las 11 cuotas restantes se cobran fuera de este paso.</span>
             </p>
           )}
@@ -869,16 +859,16 @@ function EmitirCotizacionModal({ cot, onSaved }) {
           <div className={`mt-3 p-2.5 rounded-xl border text-xs flex items-center justify-between ${
             totalOk ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'
           }`}>
-            <span>{totalOk ? '✓ Total cuadra' : `⚠ Diferencia: $ ${diferencia.toFixed(2)} USD`}</span>
+            <span>{totalOk ? '✓ Total cuadra' : `⚠ Diferencia: ${fmtMonto(diferencia, monedaNativa)}`}</span>
             <span className="font-bold font-mono">
-              $ {totalIngresadoUsd.toFixed(2)} / $ {totalPoliza.toFixed(2)} USD
+              {fmtMonto(totalIngresadoUsd, monedaNativa)} / {fmtMonto(totalPoliza, monedaNativa)}
             </span>
           </div>
           {formErr.total && <p className="text-xs text-rose-600 mt-1">{formErr.total}</p>}
         </div>
 
         <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100 text-xs text-emerald-700">
-          Se generará la póliza y la factura automáticamente. La cotización quedará como Emitida.
+          Se generará la póliza y el recibo automáticamente. La cotización quedará como Emitida.
         </div>
       </div>
     </ModalShell>
@@ -1148,12 +1138,22 @@ const ROLE_OPTIONS = [
 /** Selector de rol para un usuario. Muestra los 4 roles con descripción visual. */
 function ChangeRoleModal({ user, onSave }) {
   const { closeModal, showToast } = useApp()
-  
+  const [newRole, setNewRole] = useState(user.tipo)
+  const [password, setPassword] = useState('')
+  const [passErr,  setPassErr]  = useState('')
+  const [saving,   setSaving]   = useState(false)
+
   const handleSave = async (e) => {
     e.preventDefault()
-    const formData = new FormData(e.target)
-    const newRole = formData.get('rol-select')
-    
+    if (!password.trim()) { setPassErr('Ingresa tu contraseña para confirmar.'); return }
+    setSaving(true); setPassErr('')
+    try {
+      await verifyPassword(password)
+    } catch (err) {
+      setPassErr(err.message || 'Contraseña incorrecta.')
+      setSaving(false)
+      return
+    }
     try {
       await updateUsuario(user.id, { tipo: newRole, cargo: newRole, permisos: null })
       closeModal()
@@ -1161,23 +1161,34 @@ function ChangeRoleModal({ user, onSave }) {
       if (onSave) onSave()
     } catch (err) {
       showToast(err.message || 'Error al cambiar rol', 'error')
+      setSaving(false)
     }
   }
 
   return (
     <ModalShell title={`Cambiar Rol — ${user.nombre}`} footer={
       <>
-        <button type="button" onClick={closeModal} className="btn-secondary">Cancelar</button>
-        <button type="submit" form="change-role-form" className="btn-primary">
-          <Check className="w-4 h-4" />Cambiar Rol
+        <button type="button" onClick={closeModal} disabled={saving} className="btn-secondary">Cancelar</button>
+        <button type="submit" form="change-role-form" disabled={saving} className="btn-primary disabled:opacity-50">
+          {saving
+            ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+            : <Check className="w-4 h-4" />}
+          {saving ? 'Verificando…' : 'Cambiar Rol'}
         </button>
       </>
     }>
       <p className="text-xs text-slate-500 mb-4">Rol actual: <strong>{user.tipo}</strong>. Selecciona el nuevo rol para este usuario.</p>
       <form id="change-role-form" onSubmit={handleSave} className="space-y-2.5">
         {ROLE_OPTIONS.map(r => (
-          <label key={r.key} className={`flex items-start gap-3 p-4 rounded-2xl border-2 cursor-pointer transition-all ${r.key === user.tipo ? 'border-jm-blue bg-blue-50/40' : 'border-slate-200 hover:border-slate-300 bg-white'}`}>
-            <input type="radio" name="rol-select" defaultValue={r.key} defaultChecked={r.key === user.tipo} className="mt-0.5 accent-blue-700 shrink-0" />
+          <label key={r.key} className={`flex items-start gap-3 p-4 rounded-2xl border-2 cursor-pointer transition-all ${r.key === newRole ? 'border-jm-blue bg-blue-50/40' : 'border-slate-200 hover:border-slate-300 bg-white'}`}>
+            <input
+              type="radio"
+              name="rol-select"
+              value={r.key}
+              checked={r.key === newRole}
+              onChange={() => setNewRole(r.key)}
+              className="mt-0.5 accent-blue-700 shrink-0"
+            />
             <div className="min-w-0">
               <div className="flex items-center gap-2 mb-0.5">
                 <r.Icon className="w-4 h-4 text-jm-blue shrink-0" />
@@ -1187,6 +1198,17 @@ function ChangeRoleModal({ user, onSave }) {
             </div>
           </label>
         ))}
+        <div className="pt-2">
+          <label className="field-label">Confirma tu contraseña <span className="text-rose-500">*</span></label>
+          <input
+            type="password"
+            className={`input-field ${passErr ? 'border-rose-400' : ''}`}
+            placeholder="Tu contraseña"
+            value={password}
+            onChange={e => { setPassword(e.target.value); setPassErr('') }}
+          />
+          {passErr && <p className="text-xs text-rose-600 mt-1">{passErr}</p>}
+        </div>
       </form>
     </ModalShell>
   )
@@ -1205,22 +1227,24 @@ function UserPermsModal({ user, onSave }) {
     return Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, new Set(v)]))
   }
   const [permsObj, setPermsObj] = useState(initialPermsObj)
+  // Acordeón: qué módulos están expandidos — independiente de qué permisos
+  // tengan marcados. Arranca expandido en los módulos que ya tienen algo
+  // asignado, para que al abrir el modal se vea de una vez qué tiene el usuario.
+  const [expanded, setExpanded] = useState(() => new Set(PERMS_ORDER.filter(id => (permsObj[id]?.size || 0) > 0)))
   const [saving, setSaving]     = useState(false)
   const [password, setPassword] = useState('')
   const [passErr,  setPassErr]  = useState('')
 
-  const toggleModuleView = (moduleId) => {
-    if (LOCKED_PERMS.has(moduleId)) return
-    setPermsObj(prev => {
-      if (prev[moduleId]?.has('view')) {
-        const { [moduleId]: _, ...rest } = prev
-        return rest
-      }
-      return { ...prev, [moduleId]: new Set(['view']) }
+  const toggleExpanded = (moduleId) => {
+    setExpanded(prev => {
+      const next = new Set(prev)
+      next.has(moduleId) ? next.delete(moduleId) : next.add(moduleId)
+      return next
     })
   }
 
   const toggleAction = (moduleId, actionId) => {
+    if (LOCKED_PERMS.has(moduleId)) return
     setPermsObj(prev => {
       const cur = new Set(prev[moduleId] || [])
       cur.has(actionId) ? cur.delete(actionId) : cur.add(actionId)
@@ -1233,6 +1257,7 @@ function UserPermsModal({ user, onSave }) {
     const obj = Object.fromEntries(Object.entries(defaults).map(([k, v]) => [k, new Set(v)]))
     if (!obj.home) obj.home = new Set(['view'])
     setPermsObj(obj)
+    setExpanded(new Set(PERMS_ORDER.filter(id => (obj[id]?.size || 0) > 0)))
   }
 
   const handleSave = async () => {
@@ -1246,10 +1271,15 @@ function UserPermsModal({ user, onSave }) {
       return
     }
     try {
+      // Un módulo solo se guarda (y por lo tanto aparece para el usuario) si
+      // tiene al menos un permiso marcado — no hay un interruptor maestro
+      // aparte. Si marcó algo pero no "Ver" puntualmente, se agrega solo:
+      // sin "view" el módulo no se mostraría en el menú aunque sí tenga
+      // permisos concretos asignados.
       const perms = Object.fromEntries(
         Object.entries(permsObj)
-          .filter(([k, s]) => LOCKED_PERMS.has(k) || s.has('view'))
-          .map(([k, s]) => [k, [...s]])
+          .filter(([k, s]) => LOCKED_PERMS.has(k) || s.size > 0)
+          .map(([k, s]) => [k, [...new Set(['view', ...s])]])
       )
       if (!perms.home) perms.home = ['view']
       await updateUsuario(user.id, { permisos: perms })
@@ -1295,25 +1325,29 @@ function UserPermsModal({ user, onSave }) {
         </span>
       </div>
 
-      {/* Lista completa de módulos */}
+      {/* Lista completa de módulos — un acordeón por apartado. No hay
+          interruptor maestro: el apartado "está activo" (y por lo tanto
+          visible para el usuario) simplemente cuando tiene al menos un
+          permiso marcado adentro; expandir/colapsar es solo para mirar,
+          no cambia nada por sí solo. */}
       <div className="space-y-2 max-h-[55vh] overflow-y-auto pr-1">
         {PERMS_ORDER.map(moduleId => {
-          const mod        = PERMS_CATALOG[moduleId]
+          const mod      = PERMS_CATALOG[moduleId]
           if (!mod) return null
-          const isLocked   = LOCKED_PERMS.has(moduleId)
-          const actions    = permsObj[moduleId] || new Set()
-          const isOn       = isLocked || actions.has('view')
-          const subActions = mod.actions.filter(a => a.id !== 'view')
+          const isLocked = LOCKED_PERMS.has(moduleId)
+          const actions  = permsObj[moduleId] || new Set()
+          const isOn     = isLocked || actions.size > 0
+          const isOpen   = isLocked || expanded.has(moduleId)
 
           return (
             <div
               key={moduleId}
               className={`rounded-xl border transition-all ${isOn ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-200'}`}
             >
-              {/* Fila principal — toggle de acceso al módulo */}
+              {/* Encabezado del acordeón — solo expande/colapsa, no activa nada */}
               <button
                 type="button"
-                onClick={() => toggleModuleView(moduleId)}
+                onClick={() => !isLocked && toggleExpanded(moduleId)}
                 disabled={isLocked}
                 className="w-full flex items-center gap-3 px-4 py-3 text-left"
               >
@@ -1322,36 +1356,38 @@ function UserPermsModal({ user, onSave }) {
                   <p className={`text-sm font-semibold ${isOn ? 'text-blue-800' : 'text-slate-500'}`}>
                     {mod.label}
                   </p>
-                  {isLocked && (
-                    <p className="text-xs text-slate-400 mt-0.5">Siempre visible — no se puede quitar</p>
-                  )}
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {isLocked
+                      ? 'Siempre visible — no se puede quitar'
+                      : isOn
+                        ? `${actions.size} permiso${actions.size === 1 ? '' : 's'} activo${actions.size === 1 ? '' : 's'}`
+                        : 'Sin permisos — no aparecerá para el usuario'}
+                  </p>
                 </div>
                 {isLocked
                   ? <Lock className="w-4 h-4 text-slate-400 shrink-0" />
                   : (
-                    <div className={`w-9 h-5 rounded-full transition-colors shrink-0 ${isOn ? 'bg-blue-600' : 'bg-slate-300'}`}>
-                      <div className={`w-3 h-3 bg-white rounded-full mt-1 transition-transform ${isOn ? 'translate-x-5' : 'translate-x-1'}`} />
-                    </div>
+                    <ChevronRight className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
                   )
                 }
               </button>
 
-              {/* Sub-acciones: visibles solo cuando el módulo está activado */}
-              {isOn && subActions.length > 0 && (
+              {/* Acciones del módulo — visibles al expandir, sin importar si ya tiene algo marcado */}
+              {isOpen && (
                 <div className="px-4 pb-3 pt-2 border-t border-blue-100">
-                  <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-2">Acciones permitidas</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                    {subActions.map(({ id: aid, label: alabel }) => {
-                      const checked = actions.has(aid)
+                    {mod.actions.map(({ id: aid, label: alabel }) => {
+                      const checked = isLocked || actions.has(aid)
                       return (
-                        <label key={aid} className="flex items-center gap-2 cursor-pointer group select-none">
+                        <label key={aid} className={`flex items-center gap-2 select-none ${isLocked ? '' : 'cursor-pointer group'}`}>
                           <input
                             type="checkbox"
                             checked={checked}
+                            disabled={isLocked}
                             onChange={() => toggleAction(moduleId, aid)}
-                            className="w-3.5 h-3.5 rounded border-slate-300 accent-blue-600 cursor-pointer"
+                            className="w-3.5 h-3.5 rounded border-slate-300 accent-blue-600 cursor-pointer disabled:cursor-not-allowed"
                           />
-                          <span className={`text-xs transition-colors ${checked ? 'text-slate-700 font-medium' : 'text-slate-400'} group-hover:text-blue-700`}>
+                          <span className={`text-xs transition-colors ${checked ? 'text-slate-700 font-medium' : 'text-slate-400'} ${isLocked ? '' : 'group-hover:text-blue-700'}`}>
                             {alabel}
                           </span>
                         </label>
@@ -1542,7 +1578,7 @@ function ProductoDetailModal({ p }) {
           {p.derecho_poliza > 0 && (
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
               <p className="text-[10px] text-slate-400 font-medium mb-0.5">Derecho de póliza</p>
-              <p className="text-sm font-black text-slate-700">{fmtMonto(p.derecho_poliza, 'USD')}</p>
+              <p className="text-sm font-black text-slate-700">{fmtMonto(p.derecho_poliza, p.moneda)}</p>
             </div>
           )}
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
@@ -2151,21 +2187,21 @@ function ClienteDocsModal({ c }) {
           <tr style="background:#001463;color:white">
             <th style="padding:9px 12px;text-align:left;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase">Cobertura / Producto</th>
             <th style="padding:9px 12px;text-align:right;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase">Suma Asegurada</th>
-            <th style="padding:9px 12px;text-align:right;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase">Prima (USD)</th>
+            <th style="padding:9px 12px;text-align:right;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase">Prima (${pol.moneda_producto || 'USD'})</th>
           </tr>
         </thead>
         <tbody>
           <tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0">
             <td style="padding:11px 12px;font-weight:600;color:#1e293b">${pol.producto}</td>
-            <td style="padding:11px 12px;text-align:right;font-weight:700;color:#1e293b;font-family:monospace">$${Number(pol.cobertura_dolares).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-            <td style="padding:11px 12px;text-align:right;font-weight:700;color:#059669;font-family:monospace">$${Number(pol.total).toFixed(2)}</td>
+            <td style="padding:11px 12px;text-align:right;font-weight:700;color:#1e293b;font-family:monospace">${fmtMonto(pol.cobertura_dolares, pol.moneda_producto)}</td>
+            <td style="padding:11px 12px;text-align:right;font-weight:700;color:#059669;font-family:monospace">${fmtMonto(pol.total, pol.moneda_producto)}</td>
           </tr>
         </tbody>
         <tfoot>
           <tr style="background:#f1f5f9">
             <td style="padding:9px 12px;font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px">Total</td>
-            <td style="padding:9px 12px;text-align:right;font-weight:900;color:#001463;font-family:monospace">$${Number(pol.cobertura_dolares).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-            <td style="padding:9px 12px;text-align:right;font-size:15px;font-weight:900;color:#059669;font-family:monospace">$${Number(pol.total).toFixed(2)}</td>
+            <td style="padding:9px 12px;text-align:right;font-weight:900;color:#001463;font-family:monospace">${fmtMonto(pol.cobertura_dolares, pol.moneda_producto)}</td>
+            <td style="padding:9px 12px;text-align:right;font-size:15px;font-weight:900;color:#059669;font-family:monospace">${fmtMonto(pol.total, pol.moneda_producto)}</td>
           </tr>
         </tfoot>
       </table>`
@@ -2226,7 +2262,7 @@ function ClienteDocsModal({ c }) {
       (pol.tasa_emision_eur > 1 ? pdfRow('Tasa BCV Bs./EUR', `Bs. ${fmtTasa(pol.tasa_emision_eur)}`, true) : '') +
       pdfRow('Prima en Bolívares',   `Bs. ${Number(pol.total_bs).toFixed(2)}`) +
       pdfRow('Cobertura en Bs.',     `Bs. ${Number(pol.cobertura_bs).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`) +
-      pdfTotal('Prima Anual Total', `$${Number(pol.total).toFixed(2)}`, pol.tasa_emision > 1 ? `Tasa USD: Bs. ${fmtTasa(pol.tasa_emision)} · Total: Bs. ${Number(pol.total_bs).toFixed(2)}` : `Equivalente a Bs. ${Number(pol.total_bs).toFixed(2)} al cambio del día de emisión`) +
+      pdfTotal('Prima Anual Total', fmtMonto(pol.total, pol.moneda_producto), pol.tasa_emision > 1 ? `Tasa USD: Bs. ${fmtTasa(pol.tasa_emision)} · Total: Bs. ${Number(pol.total_bs).toFixed(2)}` : `Equivalente a Bs. ${Number(pol.total_bs).toFixed(2)} al cambio del día de emisión`) +
 
       pdfSec(tieneVehiculo ? 'V. PERÍODO DE VIGENCIA' : 'IV. PERÍODO DE VIGENCIA') +
       vigencia +
@@ -2290,7 +2326,7 @@ function ClienteDocsModal({ c }) {
                     </p>
                   </div>
                   <div className="text-right shrink-0 flex flex-col items-end gap-1">
-                    <p className="text-sm font-bold text-slate-800">${Number(pol.total).toFixed(2)}</p>
+                    <p className="text-sm font-bold text-slate-800">{fmtMonto(pol.total, pol.moneda_producto)}</p>
                     <button
                       onClick={() => generatePdf(pol)}
                       className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 hover:underline"
@@ -2341,7 +2377,7 @@ function ClienteDocsModal({ c }) {
                     </p>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="text-sm font-bold text-slate-500">${Number(pol.total).toFixed(2)}</p>
+                    <p className="text-sm font-bold text-slate-500">{fmtMonto(pol.total, pol.moneda_producto)}</p>
                     <p className="text-[10px] text-slate-400 mt-0.5">Sin póliza emitida</p>
                   </div>
                 </div>
@@ -2402,7 +2438,7 @@ function ClienteFacturasModal({ c }) {
         <div style="display:flex;align-items:center;margin-bottom:10px;gap:12px;border-bottom:2px solid #001463;padding-bottom:10px">
           <img src="${logoUrl}" alt="Logo" style="height:48px;object-fit:contain" onerror="this.style.display='none'" />
           <div style="flex:1;text-align:center">
-            <p style="font-size:13px;font-weight:900;color:#001463;margin:0;line-height:1.2">COOPERATIVA DE SEGUROS J&M R.L.</p>
+            <p style="font-size:13px;font-weight:900;color:#001463;margin:0;line-height:1.2">La Venezolana de Seguros y Vida</p>
             <p style="font-size:9px;color:#555;margin:2px 0 0">Sistema de Emisión y Registro de Pólizas</p>
           </div>
         </div>
@@ -2415,12 +2451,8 @@ function ClienteFacturasModal({ c }) {
           </div>
           <table style="border-collapse:collapse;font-size:11px">
             <tr>
-              <td style="border:1px solid #444;padding:3px 10px;font-weight:bold;background:#f0f0f0;white-space:nowrap">FACTURA Nº:</td>
+              <td style="border:1px solid #444;padding:3px 10px;font-weight:bold;background:#f0f0f0;white-space:nowrap">RECIBO Nº:</td>
               <td style="border:1px solid #444;padding:3px 14px;font-weight:bold">${f.numero}</td>
-            </tr>
-            <tr>
-              <td style="border:1px solid #444;padding:3px 10px;font-weight:bold;background:#f0f0f0">RECIBO Nº:</td>
-              <td style="border:1px solid #444;padding:3px 14px">${f.numero}</td>
             </tr>
             <tr>
               <td style="border:1px solid #444;padding:3px 10px;font-weight:bold;background:#f0f0f0">FECHA:</td>
@@ -2469,7 +2501,7 @@ function ClienteFacturasModal({ c }) {
 
         <table style="width:100%;border-collapse:collapse;font-size:11px">
           <tr>
-            <td style="padding:4px 8px;font-weight:bold;border-top:1px solid #555">ESTA FACTURA VA SIN TACHADURAS NI ENMENDADURAS</td>
+            <td style="padding:4px 8px;font-weight:bold;border-top:1px solid #555">ESTE RECIBO VA SIN TACHADURAS NI ENMENDADURAS</td>
             <td style="padding:4px 8px;text-align:right;border-top:1px solid #555;white-space:nowrap">Impuesto sobre el ${ivaPct}% (IVA): ${fmtBs(ivaBs)} Bs.</td>
           </tr>
           <tr>
@@ -2487,7 +2519,7 @@ function ClienteFacturasModal({ c }) {
               <strong>Tasas BCV al día de pago:</strong>
               &nbsp; Bs./USD: ${fmtTasa(f.tasa_emision)}
               ${f.tasa_emision_eur > 1 ? `&nbsp;&nbsp; Bs./EUR: ${fmtTasa(f.tasa_emision_eur)}` : ''}
-              &nbsp;&nbsp; Monto en USD: ${Number(f.valor).toFixed(2)}
+              &nbsp;&nbsp; Monto en ${f.moneda_producto || 'USD'}: ${fmtMonto(f.valor, f.moneda_producto)}
             </td>
           </tr>` : ''}
           <tr>
@@ -2511,7 +2543,7 @@ function ClienteFacturasModal({ c }) {
     </head><body>${copy}</body></html>`
 
     closeModal()
-    showPdfViewer(`Factura — ${f.numero}`, fullHtml)
+    showPdfViewer(`Recibo — ${f.numero}`, fullHtml)
   }
 
   const STATUS_POLIZA = {
@@ -2522,18 +2554,18 @@ function ClienteFacturasModal({ c }) {
   }
 
   return (
-    <ModalShell title={`Facturas — ${clienteNombre}`} wide footer={
+    <ModalShell title={`Recibos — ${clienteNombre}`} wide footer={
       <button onClick={closeModal} className="btn-secondary">Cerrar</button>
     }>
       {loading ? (
         <div className="flex items-center gap-2 py-8 text-slate-400 text-sm">
           <div className="w-4 h-4 border-2 border-slate-300 border-t-blue-500 rounded-full animate-spin shrink-0" />
-          Cargando facturas…
+          Cargando recibos…
         </div>
       ) : facturas.length === 0 ? (
         <div className="py-10 text-center">
           <Receipt className="w-10 h-10 text-slate-200 mx-auto mb-3" />
-          <p className="text-sm text-slate-400">Este cliente no tiene facturas registradas.</p>
+          <p className="text-sm text-slate-400">Este cliente no tiene recibos registrados.</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -2542,7 +2574,7 @@ function ClienteFacturasModal({ c }) {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
               <input
                 type="text"
-                placeholder="Buscar por número de factura…"
+                placeholder="Buscar por número de recibo…"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 className="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg bg-white outline-none focus:ring-2 focus:ring-blue-500"
@@ -2576,7 +2608,7 @@ function ClienteFacturasModal({ c }) {
                 </div>
               </div>
               <div className="text-right shrink-0">
-                <p className="text-sm font-bold text-slate-800">${fmtNum(f.valor)}</p>
+                <p className="text-sm font-bold text-slate-800">{fmtMonto(f.valor, f.moneda_producto)}</p>
                 <p className="text-[11px] text-slate-400 mt-0.5">Bs. {fmtNum(f.valor_bs)}</p>
                 <button
                   onClick={() => generateFacturaPdf(f)}
@@ -2749,7 +2781,7 @@ function AjustarPolizaModal({ c, onSave, polizaId, onCancel }) {
                   {pol.fecha_emision} → {pol.fecha_vencimiento}
                 </p>
               </div>
-              <p className="text-sm font-bold text-slate-700 shrink-0">${Number(pol.total).toFixed(2)}</p>
+              <p className="text-sm font-bold text-slate-700 shrink-0">{fmtMonto(pol.total, pol.moneda_producto)}</p>
             </button>
           ))}
         </div>
@@ -2797,7 +2829,7 @@ function AjustarPolizaModal({ c, onSave, polizaId, onCancel }) {
 
             {/* Prima */}
             <div className="input-group">
-              <label className="input-label">Prima (USD)</label>
+              <label className="input-label">Prima ({selected.moneda_producto || 'USD'})</label>
               <input
                 type="number"
                 step="0.01"
@@ -2874,14 +2906,14 @@ function AjustarPolizaModal({ c, onSave, polizaId, onCancel }) {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-[10px] text-slate-400 mb-0.5">Original</p>
-                    <p className="text-sm font-bold text-slate-500">${orig.toFixed(2)}</p>
+                    <p className="text-sm font-bold text-slate-500">{fmtMonto(orig, selected.moneda_producto)}</p>
                   </div>
                   <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${isPos ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-600'}`}>
                     {isPos ? '+' : ''}{pct.toFixed(1)}%
                   </span>
                   <div className="text-right">
                     <p className="text-[10px] text-slate-400 mb-0.5">Nuevo</p>
-                    <p className="text-sm font-bold text-slate-800">${nuevo.toFixed(2)}</p>
+                    <p className="text-sm font-bold text-slate-800">{fmtMonto(nuevo, selected.moneda_producto)}</p>
                   </div>
                 </div>
               </div>
@@ -3047,8 +3079,8 @@ function PolizaBeneficiariosModal({ poliza, onClose }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <input className="input-field text-sm sm:col-span-2" placeholder="Nombre completo *" value={form.nombre}
                 onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} />
-              <input className="input-field text-sm" placeholder="Cédula" value={form.cedula}
-                onChange={e => setForm(f => ({ ...f, cedula: e.target.value }))} />
+              <input className="input-field text-sm" placeholder="Cédula" value={form.cedula} maxLength={12}
+                onChange={e => setForm(f => ({ ...f, cedula: filtrarCedula(e.target.value) }))} />
               <input className="input-field text-sm" placeholder="Parentesco" value={form.parentesco}
                 onChange={e => setForm(f => ({ ...f, parentesco: e.target.value }))} />
               <input type="number" min="0.01" max="100" step="0.01" className="input-field text-sm sm:col-span-2"
@@ -3279,7 +3311,7 @@ function ClienteSolicitudesModal({ c }) {
     const cobRows = items.map(it =>
       `<tr style="border-bottom:1px solid #f1f5f9">
         <td style="padding:8px 12px;font-size:12px;color:#1e293b">${it.nom}</td>
-        <td style="padding:8px 12px;text-align:right;font-size:12px;font-weight:700;color:#059669;font-family:monospace">$${Number(it.prima).toFixed(2)}</td>
+        <td style="padding:8px 12px;text-align:right;font-size:12px;font-weight:700;color:#059669;font-family:monospace">${fmtMonto(it.prima, s.moneda_producto)}</td>
       </tr>`
     ).join('')
 
@@ -3288,14 +3320,14 @@ function ClienteSolicitudesModal({ c }) {
         <thead>
           <tr style="background:#001463;color:white">
             <th style="padding:9px 12px;text-align:left;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase">Cobertura</th>
-            <th style="padding:9px 12px;text-align:right;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase">Prima (USD)</th>
+            <th style="padding:9px 12px;text-align:right;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase">Prima (${s.moneda_producto || 'USD'})</th>
           </tr>
         </thead>
         <tbody>${cobRows}</tbody>
         <tfoot>
           <tr style="background:#f1f5f9">
             <td style="padding:9px 12px;font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px">TOTAL</td>
-            <td style="padding:9px 12px;text-align:right;font-size:16px;font-weight:900;color:#059669;font-family:monospace">$${Number(s.total).toFixed(2)}</td>
+            <td style="padding:9px 12px;text-align:right;font-size:16px;font-weight:900;color:#059669;font-family:monospace">${fmtMonto(s.total, s.moneda_producto)}</td>
           </tr>
         </tfoot>
       </table>` : ''
@@ -3313,7 +3345,7 @@ function ClienteSolicitudesModal({ c }) {
           (s.bien_atributos.anio   ? pdfRow('Año',     String(s.bien_atributos.anio), true) : '') +
           (s.bien_atributos.color  ? pdfRow('Color',   s.bien_atributos.color)  : '') +
           (s.bien_atributos.uso    ? pdfRow('Uso',     s.bien_atributos.uso)    : '') +
-          (cobs.valor_mercado ? pdfRow('Valor de Mercado', `$${Number(cobs.valor_mercado).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, true) : '')
+          (cobs.valor_mercado ? pdfRow('Valor de Mercado', fmtMonto(cobs.valor_mercado, s.moneda_producto), true) : '')
         : (s.asegurado_nombre
             ? pdfSec('DATOS DEL ASEGURADO') +
               pdfRow('Nombre', s.asegurado_nombre) +
@@ -3398,7 +3430,7 @@ function ClienteSolicitudesModal({ c }) {
                     </td>
                     <td className="px-3 py-2.5 text-slate-600 text-xs">{s.producto}</td>
                     <td className="px-3 py-2.5 text-right font-semibold text-slate-700 text-xs whitespace-nowrap">
-                      ${Number(s.total).toFixed(2)}
+                      {fmtMonto(s.total, s.moneda_producto)}
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${st.bg} ${st.text}`}>
@@ -3563,7 +3595,7 @@ function ClienteHistorialModal({ c, onSaved }) {
                         {pol.fecha_emision} → {pol.fecha_vencimiento}
                       </p>
                     </div>
-                    <p className="shrink-0 text-sm font-bold text-slate-800">${Number(pol.total).toFixed(2)}</p>
+                    <p className="shrink-0 text-sm font-bold text-slate-800">{fmtMonto(pol.total, pol.moneda_producto)}</p>
                   </div>
                   {/* Acciones — fila propia de ancho completo: con 5 botones posibles
                       (Ver póliza/Renovar/Editar/Beneficiarios/Bienes) nunca caben junto
@@ -3610,7 +3642,7 @@ function ClienteHistorialModal({ c, onSaved }) {
                           <SlidersHorizontal className="w-4 h-4 shrink-0" /> Editar
                         </button>
                       )}
-                      {pol.id && canManageBeneficiarios && pol.status !== 'RECHAZADA' && (
+                      {pol.id && canManageBeneficiarios && pol.status !== 'RECHAZADA' && pol.producto_aplica_beneficiarios && (
                         <button
                           onClick={() => showModal('polizaBeneficiarios', { poliza: pol })}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-fuchsia-50 text-xs font-semibold text-fuchsia-600 hover:bg-fuchsia-100 transition whitespace-nowrap"
@@ -3618,7 +3650,7 @@ function ClienteHistorialModal({ c, onSaved }) {
                           <Users className="w-4 h-4 shrink-0" /> Beneficiarios
                         </button>
                       )}
-                      {pol.id && canManageBienes && pol.status !== 'RECHAZADA' && (
+                      {pol.id && canManageBienes && pol.status !== 'RECHAZADA' && pol.producto_permite_multiples_bienes && (
                         <button
                           onClick={() => showModal('polizaBienes', { poliza: pol, personaId: c.id })}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-50 text-xs font-semibold text-sky-600 hover:bg-sky-100 transition whitespace-nowrap"
@@ -3663,7 +3695,7 @@ function ClienteHistorialModal({ c, onSaved }) {
                       {pol.fecha_emision}
                     </p>
                   </div>
-                  <p className="text-sm font-bold text-slate-500 shrink-0">${Number(pol.total).toFixed(2)}</p>
+                  <p className="text-sm font-bold text-slate-500 shrink-0">{fmtMonto(pol.total, pol.moneda_producto)}</p>
                 </div>
               ))}
             </div>
@@ -4244,7 +4276,7 @@ function ClienteFormModal({ cliente, onSave }) {
     actividad:     cliente?.actividad || '',
   })
   const [saving, setSaving] = useState(false)
-  const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }))
+  const f = (k, filtro) => e => setForm(p => ({ ...p, [k]: filtro ? filtro(e.target.value) : e.target.value }))
 
   const handleSave = async () => {
     if (!form.nombre.trim())    { showToast('El nombre es obligatorio', 'error'); return }
@@ -4295,7 +4327,7 @@ function ClienteFormModal({ cliente, onSave }) {
             </div>
             <div>
               <Lbl req>CI / RIF</Lbl>
-              <input className="input-field" value={form.cedula} onChange={f('cedula')} placeholder="V-00.000.000" />
+              <input className="input-field" value={form.cedula} onChange={f('cedula', filtrarCedula)} placeholder="V-00000000" maxLength={12} />
             </div>
             <div>
               <Lbl req>Condición civil</Lbl>
@@ -4332,11 +4364,11 @@ function ClienteFormModal({ cliente, onSave }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Lbl>Teléfono fijo</Lbl>
-                <input className="input-field" value={form.telefono} onChange={f('telefono')} placeholder="0212-000-0000" />
+                <input className="input-field" value={form.telefono} onChange={f('telefono', filtrarTelefono)} placeholder="0212-000-0000" maxLength={20} />
               </div>
               <div>
                 <Lbl>Celular</Lbl>
-                <input className="input-field" value={form.celular} onChange={f('celular')} placeholder="+58 414-000-0000" />
+                <input className="input-field" value={form.celular} onChange={f('celular', filtrarTelefono)} placeholder="+58 414-000-0000" maxLength={20} />
               </div>
               <div className="sm:col-span-2">
                 <Lbl req>Correo electrónico</Lbl>
@@ -4361,7 +4393,7 @@ function ClienteFormModal({ cliente, onSave }) {
               </div>
               <div>
                 <Lbl>Código postal</Lbl>
-                <input className="input-field" value={form.codigo_postal} onChange={f('codigo_postal')} placeholder="1010" />
+                <input className="input-field" value={form.codigo_postal} onChange={f('codigo_postal', filtrarSoloDigitos)} placeholder="1010" maxLength={10} />
               </div>
               <div className="sm:col-span-2">
                 <Lbl req>Dirección</Lbl>

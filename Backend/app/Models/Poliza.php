@@ -5,7 +5,9 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Support\Moneda;
 
 /**
  * Representa una póliza de seguro emitida.
@@ -16,8 +18,12 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  *   ANULADA → cancelada antes del vencimiento
  *
  * Los montos se almacenan en dos monedas:
- *   total / cobertura_dolares → USD (referencia principal)
+ *   total / cobertura_dolares → moneda nativa del producto, ver moneda_producto (no siempre USD)
  *   total_bs / cobertura_bs   → Bolívares (calculado con la tasa del día de emisión)
+ *
+ * `moneda_producto` (USD/BS/EUR) es la moneda en la que está denominado
+ * `total`/`cobertura_dolares` — no confundir con `moneda`, que es la moneda
+ * en la que el CLIENTE pagó (puede diferir, ver Moneda::convertir()).
  *
  * Ruta hasta el cliente dueño de esta póliza:
  *   $poliza->solicitud->persona
@@ -42,6 +48,7 @@ class Poliza extends Model
         'pago',
         'frecuencia_pago',
         'moneda',
+        'moneda_producto',
         'tipo',
         'asegurado_nombre',
         'asegurado_ci',
@@ -101,6 +108,12 @@ class Poliza extends Model
         return $this->hasMany(Factura::class, 'poliza_id');
     }
 
+    /** Comisión del vendedor generada por esta póliza (1 a 1) */
+    public function comision(): HasOne
+    {
+        return $this->hasOne(Comision::class, 'poliza_id');
+    }
+
     /** Beneficiarios registrados para pólizas de vida/muerte/accidente */
     public function beneficiarios(): HasMany
     {
@@ -147,5 +160,19 @@ class Poliza extends Model
             ->where('id', '<', $this->id)
             ->where('status', 'RENOVADA')
             ->exists());
+    }
+
+    /**
+     * Moneda en la que está denominado total/cobertura_dolares. Pólizas
+     * emitidas antes de moneda_producto caen al snapshot, luego al producto
+     * en vivo, y por último a USD (correcto: históricamente todo se forzó a USD).
+     */
+    public function monedaNativa(): string
+    {
+        $snap = $this->snapshot_datos['producto']['moneda'] ?? null;
+
+        return Moneda::normalizar(
+            $this->moneda_producto ?? $snap ?? $this->producto?->moneda ?? 'USD'
+        );
     }
 }

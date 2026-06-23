@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use App\Models\Solicitud;
+use App\Support\Moneda;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
@@ -46,17 +47,22 @@ class CotizacionMail extends Mailable
         $sol  = $this->solicitud;
         $cobs = is_array($sol->coberturas) ? $sol->coberturas : [];
 
-        // Tasas BCV y montos en Bs. y EUR
+        // Moneda nativa del producto — el total/cobertura de la solicitud
+        // está denominado en ella, nunca asumida en USD.
+        $monedaNativa = Moneda::normalizar($sol->moneda_producto ?? $sol->producto?->moneda ?? 'USD');
+        $simbolo      = Moneda::simbolo($monedaNativa);
+
+        // Tasas BCV y montos convertidos a Bs. y a la otra moneda extranjera
         $tasaUsd = (float) ($cobs['tasaBCV'] ?? 0);
         $tasaEur = (float) ($cobs['tasaEUR'] ?? 0);
-        $primaBs  = $tasaUsd > 1 ? number_format((float) $sol->total * $tasaUsd, 2) : null;
-        $primaEur = ($tasaEur > 1 && $tasaUsd > 0) ? number_format((float) $sol->total * $tasaUsd / $tasaEur, 2) : null;
+        $primaBs  = ($monedaNativa !== 'BS' && $tasaUsd > 1) ? number_format(Moneda::aBs((float) $sol->total, $monedaNativa, $tasaUsd, $tasaEur), 2) : null;
+        $primaEur = ($monedaNativa !== 'EUR' && $tasaEur > 1 && $tasaUsd > 0) ? number_format(Moneda::convertir((float) $sol->total, $monedaNativa, 'EUR', $tasaUsd, $tasaEur), 2) : null;
 
         // Suma asegurada
         $cobertura = number_format((float) ($cobs['valor_mercado'] ?? $sol->producto?->cobertura ?? 0), 2);
 
         // Coberturas detalladas (nombres de coberturas incluidas)
-        $coberturasDetalle = $this->extractCoberturas($cobs, $sol->producto?->tipo_calculo);
+        $coberturasDetalle = $this->extractCoberturas($cobs, $sol->producto?->tipo_calculo, $simbolo);
 
         // Referencia del bien
         $bien    = $sol->bien;
@@ -89,18 +95,20 @@ class CotizacionMail extends Mailable
                 'productoNombre'    => $sol->producto?->nombre ?? '—',
                 'productoDescripcion' => $sol->producto?->descripcion ?? null,
                 'bienRef'           => $bienRef,
-                'primaUsd'          => number_format((float) $sol->total, 2),
+                'primaPrincipal'    => number_format((float) $sol->total, 2),
+                'monedaNativa'      => $monedaNativa,
+                'simboloNativo'     => $simbolo,
                 'primaBs'           => $primaBs,
                 'primaEur'          => $primaEur,
                 'tasaBcv'           => $tasaUsd > 1 ? number_format($tasaUsd, 2) : null,
                 'tasaEur'           => $tasaEur > 1 ? number_format($tasaEur, 2) : null,
-                'cobertura'         => $cobertura,
+                'cobertura'         => $simbolo . $cobertura . ' ' . $monedaNativa,
                 'coberturasDetalle' => $coberturasDetalle,
             ],
         );
     }
 
-    private function extractCoberturas(array $cobs, ?string $tipoCal): array
+    private function extractCoberturas(array $cobs, ?string $tipoCal, string $simbolo): array
     {
         $lista = [];
 
@@ -116,12 +124,12 @@ class CotizacionMail extends Mailable
             ];
             foreach ($mapa as $key => $label) {
                 if (!empty($tarifa[$key])) {
-                    $lista[] = $label . ': $' . number_format((float)($tarifa[$key]['suma'] ?? $tarifa[$key]), 2);
+                    $lista[] = $label . ': ' . $simbolo . number_format((float)($tarifa[$key]['suma'] ?? $tarifa[$key]), 2);
                 }
             }
         } elseif ($tipoCal === 'por_valor') {
             $lista[] = 'Responsabilidad Civil Obligatoria (RCV)';
-            $lista[] = 'Cobertura: $' . number_format((float)($cobs['valor_mercado'] ?? 0), 2) . ' USD';
+            $lista[] = 'Cobertura: ' . $simbolo . number_format((float)($cobs['valor_mercado'] ?? 0), 2);
         }
 
         return $lista;

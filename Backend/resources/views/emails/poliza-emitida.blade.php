@@ -34,12 +34,12 @@
           ['Bien asegurado', $bienRef],
           ['Vigencia',       $fechaEmision . ' → ' . $fechaVencimiento],
           ['Forma de pago',  $esMensual ? 'Mensual (12 cuotas)' : 'Pago único anual'],
-          [$esMensual ? 'Prima Anual Total' : 'Prima', '$' . $primaDolares . ' USD'],
+          [$esMensual ? 'Prima Anual Total' : 'Prima', $simboloNativo . $primaPrincipal . ' ' . $monedaNativa],
           ...($esMensual ? [
-            ['Cuota mensual (esta es la que pagó)', '$' . $cuotaMensual . ' USD'],
+            ['Cuota mensual (esta es la que pagó)', $simboloNativo . $cuotaMensual . ' ' . $monedaNativa],
             ['Próxima cuota',                       $proximaCuota],
           ] : []),
-          ['Tasa BCV',       'Bs. ' . $tasaEmision . ' / USD'],
+          ['Tasa BCV',       'Bs. ' . $tasaEmision . ' / ' . $monedaNativa],
           ['Total Bs.',      'Bs. ' . $totalBs],
         ] as $row)
         <tr>
@@ -57,7 +57,7 @@
 </table>
 
 <p style="margin:0 0 24px;font-size:13px;color:#64748b;line-height:1.6;text-align:center;">
-  La póliza y la factura correspondiente se adjuntan a este correo.
+  La póliza y el recibo correspondiente se adjuntan a este correo.
 </p>
 
 {{-- CTA --}}

@@ -7,6 +7,7 @@ use App\Mail\CotizacionStatusMail;
 use App\Mail\PolizaEmitidaMail;
 use App\Mail\FacturaMail;
 use App\Models\EmailLog;
+use App\Models\Comision;
 use App\Models\Solicitud;
 use App\Models\Persona;
 use App\Models\BienAsegurado;
@@ -14,8 +15,13 @@ use App\Models\Poliza;
 use App\Models\PolizaBien;
 use App\Models\Factura;
 use App\Models\Venta;
+use App\Rules\CedulaValida;
 use App\Rules\NoInjectionChars;
+use App\Rules\TelefonoValido;
 use App\Services\WorkflowService;
+use App\Support\CodigoPoliza;
+use App\Support\Documento;
+use App\Support\Moneda;
 use App\Traits\LogsActivity;
 use App\Traits\ScopesVendedor;
 use Illuminate\Http\Request;
@@ -74,6 +80,9 @@ class SolicitudController extends Controller
     {
         $noInjection = new NoInjectionChars();
 
+        if ($request->filled('ci_tomador')) $request->merge(['ci_tomador' => Documento::normalizarCedula($request->input('ci_tomador'))]);
+        if ($request->filled('asegurado_ci')) $request->merge(['asegurado_ci' => Documento::normalizarCedula($request->input('asegurado_ci'))]);
+
         $data = $request->validate([
             'persona_id'        => 'nullable|integer|exists:persona,id',
             'bien_asegurado_id' => 'nullable|integer|exists:bien_asegurado,id',
@@ -84,10 +93,10 @@ class SolicitudController extends Controller
             'fecha_solicitud'   => 'required|date',
             'coberturas'        => 'required|array',
             'nombre_tomador'    => ['nullable', 'string', 'max:120', $noInjection],
-            'ci_tomador'        => ['nullable', 'string', 'max:20', $noInjection],
+            'ci_tomador'        => ['nullable', 'string', 'max:20', new CedulaValida()],
             'asegurado_nombre'  => ['nullable', 'string', 'max:120', $noInjection],
-            'asegurado_ci'      => ['nullable', 'string', 'max:20', $noInjection],
-            'asegurado_telefono'  => ['nullable', 'string', 'max:30', $noInjection],
+            'asegurado_ci'      => ['nullable', 'string', 'max:20', new CedulaValida()],
+            'asegurado_telefono'  => ['nullable', 'string', 'max:30', new TelefonoValido()],
             'asegurado_direccion' => ['nullable', 'string', 'max:255', $noInjection],
         ]);
 
@@ -96,6 +105,11 @@ class SolicitudController extends Controller
         $data['vendedor_id'] = auth()->id();
         $data['status']      = 'en_revision';
         $data['fuente']      = 'interno';
+        // Moneda nativa derivada del producto, no confiada al cliente — así
+        // total/total_bs se interpretan correctamente en todo el flujo posterior.
+        $data['moneda_producto'] = Moneda::normalizar(
+            \App\Models\Producto::find($data['producto_id'] ?? null)?->moneda ?? 'USD'
+        );
 
         $solicitud = Solicitud::create($data);
         $solicitud->load(['persona', 'producto', 'bien']);
@@ -140,6 +154,9 @@ class SolicitudController extends Controller
 
         $noInjection = new NoInjectionChars();
 
+        if ($request->filled('ci_tomador')) $request->merge(['ci_tomador' => Documento::normalizarCedula($request->input('ci_tomador'))]);
+        if ($request->filled('asegurado_ci')) $request->merge(['asegurado_ci' => Documento::normalizarCedula($request->input('asegurado_ci'))]);
+
         $data = $request->validate([
             'status'            => 'sometimes|in:en_revision,rechazado,pendiente',
             'persona_id'        => 'sometimes|integer|exists:persona,id',
@@ -151,14 +168,21 @@ class SolicitudController extends Controller
             'fecha_solicitud'   => 'sometimes|date',
             'coberturas'        => 'sometimes|array',
             'nombre_tomador'    => ['nullable', 'string', 'max:120', $noInjection],
-            'ci_tomador'        => ['nullable', 'string', 'max:20', $noInjection],
+            'ci_tomador'        => ['nullable', 'string', 'max:20', new CedulaValida()],
             'asegurado_nombre'  => ['nullable', 'string', 'max:120', $noInjection],
-            'asegurado_ci'      => ['nullable', 'string', 'max:20', $noInjection],
-            'asegurado_telefono'  => ['nullable', 'string', 'max:30', $noInjection],
+            'asegurado_ci'      => ['nullable', 'string', 'max:20', new CedulaValida()],
+            'asegurado_telefono'  => ['nullable', 'string', 'max:30', new TelefonoValido()],
             'asegurado_direccion' => ['nullable', 'string', 'max:255', $noInjection],
         ]);
 
         $this->assertAccesoReferencias($data);
+
+        // Si cambia el producto, la moneda nativa del total también cambia.
+        if (array_key_exists('producto_id', $data)) {
+            $data['moneda_producto'] = Moneda::normalizar(
+                \App\Models\Producto::find($data['producto_id'])?->moneda ?? 'USD'
+            );
+        }
 
         // Validar transición de estado antes de persistir
         if (isset($data['status'])) {
@@ -237,29 +261,29 @@ class SolicitudController extends Controller
         $cobs    = is_array($solicitud->coberturas) ? $solicitud->coberturas : [];
         $hoy     = now()->toDateString();
         $venc    = now()->addYear()->toDateString();
-        $anno    = now()->year;
         $tasaBcv = (float) $data['tasa_bcv'];
         $tasaEur = isset($data['tasa_eur']) && $data['tasa_eur'] > 0 ? (float) $data['tasa_eur'] : $tasaBcv;
 
-        // Validar que la suma de los pagos equivale al total de la póliza (±0.10 USD de tolerancia)
+        // Moneda en la que está denominado el total de esta solicitud — la
+        // del producto contratado, no la moneda en la que el cliente pague.
+        $monedaNativa = Moneda::normalizar($solicitud->moneda_producto ?? $solicitud->producto?->moneda ?? 'USD');
+
+        // Validar que la suma de los pagos equivale al total de la póliza
+        // (±0.10 en la moneda nativa del producto), convirtiendo cada pago a esa moneda.
         $totalPoliza  = (float) $solicitud->total;
         $totalPagado  = 0.0;
         foreach ($data['pagos'] as $p) {
-            $monto = (float) $p['monto'];
-            $totalPagado += match ($p['moneda']) {
-                'USD' => $monto,
-                'EUR' => $tasaEur > 0 ? $monto * ($tasaEur / $tasaBcv) : $monto,
-                'Bs.' => $tasaBcv > 0 ? $monto / $tasaBcv               : 0,
-                default => 0,
-            };
+            $totalPagado += Moneda::convertir((float) $p['monto'], $p['moneda'], $monedaNativa, $tasaBcv, $tasaEur);
         }
 
         // Comparación exacta en centavos para evitar errores de punto flotante
         if ((int) round($totalPagado * 100) !== (int) round($totalPoliza * 100)) {
             return response()->json([
                 'error' => sprintf(
-                    'El total de los pagos ($ %.2f USD) no coincide con el total de la póliza ($ %.2f USD). Diferencia: $ %.2f USD.',
-                    round($totalPagado, 2), $totalPoliza, abs(round($totalPagado, 2) - $totalPoliza)
+                    'El total de los pagos (%s%.2f %s) no coincide con el total de la póliza (%s%.2f %s). Diferencia: %s%.2f %s.',
+                    Moneda::simbolo($monedaNativa), round($totalPagado, 2), Moneda::etiqueta($monedaNativa),
+                    Moneda::simbolo($monedaNativa), $totalPoliza, Moneda::etiqueta($monedaNativa),
+                    Moneda::simbolo($monedaNativa), abs(round($totalPagado, 2) - $totalPoliza), Moneda::etiqueta($monedaNativa)
                 ),
             ], 422);
         }
@@ -282,8 +306,8 @@ class SolicitudController extends Controller
             ? (float) ($cobs['valor_mercado'] ?? 0)
             : (float) ($solicitud->producto?->cobertura ?? 0);
         $totalUsd    = (float) $solicitud->total;
-        $totalBs     = round($totalUsd * $tasaBcv, 2);
-        $coberturaBS = round($coberturaDolares * $tasaBcv, 2);
+        $totalBs     = round(Moneda::aBs($totalUsd, $monedaNativa, $tasaBcv, $tasaEur), 2);
+        $coberturaBS = round(Moneda::aBs($coberturaDolares, $monedaNativa, $tasaBcv, $tasaEur), 2);
 
         // Asegurado: si se indicó una persona diferente al tomador, se usa esa; si no, el tomador mismo.
         // Dirección/teléfono propios del asegurado son opcionales — si no se
@@ -316,6 +340,7 @@ class SolicitudController extends Controller
                 'tipo'         => $solicitud->producto->tipo,
                 'tipo_calculo' => $solicitud->producto->tipo_calculo,
                 'cobertura'    => $solicitud->producto->cobertura,
+                'moneda'       => $monedaNativa,
             ] : null,
             'tarifario' => $solicitud->tarifario ? [
                 'id'      => $solicitud->tarifario->id,
@@ -340,13 +365,14 @@ class SolicitudController extends Controller
             'total_bs'      => $totalBs,
         ];
 
-        $result = DB::transaction(function () use ($solicitud, $data, $hoy, $venc, $anno, $coberturaDolares, $coberturaBS, $aseguradoNombre, $aseguradoCi, $snapshot, $tasaBcv, $tasaEur, $totalUsd, $totalBs, $moneda, $pagoResumen, $sede, $frecuencia) {
+        $result = DB::transaction(function () use ($solicitud, $data, $hoy, $venc, $coberturaDolares, $coberturaBS, $aseguradoNombre, $aseguradoCi, $snapshot, $tasaBcv, $tasaEur, $totalUsd, $totalBs, $moneda, $monedaNativa, $pagoResumen, $sede, $frecuencia) {
             $poliza = Poliza::create([
                 'nro_contrato'         => 'TMP-' . uniqid(),
                 'solicitud_id'         => $solicitud->id,
                 'producto_id'          => $solicitud->producto_id ?? null,
                 'total'                => $totalUsd,
                 'total_bs'             => $totalBs,
+                'moneda_producto'      => $monedaNativa,
                 'tasa_emision'         => $tasaBcv,
                 'tasa_emision_eur'     => $tasaEur,
                 'cobertura_dolares'    => $coberturaDolares,
@@ -366,10 +392,30 @@ class SolicitudController extends Controller
                 'tarifario_version_id' => $solicitud->tarifario_id,
             ]);
 
-            $nroContrato = 'POL-' . $anno . '-' . str_pad($poliza->id, 5, '0', STR_PAD_LEFT);
-            $nroFactura  = 'FAC-' . $anno . '-' . str_pad($poliza->id, 5, '0', STR_PAD_LEFT);
+            $nroContrato = CodigoPoliza::generar(
+                $sede,
+                $solicitud->persona?->estado,
+                $poliza->producto_id,
+                CodigoPoliza::INDICADOR_NUEVO,
+                $poliza->id
+            );
+            $nroFactura  = CodigoPoliza::codigoRecibo($nroContrato);
 
             $poliza->update(['nro_contrato' => $nroContrato]);
+
+            // Comisión del vendedor por esta póliza — sin vendedor no hay a quién pagarle.
+            if ($poliza->vendedor_id) {
+                $baseUsd = Moneda::aUsd($totalUsd, $monedaNativa, $tasaBcv, $tasaEur);
+                $tasaPct = Comision::tasaParaCargo($poliza->vendedor?->cargo) * 100;
+                Comision::create([
+                    'poliza_id'      => $poliza->id,
+                    'vendedor_id'    => $poliza->vendedor_id,
+                    'base_usd'       => round($baseUsd, 2),
+                    'tasa_pct'       => $tasaPct,
+                    'monto'          => round($baseUsd * $tasaPct / 100, 2),
+                    'fecha_generada' => $hoy,
+                ]);
+            }
 
             // El bien original de la solicitud queda registrado en poliza_bienes
             // con certificado=NULL (cubierto bajo el propio nro_contrato).
@@ -436,13 +482,13 @@ class SolicitudController extends Controller
         if ($correo && $facturaEmitida) {
             try {
                 Mail::to($correo)->queue(new FacturaMail($facturaEmitida, $solicitud->persona?->nombre ?? ''));
-                EmailLog::registrar('factura', $correo, 'Factura ' . $result['nro_factura'],
+                EmailLog::registrar('factura', $correo, 'Recibo ' . $result['nro_factura'],
                     $solicitud->persona?->id, $polizaEmitida?->id);
             } catch (\Throwable) {}
         }
 
         return response()->json([
-            'message'      => 'Póliza y factura generadas correctamente',
+            'message'      => 'Póliza y recibo generados correctamente',
             'nro_contrato' => $result['nro_contrato'],
             'nro_factura'  => $result['nro_factura'],
         ], 201);
@@ -529,6 +575,7 @@ class SolicitudController extends Controller
             'bien_observaciones' => $s->bien?->observaciones,
             'producto_id'       => $s->producto_id,
             'producto'          => $s->producto?->nombre ?? '—',
+            'moneda_producto'   => Moneda::normalizar($s->moneda_producto ?? $s->producto?->moneda ?? 'USD'),
             'tarifario_id'      => $s->tarifario_id,
             'total'             => $total,
             'total_bs'          => $totalBs,

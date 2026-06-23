@@ -1,4 +1,4 @@
-# Sefired — Cooperativa de Seguros de Vehículos R.L.
+# J&M — La Venezolana de Seguros y Vida
 
 Sistema interno de gestión de pólizas, clientes y ventas.
 

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Mail\CambioPolizaMail;
 use App\Mail\PolizaRenovadaMail;
+use App\Models\Comision;
 use App\Models\EmailLog;
 use App\Models\Poliza;
 use App\Models\PolizaBien;
@@ -13,8 +14,12 @@ use App\Models\SolicitudRenovacionQr;
 use App\Models\IndicadorEconomico;
 use App\Models\Venta;
 use App\Models\Beneficiario;
+use App\Rules\CedulaValida;
 use App\Rules\NoInjectionChars;
 use App\Services\WorkflowService;
+use App\Support\CodigoPoliza;
+use App\Support\Documento;
+use App\Support\Moneda;
 use App\Traits\LogsActivity;
 use App\Traits\ScopesVendedor;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -240,9 +245,11 @@ class PolizaController extends Controller
         // Tasas del día más recientes
         $tasaUsd = (float) (IndicadorEconomico::usd()->orderBy('fecha', 'desc')->value('valor') ?? 0);
         $tasaEur = (float) (IndicadorEconomico::eur()->orderBy('fecha', 'desc')->value('valor') ?? 0);
-        $totalUsd = (float) ($poliza->total ?? 0);
-        $totalBs  = $tasaUsd > 0 ? round($totalUsd * $tasaUsd, 2) : null;
-        $totalEur = ($tasaEur > 0 && $tasaUsd > 0) ? round($totalUsd * $tasaUsd / $tasaEur, 2) : null;
+        $moneda  = $poliza->monedaNativa();
+        $total   = (float) ($poliza->total ?? 0);
+        $totalBs  = $tasaUsd > 0 ? round(Moneda::aBs($total, $moneda, $tasaUsd, $tasaEur), 2) : null;
+        $totalEur = $tasaEur > 0 ? round(Moneda::convertir($total, $moneda, 'EUR', $tasaUsd, $tasaEur), 2) : null;
+        $totalUsdEquiv = $tasaUsd > 0 ? round(Moneda::aUsd($total, $moneda, $tasaUsd, $tasaEur), 2) : $total;
 
         return response()->view('poliza-landing', [
             'encontrada'        => true,
@@ -260,9 +267,12 @@ class PolizaController extends Controller
             'color'             => strtoupper($attrs['color'] ?? '—'),
             'serial_carroceria' => strtoupper($attrs['serial_carroceria'] ?? $attrs['serialCarroceria'] ?? '—'),
             'serial_motor'      => strtoupper($attrs['serial_motor'] ?? $attrs['serialMotor'] ?? '—'),
-            'total'             => $totalUsd,
+            'moneda'            => $moneda,
+            'moneda_simbolo'    => Moneda::simbolo($moneda),
+            'total'             => $total,
             'total_bs'          => $totalBs,
             'total_eur'         => $totalEur,
+            'total_usd_equiv'   => $totalUsdEquiv,
             'tasa_usd'          => $tasaUsd,
             'tasa_eur'          => $tasaEur,
         ]);
@@ -381,34 +391,29 @@ class PolizaController extends Controller
         $sede           = auth()->user()?->sede ?? 'Principal';
         $pagoResumen    = collect($data['pagos'])->map(fn($p) => $p['forma'] . ' ' . $p['moneda'])->join(' / ');
         $moneda         = $data['pagos'][0]['moneda'] ?? 'USD';
-        $totalBsNuevo   = round((float) $polizaAnterior->total * $tasaBcv, 2);
-        $coberturaBsNew = round((float) $polizaAnterior->cobertura_dolares * $tasaBcv, 2);
+        $monedaNativa   = $polizaAnterior->monedaNativa();
+        $totalBsNuevo   = round(Moneda::aBs((float) $polizaAnterior->total, $monedaNativa, $tasaBcv, $tasaEur), 2);
+        $coberturaBsNew = round(Moneda::aBs((float) $polizaAnterior->cobertura_dolares, $monedaNativa, $tasaBcv, $tasaEur), 2);
 
-        // Validar total pagos = total póliza
-        $totalPagado = collect($data['pagos'])->sum(function ($p) use ($tasaBcv, $tasaEur) {
-            $m = (float) $p['monto'];
-            return match ($p['moneda']) {
-                'USD' => $m,
-                'EUR' => $tasaEur > 0 ? $m * ($tasaEur / $tasaBcv) : $m,
-                'Bs.' => $tasaBcv > 0 ? $m / $tasaBcv : 0,
-                default => 0,
-            };
-        });
+        // Validar total pagos = total póliza (en la moneda nativa del producto)
+        $totalPagado = collect($data['pagos'])->sum(
+            fn($p) => Moneda::convertir((float) $p['monto'], $p['moneda'], $monedaNativa, $tasaBcv, $tasaEur)
+        );
 
         if ((int) round($totalPagado * 100) !== (int) round((float) $polizaAnterior->total * 100)) {
             return response()->json([
                 'error' => sprintf(
-                    'El total de los pagos ($ %.2f USD) no coincide con el total de la póliza ($ %.2f USD).',
-                    round($totalPagado, 2), $polizaAnterior->total
+                    'El total de los pagos (%s%.2f %s) no coincide con el total de la póliza (%s%.2f %s).',
+                    Moneda::simbolo($monedaNativa), round($totalPagado, 2), Moneda::etiqueta($monedaNativa),
+                    Moneda::simbolo($monedaNativa), $polizaAnterior->total, Moneda::etiqueta($monedaNativa)
                 ),
             ], 422);
         }
 
         $hoy  = now()->toDateString();
         $vence = now()->addYear()->toDateString();
-        $anno  = now()->year;
 
-        $result = DB::transaction(function () use ($polizaAnterior, $data, $hoy, $vence, $anno, $sede, $pagoResumen, $moneda, $frecuencia, $tasaBcv, $tasaEur, $totalBsNuevo, $coberturaBsNew) {
+        $result = DB::transaction(function () use ($polizaAnterior, $data, $hoy, $vence, $sede, $pagoResumen, $moneda, $monedaNativa, $frecuencia, $tasaBcv, $tasaEur, $totalBsNuevo, $coberturaBsNew) {
             $polizaAnterior->update(['status' => 'RENOVADA']);
 
             $nueva = Poliza::create([
@@ -417,6 +422,7 @@ class PolizaController extends Controller
                 'producto_id'       => $polizaAnterior->producto_id,
                 'total'             => $polizaAnterior->total,
                 'total_bs'          => $totalBsNuevo,
+                'moneda_producto'   => $monedaNativa,
                 'tasa_emision'      => $tasaBcv,
                 'tasa_emision_eur'  => $tasaEur,
                 'cobertura_dolares' => $polizaAnterior->cobertura_dolares,
@@ -432,10 +438,29 @@ class PolizaController extends Controller
                 'status'            => 'ACTIVA',
             ]);
 
-            $nroContrato = 'POL-' . $anno . '-' . str_pad($nueva->id, 5, '0', STR_PAD_LEFT);
-            $nroFactura  = 'FAC-' . $anno . '-' . str_pad($nueva->id, 5, '0', STR_PAD_LEFT);
+            $nroContrato = CodigoPoliza::generar(
+                $sede,
+                $polizaAnterior->solicitud?->persona?->estado,
+                $nueva->producto_id,
+                CodigoPoliza::INDICADOR_RENOVACION,
+                $nueva->id
+            );
+            $nroFactura  = CodigoPoliza::codigoRecibo($nroContrato);
 
             $nueva->update(['nro_contrato' => $nroContrato]);
+
+            if ($nueva->vendedor_id) {
+                $baseUsd = Moneda::aUsd((float) $polizaAnterior->total, $monedaNativa, $tasaBcv, $tasaEur);
+                $tasaPct = Comision::tasaParaCargo($nueva->vendedor?->cargo) * 100;
+                Comision::create([
+                    'poliza_id'      => $nueva->id,
+                    'vendedor_id'    => $nueva->vendedor_id,
+                    'base_usd'       => round($baseUsd, 2),
+                    'tasa_pct'       => $tasaPct,
+                    'monto'          => round($baseUsd * $tasaPct / 100, 2),
+                    'fecha_generada' => $hoy,
+                ]);
+            }
 
             // Los bienes cubiertos pasan a la póliza renovada. El certificado
             // de los bienes adicionales se renumera con el nuevo nro_contrato;
@@ -652,10 +677,12 @@ class PolizaController extends Controller
             return response()->json(['error' => "Esta póliza ya alcanzó el máximo de {$producto->max_beneficiarios} beneficiarios para el tipo \"{$producto->nombre}\"."], 422);
         }
 
+        if ($request->filled('cedula')) $request->merge(['cedula' => Documento::normalizarCedula($request->input('cedula'))]);
+
         $noInjection = new NoInjectionChars();
         $data = $request->validate([
             'nombre'     => ['required', 'string', 'max:120', $noInjection],
-            'cedula'     => ['nullable', 'string', 'max:20', $noInjection],
+            'cedula'     => ['nullable', 'string', 'max:20', new CedulaValida()],
             'parentesco' => ['nullable', 'string', 'max:50', $noInjection],
             'porcentaje' => 'required|numeric|min:0.01|max:100',
         ]);
@@ -690,10 +717,12 @@ class PolizaController extends Controller
 
         $beneficiario = $poliza->beneficiarios()->findOrFail($benId);
 
+        if ($request->filled('cedula')) $request->merge(['cedula' => Documento::normalizarCedula($request->input('cedula'))]);
+
         $noInjection = new NoInjectionChars();
         $data = $request->validate([
             'nombre'     => ['sometimes', 'string', 'max:120', $noInjection],
-            'cedula'     => ['nullable', 'string', 'max:20', $noInjection],
+            'cedula'     => ['nullable', 'string', 'max:20', new CedulaValida()],
             'parentesco' => ['nullable', 'string', 'max:50', $noInjection],
             'porcentaje' => 'sometimes|numeric|min:0.01|max:100',
         ]);

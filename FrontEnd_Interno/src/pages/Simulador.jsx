@@ -16,7 +16,7 @@ import {
   Layers, ClipboardList, ChevronDown, Star, SlidersHorizontal,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
-import { usd, fmtTasa, pdfPage, pdfHdr, pdfSec, pdfRow, pdfTotal, pdfFooterSimple, useModalLock } from '../utils/helpers.jsx'
+import { fmtMonto, convertirMoneda, fmtTasa, pdfPage, pdfHdr, pdfSec, pdfRow, pdfTotal, pdfFooterSimple, useModalLock, filtrarCedula, filtrarTelefono } from '../utils/helpers.jsx'
 import { fetchClientes, createCliente } from '../api/clientes.js'
 import { fetchTasas } from '../api/tasas.js'
 import { fetchProductos } from '../api/productos.js'
@@ -326,7 +326,7 @@ function Step1({ sim, setSim, onNext, onClose, productos }) {
                         <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-600 font-semibold capitalize">{p.tipo_bien}</span>
                       )}
                       {p.derecho_poliza > 0 && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">+ {usd(p.derecho_poliza)}</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">+ {fmtMonto(p.derecho_poliza, p.moneda)}</span>
                       )}
                     </div>
                   </div>
@@ -750,13 +750,13 @@ function Step3({ sim, setSim, onNext, onBack, onClose }) {
               </div>
               <div>
                 <label className="field-label">Cédula del asegurado</label>
-                <input className="input-field font-mono" placeholder="V-12345678" value={sim.asegurado_ci}
-                  onChange={e => setSim(p => ({ ...p, asegurado_ci: e.target.value }))} />
+                <input className="input-field font-mono" placeholder="V-12345678" maxLength={12} value={sim.asegurado_ci}
+                  onChange={e => setSim(p => ({ ...p, asegurado_ci: filtrarCedula(e.target.value) }))} />
               </div>
               <div>
                 <label className="field-label">Teléfono del asegurado</label>
                 <input className="input-field" placeholder="0414-1234567" value={sim.asegurado_telefono}
-                  onChange={e => setSim(p => ({ ...p, asegurado_telefono: e.target.value }))} />
+                  onChange={e => setSim(p => ({ ...p, asegurado_telefono: filtrarTelefono(e.target.value) }))} />
               </div>
               <div>
                 <label className="field-label">Dirección del asegurado</label>
@@ -799,7 +799,7 @@ function Step3({ sim, setSim, onNext, onBack, onClose }) {
             <div>
               <label className="field-label">Teléfono del asegurado</label>
               <input className="input-field" placeholder="0414-1234567" value={sim.asegurado_telefono}
-                onChange={e => setSim(p => ({ ...p, asegurado_telefono: e.target.value }))} />
+                onChange={e => setSim(p => ({ ...p, asegurado_telefono: filtrarTelefono(e.target.value) }))} />
             </div>
             <div>
               <label className="field-label">Dirección del asegurado</label>
@@ -819,13 +819,13 @@ function Step3({ sim, setSim, onNext, onBack, onClose }) {
             </div>
             <div>
               <label className="field-label">Cédula del asegurado</label>
-              <input className="input-field font-mono" placeholder="V-12345678" value={sim.asegurado_ci}
-                onChange={e => setSim(p => ({ ...p, asegurado_ci: e.target.value }))} />
+              <input className="input-field font-mono" placeholder="V-12345678" maxLength={12} value={sim.asegurado_ci}
+                onChange={e => setSim(p => ({ ...p, asegurado_ci: filtrarCedula(e.target.value) }))} />
             </div>
             <div>
               <label className="field-label">Teléfono del asegurado</label>
               <input className="input-field" placeholder="0414-1234567" value={sim.asegurado_telefono}
-                onChange={e => setSim(p => ({ ...p, asegurado_telefono: e.target.value }))} />
+                onChange={e => setSim(p => ({ ...p, asegurado_telefono: filtrarTelefono(e.target.value) }))} />
             </div>
             <div>
               <label className="field-label">Dirección del asegurado</label>
@@ -882,8 +882,9 @@ function calcTotal(tarifa, tipoCalculo, valorDeclarado, derecho, producto) {
   return { prima, iva, ivaPct, total }
 }
 
-function Step4({ sim, setSim, tasaBcv, onNext, onBack, onClose }) {
+function Step4({ sim, setSim, tasaBcv, tasaEur, onNext, onBack, onClose }) {
   const producto     = sim.producto
+  const moneda       = producto?.moneda || 'USD'
   const tipoCalculo  = producto?.tipo_calculo || 'fijo'
   const [tarifas,    setTarifas]    = useState([])
   const [loading,    setLoading]    = useState(true)
@@ -906,7 +907,7 @@ function Step4({ sim, setSim, tasaBcv, onNext, onBack, onClose }) {
   }, [tarifas, tipoCalculo, sim.tarifario_id, setSim])
 
   const { prima, iva, ivaPct, total } = calcTotal(sim.tarifa, tipoCalculo, sim.valor_declarado, producto?.derecho_poliza, producto)
-  const totBs = tasaBcv ? total * tasaBcv : 0
+  const totBs = convertirMoneda(total, moneda, 'BS', tasaBcv, tasaEur)
 
   const canNext = tarifas.length > 0 && (tipoCalculo === 'por_valor'
     ? (sim.valor_declarado > 0)
@@ -915,10 +916,10 @@ function Step4({ sim, setSim, tasaBcv, onNext, onBack, onClose }) {
   const renderDatos = (d) => {
     if (tipoCalculo === 'fijo') {
       const filas = [
-        d.suma_persona  && ['Suma asegurada personas', usd(d.suma_persona)],
-        d.suma_cosa     && ['Suma asegurada cosas',    usd(d.suma_cosa)],
-        d.prima_persona && ['Prima personas',          usd(d.prima_persona)],
-        d.prima_cosa    && ['Prima cosas',             usd(d.prima_cosa)],
+        d.suma_persona  && ['Suma asegurada personas', fmtMonto(d.suma_persona, moneda)],
+        d.suma_cosa     && ['Suma asegurada cosas',    fmtMonto(d.suma_cosa, moneda)],
+        d.prima_persona && ['Prima personas',          fmtMonto(d.prima_persona, moneda)],
+        d.prima_cosa    && ['Prima cosas',             fmtMonto(d.prima_cosa, moneda)],
       ].filter(Boolean)
       return filas.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 mt-2 text-xs text-slate-500">
@@ -933,7 +934,7 @@ function Step4({ sim, setSim, tasaBcv, onNext, onBack, onClose }) {
           {coberturas.map(([k, v]) => (
             <div key={k} className="flex justify-between text-xs text-slate-500">
               <span className="capitalize">{k.replace(/_/g, ' ')}</span>
-              <span className="font-semibold text-slate-700">{usd(v.prima)}{v.suma ? <span className="text-slate-400 font-normal"> · suma {usd(v.suma)}</span> : ''}</span>
+              <span className="font-semibold text-slate-700">{fmtMonto(v.prima, moneda)}{v.suma ? <span className="text-slate-400 font-normal"> · suma {fmtMonto(v.suma, moneda)}</span> : ''}</span>
             </div>
           ))}
         </div>
@@ -942,8 +943,8 @@ function Step4({ sim, setSim, tasaBcv, onNext, onBack, onClose }) {
     if (tipoCalculo === 'por_nivel') {
       return (
         <div className="flex justify-between text-xs text-slate-500 mt-2">
-          {d.suma && <span>Suma: <strong className="text-slate-700">{usd(d.suma)}</strong></span>}
-          {d.prima && <span>Prima: <strong className="text-slate-700">{usd(d.prima)}</strong></span>}
+          {d.suma && <span>Suma: <strong className="text-slate-700">{fmtMonto(d.suma, moneda)}</strong></span>}
+          {d.prima && <span>Prima: <strong className="text-slate-700">{fmtMonto(d.prima, moneda)}</strong></span>}
         </div>
       )
     }
@@ -958,16 +959,16 @@ function Step4({ sim, setSim, tasaBcv, onNext, onBack, onClose }) {
   const ResumenFinanciero = () => (
     <div className="rounded-2xl overflow-hidden shrink-0" style={{ background: 'linear-gradient(135deg,#001463,#000c3b)' }}>
       <div className="px-4 py-3 space-y-2 border-b border-white/10">
-        <div className="flex justify-between text-xs"><span className="text-white/50">Prima Neta</span><span className="text-white/80 font-semibold">{usd(prima)}</span></div>
+        <div className="flex justify-between text-xs"><span className="text-white/50">Prima Neta</span><span className="text-white/80 font-semibold">{fmtMonto(prima, moneda)}</span></div>
         {producto?.iva_aplica && (
-          <div className="flex justify-between text-xs"><span className="text-white/50">IVA ({ivaPct}%)</span><span className="text-white/80 font-semibold">{usd(iva || 0)}</span></div>
+          <div className="flex justify-between text-xs"><span className="text-white/50">IVA ({ivaPct}%)</span><span className="text-white/80 font-semibold">{fmtMonto(iva || 0, moneda)}</span></div>
         )}
-        <div className="flex justify-between text-xs"><span className="text-white/50">Derecho de Póliza</span><span className="text-white/80 font-semibold">{usd(producto?.derecho_poliza || 0)}</span></div>
+        <div className="flex justify-between text-xs"><span className="text-white/50">Derecho de Póliza</span><span className="text-white/80 font-semibold">{fmtMonto(producto?.derecho_poliza || 0, moneda)}</span></div>
       </div>
       <div className="px-4 py-4">
-        <p className="text-xs font-bold text-white/60 mb-0.5">Total Anual (USD)</p>
-        <p className="text-2xl font-black text-white">{usd(total)}</p>
-        {tasaBcv && <p className="text-[10px] text-white/40 mt-1.5">Bs. {totBs.toLocaleString('es-VE', { minimumFractionDigits: 2 })} · BCV {fmtTasa(tasaBcv)}</p>}
+        <p className="text-xs font-bold text-white/60 mb-0.5">Total Anual ({moneda})</p>
+        <p className="text-2xl font-black text-white">{fmtMonto(total, moneda)}</p>
+        {moneda !== 'BS' && totBs > 0 && <p className="text-[10px] text-white/40 mt-1.5">Bs. {totBs.toLocaleString('es-VE', { minimumFractionDigits: 2 })} · BCV {fmtTasa(moneda === 'EUR' ? tasaEur : tasaBcv)}</p>}
       </div>
     </div>
   )
@@ -1063,11 +1064,12 @@ function Step4({ sim, setSim, tasaBcv, onNext, onBack, onClose }) {
 }
 
 // ── PASO 5: Documentos + Confirmar ────────────────────────────────────────────
-function Step5({ sim, tasaBcv, editId, onBack, onClose, onSaved, showToast, currentUser }) {
+function Step5({ sim, tasaBcv, tasaEur, editId, onBack, onClose, onSaved, showToast, currentUser }) {
   const isEdit  = !!editId
   const prod    = sim.producto
+  const moneda  = prod?.moneda || 'USD'
   const { prima, iva, ivaPct, total } = calcTotal(sim.tarifa, prod?.tipo_calculo, sim.valor_declarado, prod?.derecho_poliza, prod)
-  const totBs   = tasaBcv ? total * tasaBcv : 0
+  const totBs   = convertirMoneda(total, moneda, 'BS', tasaBcv, tasaEur)
   const hoy     = new Date()
   const fechaISO = hoy.toISOString().slice(0, 10)
   const fecha   = `${String(hoy.getDate()).padStart(2,'0')}/${String(hoy.getMonth()+1).padStart(2,'0')}/${hoy.getFullYear()}`
@@ -1320,19 +1322,19 @@ function Step5({ sim, tasaBcv, editId, onBack, onClose, onSaved, showToast, curr
           <div className="rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(135deg,#001463,#000c3b)' }}>
             <div className="px-4 py-3.5 space-y-2 border-b border-white/10">
               <p className="text-xs font-bold text-white/40 uppercase tracking-widest mb-2">Resumen financiero</p>
-              <div className="flex justify-between text-sm"><span className="text-white/50">Prima Neta</span><span className="text-white/80 font-semibold">{usd(prima)}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-white/50">Prima Neta</span><span className="text-white/80 font-semibold">{fmtMonto(prima, moneda)}</span></div>
               {prod?.iva_aplica && (
-                <div className="flex justify-between text-sm"><span className="text-white/50">IVA ({ivaPct}%)</span><span className="text-white/80 font-semibold">{usd(iva || 0)}</span></div>
+                <div className="flex justify-between text-sm"><span className="text-white/50">IVA ({ivaPct}%)</span><span className="text-white/80 font-semibold">{fmtMonto(iva || 0, moneda)}</span></div>
               )}
-              <div className="flex justify-between text-sm"><span className="text-white/50">Derecho de Póliza</span><span className="text-white/80 font-semibold">{usd(prod?.derecho_poliza || 0)}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-white/50">Derecho de Póliza</span><span className="text-white/80 font-semibold">{fmtMonto(prod?.derecho_poliza || 0, moneda)}</span></div>
             </div>
             <div className="px-4 py-4">
-              <p className="text-sm font-bold text-white/60 mb-1">Total Prima Anual</p>
-              <p className="text-3xl font-black text-white">{usd(total)}</p>
-              {tasaBcv && (
+              <p className="text-sm font-bold text-white/60 mb-1">Total Prima Anual ({moneda})</p>
+              <p className="text-3xl font-black text-white">{fmtMonto(total, moneda)}</p>
+              {moneda !== 'BS' && totBs > 0 && (
                 <p className="text-xs text-white/35 mt-1.5">
                   Bs. {totBs.toLocaleString('es-VE', { minimumFractionDigits: 2 })}<br />
-                  Tasa BCV {fmtTasa(tasaBcv)}
+                  Tasa BCV {fmtTasa(moneda === 'EUR' ? tasaEur : tasaBcv)}
                 </p>
               )}
             </div>
@@ -1572,6 +1574,7 @@ export default function Simulador() {
   const [step,    setStep]    = useState(0)
   const [editId,  setEditId]  = useState(null)
   const [tasaBcv, setTasaBcv] = useState(null)
+  const [tasaEur, setTasaEur] = useState(null)
   const [productos, setProductos] = useState([])
 
   const [cotizaciones, setCotizaciones] = useState([])
@@ -1587,6 +1590,7 @@ export default function Simulador() {
     try {
       const [tasas, cots, prods] = await Promise.all([fetchTasas(), fetchCotizaciones(), fetchProductos()])
       if (tasas?.usd?.valor) setTasaBcv(parseFloat(tasas.usd.valor))
+      if (tasas?.eur?.valor) setTasaEur(parseFloat(tasas.eur.valor))
       setCotizaciones(cots)
       setProductos(prods)
     } catch {
@@ -1804,7 +1808,7 @@ export default function Simulador() {
                       {q.vendedor_nombre || '—'}
                     </td>
                     <td className="td-cell text-xs sm:text-sm text-slate-600 hidden xl:table-cell">{q.producto || '—'}</td>
-                    <td className="td-cell text-right font-bold text-xs sm:text-sm text-slate-800 hidden sm:table-cell">{usd(q.total)}</td>
+                    <td className="td-cell text-right font-bold text-xs sm:text-sm text-slate-800 hidden sm:table-cell">{fmtMonto(q.total, q.moneda_producto)}</td>
                     <td className="td-cell text-xs sm:text-sm text-slate-500 hidden lg:table-cell">{q.fecha}</td>
                     <td className="td-cell"><StatusBadge status={q.status} /></td>
                     {hasAnyAction && (
@@ -1922,10 +1926,10 @@ export default function Simulador() {
       )}
       {step === 2 && <Step2 sim={sim} setSim={setSim} onNext={() => setStep(3)} onBack={() => setStep(1)} onClose={closeStep} />}
       {step === 3 && <Step3 sim={sim} setSim={setSim} onNext={() => setStep(4)} onBack={() => setStep(2)} onClose={closeStep} />}
-      {step === 4 && <Step4 sim={sim} setSim={setSim} tasaBcv={tasaBcv} onNext={() => setStep(5)} onBack={() => setStep(3)} onClose={closeStep} />}
+      {step === 4 && <Step4 sim={sim} setSim={setSim} tasaBcv={tasaBcv} tasaEur={tasaEur} onNext={() => setStep(5)} onBack={() => setStep(3)} onClose={closeStep} />}
       {step === 5 && (
         <Step5
-          sim={sim} tasaBcv={tasaBcv} editId={editId}
+          sim={sim} tasaBcv={tasaBcv} tasaEur={tasaEur} editId={editId}
           onBack={() => setStep(4)} onClose={closeStep} onSaved={loadData}
           showToast={showToast} currentUser={currentUser}
         />

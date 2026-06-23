@@ -256,13 +256,8 @@
                     @endif
                 </tr>
                 <tr>
-                    <td style="padding-top:6px; font-size:8px;" colspan="6">
-                        El presente documento será entregado a El Tomador conjuntamente con las Condiciones Generales, Condiciones Particulares, anexos y demás documentos que formen parte de la póliza.
-                    </td>
-                </tr>
-                <tr>
                     <td style="padding-top:8px; font-size:8px;" colspan="6">
-                        Aprobado por la Superintendencia de la Actividad Aseguradora mediante PROVIDENCIA ADMINISTRATIVA N° SAA-01-0512-2024
+                        Aprobado por la Superintendencia de la Actividad Aseguradora mediante PROVIDENCIA ADMINISTRATIVA N° SAA-09-0138-2025 de fecha 21/02/2025.
                     </td>
                 </tr>
             </table>
