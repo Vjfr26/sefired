@@ -1708,3 +1708,16 @@ showRootMenu();
 /* ─── Arranque ─────────────────────────────── */
 loadProductos();
 loadTasas();
+
+/* ─────────────────────────────────────────────
+   GLOBAL LOADER (Página completa)
+   ───────────────────────────────────────────── */
+window.addEventListener('load', () => {
+  const loader = document.getElementById('global-loader');
+  if (loader) {
+    loader.style.opacity = '0';
+    setTimeout(() => {
+      loader.style.display = 'none';
+    }, 500); // 500ms coincide con la clase duration-500 de Tailwind
+  }
+});

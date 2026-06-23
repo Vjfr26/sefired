@@ -7,7 +7,7 @@
  * Paso 4: Tarifario / Plan (driven by producto.tipo_calculo)
  * Paso 5: Documentos + Resumen + Enviar
  */
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   ShieldCheck, Calculator, Check, ArrowRight, ArrowLeft,
   Car, User, Shield, FileCheck, X, Info, CheckCircle, Pencil,
@@ -23,6 +23,7 @@ import { fetchProductos } from '../api/productos.js'
 import { fetchTarifario } from '../api/tarifario.js'
 import { fetchCotizaciones, createCotizacion, updateCotizacion, deleteCotizacion } from '../api/solicitudes.js'
 import { createBien, updateBien } from '../api/bienes.js'
+import { fetchVehiculosCatalogo } from '../api/vehiculosCatalogo.js'
 import { fetchUnderwriting, createUnderwriting } from '../api/underwriting.js'
 import { fetchDocumentosCliente, uploadDocumentoCliente, deleteDocumentoCliente } from '../api/clienteDocumentos.js'
 import { BIEN_TIPO_PRESETS } from '../utils/bienPresets.js'
@@ -64,7 +65,7 @@ function freshState() {
     // Paso 3 — bien asegurado vinculado
     bien_asegurado_id: null,
     // Paso 3 — vehículo
-    placa: '', marca: 'Toyota', modelo: '', año: String(new Date().getFullYear()),
+    placa: '', marca: '', modelo: '', año: '',
     color: '', uso: 'Particular', valor: 15000,
     clase: 'Automóvil', version: '', puestos: '', serial_carroceria: '', serial_motor: '',
     // Paso 3 — asegurado, si es distinto del tomador
@@ -73,6 +74,7 @@ function freshState() {
     bienCampos: {},
     // Paso 3 — observaciones libres sobre el bien ("Otros" en el cuadro póliza)
     bien_observaciones: '',
+    vehiculos_adicionales: [],
     // Paso 4 — tarifario
     tarifario_id: null,
     tarifa:       null,
@@ -113,6 +115,7 @@ function simFromCot(q) {
     asegurado_direccion: q.asegurado_direccion || '',
     bienCampos:       attr,
     bien_observaciones: q.bien_observaciones || '',
+    vehiculos_adicionales: cobs.vehiculos_adicionales || [],
     tarifario_id:     q.tarifario_id ?? null,
     tarifa:           null,
     valor_declarado:  parseFloat(cobs.valor_declarado) || 0,
@@ -642,19 +645,51 @@ function Step2({ sim, setSim, onNext, onBack, onClose }) {
 }
 
 // ── PASO 3: Bien asegurado ────────────────────────────────────────────────────
-const MARCAS = ['Toyota','Chevrolet','Ford','Hyundai','Kia','Jeep','Nissan','Honda','Renault','Mazda','Volkswagen','Mitsubishi','Chery','BYD','Fiat','Mercedes-Benz','BMW','Dodge','Otro']
 const USOS   = ['Particular','Ejecutivo / Transporte de personal','Carga liviana','Carga pesada','Colectivo / Minibús','Rústico / Pickup','Oficial']
 
-function Step3({ sim, setSim, onNext, onBack, onClose }) {
+function Step3({ sim, setSim, onNext, onBack, onClose, vehiculosCatalogo }) {
   const tipoBien        = sim.producto?.tipo_bien ?? 'ninguno'
   const requiereVehiculo = tipoBien === 'vehiculo'
   const preset           = BIEN_TIPO_PRESETS[tipoBien] ?? null
   const setCampo = (key, val) => setSim(p => ({ ...p, bienCampos: { ...p.bienCampos, [key]: val } }))
   const [err, setErr] = useState('')
-  const curYear = new Date().getFullYear()
-  const years   = Array.from({ length: 35 }, (_, i) => curYear + 1 - i)
 
-  const canContinue = !requiereVehiculo || (sim.placa.trim().length >= 4 && sim.modelo.trim().length >= 1)
+  // Filtrado en cascada para el vehículo principal
+  const marcasDisponibles = useMemo(() => {
+    if (!vehiculosCatalogo) return []
+    const list = vehiculosCatalogo.filter(item => item.tipo === sim.clase)
+    return [...new Set(list.map(item => item.marca))].sort()
+  }, [vehiculosCatalogo, sim.clase])
+
+  const modelosDisponibles = useMemo(() => {
+    if (!vehiculosCatalogo || !sim.marca) return []
+    const list = vehiculosCatalogo.filter(item => item.tipo === sim.clase && item.marca === sim.marca)
+    return [...new Set(list.map(item => item.modelo))].sort()
+  }, [vehiculosCatalogo, sim.clase, sim.marca])
+
+  const añosDisponibles = useMemo(() => {
+    if (!vehiculosCatalogo || !sim.marca || !sim.modelo) {
+      const curYear = new Date().getFullYear()
+      return Array.from({ length: 35 }, (_, i) => String(curYear + 1 - i))
+    }
+    const match = vehiculosCatalogo.find(item => item.tipo === sim.clase && item.marca === sim.marca && item.modelo === sim.modelo)
+    if (!match) {
+      const curYear = new Date().getFullYear()
+      return Array.from({ length: 35 }, (_, i) => String(curYear + 1 - i))
+    }
+    const list = []
+    for (let y = match.anio_fin; y >= match.anio_inicio; y--) {
+      list.push(String(y))
+    }
+    return list
+  }, [vehiculosCatalogo, sim.clase, sim.marca, sim.modelo])
+
+  const canContinueAdicionales = (sim.vehiculos_adicionales || []).every(
+    v => v.placa.trim().length >= 4 && v.marca && v.modelo && v.año && v.valor > 0
+  )
+  const canContinue = !requiereVehiculo || (
+    sim.placa.trim().length >= 4 && sim.marca && sim.modelo && sim.año && sim.valor > 0 && canContinueAdicionales
+  )
 
   const handleNext = () => { setErr(''); onNext() }
 
@@ -672,28 +707,51 @@ function Step3({ sim, setSim, onNext, onBack, onClose }) {
       {requiereVehiculo ? (
         <>
           <SecLabel icon={Car} label="Datos del vehículo" />
+          <div className="text-xs text-red-500 mb-2">DEBUG: permite_multiples={JSON.stringify(sim.producto?.permite_multiples_bienes)} | max_bienes={sim.producto?.max_bienes}</div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="field-label">Tipo de vehículo <span className="text-rose-500">*</span></label>
+              <select className="select-field" value={sim.clase} onChange={e => {
+                const newClase = e.target.value;
+                setSim(p => ({ ...p, clase: newClase, marca: '', modelo: '', año: '' }));
+              }}>
+                <option value="Automóvil">Automóvil</option>
+                <option value="Camioneta">Camioneta</option>
+                <option value="Motocicleta">Motocicleta</option>
+                <option value="Camión / Carga">Camión / Carga</option>
+              </select>
+            </div>
             <div>
               <label className="field-label">Placa <span className="text-rose-500">*</span></label>
               <input className="input-field font-mono uppercase" placeholder="ABC-123" value={sim.placa} maxLength={8}
                 onChange={e => setSim(p => ({ ...p, placa: e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '') }))} />
             </div>
             <div>
-              <label className="field-label">Año <span className="text-rose-500">*</span></label>
-              <select className="select-field" value={sim.año} onChange={e => setSim(p => ({ ...p, año: e.target.value }))}>
-                {years.map(y => <option key={y}>{y}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="field-label">Marca</label>
-              <select className="select-field" value={sim.marca} onChange={e => setSim(p => ({ ...p, marca: e.target.value }))}>
-                {MARCAS.map(m => <option key={m}>{m}</option>)}
+              <label className="field-label">Marca <span className="text-rose-500">*</span></label>
+              <select className="select-field" value={sim.marca} onChange={e => {
+                const newMarca = e.target.value;
+                setSim(p => ({ ...p, marca: newMarca, modelo: '', año: '' }));
+              }}>
+                <option value="">Seleccione marca...</option>
+                {marcasDisponibles.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
             </div>
             <div>
               <label className="field-label">Modelo <span className="text-rose-500">*</span></label>
-              <input className="input-field" placeholder="Corolla XLi" value={sim.modelo}
-                onChange={e => setSim(p => ({ ...p, modelo: e.target.value }))} />
+              <select className="select-field" value={sim.modelo} onChange={e => {
+                const newModelo = e.target.value;
+                setSim(p => ({ ...p, modelo: newModelo, año: '' }));
+              }} disabled={!sim.marca}>
+                <option value="">Seleccione modelo...</option>
+                {modelosDisponibles.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="field-label">Año <span className="text-rose-500">*</span></label>
+              <select className="select-field" value={sim.año} onChange={e => setSim(p => ({ ...p, año: e.target.value }))} disabled={!sim.modelo}>
+                <option value="">Seleccione año...</option>
+                {añosDisponibles.map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
             </div>
             <div>
               <label className="field-label">Color</label>
@@ -705,11 +763,6 @@ function Step3({ sim, setSim, onNext, onBack, onClose }) {
               <select className="select-field" value={sim.uso} onChange={e => setSim(p => ({ ...p, uso: e.target.value }))}>
                 {USOS.map(u => <option key={u}>{u}</option>)}
               </select>
-            </div>
-            <div>
-              <label className="field-label">Tipo de vehículo</label>
-              <input className="input-field" placeholder="Automóvil, Camioneta, Moto…" value={sim.clase}
-                onChange={e => setSim(p => ({ ...p, clase: e.target.value }))} />
             </div>
             <div>
               <label className="field-label">Versión</label>
@@ -765,6 +818,163 @@ function Step3({ sim, setSim, onNext, onBack, onClose }) {
               </div>
             </div>
           </div>
+
+          {sim.producto?.permite_multiples_bienes && (
+            <div className="mt-6 pt-4 border-t border-slate-100">
+              <div className="flex items-center justify-between mb-3">
+                <SecLabel icon={Car} label="Vehículos Adicionales" />
+                <span className="text-xs text-slate-500 font-medium">
+                  {(sim.vehiculos_adicionales?.length || 0) + 1} / {sim.producto.max_bienes || '∞'} permitidos
+                </span>
+              </div>
+              
+              {(sim.vehiculos_adicionales || []).map((v, i) => {
+                const addMarcasUnicas = (() => {
+                  const list = (vehiculosCatalogo || [])
+                    .filter(item => item.tipo === v.clase)
+                    .map(item => item.marca);
+                  return [...new Set(list)].sort();
+                })();
+
+                const addModelosUnicos = (() => {
+                  if (!v.marca) return [];
+                  const list = (vehiculosCatalogo || [])
+                    .filter(item => item.tipo === v.clase && item.marca === v.marca)
+                    .map(item => item.modelo);
+                  return [...new Set(list)].sort();
+                })();
+
+                const addAños = (() => {
+                  if (!v.marca || !v.modelo) {
+                    const curYear = new Date().getFullYear();
+                    return Array.from({ length: 35 }, (_, idx) => String(curYear + 1 - idx));
+                  }
+                  const match = (vehiculosCatalogo || []).find(item => item.tipo === v.clase && item.marca === v.marca && item.modelo === v.modelo);
+                  if (!match) {
+                    const curYear = new Date().getFullYear();
+                    return Array.from({ length: 35 }, (_, idx) => String(curYear + 1 - idx));
+                  }
+                  const list = [];
+                  for (let y = match.anio_fin; y >= match.anio_inicio; y--) {
+                    list.push(String(y));
+                  }
+                  return list;
+                })();
+
+                return (
+                  <div key={i} className="mb-4 p-4 bg-slate-50 border border-slate-200 rounded-2xl relative">
+                    <div className="absolute top-3 right-3 flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Vehículo #{i + 2}</span>
+                      <button onClick={() => {
+                        const arr = [...sim.vehiculos_adicionales]; arr.splice(i, 1);
+                        setSim(p => ({ ...p, vehiculos_adicionales: arr }));
+                      }} className="p-1 hover:bg-rose-100 text-rose-500 rounded-md transition" title="Eliminar vehículo">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
+                      <div>
+                        <label className="field-label">Tipo de vehículo <span className="text-rose-500">*</span></label>
+                        <select className="select-field" value={v.clase} onChange={e => {
+                          const arr = [...sim.vehiculos_adicionales];
+                          arr[i].clase = e.target.value;
+                          arr[i].marca = '';
+                          arr[i].modelo = '';
+                          arr[i].año = '';
+                          setSim(p => ({ ...p, vehiculos_adicionales: arr }));
+                        }}>
+                          <option value="Automóvil">Automóvil</option>
+                          <option value="Camioneta">Camioneta</option>
+                          <option value="Motocicleta">Motocicleta</option>
+                          <option value="Camión / Carga">Camión / Carga</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="field-label">Placa <span className="text-rose-500">*</span></label>
+                        <input className="input-field font-mono uppercase" placeholder="ABC-123" value={v.placa} maxLength={8}
+                          onChange={e => {
+                            const arr = [...sim.vehiculos_adicionales];
+                            arr[i].placa = e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
+                            setSim(p => ({ ...p, vehiculos_adicionales: arr }));
+                          }} />
+                      </div>
+                      <div>
+                        <label className="field-label">Marca <span className="text-rose-500">*</span></label>
+                        <select className="select-field" value={v.marca} onChange={e => {
+                          const arr = [...sim.vehiculos_adicionales];
+                          arr[i].marca = e.target.value;
+                          arr[i].modelo = '';
+                          arr[i].año = '';
+                          setSim(p => ({ ...p, vehiculos_adicionales: arr }));
+                        }}>
+                          <option value="">Seleccione marca...</option>
+                          {addMarcasUnicas.map(m => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="field-label">Modelo <span className="text-rose-500">*</span></label>
+                        <select className="select-field" value={v.modelo} onChange={e => {
+                          const arr = [...sim.vehiculos_adicionales];
+                          arr[i].modelo = e.target.value;
+                          arr[i].año = '';
+                          setSim(p => ({ ...p, vehiculos_adicionales: arr }));
+                        }} disabled={!v.marca}>
+                          <option value="">Seleccione modelo...</option>
+                          {addModelosUnicos.map(m => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="field-label">Año <span className="text-rose-500">*</span></label>
+                        <select className="select-field" value={v.año} onChange={e => {
+                          const arr = [...sim.vehiculos_adicionales];
+                          arr[i].año = e.target.value;
+                          setSim(p => ({ ...p, vehiculos_adicionales: arr }));
+                        }} disabled={!v.modelo}>
+                          <option value="">Seleccione año...</option>
+                          {addAños.map(y => <option key={y} value={y}>{y}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="field-label">Color</label>
+                        <input className="input-field" placeholder="Blanco perla" value={v.color}
+                          onChange={e => {
+                            const arr = [...sim.vehiculos_adicionales];
+                            arr[i].color = e.target.value;
+                            setSim(p => ({ ...p, vehiculos_adicionales: arr }));
+                          }} />
+                      </div>
+                      <div>
+                        <label className="field-label">Valor de mercado <span className="text-rose-500">*</span></label>
+                        <input type="number" min="500" step="500" className="input-field" placeholder="15000"
+                          value={v.valor} onChange={e => {
+                            const arr = [...sim.vehiculos_adicionales];
+                            arr[i].valor = parseFloat(e.target.value) || 0;
+                            setSim(p => ({ ...p, vehiculos_adicionales: arr }));
+                          }} />
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+
+              {(!sim.producto.max_bienes || (sim.vehiculos_adicionales?.length || 0) + 1 < sim.producto.max_bienes) && (
+                <button
+                  onClick={() => setSim(p => ({
+                    ...p,
+                    vehiculos_adicionales: [
+                      ...(p.vehiculos_adicionales || []),
+                      { placa: '', marca: '', modelo: '', año: '', color: '', uso: 'Particular', valor: 15000, clase: 'Automóvil', version: '', puestos: '', serial_carroceria: '', serial_motor: '' }
+                    ]
+                  }))}
+                  className="mt-2 w-full py-2.5 border-2 border-dashed border-slate-200 text-slate-500 font-semibold rounded-2xl hover:border-jm-blue hover:text-jm-blue hover:bg-blue-50 transition-colors flex items-center justify-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Añadir otro vehículo
+                </button>
+              )}
+            </div>
+          )}
         </>
       ) : preset ? (
         <>
@@ -1128,11 +1338,13 @@ function Step5({ sim, tasaBcv, tasaEur, editId, onBack, onClose, onSaved, showTo
         valor_mercado: sim.valor,
         valor_declarado: sim.valor_declarado,
         tarifa: sim.tarifa ? { id: sim.tarifa.id, nombre: sim.tarifa.nombre, datos: sim.tarifa.datos } : null,
+        vehiculos_adicionales: sim.vehiculos_adicionales || [],
       }
 
       // Crear o actualizar el bien_asegurado según el tipo del producto
       let bienId = sim.bien_asegurado_id || null
       const tipoBien = prod?.tipo_bien ?? 'ninguno'
+      let bienes_adicionales_ids = []
 
       if (tipoBien === 'vehiculo' && sim.placa.trim()) {
         const bienData = {
@@ -1161,6 +1373,35 @@ function Step5({ sim, tasaBcv, tasaEur, editId, onBack, onClose, onSaved, showTo
           const nuevo = await createBien(bienData)
           bienId = nuevo.id
         }
+
+        // Crear bienes adicionales
+        for (const v of (sim.vehiculos_adicionales || [])) {
+          if (v.placa?.trim()) {
+            const vData = {
+              tipo: 'vehiculo',
+              atributos: {
+                placa: v.placa.trim().toUpperCase(),
+                marca: v.marca,
+                modelo: v.modelo,
+                anio: v.año,
+                color: v.color,
+                uso: v.uso,
+                valor_mercado: v.valor,
+                clase: v.clase,
+                version: v.version,
+                puestos: v.puestos,
+                serial_carroceria: v.serial_carroceria,
+                serial_motor: v.serial_motor,
+              },
+              valor_declarado: v.valor || null,
+              descripcion: `${v.marca} ${v.modelo} ${v.año}`.trim(),
+              observaciones: null,
+            }
+            const nBien = await createBien(vData)
+            bienes_adicionales_ids.push(nBien.id)
+          }
+        }
+        coberturas.bienes_adicionales_ids = bienes_adicionales_ids
       } else if (tipoBien !== 'ninguno') {
         // Productos no vehiculares (inmueble, bicicleta, mascota, etc.)
         // también deben quedar registrados como bien asegurado — antes solo
@@ -1576,6 +1817,7 @@ export default function Simulador() {
   const [tasaBcv, setTasaBcv] = useState(null)
   const [tasaEur, setTasaEur] = useState(null)
   const [productos, setProductos] = useState([])
+  const [vehiculosCatalogo, setVehiculosCatalogo] = useState([])
 
   const [cotizaciones, setCotizaciones] = useState([])
   const [loadingCot,   setLoadingCot]   = useState(true)
@@ -1588,11 +1830,17 @@ export default function Simulador() {
   const loadData = useCallback(async () => {
     setLoadingCot(true)
     try {
-      const [tasas, cots, prods] = await Promise.all([fetchTasas(), fetchCotizaciones(), fetchProductos()])
+      const [tasas, cots, prods, vehs] = await Promise.all([
+        fetchTasas(),
+        fetchCotizaciones(),
+        fetchProductos(),
+        fetchVehiculosCatalogo()
+      ])
       if (tasas?.usd?.valor) setTasaBcv(parseFloat(tasas.usd.valor))
       if (tasas?.eur?.valor) setTasaEur(parseFloat(tasas.eur.valor))
       setCotizaciones(cots)
       setProductos(prods)
+      setVehiculosCatalogo(vehs)
     } catch {
       showToast('Error al cargar datos del simulador', 'error')
     } finally {
@@ -1925,7 +2173,7 @@ export default function Simulador() {
         />
       )}
       {step === 2 && <Step2 sim={sim} setSim={setSim} onNext={() => setStep(3)} onBack={() => setStep(1)} onClose={closeStep} />}
-      {step === 3 && <Step3 sim={sim} setSim={setSim} onNext={() => setStep(4)} onBack={() => setStep(2)} onClose={closeStep} />}
+      {step === 3 && <Step3 sim={sim} setSim={setSim} onNext={() => setStep(4)} onBack={() => setStep(2)} onClose={closeStep} vehiculosCatalogo={vehiculosCatalogo} />}
       {step === 4 && <Step4 sim={sim} setSim={setSim} tasaBcv={tasaBcv} tasaEur={tasaEur} onNext={() => setStep(5)} onBack={() => setStep(3)} onClose={closeStep} />}
       {step === 5 && (
         <Step5

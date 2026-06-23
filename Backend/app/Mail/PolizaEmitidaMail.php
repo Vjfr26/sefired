@@ -17,7 +17,9 @@ class PolizaEmitidaMail extends Mailable
 {
     use Queueable, SerializesModels;
 
-    public function __construct(public Poliza $poliza) {}
+    public function __construct(public Poliza $poliza)
+    {
+    }
 
     public function envelope(): Envelope
     {
@@ -28,9 +30,9 @@ class PolizaEmitidaMail extends Mailable
 
     public function content(): Content
     {
-        $pol     = $this->poliza;
-        $snap    = $pol->snapshot_datos ?? [];
-        $attrs   = $snap['bien']['atributos'] ?? [];
+        $pol = $this->poliza;
+        $snap = $pol->snapshot_datos ?? [];
+        $attrs = $snap['bien']['atributos'] ?? [];
         $persona = $pol->solicitud?->persona;
 
         $bienRef = $attrs['placa']
@@ -38,8 +40,8 @@ class PolizaEmitidaMail extends Mailable
             ?? ($snap['bien']['tipo'] ?? '—');
 
         try {
-            $qrUrl  = url('/ver/' . urlencode($pol->nro_contrato));
-            $qrSvg  = app(QrGenerator::class)->format('svg')->size(120)->generate($qrUrl);
+            $qrUrl = url('/ver/' . urlencode($pol->nro_contrato));
+            $qrSvg = app(QrGenerator::class)->format('svg')->size(120)->generate($qrUrl);
             $qrCode = 'data:image/svg+xml;base64,' . base64_encode((string) $qrSvg);
         } catch (\Throwable) {
             $qrCode = null;
@@ -48,8 +50,8 @@ class PolizaEmitidaMail extends Mailable
         // Si la póliza es de pago mensual, lo que el cliente acaba de pagar es
         // SOLO la primera cuota — mostrar la prima anual completa como si
         // fuera lo pagado era engañoso. Se agrega el desglose real.
-        $esMensual    = $pol->frecuencia_pago === 'Mensual';
-        $recargoPct   = $esMensual ? (float) ($pol->producto?->recargo_mensual_pct ?? 0) : 0;
+        $esMensual = $pol->frecuencia_pago === 'Mensual';
+        $recargoPct = $esMensual ? (float) ($pol->producto?->recargo_mensual_pct ?? 0) : 0;
         $cuotaMensual = $esMensual
             ? round(((float) $pol->total / 12) * (1 + $recargoPct / 100), 2)
             : null;
@@ -64,11 +66,11 @@ class PolizaEmitidaMail extends Mailable
         return new Content(
             view: 'emails.poliza-emitida',
             with: [
-                'accentColor'     => '#001463',
-                'badgeColor'      => '#0ea5e9',
-                'badgeText'       => 'Póliza Emitida',
-                'logoUrl'         => url('logo-sinfondo.png'),
-                'tomadorNombre'   => $snap['tomador']['nombre'] ?? $persona?->nombre ?? '—',
+                'accentColor' => '#001463',
+                'badgeColor' => '#0ea5e9',
+                'badgeText' => 'Póliza Emitida',
+                'logoUrl' => url('logo-sinfondo.png'),
+                'tomadorNombre' => $snap['tomador']['nombre'] ?? $persona?->nombre ?? '—',
                 'aseguradoNombre' => $snap['asegurado']['nombre'] ?? $persona?->nombre ?? '—',
                 'nroContrato'     => $pol->nro_contrato,
                 'producto'        => $snap['producto']['nombre'] ?? $pol->producto?->nombre ?? '—',
@@ -95,13 +97,13 @@ class PolizaEmitidaMail extends Mailable
         $pol = $this->poliza;
 
         try {
-            $snap  = $pol->snapshot_datos ?? [];
+            $snap = $pol->snapshot_datos ?? [];
             $attrs = $snap['bien']['atributos'] ?? [];
-            $ci    = $snap['asegurado']['ci'] ?? $pol->asegurado_ci ?? '';
+            $ci = $snap['asegurado']['ci'] ?? $pol->asegurado_ci ?? '';
             $placa = strtoupper($attrs['placa'] ?? '');
 
-            $qrUrl  = url('/ver/' . urlencode($pol->nro_contrato));
-            $qrSvg  = app(QrGenerator::class)->format('svg')->size(150)->errorCorrection('H')->generate($qrUrl);
+            $qrUrl = url('/ver/' . urlencode($pol->nro_contrato));
+            $qrSvg = app(QrGenerator::class)->format('svg')->size(150)->errorCorrection('H')->generate($qrUrl);
             $qrCode = 'data:image/svg+xml;base64,' . base64_encode((string) $qrSvg);
         } catch (\Throwable) {
             $qrCode = null;
@@ -111,16 +113,16 @@ class PolizaEmitidaMail extends Mailable
         // faltaban aquí (solo se pasaban en PolizaController::pdf/pdfPublico)
         // y rompían la generación del PDF adjunto en CADA correo de emisión.
         $bienesAdicionales = $pol->bienesAdicionales();
-        $numeroRecibo      = $pol->numeroRecibo();
-        $esRenovacion      = $pol->esRenovacion();
+        $numeroRecibo = $pol->numeroRecibo();
+        $esRenovacion = $pol->esRenovacion();
 
-        $pdf      = Pdf::loadView('poliza-pdf', [
-                        'poliza'            => $pol,
-                        'qrCode'            => $qrCode,
-                        'bienesAdicionales' => $bienesAdicionales,
-                        'numeroRecibo'      => $numeroRecibo,
-                        'esRenovacion'      => $esRenovacion,
-                    ])->setPaper('letter', 'portrait');
+        $pdf = Pdf::loadView('poliza-pdf', [
+            'poliza' => $pol,
+            'qrCode' => $qrCode,
+            'bienesAdicionales' => $bienesAdicionales,
+            'numeroRecibo' => $numeroRecibo,
+            'esRenovacion' => $esRenovacion,
+        ])->setPaper('letter', 'portrait');
         $filename = 'poliza-' . str_replace(['/', ' '], '-', $pol->nro_contrato) . '.pdf';
 
         return [

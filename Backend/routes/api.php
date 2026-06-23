@@ -18,6 +18,7 @@ use App\Http\Controllers\UnderwritingController;
 use App\Http\Controllers\PortalController;
 use App\Http\Controllers\SolicitudContactoController;
 use App\Http\Controllers\SolicitudRenovacionQrController;
+use App\Http\Controllers\VehiculoCatalogoController;
 
 // ── Portal público (sin autenticación) — cotizador para clientes ──────────────
 Route::prefix('portal')->middleware('throttle:60,1')->group(function () {
@@ -176,5 +177,11 @@ Route::middleware([\App\Http\Middleware\ApiTokenMiddleware::class, 'throttle:120
         Route::post('/tasas',        [TasaController::class, 'store'])->middleware('perm:tasas,create');
         Route::put('/tasas/{id}',    [TasaController::class, 'update'])->middleware('perm:tasas,edit');
         Route::delete('/tasas/{id}', [TasaController::class, 'destroy'])->middleware('perm:tasas,delete');
+
+        // Gestión del catálogo de vehículos (usando permisos de productos)
+        Route::get('/vehiculos-catalogo',              [VehiculoCatalogoController::class, 'index'])->middleware('perm:productos,view');
+        Route::post('/vehiculos-catalogo',             [VehiculoCatalogoController::class, 'store'])->middleware('perm:productos,edit');
+        Route::put('/vehiculos-catalogo/{id}',         [VehiculoCatalogoController::class, 'update'])->middleware('perm:productos,edit');
+        Route::delete('/vehiculos-catalogo/{id}',      [VehiculoCatalogoController::class, 'destroy'])->middleware('perm:productos,delete');
     });
 });

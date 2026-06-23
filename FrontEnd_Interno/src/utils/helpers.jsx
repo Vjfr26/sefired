@@ -354,6 +354,16 @@ export const PERMS_CATALOG = {
       { id: 'manage_beneficios', label: 'Gestionar beneficios/coberturas informativas' },
     ],
   },
+  'cat-vehiculos': {
+    label: 'Catálogo de Vehículos',
+    icon: '🚙',
+    actions: [
+      { id: 'view',   label: 'Ver catálogo de vehículos' },
+      { id: 'create', label: 'Añadir nuevo vehículo' },
+      { id: 'edit',   label: 'Editar vehículo' },
+      { id: 'delete', label: 'Eliminar vehículo' },
+    ],
+  },
   tasas: {
     label: 'Tasas del Día (BCV)',
     icon: '💵',
@@ -418,7 +428,7 @@ export const PERMS_CATALOG = {
 }
 
 // Orden en que se muestran los módulos en el modal de permisos
-export const PERMS_ORDER = ['home', 'clientes', 'vehiculos', 'cotizaciones', 'productos', 'tasas', 'usuarios', 'reportes', 'config']
+export const PERMS_ORDER = ['home', 'clientes', 'vehiculos', 'cotizaciones', 'productos', 'cat-vehiculos', 'tasas', 'usuarios', 'reportes', 'config']
 
 // Módulos cuya visibilidad no puede quitarse. "config" es selectivo: lo
 // decide el Admin por usuario (ver UserPermsModal), no viene forzado.
@@ -436,6 +446,7 @@ export const PERMISOS_POR_ROL = {
     vehiculos:    ['view', 'view_cards', 'view_list', 'view_poliza', 'view_docs', 'edit', 'delete'],
     cotizaciones: ['view', 'view_list', 'create', 'edit', 'delete', 'emit', 'underwrite'],
     productos:    ['view', 'view_cards', 'view_list', 'create', 'edit', 'delete', 'manage_docs', 'manage_beneficios'],
+    'cat-vehiculos': ['view', 'create', 'edit', 'delete'],
     tasas:        ['view', 'view_cards', 'view_list', 'create', 'edit', 'delete'],
     usuarios:     ['view', 'view_cards', 'view_list', 'create', 'edit', 'delete', 'block', 'perms', 'change_role'],
     reportes:     ['view', 'export', 'manage_leads', 'manage_schedules', 'manage_comisiones', 'manage_oficinas', 'revertir_comisiones', 'view_ventas', 'view_ventas_todos', 'view_oficinas', 'view_metrics_personal', 'view_metrics_personal_todos', 'view_metrics_clientes', 'view_metrics_vehiculos', 'view_leads', 'view_externos'],
@@ -553,6 +564,7 @@ export const NAV = [
   { id: 'home',          label: 'Inicio',              icon: 'home',          viewId: 'home' },
   { id: 'cotizaciones',  label: 'Cotizador/Emision',    icon: 'calculator',    viewId: 'cot-simulador' },
   { id: 'productos',     label: 'Productos',             icon: 'package',       viewId: 'cat-productos' },
+  { id: 'cat-vehiculos', label: 'Vehículos', icon: 'car', viewId: 'cat-vehiculos' },
   { id: 'usuarios',      label: 'Usuarios',             icon: 'user-cog',      viewId: 'usr-lista' },
   { id: 'clientes',      label: 'Clientes & Pólizas',   icon: 'users',         viewId: 'cli-cliente' },
   { id: 'vehiculos',     label: 'Bienes',                icon: 'car',           viewId: 'cli-vehiculo' },
@@ -570,6 +582,7 @@ export const NAV = [
 export const VIEW_META = {
   'home':          { navId: 'home',         title: 'Inicio',             sub: 'Cotizador de Seguros J&M' },
   'cat-productos': { navId: 'productos',    title: 'Productos',           sub: 'Catálogo de productos y coberturas' },
+  'cat-vehiculos': { navId: 'cat-vehiculos', title: 'Vehículos',          sub: 'Catálogo de vehículos para cotizaciones' },
   'cli-cliente':   { navId: 'clientes',     title: 'Clientes & Pólizas', sub: 'Gestión de clientes, pólizas y renovaciones' },
   'cli-vehiculo':  { navId: 'vehiculos',    title: 'Bienes Asegurados',  sub: 'Registro y consulta de bienes asegurados' },
   'cot-simulador': { navId: 'cotizaciones', title: 'Cotizador/Emision',  sub: 'Simulador de cotizaciones de seguros vehiculares' },

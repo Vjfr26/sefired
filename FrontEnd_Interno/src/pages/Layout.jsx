@@ -11,6 +11,7 @@ import { SkeletonPage } from '../components/Skeleton.jsx'
 const PAGE_MAP = {
   'home':          lazy(() => import('./Home.jsx')),
   'cat-productos': lazy(() => import('./Productos.jsx')),
+  'cat-vehiculos': lazy(() => import('./VehiculosCatalogo.jsx')),
   'cli-cliente':   lazy(() => import('./Clientes.jsx')),
   'cli-vehiculo':  lazy(() => import('./Vehiculos.jsx')),
   'cot-simulador': lazy(() => import('./Simulador.jsx')),

@@ -53,7 +53,7 @@ export default function Sidebar({ onClose, sidebarOpen = false }) {
 
       {/* ── Menú de navegación ── */}
       <nav className="flex-1 px-3 py-2 overflow-y-auto sidebar-scroll">
-        {NAV.filter(g => userPerms.includes(g.id)).map(g => {
+        {NAV.filter(g => userPerms.includes(g.permId || g.id)).map(g => {
           const Icon = ICON_MAP[g.icon]
           const isActive = activeNavId === g.id
           return (

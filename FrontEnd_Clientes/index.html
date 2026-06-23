@@ -23,6 +23,14 @@
 </head>
 <body class="font-sans text-gray-800 min-h-screen flex flex-col">
 
+  <!-- ================================================================
+       GLOBAL LOADER
+       ================================================================ -->
+  <div id="global-loader" class="fixed inset-0 z-[9999] bg-brand-50 flex flex-col items-center justify-center transition-opacity duration-500">
+    <img src="assets/logo-sinfondo.png" alt="J&M" class="h-16 sm:h-20 w-auto mb-6 animate-pulse" />
+    <div class="loader"></div>
+  </div>
+
   <!-- Full-viewport background image -->
   <div class="bg-layer" aria-hidden="true">
     <img src="assets/images/img.jpg" alt="" draggable="false" fetchpriority="high" />
