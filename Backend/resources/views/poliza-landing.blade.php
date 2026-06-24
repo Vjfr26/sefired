@@ -349,7 +349,7 @@
             <div class="pdf-box">
                 <div class="pdf-icon">📄</div>
                 <p>Descarga o imprime el documento oficial de tu póliza en formato PDF.</p>
-                <a class="btn-primary" href="{{ route('poliza.pdf-publico', $nro_contrato) }}" target="_blank">
+                <a class="btn-primary" href="{{ route('poliza.pdf-publico', $nro_contrato, false) }}" target="_blank">
                     Descargar PDF
                 </a>
                 <p class="note">El documento generado es válido como comprobante de cobertura.<br>Para correcciones comuníquese con su agente.</p>
@@ -676,15 +676,32 @@
         btn.disabled    = true;
         btn.textContent = 'Enviando…';
 
-        fetch('{{ route("poliza.solicitar-renovacion", $nro_contrato ?? "") }}', {
+        fetch('{{ route("poliza.solicitar-renovacion", $nro_contrato ?? "", false) }}', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'Accept': 'application/json',
                 'X-CSRF-TOKEN': '{{ csrf_token() }}',
             },
             body: JSON.stringify({ pagos }),
         })
-        .then(r => r.json())
+        .then(async r => {
+            if (!r.ok) {
+                let msg = 'Error al procesar la solicitud.';
+                try {
+                    const errData = await r.json();
+                    msg = errData.message || (errData.errors ? Object.values(errData.errors).flat().join(' ') : msg);
+                } catch (e) {
+                    if (r.status === 419) {
+                        msg = 'La sesión o el token de seguridad han expirado. Por favor, recargue la página.';
+                    } else if (r.status === 429) {
+                        msg = 'Demasiadas solicitudes en poco tiempo. Intente nuevamente más tarde.';
+                    }
+                }
+                throw new Error(msg);
+            }
+            return r.json();
+        })
         .then(data => {
             if (data.ok) {
                 document.getElementById('renov-form').style.display    = 'none';
@@ -699,8 +716,8 @@
                 btn.textContent = 'Enviar Comprobante de Pago';
             }
         })
-        .catch(() => {
-            errEl.textContent = 'Error de conexión. Intente nuevamente.';
+        .catch(err => {
+            errEl.textContent = err.message || 'Error de conexión. Intente nuevamente.';
             errEl.style.display = 'block';
             btn.disabled    = false;
             btn.textContent = 'Enviar Comprobante de Pago';
