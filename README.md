@@ -26,7 +26,7 @@ MAIL_USERNAME=tuseguro@jmlavenezolana.com
 MAIL_PASSWORD=vdfrsasqzmjecuez
 MAIL_ENCRYPTION=tls
 MAIL_FROM_ADDRESS=tuseguro@jmlavenezolana.com
-MAIL_FROM_NAME="J&M Seguros"
+MAIL_FROM_NAME="LA VENEZOLANA DE SEGUROS Y VIDA C.A"
 
 # CORS
 CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174

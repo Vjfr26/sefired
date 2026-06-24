@@ -73,7 +73,7 @@ export default function Login({ onLogin }) {
 
   const resetTurnstile = () => {
     if (typeof window.turnstile !== 'undefined') {
-      try { window.turnstile.reset() } catch {}
+      try { window.turnstile.reset() } catch { }
     }
   }
 
@@ -147,7 +147,7 @@ export default function Login({ onLogin }) {
       {/* MAIN CONTENT */}
       <main className="flex-1 flex flex-col items-center justify-center px-4 pt-1 pb-4 sm:px-6 sm:py-8">
         <div className="w-full max-w-sm sm:max-w-md">
-          
+
           {/* LOGO */}
           <div className="flex flex-col items-center mb-3 sm:mb-6">
             <img src="/logo-sinfondo.png" alt="Logo J&M" className="h-20 sm:h-28 lg:h-36 w-auto object-contain" />
@@ -248,7 +248,7 @@ export default function Login({ onLogin }) {
       <footer className="w-full px-4 py-3 sm:py-5 border-t border-slate-200/60 bg-white/20 backdrop-blur-sm">
         <div className="flex flex-col items-center gap-0.5 text-center px-2">
           <p className="text-[10px] font-bold text-slate-700 uppercase tracking-widest leading-snug">
-            © 2024 J&M R.L. — Todos los derechos reservados
+            © 2024 J&M C.A. — Todos los derechos reservados
           </p>
           <p className="text-[9px] text-slate-400 uppercase tracking-[0.15em] leading-snug">
             V 2.4.0 — Internal System · Made with <span className="text-red-400">❤</span> by Victecnology lda.

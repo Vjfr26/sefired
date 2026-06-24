@@ -19,32 +19,32 @@ import {
 
 // ── NAV CONFIG ──────────────────────────────────────────────
 const NAV = [
-  { id: 'home',         label: 'Inicio',            icon: 'home',        viewId: 'home' },
-  { id: 'cotizaciones', label: 'Simulador',           icon: 'calculator',  viewId: 'cot-simulador' },
-  { id: 'productos',    label: 'Productos',          icon: 'package',     viewId: 'cat-productos' },
-  { id: 'usuarios',     label: 'Usuarios',           icon: 'user-cog',    viewId: 'usr-lista' },
-  { id: 'clientes',     label: 'Clientes & Pólizas', icon: 'users',       viewId: 'cli-cliente' },
-  { id: 'vehiculos',    label: 'Vehículos',          icon: 'car',         viewId: 'cli-vehiculo' },
-  { id: 'reportes',     label: 'Reportes',           icon: 'bar-chart-3', viewId: 'rep-menu' },
-  { id: 'tasas',        label: 'Tasa del Día',       icon: 'dollar-sign', viewId: 'tas-registro' },
-  { id: 'config',       label: 'Configuración',      icon: 'settings',    viewId: 'conf-menu' },
+  { id: 'home', label: 'Inicio', icon: 'home', viewId: 'home' },
+  { id: 'cotizaciones', label: 'Simulador', icon: 'calculator', viewId: 'cot-simulador' },
+  { id: 'productos', label: 'Productos', icon: 'package', viewId: 'cat-productos' },
+  { id: 'usuarios', label: 'Usuarios', icon: 'user-cog', viewId: 'usr-lista' },
+  { id: 'clientes', label: 'Clientes & Pólizas', icon: 'users', viewId: 'cli-cliente' },
+  { id: 'vehiculos', label: 'Vehículos', icon: 'car', viewId: 'cli-vehiculo' },
+  { id: 'reportes', label: 'Reportes', icon: 'bar-chart-3', viewId: 'rep-menu' },
+  { id: 'tasas', label: 'Tasa del Día', icon: 'dollar-sign', viewId: 'tas-registro' },
+  { id: 'config', label: 'Configuración', icon: 'settings', viewId: 'conf-menu' },
 ];
 
 const VIEW_META = {
-  'home':          { navId: 'home',         title: 'Inicio',             sub: 'Cotizador de Seguros J&M' },
-  'cat-productos': { navId: 'productos',    title: 'Productos',          sub: 'Catálogo de coberturas y servicios' },
-  'cli-cliente':   { navId: 'clientes',     title: 'Clientes & Pólizas', sub: 'Gestión de clientes, pólizas y renovaciones' },
-  'cli-vehiculo':  { navId: 'vehiculos',    title: 'Vehículos',          sub: 'Registro y consulta de vehículos asegurados' },
-  'cot-simulador':  { navId: 'cotizaciones', title: 'Simulador',             sub: 'Simulador de cotizaciones de seguros vehiculares' },
-  'rep-menu':      { navId: 'reportes',     title: 'Reportes',           sub: 'Generación y exportación de reportes' },
-  'tas-registro':  { navId: 'tasas',        title: 'Tasas del Día',      sub: 'Registro de tasas BCV — Dólar y Euro' },
-  'usr-lista':     { navId: 'usuarios',     title: 'Usuarios',           sub: 'Gestión de usuarios, roles y permisos' },
-  'conf-menu':     { navId: 'config',       title: 'Configuración',      sub: 'Ajustes, seguridad y auditoría del sistema' },
+  'home': { navId: 'home', title: 'Inicio', sub: 'Cotizador de Seguros' },
+  'cat-productos': { navId: 'productos', title: 'Productos', sub: 'Catálogo de coberturas y servicios' },
+  'cli-cliente': { navId: 'clientes', title: 'Clientes & Pólizas', sub: 'Gestión de clientes, pólizas y renovaciones' },
+  'cli-vehiculo': { navId: 'vehiculos', title: 'Vehículos', sub: 'Registro y consulta de vehículos asegurados' },
+  'cot-simulador': { navId: 'cotizaciones', title: 'Simulador', sub: 'Simulador de cotizaciones de seguros vehiculares' },
+  'rep-menu': { navId: 'reportes', title: 'Reportes', sub: 'Generación y exportación de reportes' },
+  'tas-registro': { navId: 'tasas', title: 'Tasas del Día', sub: 'Registro de tasas BCV — Dólar y Euro' },
+  'usr-lista': { navId: 'usuarios', title: 'Usuarios', sub: 'Gestión de usuarios, roles y permisos' },
+  'conf-menu': { navId: 'config', title: 'Configuración', sub: 'Ajustes, seguridad y auditoría del sistema' },
 };
 
 // ── STATE ────────────────────────────────────────────────────
 let activeNavId = 'home';
-let activeView  = 'home';
+let activeView = 'home';
 
 // ── HELPERS ──────────────────────────────────────────────────
 const usd = n => '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -62,7 +62,7 @@ const STATUS_COLOR = {
   'Asignado': 'blue', 'En Proceso': 'blue', 'Generada': 'blue', 'En curso': 'blue',
 };
 const sbadge = s => badge(s, STATUS_COLOR[s] || 'slate');
-const STATUS_ICON  = { green: 'check-circle', amber: 'clock', red: 'alert-circle', blue: 'check-circle', indigo: 'check-circle', slate: 'alert-circle' };
+const STATUS_ICON = { green: 'check-circle', amber: 'clock', red: 'alert-circle', blue: 'check-circle', indigo: 'check-circle', slate: 'alert-circle' };
 const STATUS_ICONCLS = { green: 'text-emerald-500', amber: 'text-amber-500', red: 'text-rose-500', blue: 'text-blue-500', indigo: 'text-indigo-500', slate: 'text-slate-400' };
 const rsbadge = s => {
   const col = STATUS_COLOR[s] || 'slate';
@@ -85,7 +85,7 @@ function tbl(cols, rows, footer = '', id = '') {
   const HIDE = { sm: 'hidden sm:table-cell', md: 'hidden md:table-cell', lg: 'hidden lg:table-cell' };
   const thCls = c => `th-cell ${c.r ? 'text-right' : 'text-left'}${c.hide ? ' ' + HIDE[c.hide] : ''}`;
   const tdCls = c => `td-cell${c.r ? ' text-right' : ''}${c.m ? ' font-mono text-xs' : ''}${c.nw ? ' whitespace-nowrap' : ''}${c.hide ? ' ' + HIDE[c.hide] : ''}${c.tr ? ' max-w-0' : ''}${c.acc ? ' whitespace-nowrap !overflow-visible' : ''}`;
-  const cell  = (c, val) => c.tr ? `<span class="break-words">${val}</span>` : val;
+  const cell = (c, val) => c.tr ? `<span class="break-words">${val}</span>` : val;
   const head = cols.map(c => `<th class="${thCls(c)}">${c.l}</th>`).join('');
   const body = rows.map((r, i) =>
     `<tr data-row="${i}" class="hover:bg-slate-50/80 transition-colors">${cols.map(c => `<td class="${tdCls(c)}">${cell(c, r[c.k] ?? '—')}</td>`).join('')}</tr>`
@@ -143,40 +143,37 @@ let simState = {
   placa: '', marca: 'Toyota', modelo: '', año: '2022', color: '', uso: 'Particular', valor: 15000,
   nombre: '', ci: '', tel: '', email: '',
   coberturas: {
-    'CASCO-PT': { nom: 'Casco Pérdida Total',     prima: 270,  tasa: '1.80% del valor',   chk: false, req: false, desc: 'Pérdida total irrecuperable del vehículo' },
-    'CASCO-PP': { nom: 'Casco Pérdida Parcial',   prima: 120,  tasa: '0.80% del valor',   chk: false, req: false, desc: 'Daños físicos reparables al vehículo' },
-    'ROBO':     { nom: 'Robo y Hurto',            prima: 90,   tasa: '0.60% del valor',   chk: false, req: false, desc: 'Robo total o parcial del vehículo' },
-    'AP':       { nom: 'Acc. Personales',         prima: 48,   tasa: '$12.00/ocupante',   chk: false, req: false, desc: '4 ocupantes · $10,000 c/u suma asegurada' },
-    'RC-OBL':   { nom: 'RC Obligatoria',          prima: 4.50, tasa: 'UT × Factor',       chk: true,  req: true,  desc: 'Obligatoria por Ley SUDEASEG' },
-    'RCV':      { nom: 'RC Voluntaria',           prima: 45,   tasa: '0.15% de suma',     chk: false, req: false, desc: 'Responsabilidad civil voluntaria ampliada' },
-    'ASIST':    { nom: 'Asistencia en Carretera', prima: 8,    tasa: 'Tarifa fija anual',  chk: false, req: false, desc: 'Grúa, batería, llantas y emergencias viales' },
+    'CASCO-PT': { nom: 'Casco Pérdida Total', prima: 270, tasa: '1.80% del valor', chk: false, req: false, desc: 'Pérdida total irrecuperable del vehículo' },
+    'CASCO-PP': { nom: 'Casco Pérdida Parcial', prima: 120, tasa: '0.80% del valor', chk: false, req: false, desc: 'Daños físicos reparables al vehículo' },
+    'ROBO': { nom: 'Robo y Hurto', prima: 90, tasa: '0.60% del valor', chk: false, req: false, desc: 'Robo total o parcial del vehículo' },
+    'AP': { nom: 'Acc. Personales', prima: 48, tasa: '$12.00/ocupante', chk: false, req: false, desc: '4 ocupantes · $10,000 c/u suma asegurada' },
+    'RC-OBL': { nom: 'RC Obligatoria', prima: 4.50, tasa: 'UT × Factor', chk: true, req: true, desc: 'Obligatoria por Ley SUDEASEG' },
+    'RCV': { nom: 'RC Voluntaria', prima: 45, tasa: '0.15% de suma', chk: false, req: false, desc: 'Responsabilidad civil voluntaria ampliada' },
+    'ASIST': { nom: 'Asistencia en Carretera', prima: 8, tasa: 'Tarifa fija anual', chk: false, req: false, desc: 'Grúa, batería, llantas y emergencias viales' },
   },
 };
 
 function simBar(active) {
   const steps = [
-    { label: 'Vehículo',   icon: 'car' },
-    { label: 'Tomador',    icon: 'user' },
+    { label: 'Vehículo', icon: 'car' },
+    { label: 'Tomador', icon: 'user' },
     { label: 'Coberturas', icon: 'shield' },
-    { label: 'Resultado',  icon: 'file-check' },
+    { label: 'Resultado', icon: 'file-check' },
   ];
-  return `<div class="flex items-center select-none">${
-    steps.map((s, i) => {
-      const n = i + 1, done = n < active, cur = n === active;
-      const dot = `<div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all ${
-        done ? 'bg-emerald-500 text-white'
-             : cur  ? 'bg-jm-blue text-white shadow-[0_0_0_4px_rgba(0,20,99,0.15)]'
-                    : 'bg-slate-100 text-slate-400'
+  return `<div class="flex items-center select-none">${steps.map((s, i) => {
+    const n = i + 1, done = n < active, cur = n === active;
+    const dot = `<div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all ${done ? 'bg-emerald-500 text-white'
+      : cur ? 'bg-jm-blue text-white shadow-[0_0_0_4px_rgba(0,20,99,0.15)]'
+        : 'bg-slate-100 text-slate-400'
       }">${done ? '<i data-lucide="check" class="w-3.5 h-3.5"></i>' : n}</div>`;
-      const lbl = `<p class="text-[9px] font-bold mt-1 text-center leading-tight ${
-        done ? 'text-emerald-500' : cur ? 'text-jm-blue' : 'text-slate-400'
+    const lbl = `<p class="text-[9px] font-bold mt-1 text-center leading-tight ${done ? 'text-emerald-500' : cur ? 'text-jm-blue' : 'text-slate-400'
       }">${s.label}</p>`;
-      const line = i < steps.length - 1
-        ? `<div class="flex-1 h-0.5 mb-5 mx-1 transition-colors ${done ? 'bg-emerald-400' : 'bg-slate-200'}"></div>`
-        : '';
-      return `<div class="flex flex-col items-center" style="flex:0 0 4.5rem">${dot}${lbl}</div>${line}`;
-    }).join('')
-  }</div>`;
+    const line = i < steps.length - 1
+      ? `<div class="flex-1 h-0.5 mb-5 mx-1 transition-colors ${done ? 'bg-emerald-400' : 'bg-slate-200'}"></div>`
+      : '';
+    return `<div class="flex flex-col items-center" style="flex:0 0 4.5rem">${dot}${lbl}</div>${line}`;
+  }).join('')
+    }</div>`;
 }
 
 function simModal(step, body, footer, wide = false) {
@@ -341,7 +338,7 @@ function catParams() {
 
 function catConfig() {
   return formCard([
-    { label: 'Razón Social', val: 'Seguros J&M C.A.', span: true },
+    { label: 'Razón Social', val: 'la Venezolana de seguros y Vida C.A.', span: true },
     { label: 'RIF', val: 'J-30012345-6' },
     { label: 'Regulador', val: 'SUDEASEG', ro: true },
     { label: 'Dirección', val: 'Av. Principal, Caracas', span: true },
@@ -369,7 +366,7 @@ function cliCliente() {
   window._clientData = {};
   rows.forEach(r => { window._clientData[r.id] = r; });
 
-  window.showRenovarModal = function(id) {
+  window.showRenovarModal = function (id) {
     const c = window._clientData[id];
     if (!c) return;
     showModal(
@@ -432,17 +429,17 @@ function cliConductor() {
 }
 
 function cliVehiculo() {
-  const MARCAS = ['Toyota','Chevrolet','Ford','Hyundai','Kia','Jeep','Nissan','Honda','Renault','Mazda','Volkswagen','Mitsubishi','Otro'];
-  const TIPOS  = ['Sedán','SUV / Rústico','Camioneta','Comercial','Motocicleta'];
-  const AÑOS   = Array.from({length: 14}, (_, i) => 2025 - i);
+  const MARCAS = ['Toyota', 'Chevrolet', 'Ford', 'Hyundai', 'Kia', 'Jeep', 'Nissan', 'Honda', 'Renault', 'Mazda', 'Volkswagen', 'Mitsubishi', 'Otro'];
+  const TIPOS = ['Sedán', 'SUV / Rústico', 'Camioneta', 'Comercial', 'Motocicleta'];
+  const AÑOS = Array.from({ length: 14 }, (_, i) => 2025 - i);
 
   const vehicles = [
-    { placa: 'ABC-123', marca: 'Toyota',    modelo: 'Corolla',       año: 2022, color: 'Blanco', tipo: 'Sedán',        prop: 'C. Rodríguez', est: 'Activo' },
-    { placa: 'XYZ-456', marca: 'Ford',      modelo: 'Explorer',      año: 2020, color: 'Negro',  tipo: 'SUV / Rústico',prop: 'M. González',  est: 'Activo' },
-    { placa: 'DEF-789', marca: 'Chevrolet', modelo: 'Spark',         año: 2019, color: 'Rojo',   tipo: 'Sedán',        prop: 'J. Martínez',  est: 'Activo' },
-    { placa: 'GHI-321', marca: 'Hyundai',   modelo: 'Tucson',        año: 2021, color: 'Plata',  tipo: 'SUV / Rústico',prop: 'A. López',     est: 'Activo' },
-    { placa: 'JKL-654', marca: 'Kia',       modelo: 'Sportage',      año: 2023, color: 'Azul',   tipo: 'SUV / Rústico',prop: 'L. Castillo',  est: 'Activo' },
-    { placa: 'MNO-987', marca: 'Nissan',    modelo: 'Sentra',        año: 2018, color: 'Gris',   tipo: 'Sedán',        prop: 'V. Ramos',     est: 'Activo' },
+    { placa: 'ABC-123', marca: 'Toyota', modelo: 'Corolla', año: 2022, color: 'Blanco', tipo: 'Sedán', prop: 'C. Rodríguez', est: 'Activo' },
+    { placa: 'XYZ-456', marca: 'Ford', modelo: 'Explorer', año: 2020, color: 'Negro', tipo: 'SUV / Rústico', prop: 'M. González', est: 'Activo' },
+    { placa: 'DEF-789', marca: 'Chevrolet', modelo: 'Spark', año: 2019, color: 'Rojo', tipo: 'Sedán', prop: 'J. Martínez', est: 'Activo' },
+    { placa: 'GHI-321', marca: 'Hyundai', modelo: 'Tucson', año: 2021, color: 'Plata', tipo: 'SUV / Rústico', prop: 'A. López', est: 'Activo' },
+    { placa: 'JKL-654', marca: 'Kia', modelo: 'Sportage', año: 2023, color: 'Azul', tipo: 'SUV / Rústico', prop: 'L. Castillo', est: 'Activo' },
+    { placa: 'MNO-987', marca: 'Nissan', modelo: 'Sentra', año: 2018, color: 'Gris', tipo: 'Sedán', prop: 'V. Ramos', est: 'Activo' },
   ];
 
   const vehAcc = r => `
@@ -465,20 +462,20 @@ function cliVehiculo() {
     <button onclick="showNewVehModal()" class="btn-primary"><i data-lucide="plus" class="w-4 h-4"></i>Registrar</button>`,
     'tbl-vehiculos') +
     tbl([
-      { l: 'Placa',         k: 'placa', m: true,  hide: 'sm' },
-      { l: 'Marca / Modelo',k: 'disp',  tr: true  },
-      { l: 'Año',           k: 'año',   r: true,  hide: 'sm' },
-      { l: 'Color',         k: 'color', hide: 'lg' },
-      { l: 'Tipo',          k: 'tipo',  hide: 'md' },
-      { l: 'Propietario',   k: 'prop',  hide: 'md', tr: true },
-      { l: 'Estado',        k: 'est' },
-      { l: '',              k: 'acc',  acc: true },
+      { l: 'Placa', k: 'placa', m: true, hide: 'sm' },
+      { l: 'Marca / Modelo', k: 'disp', tr: true },
+      { l: 'Año', k: 'año', r: true, hide: 'sm' },
+      { l: 'Color', k: 'color', hide: 'lg' },
+      { l: 'Tipo', k: 'tipo', hide: 'md' },
+      { l: 'Propietario', k: 'prop', hide: 'md', tr: true },
+      { l: 'Estado', k: 'est' },
+      { l: '', k: 'acc', acc: true },
     ], vehicles.map(r => ({ ...r, disp: r.marca + ' ' + r.modelo, est: rsbadge(r.est), acc: vehAcc(r) })),
-    '', 'tbl-vehiculos');
+      '', 'tbl-vehiculos');
 }
 
 // ── SIMULADOR — Paso 1: Tipo + Vehículo ───────────────────────
-window.simIniciar = function() {
+window.simIniciar = function () {
   simState = {
     tipo: 'particular', placa: '', marca: 'Toyota', modelo: '', año: '2022', color: '', uso: 'Particular', valor: 15000,
     nombre: '', ci: '', tel: '', email: '',
@@ -487,9 +484,9 @@ window.simIniciar = function() {
     ),
   };
   const tipos = [
-    { val: 'particular', icon: 'car',    label: 'Particular', desc: 'Uso personal o familiar'  },
-    { val: 'comercial',  icon: 'truck',  label: 'Comercial',  desc: 'Carga o transporte'        },
-    { val: 'flota',      icon: 'layers', label: 'Flota',      desc: 'Múltiples unidades'        },
+    { val: 'particular', icon: 'car', label: 'Particular', desc: 'Uso personal o familiar' },
+    { val: 'comercial', icon: 'truck', label: 'Comercial', desc: 'Carga o transporte' },
+    { val: 'flota', icon: 'layers', label: 'Flota', desc: 'Múltiples unidades' },
   ];
   const tipoCard = t => {
     const on = simState.tipo === t.val;
@@ -527,13 +524,13 @@ window.simIniciar = function() {
       <div>
         <label class="field-label">Año <span class="text-rose-500">*</span></label>
         <select id="sim-año" class="select-field">
-          ${Array.from({length:12},(_,i)=>2024-i).map(y=>`<option${simState.año==y?' selected':''}>${y}</option>`).join('')}
+          ${Array.from({ length: 12 }, (_, i) => 2024 - i).map(y => `<option${simState.año == y ? ' selected' : ''}>${y}</option>`).join('')}
         </select>
       </div>
       <div>
         <label class="field-label">Marca <span class="text-rose-500">*</span></label>
         <select id="sim-marca" class="select-field">
-          ${['Toyota','Chevrolet','Ford','Hyundai','Kia','Jeep','Nissan','Honda','Renault','Mazda','Volkswagen','Mitsubishi'].map(m=>`<option${simState.marca===m?' selected':''}>${m}</option>`).join('')}
+          ${['Toyota', 'Chevrolet', 'Ford', 'Hyundai', 'Kia', 'Jeep', 'Nissan', 'Honda', 'Renault', 'Mazda', 'Volkswagen', 'Mitsubishi'].map(m => `<option${simState.marca === m ? ' selected' : ''}>${m}</option>`).join('')}
         </select>
       </div>
       <div>
@@ -547,7 +544,7 @@ window.simIniciar = function() {
       <div>
         <label class="field-label">Uso <span class="text-rose-500">*</span></label>
         <select id="sim-uso" class="select-field">
-          ${['Particular','Transporte de personal','Carga','Colectivo / Minibús'].map(u=>`<option${simState.uso===u?' selected':''}>${u}</option>`).join('')}
+          ${['Particular', 'Transporte de personal', 'Carga', 'Colectivo / Minibús'].map(u => `<option${simState.uso === u ? ' selected' : ''}>${u}</option>`).join('')}
         </select>
       </div>
     </div>
@@ -566,12 +563,12 @@ window.simIniciar = function() {
   simModal(1, body, footer);
 };
 
-window.simTipo = function(val) {
+window.simTipo = function (val) {
   simState.tipo = val;
   const tipos = [
-    { val: 'particular', icon: 'car',    label: 'Particular', desc: 'Uso personal o familiar' },
-    { val: 'comercial',  icon: 'truck',  label: 'Comercial',  desc: 'Carga o transporte'       },
-    { val: 'flota',      icon: 'layers', label: 'Flota',      desc: 'Múltiples unidades'       },
+    { val: 'particular', icon: 'car', label: 'Particular', desc: 'Uso personal o familiar' },
+    { val: 'comercial', icon: 'truck', label: 'Comercial', desc: 'Carga o transporte' },
+    { val: 'flota', icon: 'layers', label: 'Flota', desc: 'Múltiples unidades' },
   ];
   const container = document.getElementById('sim-tipos');
   if (!container) return;
@@ -591,23 +588,23 @@ window.simTipo = function(val) {
   createIcons({ icons: ALL_ICONS });
 };
 
-window.simGuardar1 = function() {
+window.simGuardar1 = function () {
   const valor = Math.max(500, parseFloat(document.getElementById('sim-valor')?.value) || 15000);
-  simState.placa  = document.getElementById('sim-placa')?.value?.trim()  || '';
-  simState.marca  = document.getElementById('sim-marca')?.value          || 'Toyota';
+  simState.placa = document.getElementById('sim-placa')?.value?.trim() || '';
+  simState.marca = document.getElementById('sim-marca')?.value || 'Toyota';
   simState.modelo = document.getElementById('sim-modelo')?.value?.trim() || '';
-  simState.año    = document.getElementById('sim-año')?.value            || '2022';
-  simState.color  = document.getElementById('sim-color')?.value?.trim()  || '';
-  simState.uso    = document.getElementById('sim-uso')?.value            || 'Particular';
-  simState.valor  = valor;
+  simState.año = document.getElementById('sim-año')?.value || '2022';
+  simState.color = document.getElementById('sim-color')?.value?.trim() || '';
+  simState.uso = document.getElementById('sim-uso')?.value || 'Particular';
+  simState.valor = valor;
   simState.coberturas['CASCO-PT'].prima = Math.round(valor * 0.018 * 100) / 100;
   simState.coberturas['CASCO-PP'].prima = Math.round(valor * 0.008 * 100) / 100;
-  simState.coberturas['ROBO'].prima     = Math.round(valor * 0.006 * 100) / 100;
+  simState.coberturas['ROBO'].prima = Math.round(valor * 0.006 * 100) / 100;
   simPaso2();
 };
 
 // ── SIMULADOR — Paso 2: Datos del tomador ─────────────────────
-window.simPaso2 = function() {
+window.simPaso2 = function () {
   const tipoLabel = { particular: 'Particular', comercial: 'Comercial', flota: 'Flota' }[simState.tipo] || 'Vehículo';
   const body = `
     <div class="mb-5 p-4 rounded-2xl border border-slate-200 bg-slate-50/70 flex items-center gap-3.5">
@@ -653,20 +650,20 @@ window.simPaso2 = function() {
   simModal(2, body, footer);
 };
 
-window.simGuardar2 = function() {
+window.simGuardar2 = function () {
   simState.nombre = document.getElementById('sim-nombre')?.value?.trim() || '';
-  simState.ci     = document.getElementById('sim-ci')?.value?.trim()     || '';
-  simState.tel    = document.getElementById('sim-tel')?.value?.trim()    || '';
-  simState.email  = document.getElementById('sim-email')?.value?.trim()  || '';
+  simState.ci = document.getElementById('sim-ci')?.value?.trim() || '';
+  simState.tel = document.getElementById('sim-tel')?.value?.trim() || '';
+  simState.email = document.getElementById('sim-email')?.value?.trim() || '';
   simPaso3();
 };
 
 // ── SIMULADOR — Paso 3: Coberturas ────────────────────────────
-window.simPaso3 = function() {
+window.simPaso3 = function () {
   const chkd = Object.values(simState.coberturas).filter(c => c.chk);
   const sub0 = chkd.reduce((s, c) => s + c.prima, 0);
-  const iva0  = sub0 * 0.16;
-  const tot0  = sub0 + iva0 + 5;
+  const iva0 = sub0 * 0.16;
+  const tot0 = sub0 + iva0 + 5;
   const body = `
     <div class="flex items-start gap-3 mb-4 p-3.5 bg-amber-50/70 border border-amber-100 rounded-xl">
       <i data-lucide="info" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5"></i>
@@ -681,7 +678,7 @@ window.simPaso3 = function() {
     <div class="space-y-2 mb-4" id="sim-cov-list">
       ${Object.entries(simState.coberturas).map(([cod, c]) => `
       <label id="sim-row-${cod}" class="flex items-start gap-3 p-3.5 rounded-2xl border-2 transition-all select-none ${c.req ? 'cursor-not-allowed border-rose-200/50 bg-rose-50/20' : c.chk ? 'cursor-pointer border-jm-blue/25 bg-blue-50/40' : 'cursor-pointer border-slate-200 bg-white hover:border-slate-300'}">
-        <input type="checkbox" id="sim-c-${cod}" ${c.chk?'checked':''} ${c.req?'disabled':''}
+        <input type="checkbox" id="sim-c-${cod}" ${c.chk ? 'checked' : ''} ${c.req ? 'disabled' : ''}
           class="mt-0.5 w-4 h-4 accent-blue-700 shrink-0" onchange="simToggle('${cod}',this.checked)">
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2 flex-wrap mb-0.5">
@@ -714,33 +711,32 @@ window.simPaso3 = function() {
   simModal(3, body, footer, true);
 };
 
-window.simToggle = function(cod, chk) {
+window.simToggle = function (cod, chk) {
   simState.coberturas[cod].chk = chk;
   const row = document.getElementById(`sim-row-${cod}`);
-  if (row) row.className = `flex items-start gap-3 p-3.5 rounded-2xl border-2 transition-all select-none ${
-    simState.coberturas[cod].req ? 'cursor-not-allowed border-rose-200/50 bg-rose-50/20'
+  if (row) row.className = `flex items-start gap-3 p-3.5 rounded-2xl border-2 transition-all select-none ${simState.coberturas[cod].req ? 'cursor-not-allowed border-rose-200/50 bg-rose-50/20'
     : chk ? 'cursor-pointer border-jm-blue/25 bg-blue-50/40'
-    : 'cursor-pointer border-slate-200 bg-white hover:border-slate-300'}`;
+      : 'cursor-pointer border-slate-200 bg-white hover:border-slate-300'}`;
   const sub = Object.values(simState.coberturas).filter(c => c.chk).reduce((s, c) => s + c.prima, 0);
   const iva = sub * 0.16;
   const tot = sub + iva + 5;
   const el = id => document.getElementById(id);
-  if (el('sim-sub'))   el('sim-sub').textContent   = usd(sub);
-  if (el('sim-iva'))   el('sim-iva').textContent   = usd(iva);
-  if (el('sim-tot'))   el('sim-tot').textContent   = usd(tot);
+  if (el('sim-sub')) el('sim-sub').textContent = usd(sub);
+  if (el('sim-iva')) el('sim-iva').textContent = usd(iva);
+  if (el('sim-tot')) el('sim-tot').textContent = usd(tot);
   if (el('sim-totbs')) el('sim-totbs').textContent = bs(tot);
 };
 
 // ── SIMULADOR — Paso 4: Resultado ─────────────────────────────
-window.simResultado = function() {
-  const chkd = Object.entries(simState.coberturas).filter(([,c]) => c.chk);
-  const sub = chkd.reduce((s,[,c]) => s + c.prima, 0);
+window.simResultado = function () {
+  const chkd = Object.entries(simState.coberturas).filter(([, c]) => c.chk);
+  const sub = chkd.reduce((s, [, c]) => s + c.prima, 0);
   const iva = sub * 0.16;
   const pol = 5;
   const tot = sub + iva + pol;
   const solId = 'COT-2026-0' + (313 + Math.floor(Math.random() * 10));
   const hoy = new Date();
-  const fecha = `${String(hoy.getDate()).padStart(2,'0')}/${String(hoy.getMonth()+1).padStart(2,'0')}/${hoy.getFullYear()}`;
+  const fecha = `${String(hoy.getDate()).padStart(2, '0')}/${String(hoy.getMonth() + 1).padStart(2, '0')}/${hoy.getFullYear()}`;
   const body = `
     <div class="flex items-center gap-3.5 mb-5 p-4 rounded-2xl border border-emerald-200" style="background:linear-gradient(135deg,#ecfdf5,#d1fae5)">
       <div class="w-11 h-11 rounded-full bg-emerald-500 flex items-center justify-center shrink-0 shadow-md shadow-emerald-300/40">
@@ -769,7 +765,7 @@ window.simResultado = function() {
         <i data-lucide="shield-check" class="w-3.5 h-3.5 text-slate-400 shrink-0"></i>
         <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Coberturas incluidas</p>
       </div>
-      ${chkd.map(([,c]) => `
+      ${chkd.map(([, c]) => `
       <div class="flex items-center justify-between gap-2">
         <div class="flex items-center gap-2 min-w-0">
           <i data-lucide="check-circle" class="w-3.5 h-3.5 text-emerald-500 shrink-0"></i>
@@ -1308,12 +1304,12 @@ function tasRegistro() {
   ${tbl([
     { l: 'Fecha', k: 'f', nw: true }, { l: 'Moneda', k: 'mon', nw: true }, { l: 'Tasa Bs', k: 't', r: true, nw: true }, { l: 'Variación', k: 'v', hide: 'sm', nw: true }, { l: '', k: 'acc', acc: true }
   ], [
-    { f: '07/05/2026', mon: badge('USD','blue'),   t: '38.5400', v: badge('+0.14%','amber'), acc: actions('Tasa USD 07/05/2026') },
-    { f: '07/05/2026', mon: badge('EUR','indigo'), t: '42.1800', v: badge('+0.22%','amber'), acc: actions('Tasa EUR 07/05/2026') },
-    { f: '06/05/2026', mon: badge('USD','blue'),   t: '38.3900', v: badge('+0.21%','amber'), acc: actions('Tasa USD 06/05/2026') },
-    { f: '06/05/2026', mon: badge('EUR','indigo'), t: '41.9600', v: badge('+0.15%','amber'), acc: actions('Tasa EUR 06/05/2026') },
-    { f: '05/05/2026', mon: badge('USD','blue'),   t: '38.1800', v: badge('+0.08%','slate'), acc: actions('Tasa USD 05/05/2026') },
-    { f: '05/05/2026', mon: badge('EUR','indigo'), t: '41.8100', v: badge('+0.05%','slate'), acc: actions('Tasa EUR 05/05/2026') },
+    { f: '07/05/2026', mon: badge('USD', 'blue'), t: '38.5400', v: badge('+0.14%', 'amber'), acc: actions('Tasa USD 07/05/2026') },
+    { f: '07/05/2026', mon: badge('EUR', 'indigo'), t: '42.1800', v: badge('+0.22%', 'amber'), acc: actions('Tasa EUR 07/05/2026') },
+    { f: '06/05/2026', mon: badge('USD', 'blue'), t: '38.3900', v: badge('+0.21%', 'amber'), acc: actions('Tasa USD 06/05/2026') },
+    { f: '06/05/2026', mon: badge('EUR', 'indigo'), t: '41.9600', v: badge('+0.15%', 'amber'), acc: actions('Tasa EUR 06/05/2026') },
+    { f: '05/05/2026', mon: badge('USD', 'blue'), t: '38.1800', v: badge('+0.08%', 'slate'), acc: actions('Tasa USD 05/05/2026') },
+    { f: '05/05/2026', mon: badge('EUR', 'indigo'), t: '41.8100', v: badge('+0.05%', 'slate'), acc: actions('Tasa EUR 05/05/2026') },
   ])}`;
 }
 
@@ -1376,12 +1372,12 @@ function tasAplicacion() {
 // COTIZACIONES — simulador interno
 function cotSimulador() {
   const quotes = [
-    { id: 'COT-2026-00312', cli: 'Carlos E. Rodríguez',  veh: 'Toyota Corolla 2022',      prima: 622.70,  est: 'En Revisión', fecha: '02/05/2026' },
-    { id: 'COT-2026-00311', cli: 'Ana C. López',          veh: 'Hyundai Tucson 2021',      prima: 784.20,  est: 'Aprobado',    fecha: '01/05/2026' },
-    { id: 'COT-2026-00309', cli: 'Pedro A. Díaz',         veh: 'Ford Explorer 2020',       prima: 1240.00, est: 'En Revisión', fecha: '30/04/2026' },
-    { id: 'COT-2026-00307', cli: 'Valentina B. Ramos',    veh: 'Kia Sportage 2023',        prima: 540.00,  est: 'Emitida',     fecha: '28/04/2026' },
-    { id: 'COT-2026-00305', cli: 'José M. Pérez',         veh: 'Chevrolet Sail 2021',      prima: 390.00,  est: 'Rechazado',   fecha: '25/04/2026' },
-    { id: 'COT-2026-00303', cli: 'María G. Torres',       veh: 'Jeep Grand Cherokee 2019', prima: 1580.00, est: 'Emitida',     fecha: '22/04/2026' },
+    { id: 'COT-2026-00312', cli: 'Carlos E. Rodríguez', veh: 'Toyota Corolla 2022', prima: 622.70, est: 'En Revisión', fecha: '02/05/2026' },
+    { id: 'COT-2026-00311', cli: 'Ana C. López', veh: 'Hyundai Tucson 2021', prima: 784.20, est: 'Aprobado', fecha: '01/05/2026' },
+    { id: 'COT-2026-00309', cli: 'Pedro A. Díaz', veh: 'Ford Explorer 2020', prima: 1240.00, est: 'En Revisión', fecha: '30/04/2026' },
+    { id: 'COT-2026-00307', cli: 'Valentina B. Ramos', veh: 'Kia Sportage 2023', prima: 540.00, est: 'Emitida', fecha: '28/04/2026' },
+    { id: 'COT-2026-00305', cli: 'José M. Pérez', veh: 'Chevrolet Sail 2021', prima: 390.00, est: 'Rechazado', fecha: '25/04/2026' },
+    { id: 'COT-2026-00303', cli: 'María G. Torres', veh: 'Jeep Grand Cherokee 2019', prima: 1580.00, est: 'Emitida', fecha: '22/04/2026' },
   ];
   return `<div class="animate-in fade-in duration-500 space-y-5">
 
@@ -1407,10 +1403,10 @@ function cotSimulador() {
       </div>
       <div class="grid grid-cols-3 border-t border-white/10">
         ${[
-          ['7 coberturas', 'disponibles',    'layers'],
-          ['RC incluida',  'obligatoria',    'check-circle'],
-          ['USD + Bs.',    'Tasa BCV hoy',   'dollar-sign'],
-        ].map(([val, label, icon]) => `
+      ['7 coberturas', 'disponibles', 'layers'],
+      ['RC incluida', 'obligatoria', 'check-circle'],
+      ['USD + Bs.', 'Tasa BCV hoy', 'dollar-sign'],
+    ].map(([val, label, icon]) => `
         <div class="flex flex-col sm:flex-row items-center sm:gap-2 gap-1 px-4 py-3.5 text-center sm:text-left">
           <i data-lucide="${icon}" class="w-3.5 h-3.5 text-white/35 shrink-0"></i>
           <div class="min-w-0">
@@ -1428,7 +1424,7 @@ function cotSimulador() {
         <p class="text-xs text-slate-400 mt-0.5">Mayo 2026 · ${quotes.length} registros</p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
-        ${['Todos','En Revisión','Aprobado','Emitida','Rechazado'].map((s, i) => `
+        ${['Todos', 'En Revisión', 'Aprobado', 'Emitida', 'Rechazado'].map((s, i) => `
         <button onclick="filterSimStatus('${s}',${i})" id="sim-chip-${i}"
           class="px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${i === 0 ? 'bg-jm-blue text-white border-jm-blue' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}">
           ${s}
@@ -1452,9 +1448,9 @@ function cotSimulador() {
           </thead>
           <tbody class="divide-y divide-slate-100" id="sim-tbl-body">
             ${quotes.map(q => {
-              const estIcon = { green:'check-circle', amber:'clock', red:'alert-circle', blue:'check-circle', indigo:'check-circle', slate:'alert-circle' }[STATUS_COLOR[q.est]] || 'alert-circle';
-              const estIconCls = { green:'text-emerald-500', amber:'text-amber-500', red:'text-rose-500', blue:'text-blue-500', indigo:'text-indigo-500', slate:'text-slate-400' }[STATUS_COLOR[q.est]] || 'text-slate-400';
-              return `
+      const estIcon = { green: 'check-circle', amber: 'clock', red: 'alert-circle', blue: 'check-circle', indigo: 'check-circle', slate: 'alert-circle' }[STATUS_COLOR[q.est]] || 'alert-circle';
+      const estIconCls = { green: 'text-emerald-500', amber: 'text-amber-500', red: 'text-rose-500', blue: 'text-blue-500', indigo: 'text-indigo-500', slate: 'text-slate-400' }[STATUS_COLOR[q.est]] || 'text-slate-400';
+      return `
             <tr class="hover:bg-slate-50/60 transition-colors">
               <td class="td-cell font-mono text-xs text-slate-400 hidden md:table-cell whitespace-nowrap">${q.id}</td>
               <td class="td-cell">
@@ -1490,7 +1486,8 @@ function cotSimulador() {
                   </button>
                 </div>
               </td>
-            </tr>`;}).join('')}
+            </tr>`;
+    }).join('')}
           </tbody>
         </table>
       </div>
@@ -1504,7 +1501,7 @@ function cotSimulador() {
   </div>`;
 }
 
-window.filterSimStatus = function(status, idx) {
+window.filterSimStatus = function (status, idx) {
   document.querySelectorAll('[id^="sim-chip-"]').forEach((chip, i) => {
     const active = i === idx;
     chip.className = `px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${active ? 'bg-jm-blue text-white border-jm-blue' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`;
@@ -1539,7 +1536,7 @@ function confAbout() {
       <h4 class="font-semibold text-slate-800 mb-5">Sistema de Gestión Interno</h4>
       <div class="space-y-3 text-sm">
         <div class="flex justify-between gap-3 py-2 border-b border-slate-100"><span class="text-slate-500">Versión</span><span class="font-mono font-semibold text-slate-700">v1.0.0-beta</span></div>
-        <div class="flex justify-between gap-3 py-2 border-b border-slate-100"><span class="text-slate-500">Entorno</span><span>${badge('Producción','green')}</span></div>
+        <div class="flex justify-between gap-3 py-2 border-b border-slate-100"><span class="text-slate-500">Entorno</span><span>${badge('Producción', 'green')}</span></div>
         <div class="flex justify-between gap-3 py-2 border-b border-slate-100"><span class="text-slate-500">Desarrollado por</span><span class="font-bold text-blue-700">Victecnology Lda</span></div>
         <div class="flex justify-between gap-3 py-2 border-b border-slate-100"><span class="text-slate-500">Soporte</span><span class="text-blue-500 text-xs">contacto@victecnology.com</span></div>
         <div class="flex justify-between gap-3 py-2 border-b border-slate-100"><span class="text-slate-500">Módulos activos</span><span class="font-semibold">8</span></div>
@@ -1547,7 +1544,7 @@ function confAbout() {
       </div>
       <div class="mt-5 p-4 bg-blue-50 rounded-xl">
         <p class="text-xs font-semibold text-blue-800 mb-1">Licencia de uso</p>
-        <p class="text-xs text-blue-600">Este sistema es propiedad de Seguros J&M C.A. Su uso no autorizado está prohibido.</p>
+        <p class="text-xs text-blue-600">Este sistema es propiedad de J&M C.A. Su uso no autorizado está prohibido.</p>
       </div>
     </div>
   </div>`;
@@ -1599,14 +1596,14 @@ function repSuperintendencia() {
       <p class="text-xs text-slate-400">Mayo 2026</p>
     </div>
   </div>` +
-  tbl([
-    { l: 'Ramo', k: 'ramo', tr: true }, { l: 'Pólizas', k: 'pol', r: true, hide: 'sm' }, { l: 'Prima Neta', k: 'prima', r: true },
-    { l: 'RC Obl.', k: 'rc', r: true, hide: 'md' }, { l: 'Canceladas', k: 'can', r: true, hide: 'md' }, { l: 'Prima Bs', k: 'bs2', r: true, hide: 'sm' }
-  ], [
-    { ramo: 'Vehículo Particular', pol: 47, prima: usd(28140), rc: 47, can: 2, bs2: bs(28140) },
-    { ramo: 'Vehículo Comercial',  pol: 12, prima: usd(10340), rc: 12, can: 1, bs2: bs(10340) },
-    { ramo: 'TOTAL',               pol: 59, prima: usd(38480), rc: 59, can: 3, bs2: bs(38480) },
-  ]);
+    tbl([
+      { l: 'Ramo', k: 'ramo', tr: true }, { l: 'Pólizas', k: 'pol', r: true, hide: 'sm' }, { l: 'Prima Neta', k: 'prima', r: true },
+      { l: 'RC Obl.', k: 'rc', r: true, hide: 'md' }, { l: 'Canceladas', k: 'can', r: true, hide: 'md' }, { l: 'Prima Bs', k: 'bs2', r: true, hide: 'sm' }
+    ], [
+      { ramo: 'Vehículo Particular', pol: 47, prima: usd(28140), rc: 47, can: 2, bs2: bs(28140) },
+      { ramo: 'Vehículo Comercial', pol: 12, prima: usd(10340), rc: 12, can: 1, bs2: bs(10340) },
+      { ramo: 'TOTAL', pol: 59, prima: usd(38480), rc: 59, can: 3, bs2: bs(38480) },
+    ]);
 }
 
 function repOficinas() {
@@ -1618,15 +1615,15 @@ function repOficinas() {
     </select>
     <button onclick="showToast('Exportando reporte de oficinas…','info')" class="btn-secondary ml-auto shrink-0"><i data-lucide="download" class="w-4 h-4"></i>Exportar</button>
   </div>` +
-  tbl([
-    { l: 'Oficina', k: 'ofi', tr: true }, { l: 'Agentes', k: 'ag', r: true, hide: 'sm' }, { l: 'Pólizas', k: 'pol', r: true, hide: 'sm' },
-    { l: 'Prima Neta', k: 'prima', r: true }, { l: '% del Total', k: 'pct', r: true, hide: 'md' }, { l: 'Estado', k: 'est', hide: 'md' }
-  ], [
-    { ofi: 'Caracas Principal', ag: 4, pol: 34, prima: usd(22640), pct: '58.8%', est: rsbadge('Activa') },
-    { ofi: 'Valencia',          ag: 2, pol: 15, prima: usd(9810),  pct: '25.5%', est: rsbadge('Activa') },
-    { ofi: 'Maracaibo',         ag: 2, pol: 10, prima: usd(6030),  pct: '15.7%', est: rsbadge('Activa') },
-    { ofi: 'TOTAL',             ag: 8, pol: 59, prima: usd(38480), pct: '100%',  est: '' },
-  ]);
+    tbl([
+      { l: 'Oficina', k: 'ofi', tr: true }, { l: 'Agentes', k: 'ag', r: true, hide: 'sm' }, { l: 'Pólizas', k: 'pol', r: true, hide: 'sm' },
+      { l: 'Prima Neta', k: 'prima', r: true }, { l: '% del Total', k: 'pct', r: true, hide: 'md' }, { l: 'Estado', k: 'est', hide: 'md' }
+    ], [
+      { ofi: 'Caracas Principal', ag: 4, pol: 34, prima: usd(22640), pct: '58.8%', est: rsbadge('Activa') },
+      { ofi: 'Valencia', ag: 2, pol: 15, prima: usd(9810), pct: '25.5%', est: rsbadge('Activa') },
+      { ofi: 'Maracaibo', ag: 2, pol: 10, prima: usd(6030), pct: '15.7%', est: rsbadge('Activa') },
+      { ofi: 'TOTAL', ag: 8, pol: 59, prima: usd(38480), pct: '100%', est: '' },
+    ]);
 }
 
 function repPersonal() {
@@ -1636,17 +1633,17 @@ function repPersonal() {
     </select>
     <button onclick="showToast('Exportando reporte de personal…','info')" class="btn-secondary ml-auto"><i data-lucide="download" class="w-4 h-4"></i>Exportar</button>`,
     'tbl-personal') +
-  tbl([
-    { l: 'Nombre', k: 'nom', tr: true }, { l: 'Rol', k: 'rol', hide: 'sm' }, { l: 'Oficina', k: 'ofi', hide: 'md' },
-    { l: 'Pólizas', k: 'pol', r: true, hide: 'sm' }, { l: 'Prima Generada', k: 'prima', r: true },
-    { l: 'Comisión', k: 'com', r: true, hide: 'md' }, { l: 'Estado', k: 'est' }
-  ], [
-    { nom: 'Ana Suárez',    rol: 'Agente',     ofi: 'Caracas',  pol: 18, prima: usd(9840),  com: usd(984),  est: rsbadge('Activo') },
-    { nom: 'Luis Romero',   rol: 'Agente',     ofi: 'Caracas',  pol: 21, prima: usd(11480), com: usd(1148), est: rsbadge('Activo') },
-    { nom: 'Pedro Salazar', rol: 'Agente',     ofi: 'Valencia', pol: 14, prima: usd(7280),  com: usd(728),  est: rsbadge('Activo') },
-    { nom: 'Carla Mendoza', rol: 'Agente',     ofi: 'Maracaibo',pol: 6,  prima: usd(2880),  com: usd(288),  est: rsbadge('Activo') },
-    { nom: 'Rosa Control',  rol: 'Supervisor', ofi: 'Caracas',  pol: '—',prima: '—',        com: '—',       est: rsbadge('Activo') },
-  ], '', 'tbl-personal');
+    tbl([
+      { l: 'Nombre', k: 'nom', tr: true }, { l: 'Rol', k: 'rol', hide: 'sm' }, { l: 'Oficina', k: 'ofi', hide: 'md' },
+      { l: 'Pólizas', k: 'pol', r: true, hide: 'sm' }, { l: 'Prima Generada', k: 'prima', r: true },
+      { l: 'Comisión', k: 'com', r: true, hide: 'md' }, { l: 'Estado', k: 'est' }
+    ], [
+      { nom: 'Ana Suárez', rol: 'Agente', ofi: 'Caracas', pol: 18, prima: usd(9840), com: usd(984), est: rsbadge('Activo') },
+      { nom: 'Luis Romero', rol: 'Agente', ofi: 'Caracas', pol: 21, prima: usd(11480), com: usd(1148), est: rsbadge('Activo') },
+      { nom: 'Pedro Salazar', rol: 'Agente', ofi: 'Valencia', pol: 14, prima: usd(7280), com: usd(728), est: rsbadge('Activo') },
+      { nom: 'Carla Mendoza', rol: 'Agente', ofi: 'Maracaibo', pol: 6, prima: usd(2880), com: usd(288), est: rsbadge('Activo') },
+      { nom: 'Rosa Control', rol: 'Supervisor', ofi: 'Caracas', pol: '—', prima: '—', com: '—', est: rsbadge('Activo') },
+    ], '', 'tbl-personal');
 }
 
 function repAutomaticos() {
@@ -1655,13 +1652,13 @@ function repAutomaticos() {
       <h4 class="font-semibold text-slate-800 mb-5 text-sm">Reportes Programados</h4>
       <div class="space-y-3">
         ${[
-          ['Reporte diario de ventas',       'Diario 08:00 AM',       true],
-          ['Reporte semanal de pólizas',     'Lunes 07:00 AM',        true],
-          ['Reporte mensual SUDEASEG',       '1er día del mes 00:01', true],
-          ['Pólizas próximas a vencer',      'Diario 09:00 AM',       true],
-          ['Reporte de comisiones',          'Quincena (1 y 15)',      false],
-          ['Reporte de cobranza pendiente',  'Diario 08:30 AM',       false],
-        ].map(([lbl, sched, on]) => `
+      ['Reporte diario de ventas', 'Diario 08:00 AM', true],
+      ['Reporte semanal de pólizas', 'Lunes 07:00 AM', true],
+      ['Reporte mensual SUDEASEG', '1er día del mes 00:01', true],
+      ['Pólizas próximas a vencer', 'Diario 09:00 AM', true],
+      ['Reporte de comisiones', 'Quincena (1 y 15)', false],
+      ['Reporte de cobranza pendiente', 'Diario 08:30 AM', false],
+    ].map(([lbl, sched, on]) => `
         <div class="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50/50">
           <div class="flex-1">
             <p class="text-sm font-semibold text-slate-700">${lbl}</p>
@@ -1677,14 +1674,14 @@ function repAutomaticos() {
     </div>
     <div class="card p-6">
       <h4 class="font-semibold text-slate-800 mb-5 text-sm">Últimos Reportes Generados</h4>` +
-  tbl([{ l: 'Reporte', k: 'rep', tr: true }, { l: 'Fecha/Hora', k: 'fecha', hide: 'sm' }, { l: 'Estado', k: 'est' }, { l: '', k: 'acc', acc: true }], [
-    { rep: 'Ventas diarias',        fecha: '07/05/2026 08:00', est: rsbadge('Generado') },
-    { rep: 'Pólizas por vencer',    fecha: '07/05/2026 09:00', est: rsbadge('Generado') },
-    { rep: 'Ventas diarias',        fecha: '06/05/2026 08:00', est: rsbadge('Generado') },
-    { rep: 'SUDEASEG Mayo',         fecha: '01/05/2026 00:01', est: rsbadge('Generado') },
-    { rep: 'Comisiones quincenal',  fecha: '01/05/2026 00:05', est: rsbadge('Generado') },
-  ].map(r => ({ ...r, acc: `<button onclick="showToast('Descargando reporte','info')" class="text-xs text-blue-600 hover:underline font-semibold flex items-center gap-1"><i data-lucide="download" class="w-4 h-4"></i>Descargar</button>` }))) +
-  `</div></div>`;
+    tbl([{ l: 'Reporte', k: 'rep', tr: true }, { l: 'Fecha/Hora', k: 'fecha', hide: 'sm' }, { l: 'Estado', k: 'est' }, { l: '', k: 'acc', acc: true }], [
+      { rep: 'Ventas diarias', fecha: '07/05/2026 08:00', est: rsbadge('Generado') },
+      { rep: 'Pólizas por vencer', fecha: '07/05/2026 09:00', est: rsbadge('Generado') },
+      { rep: 'Ventas diarias', fecha: '06/05/2026 08:00', est: rsbadge('Generado') },
+      { rep: 'SUDEASEG Mayo', fecha: '01/05/2026 00:01', est: rsbadge('Generado') },
+      { rep: 'Comisiones quincenal', fecha: '01/05/2026 00:05', est: rsbadge('Generado') },
+    ].map(r => ({ ...r, acc: `<button onclick="showToast('Descargando reporte','info')" class="text-xs text-blue-600 hover:underline font-semibold flex items-center gap-1"><i data-lucide="download" class="w-4 h-4"></i>Descargar</button>` }))) +
+    `</div></div>`;
 }
 
 function repVentasComisiones() {
@@ -1698,19 +1695,19 @@ function repVentasComisiones() {
     <button onclick="showToast('Exportando reporte…','info')" class="btn-secondary ml-auto shrink-0"><i data-lucide="download" class="w-4 h-4"></i>Exportar</button>
   </div>
   <h4 class="font-semibold text-slate-700 mb-3 text-sm">Ventas del Período</h4>` +
-  tbl([{ l: 'Fecha', k: 'fecha', hide: 'sm' }, { l: 'Póliza', k: 'pol', m: true, hide: 'md' }, { l: 'Agente', k: 'agente', tr: true }, { l: 'Tipo', k: 'tipo', hide: 'lg', tr: true }, { l: 'Prima Neta', k: 'prima', r: true }, { l: 'Estado', k: 'est' }], [
-    { fecha: '02/05/2026', pol: 'SEF-2026-VEH-00848', agente: 'Pedro Salazar', tipo: 'Vehículo Particular', prima: usd(532.50), est: rsbadge('Vigente') },
-    { fecha: '01/05/2026', pol: 'SEF-2026-VEH-00847', agente: 'Ana Suárez',    tipo: 'Vehículo Particular', prima: usd(714.20), est: rsbadge('Vigente') },
-    { fecha: '30/04/2026', pol: 'SEF-2026-VEH-00846', agente: 'Luis Romero',   tipo: 'Vehículo Comercial',  prima: usd(1240.00),est: rsbadge('Vigente') },
-    { fecha: '29/04/2026', pol: 'SEF-2026-VEH-00845', agente: 'Carla Mendoza', tipo: 'Vehículo Particular', prima: usd(487.00), est: rsbadge('Vigente') },
-  ]) +
-  `<h4 class="font-semibold text-slate-700 mb-3 mt-6 text-sm">Comisiones del Período</h4>` +
-  tbl([{ l: 'Beneficiario', k: 'ben', tr: true }, { l: 'Rol', k: 'rol', hide: 'sm' }, { l: 'Pólizas', k: 'pol', r: true, hide: 'sm' }, { l: 'Base', k: 'base', r: true, hide: 'md' }, { l: 'Tasa', k: 'tasa', r: true, hide: 'md' }, { l: 'Comisión', k: 'com', r: true }, { l: 'Estado', k: 'est' }], [
-    { ben: 'Pedro Salazar',  rol: 'Agente',   pol: 14, base: usd(7280),  tasa: '10%', com: usd(728.00),  est: rsbadge('Pendiente') },
-    { ben: 'Ana Suárez',     rol: 'Agente',   pol: 18, base: usd(9840),  tasa: '10%', com: usd(984.00),  est: rsbadge('Pagada') },
-    { ben: 'Luis Romero',    rol: 'Agente',   pol: 21, base: usd(11480), tasa: '10%', com: usd(1148.00), est: rsbadge('Pendiente') },
-    { ben: 'Romero & Asoc.', rol: 'Corredor', pol: 12, base: usd(6240),  tasa: '5%',  com: usd(312.00),  est: rsbadge('Pagada') },
-  ]);
+    tbl([{ l: 'Fecha', k: 'fecha', hide: 'sm' }, { l: 'Póliza', k: 'pol', m: true, hide: 'md' }, { l: 'Agente', k: 'agente', tr: true }, { l: 'Tipo', k: 'tipo', hide: 'lg', tr: true }, { l: 'Prima Neta', k: 'prima', r: true }, { l: 'Estado', k: 'est' }], [
+      { fecha: '02/05/2026', pol: 'SEF-2026-VEH-00848', agente: 'Pedro Salazar', tipo: 'Vehículo Particular', prima: usd(532.50), est: rsbadge('Vigente') },
+      { fecha: '01/05/2026', pol: 'SEF-2026-VEH-00847', agente: 'Ana Suárez', tipo: 'Vehículo Particular', prima: usd(714.20), est: rsbadge('Vigente') },
+      { fecha: '30/04/2026', pol: 'SEF-2026-VEH-00846', agente: 'Luis Romero', tipo: 'Vehículo Comercial', prima: usd(1240.00), est: rsbadge('Vigente') },
+      { fecha: '29/04/2026', pol: 'SEF-2026-VEH-00845', agente: 'Carla Mendoza', tipo: 'Vehículo Particular', prima: usd(487.00), est: rsbadge('Vigente') },
+    ]) +
+    `<h4 class="font-semibold text-slate-700 mb-3 mt-6 text-sm">Comisiones del Período</h4>` +
+    tbl([{ l: 'Beneficiario', k: 'ben', tr: true }, { l: 'Rol', k: 'rol', hide: 'sm' }, { l: 'Pólizas', k: 'pol', r: true, hide: 'sm' }, { l: 'Base', k: 'base', r: true, hide: 'md' }, { l: 'Tasa', k: 'tasa', r: true, hide: 'md' }, { l: 'Comisión', k: 'com', r: true }, { l: 'Estado', k: 'est' }], [
+      { ben: 'Pedro Salazar', rol: 'Agente', pol: 14, base: usd(7280), tasa: '10%', com: usd(728.00), est: rsbadge('Pendiente') },
+      { ben: 'Ana Suárez', rol: 'Agente', pol: 18, base: usd(9840), tasa: '10%', com: usd(984.00), est: rsbadge('Pagada') },
+      { ben: 'Luis Romero', rol: 'Agente', pol: 21, base: usd(11480), tasa: '10%', com: usd(1148.00), est: rsbadge('Pendiente') },
+      { ben: 'Romero & Asoc.', rol: 'Corredor', pol: 12, base: usd(6240), tasa: '5%', com: usd(312.00), est: rsbadge('Pagada') },
+    ]);
 }
 
 function repMenu() {
@@ -1742,7 +1739,7 @@ function viewHome() {
         </div>
         <p class="text-xs font-bold text-slate-400 uppercase tracking-[0.28em] mb-2">Bienvenido de vuelta</p>
         <h2 class="text-2xl sm:text-3xl font-black text-slate-800 mb-2 tracking-tight">Carlos Ruiz</h2>
-        <p class="text-sm font-semibold text-slate-500">Asesor de Ventas · J&M R.L.</p>
+        <p class="text-sm font-semibold text-slate-500">Asesor de Ventas · J&M C.A.</p>
         <p class="text-xs text-slate-400 font-mono mt-1.5">RIF: J-30012345-6 · Caracas Principal</p>
       </div>
       <!-- Quick access -->
@@ -1892,7 +1889,7 @@ function confPerfil() {
         <div class="w-16 h-16 rounded-2xl bg-jm-dark flex items-center justify-center text-xl font-extrabold text-white shrink-0">CR</div>
         <div>
           <p class="font-bold text-slate-800">Carlos Ruiz</p>
-          <p class="text-sm text-slate-500">Asesor de Ventas · J&M R.L.</p>
+          <p class="text-sm text-slate-500">Asesor de Ventas · J&M C.A.</p>
           <button onclick="showToast('Función de cambio de foto próximamente','info')" class="text-xs text-blue-600 font-semibold hover:underline mt-1">Cambiar foto</button>
         </div>
       </div>
@@ -1938,12 +1935,12 @@ function confSeguridad() {
       <h4 class="font-semibold text-slate-700 text-sm mb-4">Recomendaciones de Seguridad</h4>
       <div class="space-y-3">
         ${[
-          ['Usa al menos 8 caracteres', true],
-          ['Combina letras, números y símbolos', true],
-          ['No uses la misma contraseña en otros sitios', true],
-          ['Cambia tu contraseña cada 90 días', false],
-          ['Activa el cierre de sesión automático', false],
-        ].map(([tip, ok]) => `
+      ['Usa al menos 8 caracteres', true],
+      ['Combina letras, números y símbolos', true],
+      ['No uses la misma contraseña en otros sitios', true],
+      ['Cambia tu contraseña cada 90 días', false],
+      ['Activa el cierre de sesión automático', false],
+    ].map(([tip, ok]) => `
         <div class="flex items-start gap-3 p-3 rounded-xl ${ok ? 'bg-emerald-50' : 'bg-amber-50'}">
           <i data-lucide="${ok ? 'check-circle' : 'alert-triangle'}" class="w-4 h-4 ${ok ? 'text-emerald-600' : 'text-amber-600'} shrink-0 mt-0.5"></i>
           <p class="text-sm ${ok ? 'text-emerald-800' : 'text-amber-800'}">${tip}</p>
@@ -2069,7 +2066,7 @@ function confRoles() {
 function confEmpresa() {
   return `<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     ${formCard([
-    { label: 'Razón Social', val: 'Seguros J&M C.A.', span: true },
+    { label: 'Razón Social', val: 'La Venezolana de Seguros y Vida C.A.', span: true },
     { label: 'RIF', val: 'J-30012345-6' },
     { label: 'Registro SUDEASEG', val: 'RSE-2010-00247' },
     { label: 'Dirección', val: 'Av. Francisco de Miranda, Torre empresarial, Caracas', span: true },
@@ -2161,12 +2158,12 @@ function confRespaldo() {
 }
 
 // ── MODAL SYSTEM ──────────────────────────────────────────────
-window.closeModal = function() {
+window.closeModal = function () {
   document.getElementById('modal-overlay')?.classList.add('hidden');
   document.getElementById('modal-box').innerHTML = '';
 };
 
-window.showModal = function(title, bodyHtml, footerHtml = '') {
+window.showModal = function (title, bodyHtml, footerHtml = '') {
   const box = document.getElementById('modal-box');
   box.innerHTML = `
     <div class="p-6 sm:p-8">
@@ -2184,7 +2181,7 @@ window.showModal = function(title, bodyHtml, footerHtml = '') {
   createIcons({ icons: ALL_ICONS });
 };
 
-window.showConfirmDelete = function(name) {
+window.showConfirmDelete = function (name) {
   showModal(
     'Confirmar eliminación',
     `<div class="flex flex-col items-center text-center gap-4 py-2">
@@ -2201,7 +2198,7 @@ window.showConfirmDelete = function(name) {
   );
 };
 
-window.showEditForm = function(title, fieldsHtml) {
+window.showEditForm = function (title, fieldsHtml) {
   showModal(
     title,
     `<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">${fieldsHtml}</div>`,
@@ -2217,16 +2214,16 @@ function usrLista() {
   const roleBadge = r => badge(r, ROLE_COLOR[r] || 'slate');
 
   const users = [
-    { init: 'CR', nom: 'Carlos Ruiz',      email: 'c.ruiz@jandm.com',     rol: 'Admin',             oficina: 'Caracas Principal', est: 'Activo',    ultimo: '07/05/2026 08:12' },
-    { init: 'PS', nom: 'Pedro Salazar',    email: 'p.salazar@jandm.com',   rol: 'Oficina',           oficina: 'Caracas Principal', est: 'Activo',    ultimo: '07/05/2026 07:55' },
-    { init: 'AS', nom: 'Ana Suárez',       email: 'a.suarez@jandm.com',    rol: 'Vendedor Sucursal', oficina: 'Valencia',          est: 'Activo',    ultimo: '06/05/2026 16:30' },
-    { init: 'LR', nom: 'Luis Romero',      email: 'l.romero@jandm.com',    rol: 'Vendedor Calle',    oficina: 'Caracas Principal', est: 'Activo',    ultimo: '06/05/2026 14:15' },
-    { init: 'VM', nom: 'Valentina Mora',   email: 'v.mora@jandm.com',      rol: 'Vendedor Sucursal', oficina: 'Maracaibo',         est: 'Bloqueado', ultimo: '02/05/2026 11:00' },
-    { init: 'JG', nom: 'José González',    email: 'j.gonzalez@jandm.com',  rol: 'Vendedor Calle',    oficina: 'Valencia',          est: 'Activo',    ultimo: '05/05/2026 09:45' },
-    { init: 'MT', nom: 'María Torres',     email: 'm.torres@jandm.com',    rol: 'Oficina',           oficina: 'Maracaibo',         est: 'Activo',    ultimo: '07/05/2026 08:00' },
-    { init: 'RD', nom: 'Ricardo Díaz',     email: 'r.diaz@jandm.com',      rol: 'Vendedor Calle',    oficina: 'Caracas Principal', est: 'Bloqueado', ultimo: '28/04/2026 17:22' },
-    { init: 'GF', nom: 'Gabriela Flores',  email: 'g.flores@jandm.com',    rol: 'Vendedor Sucursal', oficina: 'Caracas Principal', est: 'Activo',    ultimo: '07/05/2026 09:30' },
-    { init: 'EM', nom: 'Eduardo Medina',   email: 'e.medina@jandm.com',    rol: 'Oficina',           oficina: 'Valencia',          est: 'Activo',    ultimo: '06/05/2026 15:50' },
+    { init: 'CR', nom: 'Carlos Ruiz', email: 'c.ruiz@jandm.com', rol: 'Admin', oficina: 'Caracas Principal', est: 'Activo', ultimo: '07/05/2026 08:12' },
+    { init: 'PS', nom: 'Pedro Salazar', email: 'p.salazar@jandm.com', rol: 'Oficina', oficina: 'Caracas Principal', est: 'Activo', ultimo: '07/05/2026 07:55' },
+    { init: 'AS', nom: 'Ana Suárez', email: 'a.suarez@jandm.com', rol: 'Vendedor Sucursal', oficina: 'Valencia', est: 'Activo', ultimo: '06/05/2026 16:30' },
+    { init: 'LR', nom: 'Luis Romero', email: 'l.romero@jandm.com', rol: 'Vendedor Calle', oficina: 'Caracas Principal', est: 'Activo', ultimo: '06/05/2026 14:15' },
+    { init: 'VM', nom: 'Valentina Mora', email: 'v.mora@jandm.com', rol: 'Vendedor Sucursal', oficina: 'Maracaibo', est: 'Bloqueado', ultimo: '02/05/2026 11:00' },
+    { init: 'JG', nom: 'José González', email: 'j.gonzalez@jandm.com', rol: 'Vendedor Calle', oficina: 'Valencia', est: 'Activo', ultimo: '05/05/2026 09:45' },
+    { init: 'MT', nom: 'María Torres', email: 'm.torres@jandm.com', rol: 'Oficina', oficina: 'Maracaibo', est: 'Activo', ultimo: '07/05/2026 08:00' },
+    { init: 'RD', nom: 'Ricardo Díaz', email: 'r.diaz@jandm.com', rol: 'Vendedor Calle', oficina: 'Caracas Principal', est: 'Bloqueado', ultimo: '28/04/2026 17:22' },
+    { init: 'GF', nom: 'Gabriela Flores', email: 'g.flores@jandm.com', rol: 'Vendedor Sucursal', oficina: 'Caracas Principal', est: 'Activo', ultimo: '07/05/2026 09:30' },
+    { init: 'EM', nom: 'Eduardo Medina', email: 'e.medina@jandm.com', rol: 'Oficina', oficina: 'Valencia', est: 'Activo', ultimo: '06/05/2026 15:50' },
   ];
 
   const estBadge = est => est === 'Activo'
@@ -2316,35 +2313,35 @@ function usrLista() {
     </div>
 
     ${searchBar('s-usr', 'Buscar por nombre, email o rol…',
-      `<button onclick="showNewUserModal()" class="btn-primary"><i data-lucide="user-plus" class="w-4 h-4"></i>Nuevo Usuario</button>`,
-      'tbl-usuarios'
-    )}
+    `<button onclick="showNewUserModal()" class="btn-primary"><i data-lucide="user-plus" class="w-4 h-4"></i>Nuevo Usuario</button>`,
+    'tbl-usuarios'
+  )}
 
     ${tbl([
-      { l: 'Usuario',       k: 'usr' },
-      { l: 'Rol',           k: 'rolb',   hide: 'sm' },
-      { l: 'Oficina',       k: 'oficina', hide: 'md', tr: true },
-      { l: 'Último acceso', k: 'ultimo',  hide: 'lg', nw: true },
-      { l: 'Estado',        k: 'estb' },
-      { l: '',              k: 'acc', acc: true },
-    ], users.map(u => ({
-      usr: `<div class="flex items-center gap-2 sm:gap-2.5 min-w-0">
+    { l: 'Usuario', k: 'usr' },
+    { l: 'Rol', k: 'rolb', hide: 'sm' },
+    { l: 'Oficina', k: 'oficina', hide: 'md', tr: true },
+    { l: 'Último acceso', k: 'ultimo', hide: 'lg', nw: true },
+    { l: 'Estado', k: 'estb' },
+    { l: '', k: 'acc', acc: true },
+  ], users.map(u => ({
+    usr: `<div class="flex items-center gap-2 sm:gap-2.5 min-w-0">
         <div class="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl ${u.est === 'Bloqueado' ? 'bg-slate-300' : 'bg-jm-blue'} flex items-center justify-center text-[9px] sm:text-[10px] font-bold text-white shrink-0">${u.init}</div>
         <div class="min-w-0">
           <p class="font-semibold text-slate-800 text-xs sm:text-sm break-words">${u.nom}</p>
           <p class="text-[10px] sm:text-xs text-slate-400 truncate">${u.email}</p>
         </div>
       </div>`,
-      rolb: roleBadge(u.rol),
-      oficina: u.oficina,
-      ultimo: u.ultimo,
-      estb: rsbadge(u.est),
-      acc: userAcc(u),
-    })), '', 'tbl-usuarios')}
+    rolb: roleBadge(u.rol),
+    oficina: u.oficina,
+    ultimo: u.ultimo,
+    estb: rsbadge(u.est),
+    acc: userAcc(u),
+  })), '', 'tbl-usuarios')}
   </div>`;
 }
 
-window.filterUsersRole = function(rol, idx) {
+window.filterUsersRole = function (rol, idx) {
   document.querySelectorAll('[id^="usr-chip-"]').forEach((chip, i) => {
     const active = i === idx;
     chip.className = `px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${active
@@ -2358,7 +2355,7 @@ window.filterUsersRole = function(rol, idx) {
   });
 };
 
-window.showNewUserModal = function() {
+window.showNewUserModal = function () {
   showModal('Nuevo Usuario', `
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <div>
@@ -2405,7 +2402,7 @@ window.showNewUserModal = function() {
   );
 };
 
-window.showEditUser = function(nom, email, rol, oficina) {
+window.showEditUser = function (nom, email, rol, oficina) {
   showModal(`Editar Usuario — ${nom}`, `
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <div>
@@ -2419,13 +2416,13 @@ window.showEditUser = function(nom, email, rol, oficina) {
       <div>
         <label class="field-label">Rol</label>
         <select class="select-field">
-          ${['Admin','Oficina','Vendedor Sucursal','Vendedor Calle'].map(r => `<option${r === rol ? ' selected' : ''}>${r}</option>`).join('')}
+          ${['Admin', 'Oficina', 'Vendedor Sucursal', 'Vendedor Calle'].map(r => `<option${r === rol ? ' selected' : ''}>${r}</option>`).join('')}
         </select>
       </div>
       <div>
         <label class="field-label">Oficina</label>
         <select class="select-field">
-          ${['Caracas Principal','Valencia','Maracaibo'].map(o => `<option${o === oficina ? ' selected' : ''}>${o}</option>`).join('')}
+          ${['Caracas Principal', 'Valencia', 'Maracaibo'].map(o => `<option${o === oficina ? ' selected' : ''}>${o}</option>`).join('')}
         </select>
       </div>
       <div>
@@ -2442,10 +2439,10 @@ window.showEditUser = function(nom, email, rol, oficina) {
   );
 };
 
-window.showNewVehModal = function() {
-  const MARCAS = ['Toyota','Chevrolet','Ford','Hyundai','Kia','Jeep','Nissan','Honda','Renault','Mazda','Volkswagen','Mitsubishi','Otro'];
-  const TIPOS  = ['Sedán','SUV / Rústico','Camioneta','Comercial','Motocicleta'];
-  const AÑOS   = Array.from({length: 14}, (_, i) => 2025 - i);
+window.showNewVehModal = function () {
+  const MARCAS = ['Toyota', 'Chevrolet', 'Ford', 'Hyundai', 'Kia', 'Jeep', 'Nissan', 'Honda', 'Renault', 'Mazda', 'Volkswagen', 'Mitsubishi', 'Otro'];
+  const TIPOS = ['Sedán', 'SUV / Rústico', 'Camioneta', 'Comercial', 'Motocicleta'];
+  const AÑOS = Array.from({ length: 14 }, (_, i) => 2025 - i);
   showModal('Registrar Vehículo', `
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <div>
@@ -2498,10 +2495,10 @@ window.showNewVehModal = function() {
   );
 };
 
-window.showEditVehModal = function(placa, marca, modelo, año, color, tipo, prop, est) {
-  const MARCAS = ['Toyota','Chevrolet','Ford','Hyundai','Kia','Jeep','Nissan','Honda','Renault','Mazda','Volkswagen','Mitsubishi','Otro'];
-  const TIPOS  = ['Sedán','SUV / Rústico','Camioneta','Comercial','Motocicleta'];
-  const AÑOS   = Array.from({length: 14}, (_, i) => 2025 - i);
+window.showEditVehModal = function (placa, marca, modelo, año, color, tipo, prop, est) {
+  const MARCAS = ['Toyota', 'Chevrolet', 'Ford', 'Hyundai', 'Kia', 'Jeep', 'Nissan', 'Honda', 'Renault', 'Mazda', 'Volkswagen', 'Mitsubishi', 'Otro'];
+  const TIPOS = ['Sedán', 'SUV / Rústico', 'Camioneta', 'Comercial', 'Motocicleta'];
+  const AÑOS = Array.from({ length: 14 }, (_, i) => 2025 - i);
   showModal(`Editar Vehículo — ${placa}`, `
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <div>
@@ -2541,7 +2538,7 @@ window.showEditVehModal = function(placa, marca, modelo, año, color, tipo, prop
       <div>
         <label class="field-label">Estado</label>
         <select class="select-field">
-          ${['Activo','Inactivo'].map(s => `<option${s === est ? ' selected' : ''}>${s}</option>`).join('')}
+          ${['Activo', 'Inactivo'].map(s => `<option${s === est ? ' selected' : ''}>${s}</option>`).join('')}
         </select>
       </div>
     </div>`,
@@ -2550,7 +2547,7 @@ window.showEditVehModal = function(placa, marca, modelo, año, color, tipo, prop
   );
 };
 
-window.showDeleteVeh = function(placa) {
+window.showDeleteVeh = function (placa) {
   showModal(
     'Confirmar eliminación',
     `<div class="flex flex-col items-center text-center gap-4 py-2">
@@ -2567,7 +2564,7 @@ window.showDeleteVeh = function(placa) {
   );
 };
 
-window.confirmDeleteVeh = function(placa) {
+window.confirmDeleteVeh = function (placa) {
   closeModal();
   const table = document.getElementById('tbl-vehiculos');
   if (table) {
@@ -2579,12 +2576,12 @@ window.confirmDeleteVeh = function(placa) {
   showToast('Vehículo eliminado', 'error');
 };
 
-window.showChangeRole = function(nom, currentRol) {
+window.showChangeRole = function (nom, currentRol) {
   const roles = [
-    { key: 'Admin',             icon: 'shield-check', desc: 'Acceso total. Gestiona usuarios, configuración y todos los módulos del sistema.' },
-    { key: 'Oficina',           icon: 'building',     desc: 'Acceso a cotizaciones, clientes, pólizas y reportes. Sin gestión de usuarios.' },
-    { key: 'Vendedor Sucursal', icon: 'user-check',   desc: 'Crea cotizaciones y gestiona clientes asignados a su sucursal.' },
-    { key: 'Vendedor Calle',    icon: 'truck',        desc: 'Cotizaciones básicas y consulta de clientes. Acceso limitado desde campo.' },
+    { key: 'Admin', icon: 'shield-check', desc: 'Acceso total. Gestiona usuarios, configuración y todos los módulos del sistema.' },
+    { key: 'Oficina', icon: 'building', desc: 'Acceso a cotizaciones, clientes, pólizas y reportes. Sin gestión de usuarios.' },
+    { key: 'Vendedor Sucursal', icon: 'user-check', desc: 'Crea cotizaciones y gestiona clientes asignados a su sucursal.' },
+    { key: 'Vendedor Calle', icon: 'truck', desc: 'Cotizaciones básicas y consulta de clientes. Acceso limitado desde campo.' },
   ];
   showModal(`Cambiar Rol — ${nom}`, `
     <p class="text-xs text-slate-500 mb-4">Rol actual: <strong>${currentRol}</strong>. Selecciona el nuevo rol para este usuario.</p>
@@ -2606,36 +2603,44 @@ window.showChangeRole = function(nom, currentRol) {
   );
 };
 
-window.showUserPerms = function(nom, rol) {
-  const isAdmin  = rol === 'Admin';
-  const isOfic   = isAdmin || rol === 'Oficina';
-  const isVend   = isOfic  || rol.startsWith('Vendedor');
+window.showUserPerms = function (nom, rol) {
+  const isAdmin = rol === 'Admin';
+  const isOfic = isAdmin || rol === 'Oficina';
+  const isVend = isOfic || rol.startsWith('Vendedor');
   const isVCalle = rol === 'Vendedor Calle';
 
   const sections = [
-    { label: 'Cotizaciones', perms: [
-      { label: 'Ver cotizaciones',           on: isVend },
-      { label: 'Crear nuevas cotizaciones',  on: isVend },
-      { label: 'Aprobar / rechazar',         on: isOfic },
-      { label: 'Eliminar cotizaciones',      on: isAdmin },
-    ]},
-    { label: 'Clientes y Vehículos', perms: [
-      { label: 'Ver clientes y vehículos',   on: isVend },
-      { label: 'Crear y editar clientes',    on: isVend && !isVCalle },
-      { label: 'Gestionar pólizas',          on: isOfic },
-      { label: 'Eliminar registros',         on: isAdmin },
-    ]},
-    { label: 'Reportes', perms: [
-      { label: 'Ver reportes',               on: isOfic },
-      { label: 'Exportar reportes (PDF/XLS)',on: isAdmin },
-    ]},
-    { label: 'Parámetros y Configuración', perms: [
-      { label: 'Consultar tasas BCV',        on: isVend },
-      { label: 'Registrar tasas BCV',        on: isAdmin },
-      { label: 'Gestionar productos',        on: isAdmin },
-      { label: 'Gestionar usuarios',         on: isAdmin },
-      { label: 'Configuración del sistema',  on: isAdmin },
-    ]},
+    {
+      label: 'Cotizaciones', perms: [
+        { label: 'Ver cotizaciones', on: isVend },
+        { label: 'Crear nuevas cotizaciones', on: isVend },
+        { label: 'Aprobar / rechazar', on: isOfic },
+        { label: 'Eliminar cotizaciones', on: isAdmin },
+      ]
+    },
+    {
+      label: 'Clientes y Vehículos', perms: [
+        { label: 'Ver clientes y vehículos', on: isVend },
+        { label: 'Crear y editar clientes', on: isVend && !isVCalle },
+        { label: 'Gestionar pólizas', on: isOfic },
+        { label: 'Eliminar registros', on: isAdmin },
+      ]
+    },
+    {
+      label: 'Reportes', perms: [
+        { label: 'Ver reportes', on: isOfic },
+        { label: 'Exportar reportes (PDF/XLS)', on: isAdmin },
+      ]
+    },
+    {
+      label: 'Parámetros y Configuración', perms: [
+        { label: 'Consultar tasas BCV', on: isVend },
+        { label: 'Registrar tasas BCV', on: isAdmin },
+        { label: 'Gestionar productos', on: isAdmin },
+        { label: 'Gestionar usuarios', on: isAdmin },
+        { label: 'Configuración del sistema', on: isAdmin },
+      ]
+    },
   ];
 
   showModal(`Permisos — ${nom}`, `
@@ -2662,7 +2667,7 @@ window.showUserPerms = function(nom, rol) {
   );
 };
 
-window.showBlockUser = function(nom, est) {
+window.showBlockUser = function (nom, est) {
   const isBlocked = est === 'Bloqueado';
   showModal(isBlocked ? `Desbloquear usuario` : `Bloquear usuario`, `
     <div class="flex items-start gap-4">
@@ -2672,8 +2677,8 @@ window.showBlockUser = function(nom, est) {
       <div class="min-w-0">
         <p class="font-bold text-slate-800 mb-1">${isBlocked ? 'Desbloquear' : 'Bloquear'} a <em>${nom}</em></p>
         <p class="text-sm text-slate-500 leading-relaxed">${isBlocked
-          ? 'El usuario recuperará el acceso al sistema con su rol y permisos actuales.'
-          : 'El usuario no podrá iniciar sesión. Sus datos, cotizaciones y pólizas se conservarán intactos.'}</p>
+      ? 'El usuario recuperará el acceso al sistema con su rol y permisos actuales.'
+      : 'El usuario no podrá iniciar sesión. Sus datos, cotizaciones y pólizas se conservarán intactos.'}</p>
         ${!isBlocked ? `
         <div class="mt-4">
           <label class="field-label">Motivo del bloqueo <span class="text-rose-500">*</span></label>
@@ -2690,23 +2695,23 @@ window.showBlockUser = function(nom, est) {
 
 // ── VIEWS MAP ────────────────────────────────────────────────
 const VIEWS = {
-  'home':           viewHome,
-  'cat-productos':  catProductos,
-  'cli-cliente':    cliCliente,
-  'cli-vehiculo':   cliVehiculo,
-  'cot-simulador':  cotSimulador,
-  'rep-menu':       repMenu,
-  'tas-registro':   tasRegistro,
-  'usr-lista':      usrLista,
-  'conf-menu':      confMenu,
+  'home': viewHome,
+  'cat-productos': catProductos,
+  'cli-cliente': cliCliente,
+  'cli-vehiculo': cliVehiculo,
+  'cot-simulador': cotSimulador,
+  'rep-menu': repMenu,
+  'tas-registro': tasRegistro,
+  'usr-lista': usrLista,
+  'conf-menu': confMenu,
   // sub-views still accessible via navigateTo
-  'cli-tomador':    cliTomador,
-  'cli-conductor':  cliConductor,
-  'cat-tipos':      catTipos,
-  'cat-tasas':      catTasas,
+  'cli-tomador': cliTomador,
+  'cli-conductor': cliConductor,
+  'cat-tipos': catTipos,
+  'cat-tasas': catTasas,
   'conf-seguridad': confSeguridad,
   'conf-auditoria': confAuditoria,
-  'conf-about':     confAbout,
+  'conf-about': confAbout,
 };
 
 // ── SIDEBAR ──────────────────────────────────────────────────
@@ -2874,9 +2879,9 @@ function setupSidebarToggle() {
 
 // ── USER MENU ────────────────────────────────────────────────
 function setupUserMenu() {
-  const btn      = document.getElementById('user-menu-btn');
+  const btn = document.getElementById('user-menu-btn');
   const dropdown = document.getElementById('user-dropdown');
-  const chevron  = document.getElementById('user-chevron');
+  const chevron = document.getElementById('user-chevron');
 
   btn?.addEventListener('click', e => {
     e.stopPropagation();
@@ -2910,18 +2915,18 @@ window.showToast = function (message, type = 'info') {
 };
 
 // ── PDF VIEWER ───────────────────────────────────────────────
-window.showPdfViewer = function(title, pagesHtml) {
+window.showPdfViewer = function (title, pagesHtml) {
   document.getElementById('pdf-title').textContent = title;
   document.getElementById('pdf-pages').innerHTML = pagesHtml;
   document.getElementById('pdf-overlay').classList.remove('hidden');
   createIcons({ icons: ALL_ICONS });
 };
 
-window.closePdfViewer = function() {
+window.closePdfViewer = function () {
   document.getElementById('pdf-overlay').classList.add('hidden');
 };
 
-window.printPdfDoc = function() {
+window.printPdfDoc = function () {
   const title = document.getElementById('pdf-title').textContent;
   const pages = document.getElementById('pdf-pages').innerHTML;
   const w = window.open('', '_blank');
@@ -2952,7 +2957,7 @@ function pdfHdr(docTitle, docSub, ref, date) {
     <div style="text-align:right">
       <p style="font-size:16px;font-weight:900;color:#1e293b;text-transform:uppercase;letter-spacing:1px">${docTitle}</p>
       ${docSub ? `<p style="font-size:10px;color:#64748b;margin-top:3px">${docSub}</p>` : ''}
-      ${ref  ? `<p style="font-size:11px;font-family:monospace;color:#001463;font-weight:700;margin-top:6px">${ref}</p>` : ''}
+      ${ref ? `<p style="font-size:11px;font-family:monospace;color:#001463;font-weight:700;margin-top:6px">${ref}</p>` : ''}
       ${date ? `<p style="font-size:10px;color:#64748b;margin-top:2px">${date}</p>` : ''}
     </div>
   </div>`;
@@ -2993,14 +2998,14 @@ function pdfFooter(agente, oficina) {
 }
 
 // PDF document generators
-window.showPdfCotizacion = function() {
+window.showPdfCotizacion = function () {
   const hoy = new Date();
-  const fecha = `${String(hoy.getDate()).padStart(2,'0')}/${String(hoy.getMonth()+1).padStart(2,'0')}/${hoy.getFullYear()}`;
+  const fecha = `${String(hoy.getDate()).padStart(2, '0')}/${String(hoy.getMonth() + 1).padStart(2, '0')}/${hoy.getFullYear()}`;
   const ref = 'COT-2026-0' + (313 + Math.floor(Math.random() * 50));
-  const chkd = Object.entries(simState.coberturas).filter(([,c]) => c.chk);
-  const sub = chkd.reduce((s,[,c]) => s + c.prima, 0);
+  const chkd = Object.entries(simState.coberturas).filter(([, c]) => c.chk);
+  const sub = chkd.reduce((s, [, c]) => s + c.prima, 0);
   const iva = sub * 0.16, pol = 5, tot = sub + iva + pol;
-  const tipoLabel = { particular:'Particular', comercial:'Comercial', flota:'Flota' }[simState.tipo] || '—';
+  const tipoLabel = { particular: 'Particular', comercial: 'Comercial', flota: 'Flota' }[simState.tipo] || '—';
   showPdfViewer(`Cotización ${ref}`, pdfPage(`
     ${pdfHdr('Cotización de Prima', 'Seguro de Vehículo Automotor', ref, `Fecha: ${fecha} · Vigencia de cotización: 30 días`)}
     ${pdfSec('Datos del vehículo')}
@@ -3017,7 +3022,7 @@ window.showPdfCotizacion = function() {
     ${pdfRow('Teléfono', simState.tel || '—')}
     ${pdfRow('Correo electrónico', simState.email || '—')}
     ${pdfSec('Coberturas seleccionadas')}
-    ${chkd.map(([,c]) => pdfRow(c.nom + (c.req ? ' ★' : ''), usd(c.prima))).join('')}
+    ${chkd.map(([, c]) => pdfRow(c.nom + (c.req ? ' ★' : ''), usd(c.prima))).join('')}
     <p style="font-size:9px;color:#94a3b8;margin-top:4px">★ Cobertura obligatoria según Ley SUDEASEG</p>
     ${pdfSec('Resumen de prima')}
     ${pdfRow('Prima neta', usd(sub))}
@@ -3028,9 +3033,9 @@ window.showPdfCotizacion = function() {
   `));
 };
 
-window.showPdfRecibo = function() {
+window.showPdfRecibo = function () {
   const hoy = new Date();
-  const fecha = `${String(hoy.getDate()).padStart(2,'0')}/${String(hoy.getMonth()+1).padStart(2,'0')}/${hoy.getFullYear()}`;
+  const fecha = `${String(hoy.getDate()).padStart(2, '0')}/${String(hoy.getMonth() + 1).padStart(2, '0')}/${hoy.getFullYear()}`;
   showPdfViewer('Recibo REC-2026-00142', pdfPage(`
     ${pdfHdr('Recibo de Prima', 'Seguro de Vehículo Automotor · Pago Anual', 'REC-2026-00142', `Fecha de emisión: ${fecha}`)}
     ${pdfSec('Datos de la póliza')}
@@ -3058,7 +3063,7 @@ window.showPdfRecibo = function() {
   `));
 };
 
-window.showPdfCertificado = function() {
+window.showPdfCertificado = function () {
   showPdfViewer('Certificado POL-VEH-2026-0042', pdfPage(`
     ${pdfHdr('Certificado de Seguro', 'Seguro de Vehículo Automotor', 'POL-VEH-2026-0042', 'Vigente: 10/05/2026 — 10/05/2027')}
     ${pdfSec('Datos generales de la póliza')}
@@ -3091,27 +3096,27 @@ window.showPdfCertificado = function() {
   `));
 };
 
-window.showPdfClientes = function() {
+window.showPdfClientes = function () {
   const hoy = new Date();
-  const fecha = `${String(hoy.getDate()).padStart(2,'0')}/${String(hoy.getMonth()+1).padStart(2,'0')}/${hoy.getFullYear()}`;
+  const fecha = `${String(hoy.getDate()).padStart(2, '0')}/${String(hoy.getMonth() + 1).padStart(2, '0')}/${hoy.getFullYear()}`;
   const clientes = [
-    { nom: 'Carlos E. Rodríguez',    ci: 'V-12.345.678', tel: '+58 414-123-4567', pol: 2, est: 'Activo'    },
-    { nom: 'María A. González',       ci: 'V-11.234.567', tel: '+58 424-234-5678', pol: 1, est: 'Activo'    },
-    { nom: 'José L. Martínez',        ci: 'V-10.345.678', tel: '+58 416-345-6789', pol: 1, est: 'Activo'    },
-    { nom: 'Ana C. López Ramírez',    ci: 'V-13.456.789', tel: '+58 412-456-7890', pol: 3, est: 'Activo'    },
-    { nom: 'Luis M. Romero',          ci: 'V-14.567.890', tel: '+58 418-567-8901', pol: 1, est: 'Pendiente' },
-    { nom: 'Sofía P. Herrera',        ci: 'V-15.678.901', tel: '+58 424-678-9012', pol: 1, est: 'Activo'    },
+    { nom: 'Carlos E. Rodríguez', ci: 'V-12.345.678', tel: '+58 414-123-4567', pol: 2, est: 'Activo' },
+    { nom: 'María A. González', ci: 'V-11.234.567', tel: '+58 424-234-5678', pol: 1, est: 'Activo' },
+    { nom: 'José L. Martínez', ci: 'V-10.345.678', tel: '+58 416-345-6789', pol: 1, est: 'Activo' },
+    { nom: 'Ana C. López Ramírez', ci: 'V-13.456.789', tel: '+58 412-456-7890', pol: 3, est: 'Activo' },
+    { nom: 'Luis M. Romero', ci: 'V-14.567.890', tel: '+58 418-567-8901', pol: 1, est: 'Pendiente' },
+    { nom: 'Sofía P. Herrera', ci: 'V-15.678.901', tel: '+58 424-678-9012', pol: 1, est: 'Activo' },
   ];
-  const rows = clientes.map((c, i) => `<tr style="background:${i%2===0?'#ffffff':'#f8fafc'}">
+  const rows = clientes.map((c, i) => `<tr style="background:${i % 2 === 0 ? '#ffffff' : '#f8fafc'}">
     <td style="padding:7px 10px;font-size:11px;font-weight:600;color:#1e293b">${c.nom}</td>
     <td style="padding:7px 10px;font-size:11px;font-family:monospace;color:#475569">${c.ci}</td>
     <td style="padding:7px 10px;font-size:11px;color:#475569">${c.tel}</td>
     <td style="padding:7px 10px;font-size:11px;text-align:center;font-weight:700;color:#001463">${c.pol}</td>
-    <td style="padding:7px 10px;font-size:11px;font-weight:600;color:${c.est==='Activo'?'#059669':'#d97706'}">${c.est}</td>
+    <td style="padding:7px 10px;font-size:11px;font-weight:600;color:${c.est === 'Activo' ? '#059669' : '#d97706'}">${c.est}</td>
   </tr>`).join('');
   const table = `<table style="width:100%;border-collapse:collapse;margin-top:8px">
     <thead><tr style="background:#001463;color:white">
-      ${['Nombre completo','CI / RIF','Teléfono','Pólizas','Estado'].map(h=>`<th style="padding:8px 10px;font-size:9px;font-weight:700;text-align:left;text-transform:uppercase;letter-spacing:1px">${h}</th>`).join('')}
+      ${['Nombre completo', 'CI / RIF', 'Teléfono', 'Pólizas', 'Estado'].map(h => `<th style="padding:8px 10px;font-size:9px;font-weight:700;text-align:left;text-transform:uppercase;letter-spacing:1px">${h}</th>`).join('')}
     </tr></thead><tbody>${rows}</tbody>
   </table>`;
   showPdfViewer('Listado de Clientes', pdfPage(`
@@ -3122,9 +3127,9 @@ window.showPdfClientes = function() {
   `));
 };
 
-window.showPdfSimulacion = function(ref) {
+window.showPdfSimulacion = function (ref) {
   const hoy = new Date();
-  const fecha = `${String(hoy.getDate()).padStart(2,'0')}/${String(hoy.getMonth()+1).padStart(2,'0')}/${hoy.getFullYear()}`;
+  const fecha = `${String(hoy.getDate()).padStart(2, '0')}/${String(hoy.getMonth() + 1).padStart(2, '0')}/${hoy.getFullYear()}`;
   showPdfViewer(`Cotización ${ref}`, pdfPage(`
     ${pdfHdr('Cotización de Prima', 'Seguro de Vehículo Automotor', ref, `Fecha: ${fecha} · Vigencia de cotización: 30 días`)}
     ${pdfSec('Datos del vehículo')}
