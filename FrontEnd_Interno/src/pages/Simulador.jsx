@@ -17,7 +17,7 @@ import {
 } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { fmtMonto, convertirMoneda, fmtTasa, pdfPage, pdfHdr, pdfSec, pdfRow, pdfTotal, pdfFooterSimple, useModalLock, filtrarCedula, filtrarTelefono } from '../utils/helpers.jsx'
-import { fetchClientes, createCliente } from '../api/clientes.js'
+import { buscarClientes, createCliente } from '../api/clientes.js'
 import { fetchTasas } from '../api/tasas.js'
 import { fetchProductos } from '../api/productos.js'
 import { fetchTarifario } from '../api/tarifario.js'
@@ -409,8 +409,8 @@ function Step1({ sim, setSim, onNext, onClose, productos }) {
 // ── PASO 2: Cliente ───────────────────────────────────────────────────────────
 function Step2({ sim, setSim, onNext, onBack, onClose }) {
   const [query,    setQuery]    = useState('')
-  const [clientes, setClientes] = useState([])
   const [results,  setResults]  = useState([])
+  const [buscando, setBuscando] = useState(false)
   const [selected, setSelected] = useState(!!sim.cliente_id)
   const [modo,     setModo]     = useState('buscar') // 'buscar' | 'nuevo'
   const [err,      setErr]      = useState('')
@@ -426,15 +426,21 @@ function Step2({ sim, setSim, onNext, onBack, onClose }) {
   })
   const setNf = (k, v) => setNuevoForm(prev => ({ ...prev, [k]: v }))
 
+  // Búsqueda en el servidor (no solo "mis clientes") — con debounce para no
+  // disparar una petición por cada tecla. Busca en TODA la empresa: lo que
+  // importa acá es saber si la persona ya es cliente (de cualquier asesor)
+  // para no duplicarla, no filtrar por cartera propia.
   useEffect(() => {
-    fetchClientes().then(setClientes).catch(() => {})
-  }, [])
-
-  useEffect(() => {
-    if (!query.trim()) { setResults([]); return }
-    const q = query.toLowerCase()
-    setResults(clientes.filter(c => c.nom.toLowerCase().includes(q) || c.ci.toLowerCase().includes(q)).slice(0, 6))
-  }, [query, clientes])
+    if (!query.trim()) { setResults([]); setBuscando(false); return }
+    setBuscando(true)
+    const timer = setTimeout(() => {
+      buscarClientes(query.trim())
+        .then(setResults)
+        .catch(() => setResults([]))
+        .finally(() => setBuscando(false))
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [query])
 
   const selectClient = (c) => {
     setSim(prev => ({ ...prev, cliente_id: c.id, cliente_nuevo: false, nombre: c.nom || c.nombre, ci: c.ci || c.cedula, tel: c.tel || c.celular || '', email: c.email || c.correo || '' }))
@@ -557,7 +563,7 @@ function Step2({ sim, setSim, onNext, onBack, onClose }) {
               ))}
             </div>
           )}
-          {query && results.length === 0 && (
+          {query && !buscando && results.length === 0 && (
             <p className="mt-2 text-xs text-slate-400 text-center">No se encontró ningún cliente con ese criterio.</p>
           )}
         </div>
@@ -1329,7 +1335,8 @@ function Step5({ sim, tasaBcv, tasaEur, editId, onBack, onClose, onSaved, showTo
     setSaving(true)
     try {
       const coberturas = {
-        tasaBCV: tasaBcv,
+        // La tasa de la moneda nativa del producto — nunca mezclar USD/EUR.
+        tasaBCV: moneda === 'EUR' ? tasaEur : tasaBcv,
         subtotal: prima, iva: iva || 0,
         derecho_poliza: prod?.derecho_poliza || 0,
         total, total_bs: totBs,

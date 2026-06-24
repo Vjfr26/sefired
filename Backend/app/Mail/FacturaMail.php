@@ -27,7 +27,6 @@ class FacturaMail extends Mailable
     {
         $f = $this->factura;
         $monedaNativa  = $f->poliza?->monedaNativa() ?? 'USD';
-        $tasaRelevante = $monedaNativa === 'EUR' ? $f->poliza?->tasa_emision_eur : $f->poliza?->tasa_emision;
 
         return new Content(
             view: 'emails.factura',
@@ -46,8 +45,6 @@ class FacturaMail extends Mailable
                 'valorPrincipal' => number_format((float) $f->valor, 2),
                 'monedaNativa'  => $monedaNativa,
                 'simboloNativo' => Moneda::simbolo($monedaNativa),
-                'tasaEmision'   => number_format((float) ($tasaRelevante ?? 0), 4),
-                'valorBs'       => number_format((float) $f->valor_bs, 2),
             ],
         );
     }

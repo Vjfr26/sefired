@@ -58,6 +58,7 @@ Route::middleware([\App\Http\Middleware\ApiTokenMiddleware::class, 'throttle:120
 
     // ── Lectura ───────────────────────────────────────────────────────────────
     Route::get('/clientes',                          [ClienteController::class,      'index'])->middleware('perm:clientes,view');
+    Route::get('/clientes/buscar',                    [ClienteController::class,      'buscar'])->middleware('perm_any:clientes.create,cotizaciones.create');
     Route::get('/clientes/{id}/polizas',             [ClienteController::class,      'polizas'])->middleware('perm:clientes,view_polizas');
     Route::get('/clientes/{id}/solicitudes',         [ClienteController::class,      'solicitudes'])->middleware('perm:clientes,view');
     Route::get('/clientes/{id}/facturas',            [ClienteController::class,      'facturas'])->middleware('perm:clientes,view_facturas');

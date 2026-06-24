@@ -1272,13 +1272,15 @@ function UserPermsModal({ user, onSave }) {
     }
     try {
       // Un módulo solo se guarda (y por lo tanto aparece para el usuario) si
-      // tiene al menos un permiso marcado — no hay un interruptor maestro
-      // aparte. Si marcó algo pero no "Ver" puntualmente, se agrega solo:
-      // sin "view" el módulo no se mostraría en el menú aunque sí tenga
+      // tiene al menos una casilla VISIBLE marcada (no cuenta un "view"
+      // viejo guardado de cuando era interruptor maestro, para módulos
+      // como reportes/config que ya no lo listan como casilla propia).
+      // Si marcó algo pero no "Ver" puntualmente, se agrega solo: sin
+      // "view" el módulo no se mostraría en el menú aunque sí tenga
       // permisos concretos asignados.
       const perms = Object.fromEntries(
         Object.entries(permsObj)
-          .filter(([k, s]) => LOCKED_PERMS.has(k) || s.size > 0)
+          .filter(([k, s]) => LOCKED_PERMS.has(k) || (PERMS_CATALOG[k]?.actions || []).some(a => s.has(a.id)))
           .map(([k, s]) => [k, [...new Set(['view', ...s])]])
       )
       if (!perms.home) perms.home = ['view']
@@ -1336,7 +1338,13 @@ function UserPermsModal({ user, onSave }) {
           if (!mod) return null
           const isLocked = LOCKED_PERMS.has(moduleId)
           const actions  = permsObj[moduleId] || new Set()
-          const isOn     = isLocked || actions.size > 0
+          // Cuenta solo los checkboxes que de verdad se muestran — algunos
+          // usuarios tienen un "view" guardado de antes (cuando era el
+          // interruptor maestro) para módulos que ya no lo listan como
+          // casilla propia (reportes/config); ignorarlo evita que el
+          // módulo se vea "activo" sin ninguna casilla marcada a la vista.
+          const visibleCount = mod.actions.filter(a => actions.has(a.id)).length
+          const isOn     = isLocked || visibleCount > 0
           const isOpen   = isLocked || expanded.has(moduleId)
 
           return (
@@ -1360,7 +1368,7 @@ function UserPermsModal({ user, onSave }) {
                     {isLocked
                       ? 'Siempre visible — no se puede quitar'
                       : isOn
-                        ? `${actions.size} permiso${actions.size === 1 ? '' : 's'} activo${actions.size === 1 ? '' : 's'}`
+                        ? `${visibleCount} permiso${visibleCount === 1 ? '' : 's'} activo${visibleCount === 1 ? '' : 's'}`
                         : 'Sin permisos — no aparecerá para el usuario'}
                   </p>
                 </div>
@@ -2167,6 +2175,9 @@ function ClienteDocsModal({ c }) {
     const mail = c.correo  || c.email    || '—'
     const dir  = c.direccion || '—'
 
+    // La póliza se queda en su moneda nativa de principio a fin — sin tasa
+    // BCV ni equivalente en bolívares (no se mezcla con Bs.).
+
     // Banda de póliza (encabezado secundario prominente)
     const polBanner = `
       <div style="background:#001463;color:white;padding:14px 22px;border-radius:10px;margin-bottom:26px;display:flex;justify-content:space-between;align-items:center">
@@ -2258,11 +2269,7 @@ function ClienteDocsModal({ c }) {
       pdfRow('Forma de Pago',        pol.pago  || '—') +
       pdfRow('Moneda de Pago',       pol.moneda || 'USD') +
       pdfRow('Sede / Oficina',       pol.sede  || '—') +
-      (pol.tasa_emision > 1 ? pdfRow('Tasa BCV Bs./USD', `Bs. ${fmtTasa(pol.tasa_emision)}`, true) : '') +
-      (pol.tasa_emision_eur > 1 ? pdfRow('Tasa BCV Bs./EUR', `Bs. ${fmtTasa(pol.tasa_emision_eur)}`, true) : '') +
-      pdfRow('Prima en Bolívares',   `Bs. ${Number(pol.total_bs).toFixed(2)}`) +
-      pdfRow('Cobertura en Bs.',     `Bs. ${Number(pol.cobertura_bs).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`) +
-      pdfTotal('Prima Anual Total', fmtMonto(pol.total, pol.moneda_producto), pol.tasa_emision > 1 ? `Tasa USD: Bs. ${fmtTasa(pol.tasa_emision)} · Total: Bs. ${Number(pol.total_bs).toFixed(2)}` : `Equivalente a Bs. ${Number(pol.total_bs).toFixed(2)} al cambio del día de emisión`) +
+      pdfTotal('Prima Anual Total', fmtMonto(pol.total, pol.moneda_producto)) +
 
       pdfSec(tieneVehiculo ? 'V. PERÍODO DE VIGENCIA' : 'IV. PERÍODO DE VIGENCIA') +
       vigencia +
@@ -3354,10 +3361,6 @@ function ClienteSolicitudesModal({ c }) {
       ) +
       pdfSec('COBERTURAS CONTRATADAS') +
       cobTable +
-      (cobs.tasaBCV ? pdfSec('RESUMEN FINANCIERO') +
-        pdfRow('Tasa BCV', `Bs. ${Number(cobs.tasaBCV).toFixed(2)} / USD`) +
-        pdfRow('Prima en Bolívares', `Bs. ${Number(s.total_bs).toFixed(2)}`, true)
-      : '') +
       pdfFooterSimple()
 
     closeModal()

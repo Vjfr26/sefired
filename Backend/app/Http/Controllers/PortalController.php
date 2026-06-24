@@ -300,10 +300,14 @@ class PortalController extends Controller
             $bienId = $bien->id;
         }
 
-        // 7b. Tasa BCV vigente (USD/EUR) — se guarda junto al lead para que el
-        // correo de confirmación muestre el monto también en Bs. y EUR.
+        // 7b. Tasa BCV vigente de la MONEDA NATIVA del producto — se guarda
+        // junto al lead para que el correo de confirmación muestre el monto
+        // también en Bs. Una sola tasa, nunca USD y EUR juntas (el producto
+        // tiene una sola moneda; mostrar la otra tasa no aplica a nada).
+        $monedaNativaPortal = \App\Support\Moneda::normalizar($producto?->moneda ?? 'USD');
         $tasaUsd = (float) (IndicadorEconomico::usd()->orderByDesc('fecha')->orderByDesc('fecha_registro')->first()?->valor ?? 0);
         $tasaEur = (float) (IndicadorEconomico::eur()->orderByDesc('fecha')->orderByDesc('fecha_registro')->first()?->valor ?? 0);
+        $tasaNativaPortal = $monedaNativaPortal === 'EUR' ? $tasaEur : $tasaUsd;
 
         // 8. Crear lead (Solicitud pendiente)
         $solicitud = Solicitud::create([
@@ -329,8 +333,7 @@ class PortalController extends Controller
                 'prima_estimada'  => $data['prima_estimada'] ?? null,
                 'documentos'      => $docPaths,
                 'subtipo_id'      => $data['subtipo_id']     ?? null,
-                'tasaBCV'         => $tasaUsd,
-                'tasaEUR'         => $tasaEur,
+                'tasaBCV'         => $tasaNativaPortal,
                 'valor_mercado'   => $data['valor_mercado']  ?? ($data['bien_valor'] ?? null),
             ],
         ]);

@@ -36,6 +36,37 @@ class ClienteController extends Controller
     use LogsActivity, ScopesVendedor;
 
     /**
+     * Búsqueda rápida de clientes para el wizard de cotización (Simulador) —
+     * a propósito SIN el scope de "solo mis clientes" de index(): un
+     * vendedor necesita saber si la persona YA es cliente de la empresa
+     * (de cualquier asesor) para no duplicarla con una cédula repetida,
+     * aunque no pueda gestionar el perfil completo de un cliente que no
+     * es suyo. Devuelve solo lo necesario para identificarla y elegirla.
+     */
+    public function buscar(Request $request)
+    {
+        $noInjection = new NoInjectionChars();
+        $data = $request->validate([
+            'q' => ['required', 'string', 'min:1', 'max:50', $noInjection],
+        ]);
+
+        $personas = Persona::where(function ($query) use ($data) {
+                $query->where('nombre', 'like', "%{$data['q']}%")
+                      ->orWhere('cedula', 'like', "%{$data['q']}%");
+            })
+            ->orderBy('nombre')
+            ->limit(8)
+            ->get(['id', 'nombre', 'cedula', 'activo']);
+
+        return response()->json($personas->map(fn ($p) => [
+            'id'  => $p->id,
+            'nom' => $p->nombre,
+            'ci'  => $p->cedula,
+            'est' => $p->activo ? 'Activo' : 'Bloqueado',
+        ]));
+    }
+
+    /**
      * Lista los clientes. Admin, Oficina y cualquier usuario con el permiso
      * `clientes.view_all` ven todos. Los demás roles (vendedores) solo ven
      * los clientes con su propio vendedor_id — los que aún no tienen

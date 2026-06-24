@@ -59,9 +59,6 @@ class PolizaEmitidaMail extends Mailable
 
         $monedaNativa = $pol->monedaNativa();
         $simbolo      = Moneda::simbolo($monedaNativa);
-        // La tasa BCV relevante es la del par moneda-nativa/Bs — para un
-        // producto en EUR es tasa_emision_eur, no la de USD.
-        $tasaRelevante = $monedaNativa === 'EUR' ? $pol->tasa_emision_eur : $pol->tasa_emision;
 
         return new Content(
             view: 'emails.poliza-emitida',
@@ -80,8 +77,6 @@ class PolizaEmitidaMail extends Mailable
                 'primaPrincipal'  => number_format((float) $pol->total, 2),
                 'monedaNativa'    => $monedaNativa,
                 'simboloNativo'   => $simbolo,
-                'tasaEmision'     => number_format((float) ($tasaRelevante ?? 0), 4),
-                'totalBs'         => number_format((float) $pol->total_bs, 2),
                 'verificarUrl'    => url('/ver/' . $pol->nro_contrato),
                 'qrCode'          => $qrCode,
                 'esMensual'       => $esMensual,

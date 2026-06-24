@@ -52,12 +52,6 @@ class CotizacionMail extends Mailable
         $monedaNativa = Moneda::normalizar($sol->moneda_producto ?? $sol->producto?->moneda ?? 'USD');
         $simbolo      = Moneda::simbolo($monedaNativa);
 
-        // Tasas BCV y montos convertidos a Bs. y a la otra moneda extranjera
-        $tasaUsd = (float) ($cobs['tasaBCV'] ?? 0);
-        $tasaEur = (float) ($cobs['tasaEUR'] ?? 0);
-        $primaBs  = ($monedaNativa !== 'BS' && $tasaUsd > 1) ? number_format(Moneda::aBs((float) $sol->total, $monedaNativa, $tasaUsd, $tasaEur), 2) : null;
-        $primaEur = ($monedaNativa !== 'EUR' && $tasaEur > 1 && $tasaUsd > 0) ? number_format(Moneda::convertir((float) $sol->total, $monedaNativa, 'EUR', $tasaUsd, $tasaEur), 2) : null;
-
         // Suma asegurada
         $cobertura = number_format((float) ($cobs['valor_mercado'] ?? $sol->producto?->cobertura ?? 0), 2);
 
@@ -98,10 +92,6 @@ class CotizacionMail extends Mailable
                 'primaPrincipal'    => number_format((float) $sol->total, 2),
                 'monedaNativa'      => $monedaNativa,
                 'simboloNativo'     => $simbolo,
-                'primaBs'           => $primaBs,
-                'primaEur'          => $primaEur,
-                'tasaBcv'           => $tasaUsd > 1 ? number_format($tasaUsd, 2) : null,
-                'tasaEur'           => $tasaEur > 1 ? number_format($tasaEur, 2) : null,
                 'cobertura'         => $simbolo . $cobertura . ' ' . $monedaNativa,
                 'coberturasDetalle' => $coberturasDetalle,
             ],

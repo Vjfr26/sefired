@@ -163,8 +163,8 @@
         ];
     }
 
-    $tasaEmision    = (float) ($poliza->tasa_emision     ?? $snap['tasa_emision']     ?? 0);
-    $tasaEmisionEur = (float) ($poliza->tasa_emision_eur ?? $snap['tasa_emision_eur'] ?? 0);
+    // La póliza se queda en su moneda nativa de principio a fin — sin tasa
+    // BCV ni equivalente en bolívares en el cuadro (no se mezcla con Bs.).
     $monedaPago     = $poliza->moneda ?? $snap['moneda'] ?? 'USD';
     $monedaLabel    = \App\Support\Moneda::etiqueta($monedaProducto);
     $frecuenciaPago = strtoupper($poliza->frecuencia_pago ?? 'Anual');
@@ -173,6 +173,7 @@
     $imgIcono  = 'data:image/png;base64,'  . base64_encode(file_get_contents(public_path('images/icono.png')));
     $imgCarnet = 'data:image/jpeg;base64,' . base64_encode(file_get_contents(public_path('images/logocarnet.jpg')));
     $imgFirma  = 'data:image/png;base64,'  . base64_encode(file_get_contents(public_path('images/firma.png')));
+    $imgSello  = 'data:image/png;base64,'  . base64_encode(file_get_contents(public_path('images/sello-venezolanadeseguros.png')));
 @endphp
 
 <style>
@@ -348,17 +349,14 @@
         <th>{{ $frecuenciaPago }}</th>
         <th>{{ $monedaSimbolo }}{{ number_format((float)$poliza->total, 2) }}</th>
     </tr>
+    {{-- Sin tasa BCV ni total en bolívares acá a propósito: la póliza se
+         emite en una sola moneda (la del producto) y se queda en esa
+         moneda de principio a fin — no se mezcla con un equivalente en Bs. --}}
     <tr class="titu">
-        <td>Forma de Pago / Moneda</td>
-        <td>Tasa BCV Bs./USD</td>
-        <td>Tasa BCV Bs./EUR</td>
-        <td>Total en Bolívares</td>
+        <td colspan="4">Forma de Pago / Moneda</td>
     </tr>
     <tr class="titu2">
-        <th>{{ $poliza->pago }} / {{ $monedaPago }}</th>
-        <th>@if($tasaEmision > 1) Bs. {{ number_format($tasaEmision, 4) }} @else — @endif</th>
-        <th>@if($tasaEmisionEur > 1) Bs. {{ number_format($tasaEmisionEur, 4) }} @else — @endif</th>
-        <th>Bs. {{ number_format((float)$poliza->total_bs, 2) }}</th>
+        <th colspan="4">{{ $poliza->pago }} / {{ $monedaPago }}</th>
     </tr>
 </table>
 
@@ -499,7 +497,13 @@
             <span style="font-size:9px; color:#333;">{{ $tomadorNombre }}</span>
         </td>
         <td width="50%" style="text-align:center; vertical-align:bottom; padding:2px 6px;">
-            <img src="{{ $imgFirma }}" style="width:3cm; height:1.4cm; vertical-align:bottom;" alt="firma"/>
+            <!-- Sello superpuesto sobre la firma a propósito (no uno al
+                 lado del otro) — para que no se puedan recortar/falsificar
+                 por separado. -->
+            <div style="position:relative; display:inline-block; width:4.4cm; height:1.7cm;">
+                <img src="{{ $imgFirma }}" style="position:absolute; left:0; bottom:0; width:3cm; height:1.4cm;" alt="firma"/>
+                <img src="{{ $imgSello }}" style="position:absolute; right:0; top:0; width:2.6cm; height:1.47cm; opacity:0.88;" alt="sello"/>
+            </div>
             <div class="lineaf"></div>
             <span style="font-size:9px; color:#333;">Por la Venezolana de Seguros y Vida, C.A.</span>
         </td>

@@ -11,12 +11,24 @@
     <tr><td align="center">
       <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
 
-        {{-- HEADER --}}
+        {{-- HEADER — ambos logos siempre visibles: J&M opera el sistema,
+             pero quien respalda legalmente la póliza es La Venezolana de
+             Seguros y Vida, C.A. (J&M no es una empresa registrada por sí
+             sola) — esto debe quedar visible ante cualquier revisión legal. --}}
         <tr>
-          <td style="background:{{ $accentColor ?? '#001463' }};border-radius:12px 12px 0 0;padding:28px 36px;text-align:center;">
-            <p style="margin:0;font-size:22px;font-weight:800;color:#ffffff;letter-spacing:2px;">J&amp;M Seguros</p>
-            <p style="margin:4px 0 0;font-size:12px;color:rgba(255,255,255,0.75);letter-spacing:1px;text-transform:uppercase;">
-              La Venezolana de Seguros y Vida.
+          <td style="background:#ffffff;border-radius:12px 12px 0 0;padding:24px 36px 14px;text-align:center;border-bottom:3px solid {{ $accentColor ?? '#001463' }};">
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td width="50%" style="text-align:center;vertical-align:middle;padding:0 10px;border-right:1px solid #e2e8f0;">
+                  <img src="{{ url('images/logo-email.png') }}" alt="Inversiones J&amp;M, C.A." style="height:32px;width:auto;" />
+                </td>
+                <td width="50%" style="text-align:center;vertical-align:middle;padding:0 10px;">
+                  <img src="{{ url('images/logo-venezolana-oficial.png') }}" alt="La Venezolana de Seguros y Vida, C.A." style="height:52px;width:auto;" />
+                </td>
+              </tr>
+            </table>
+            <p style="margin:10px 0 0;font-size:10px;font-weight:700;color:#64748b;letter-spacing:1px;text-transform:uppercase;">
+              Sistema operado por J&amp;M · Con el respaldo de La Venezolana de Seguros y Vida, C.A.
             </p>
           </td>
         </tr>
@@ -47,10 +59,13 @@
         <tr>
           <td style="background:#f8fafc;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;padding:20px 36px;text-align:center;">
             <p style="margin:0 0 6px;font-size:12px;color:#94a3b8;">
-              Este correo fue generado automáticamente por el sistema J&M Seguros.
+              Este correo fue generado automáticamente por el sistema J&amp;M Seguros.
+            </p>
+            <p style="margin:0 0 6px;font-size:12px;color:#94a3b8;">
+              Servicio operado por <strong style="color:#64748b;">Inversiones J&amp;M, C.A.</strong>,
+              con el respaldo de <strong style="color:#64748b;">La Venezolana de Seguros y Vida, C.A.</strong> (RIF J-00021447-6).
             </p>
             <p style="margin:0;font-size:12px;color:#94a3b8;">
-              <strong style="color:#64748b;">J&amp;M Seguros</strong> ·
               <a href="mailto:tuseguro@jmlavenezolana.com" style="color:#64748b;text-decoration:none;">tuseguro@jmlavenezolana.com</a>
             </p>
           </td>

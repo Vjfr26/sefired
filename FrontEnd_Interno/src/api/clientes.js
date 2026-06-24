@@ -25,6 +25,17 @@ export async function fetchClientes() {
 }
 
 /**
+ * Búsqueda rápida de clientes EXISTENTES en toda la empresa (no solo los
+ * propios) — para el wizard de cotización, donde lo que importa es saber
+ * si la persona ya es cliente de cualquier asesor, no gestionar su perfil.
+ */
+export async function buscarClientes(q) {
+  const res = await fetch(`${API}/buscar?q=${encodeURIComponent(q)}`, { headers: getAuthHeaders() })
+  if (!res.ok) throw new Error('Error al buscar clientes')
+  return res.json()
+}
+
+/**
  * Crea una nueva persona y la registra como cliente.
  * El backend crea ambos registros en una sola operación.
  * Devuelve el nuevo cliente en el mismo formato que fetchClientes().

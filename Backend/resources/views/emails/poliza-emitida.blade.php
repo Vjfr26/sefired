@@ -39,8 +39,6 @@
             ['Cuota mensual (esta es la que pagó)', $simboloNativo . $cuotaMensual . ' ' . $monedaNativa],
             ['Próxima cuota',                       $proximaCuota],
           ] : []),
-          ['Tasa BCV',       'Bs. ' . $tasaEmision . ' / ' . $monedaNativa],
-          ['Total Bs.',      'Bs. ' . $totalBs],
         ] as $row)
         <tr>
           <td style="padding:6px 0;font-size:13px;color:#94a3b8;width:45%;border-bottom:1px solid #f1f5f9;">

@@ -395,7 +395,6 @@ export const PERMS_CATALOG = {
     label: 'Reportes',
     icon: '📊',
     actions: [
-      { id: 'view',             label: 'Acceder al módulo de reportes' },
       { id: 'export',           label: 'Exportar e imprimir reportes' },
       { id: 'manage_leads',     label: 'Gestionar solicitudes de contacto (marcar atendidas)' },
       { id: 'manage_schedules', label: 'Gestionar programaciones automáticas y envíos por correo' },
@@ -418,7 +417,6 @@ export const PERMS_CATALOG = {
     icon: '⚙️',
     locked: true,
     actions: [
-      { id: 'view',             label: 'Acceder a configuración' },
       { id: 'change_password',  label: 'Cambiar contraseña propia' },
       { id: 'view_audit',       label: 'Ver auditoría del sistema (logs de actividad e IPs)' },
       { id: 'view_email_logs',  label: 'Ver historial de correos enviados' },

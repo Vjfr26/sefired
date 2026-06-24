@@ -1891,16 +1891,16 @@ function TabUsuariosMetrics() {
             com_pend: usd(r.com_pend),
             est: r.est ? rsbadge(r.est) : '',
             action: r.id !== null ? (
-              <div className="flex items-center gap-2.5">
+              <div className="flex flex-col items-start gap-1">
                 <button onClick={() => setSelectedUser(r.id)} className="text-xs text-blue-600 hover:underline font-semibold bg-transparent border-none p-0 cursor-pointer whitespace-nowrap">
                   Ver Detalle
                 </button>
                 {canManageComisiones && r.comision_ids_pendientes?.length > 0 && (
                   <button
                     onClick={() => handlePagarPendientesVendedor(r)}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-xs font-semibold text-emerald-600 hover:bg-emerald-100 transition whitespace-nowrap"
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-50 text-[11px] font-semibold text-emerald-600 hover:bg-emerald-100 transition whitespace-nowrap"
                   >
-                    Pagar pendientes
+                    Pagar
                   </button>
                 )}
               </div>

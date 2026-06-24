@@ -26,8 +26,6 @@
         ['Forma de pago',    $formaPago . ' / ' . $moneda],
         ['Referencia',       $referencia ?? '—'],
         ['Monto',            $simboloNativo . $valorPrincipal . ' ' . $monedaNativa],
-        ['Tasa BCV',         'Bs. ' . $tasaEmision . ' / ' . $monedaNativa],
-        ['Total Bs.',        'Bs. ' . $valorBs],
       ] as $row)
       <tr>
         <td style="padding:6px 0;font-size:13px;color:#94a3b8;width:45%;border-bottom:1px solid #f1f5f9;">{{ $row[0] }}</td>
