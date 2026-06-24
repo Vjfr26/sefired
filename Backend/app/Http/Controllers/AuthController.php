@@ -107,7 +107,8 @@ class AuthController extends Controller
             Cache::put($attemptsKey, $attempts, now()->addMinutes($lockoutMinutes));
 
             if ($attempts >= $maxAttempts) {
-                // Bloqueo por tiempo (cache)
+                // Bloqueo por tiempo (cache) — se autodestruye solo a los 30 min,
+                // sirve mientras tanto para frenar más intentos seguidos.
                 Cache::put($lockoutKey, true, now()->addMinutes($lockoutMinutes));
                 Cache::forget($attemptsKey);
 
@@ -119,7 +120,13 @@ class AuthController extends Controller
                     ]);
                 }
 
-                // Registrar IP en lista negra permanente
+                // Registrar IP en lista negra permanente — se mantiene así a
+                // propósito (medida seria, no se autodestruye sola). Lo que
+                // SÍ debe funcionar bien es el desbloqueo manual del admin
+                // (UsuarioController::toggleStatus), que limpia esta fila por
+                // IP además de por usuario_id, y también el lockout de cache
+                // — para que al reactivar la cuenta se pueda reintentar en
+                // segundos, no en 30 minutos.
                 IpBloqueada::firstOrCreate(
                     ['ip' => $request->ip()],
                     [
@@ -162,20 +169,27 @@ class AuthController extends Controller
             return response()->json(['message' => 'El acceso temporal de esta cuenta ha vencido. Contacte al administrador.'], 403);
         }
 
-        // ── 5. Cerrar sesión anterior si existe una activa ───────────────────────
+        // ── 5. Si ya hay una sesión activa con este usuario, se rechaza el
+        // nuevo intento — antes dejaba entrar y le cerraba la sesión al que
+        // ya estaba adentro, lo cual no corresponde (alguien podría estar
+        // tipeando una cotización y quedarse afuera sin aviso). La sesión
+        // existente queda intacta; quien intenta entrar de nuevo tiene que
+        // esperar a que esa sesión se cierre (logout) o expire.
         $sesionActiva = $usuario->api_token
             && $usuario->token_expira_en
-            && now()->isBefore($usuario->token_expira_en)
-            && $usuario->token_created_at
-            && now()->isBefore($usuario->token_created_at->addHours(12));
+            && now()->isBefore($usuario->token_expira_en);
 
         if ($sesionActiva) {
             $this->logActivity(
-                'sesion_forzada',
-                "Sesión anterior cerrada forzosamente para {$usuario->nick} — nueva sesión desde IP: {$request->ip()}",
+                'sesion_duplicada_rechazada',
+                "Intento de doble sesión rechazado para {$usuario->nick} — IP: {$request->ip()}",
                 'usuarios',
                 $usuario->id
             );
+
+            return response()->json([
+                'message' => 'Ya existe una sesión activa con este usuario. Cierra esa sesión o espera unos minutos e inténtalo de nuevo.',
+            ], 409);
         }
 
         // ── 6. Login exitoso ──────────────────────────────────────────────────────

@@ -167,7 +167,7 @@ class ClienteController extends Controller
         if ($persona->correo) {
             try {
                 Mail::to($persona->correo)->queue(new BienvenidaMail($persona));
-                EmailLog::registrar('bienvenida', $persona->correo, 'Bienvenido/a a J&M Seguros', $persona->id);
+                EmailLog::registrar('bienvenida', $persona->correo, 'Bienvenido/a a La Venezolana de Seguros y Vida', $persona->id);
             } catch (\Throwable) {}
         }
 

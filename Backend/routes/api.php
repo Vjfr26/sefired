@@ -41,8 +41,11 @@ Route::middleware([\App\Http\Middleware\ApiTokenMiddleware::class, 'throttle:120
     Route::post('/logout', [AuthController::class, 'logout']);
     // Cambio de contraseña: límite estricto para evitar fuerza bruta interna
     Route::post('/user/change-password', [AuthController::class, 'changePassword'])->middleware('throttle:5,10');
-    // Verificación de contraseña para confirmar acciones destructivas
-    Route::post('/user/verify-password', [AuthController::class, 'verifyPassword'])->middleware('throttle:10,1');
+    // Verificación de contraseña para confirmar acciones destructivas — 30/min
+    // porque lo usan muchos modales de confirmación (bloquear, cambiar rol,
+    // pagar comisiones...); con 10/min un admin haciendo varias acciones
+    // seguidas chocaba con "Demasiados intentos" en pleno uso normal.
+    Route::post('/user/verify-password', [AuthController::class, 'verifyPassword'])->middleware('throttle:30,1');
 
     // Perfil del usuario en sesión — solo campos necesarios, nunca el modelo completo
     Route::get('/user', fn(Request $r) => response()->json([

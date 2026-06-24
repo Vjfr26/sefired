@@ -7,6 +7,7 @@ use App\Models\Log;
 use App\Models\Usuario;
 use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 
@@ -94,17 +95,20 @@ class UsuarioController extends Controller
 
         $usuario->activo = !$usuario->activo;
 
-        // Si se está bloqueando, guardamos el motivo y bloqueamos la IP
+        // Última IP conocida del usuario según los logs — se usa tanto para
+        // bloquear como para desbloquear.
+        $ultimoLog = Log::where('usuario_id', $usuario->id)
+            ->whereNotNull('ip')
+            ->latest('created_at')
+            ->first();
+
         if (!$usuario->activo) {
+            // Si se está bloqueando, guardamos el motivo y bloqueamos la IP
+            // de forma permanente (igual que el lockout automático de
+            // AuthController) — queda así a propósito, es una medida seria.
             if ($request->has('motivo')) {
                 $usuario->motivo_bloqueo = strip_tags(trim(substr($request->motivo, 0, 200)));
             }
-
-            // Obtener la última IP conocida del usuario desde los logs
-            $ultimoLog = Log::where('usuario_id', $usuario->id)
-                ->whereNotNull('ip')
-                ->latest('created_at')
-                ->first();
 
             if ($ultimoLog && $ultimoLog->ip) {
                 IpBloqueada::updateOrCreate(
@@ -113,9 +117,24 @@ class UsuarioController extends Controller
                 );
             }
         } else {
-            // Si se está desbloqueando, limpiamos el motivo y desbloqueamos la IP
+            // Al desbloquear: limpiar el motivo y TODO bloqueo de IP que
+            // pueda estar frenando a este usuario — por usuario_id (lo
+            // normal) y también por su última IP conocida directamente,
+            // porque si esa IP es compartida (oficina) y quedó "apuntando" a
+            // otro usuario_id por un bloqueo posterior, borrar solo por
+            // usuario_id no la suelta y el usuario (o el propio admin, si
+            // comparte la IP) se queda sin poder volver a entrar. También se
+            // limpia el lockout temporal de cache de esa IP, para que se
+            // pueda reintentar en segundos en vez de esperar el resto de los
+            // 30 minutos — y sin que esto afecte la capacidad de seguir
+            // bloqueando/desbloqueando a otros usuarios después.
             $usuario->motivo_bloqueo = null;
             IpBloqueada::where('usuario_id', $usuario->id)->delete();
+            if ($ultimoLog && $ultimoLog->ip) {
+                IpBloqueada::where('ip', $ultimoLog->ip)->delete();
+                Cache::forget('login_lockout:' . $ultimoLog->ip);
+                Cache::forget('login_attempts:' . $ultimoLog->ip);
+            }
         }
 
         $usuario->save();

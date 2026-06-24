@@ -2,7 +2,6 @@
 
 namespace App\Http\Middleware;
 
-use App\Models\IpBloqueada;
 use App\Models\Usuario;
 use Closure;
 use Illuminate\Http\Request;
@@ -38,9 +37,15 @@ class ApiTokenMiddleware
             return response()->json(['message' => 'El acceso temporal de esta cuenta ha vencido.'], 401);
         }
 
-        if (IpBloqueada::where('ip', $request->ip())->exists()) {
-            return response()->json(['message' => 'Acceso denegado.'], 403);
-        }
+        // El bloqueo permanente de IP (ip_bloqueada) se revisa SOLO al hacer
+        // login (AuthController), no en cada request de una sesión ya
+        // autenticada. Si se revisara aquí también, bloquear a un usuario
+        // bloquea de paso su IP, y si el admin comparte esa IP (oficina),
+        // su propia sesión activa quedaría cortada de TODO — incluida la
+        // acción de desbloquear — dejando el sistema sin salida posible
+        // desde la app. El bloqueo de IP sigue siendo permanente y sigue
+        // impidiendo iniciar sesión nueva desde ahí; solo no interrumpe
+        // sesiones que ya estaban autenticadas.
 
         // Límite absoluto: 12 horas desde creación del token
         if ($usuario->token_created_at && now()->isAfter($usuario->token_created_at->addHours(12))) {
