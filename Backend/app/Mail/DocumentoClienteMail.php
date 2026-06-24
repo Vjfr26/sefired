@@ -21,8 +21,8 @@ class DocumentoClienteMail extends Mailable
     public function envelope(): Envelope
     {
         $asunto = $this->accion === 'subido'
-            ? 'Nuevo documento en su expediente | J&M Seguros'
-            : 'Documento eliminado de su expediente | J&M Seguros';
+            ? 'Nuevo documento en su expediente | La Venezolana de Seguros y Vida'
+            : 'Documento eliminado de su expediente | La Venezolana de Seguros y Vida';
 
         return new Envelope(subject: $asunto);
     }

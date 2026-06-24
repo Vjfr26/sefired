@@ -578,7 +578,7 @@ export const NAV = [
  * padre ('clientes') aunque el Header muestre el subtítulo específico.
  */
 export const VIEW_META = {
-  'home':          { navId: 'home',         title: 'Inicio',             sub: 'Cotizador de Seguros J&M' },
+  'home':          { navId: 'home',         title: 'Inicio',             sub: 'Cotizador · LA VENEZOLANA DE SEGUROS Y VIDA C.A.' },
   'cat-productos': { navId: 'productos',    title: 'Productos',           sub: 'Catálogo de productos y coberturas' },
   'cat-vehiculos': { navId: 'cat-vehiculos', title: 'Vehículos',          sub: 'Catálogo de vehículos para cotizaciones' },
   'cli-cliente':   { navId: 'clientes',     title: 'Clientes & Pólizas', sub: 'Gestión de clientes, pólizas y renovaciones' },
@@ -628,7 +628,7 @@ export function pdfHdr(docTitle, docSub, ref, date, logoUrl = '') {
       ${logoUrl ? `<img src="${logoUrl}" alt="J&M" style="height:52px;width:auto;object-fit:contain" />` : ''}
       <div>
         <p style="font-size:22px;font-weight:900;color:#001463;letter-spacing:-0.5px">J&M</p>
-        <p style="font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:2px;margin-top:2px">La Venezolana de Seguros y Vida</p>
+        <p style="font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:2px;margin-top:2px">LA VENEZOLANA DE SEGUROS Y VIDA C.A.</p>
         <p style="font-size:9px;color:#94a3b8;margin-top:2px">RIF J-12.345.678-9 · Av. Principal, Caracas 1010</p>
       </div>
     </div>
@@ -649,7 +649,7 @@ export function pdfHdr(docTitle, docSub, ref, date, logoUrl = '') {
 export function pdfFooterSimple() {
   const now = new Date().toLocaleDateString('es-VE', { day:'2-digit', month:'long', year:'numeric' })
   return `<div style="margin-top:48px;padding-top:16px;border-top:1px solid #e2e8f0;text-align:center">
-    <p style="font-size:11px;font-weight:700;color:#001463">J&M — La Venezolana de Seguros y Vida</p>
+    <p style="font-size:11px;font-weight:700;color:#001463">J&M — LA VENEZOLANA DE SEGUROS Y VIDA C.A.</p>
     <p style="font-size:9px;color:#94a3b8;margin-top:4px">RIF J-12.345.678-9 · Av. Principal, Caracas 1010 · Tel. (0212) 000-0000</p>
     <p style="font-size:8px;color:#cbd5e1;margin-top:8px;line-height:1.6">Documento generado el ${now} · Autorizado por SUDEASEG · Válido únicamente con sello oficial.</p>
   </div>`

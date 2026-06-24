@@ -48,7 +48,7 @@ export default function Sidebar({ onClose, sidebarOpen = false }) {
       {/* ── Logo ── */}
       <div className="px-4 lg:px-5 pt-12 pb-10 shrink-0 border-b border-white/10 flex flex-col items-center text-center gap-7">
         <img src="/logo-sinfondo.png" alt="Logo" className="w-full h-auto object-contain [filter:drop-shadow(-4px_4px_10px_rgba(255,255,255,0.45))_drop-shadow(-10px_10px_22px_rgba(255,255,255,0.3))]" />
-        <p className="text-xs font-semibold text-white/55 leading-snug">La Venezolana de Seguros y Vida</p>
+        <p className="text-xs font-semibold text-white/55 leading-snug">LA VENEZOLANA DE SEGUROS Y VIDA C.A.</p>
       </div>
 
       {/* ── Menú de navegación ── */}

@@ -19,7 +19,7 @@ class ClienteEliminadoMail extends Mailable
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: 'Cuenta eliminada | J&M Seguros');
+        return new Envelope(subject: 'Cuenta eliminada | La Venezolana de Seguros y Vida');
     }
 
     public function content(): Content

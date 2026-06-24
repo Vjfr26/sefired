@@ -58,7 +58,7 @@ services:
     container_name: sefired-backend
     restart: unless-stopped
     environment:
-      APP_NAME: "J&M Seguros"
+      APP_NAME: "J&M"
       APP_ENV: production
       APP_DEBUG: "false"
       APP_KEY: ${APP_KEY}
@@ -101,7 +101,7 @@ services:
     container_name: sefired-queue
     restart: unless-stopped
     environment:
-      APP_NAME: "J&M Seguros"
+      APP_NAME: "J&M"
       APP_ENV: production
       APP_DEBUG: "false"
       APP_KEY: ${APP_KEY}
@@ -150,7 +150,7 @@ services:
     container_name: sefired-scheduler
     restart: unless-stopped
     environment:
-      APP_NAME: "J&M Seguros"
+      APP_NAME: "J&M"
       APP_ENV: production
       APP_DEBUG: "false"
       APP_KEY: ${APP_KEY}

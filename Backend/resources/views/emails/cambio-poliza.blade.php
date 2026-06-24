@@ -1,5 +1,5 @@
 @extends('emails.layout')
-@section('title', 'Actualización en su póliza — J&M Seguros')
+@section('title', 'Actualización en su póliza — La Venezolana de Seguros y Vida')
 
 @section('content')
 <table width="100%" cellpadding="0" cellspacing="0">

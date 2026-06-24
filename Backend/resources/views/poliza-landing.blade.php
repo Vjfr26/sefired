@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Póliza {{ $nro_contrato ?? '' }} — J&M Seguros</title>
+    <title>Póliza {{ $nro_contrato ?? '' }} — La Venezolana de Seguros y Vida</title>
     <link rel="icon" type="image/png" href="{{ url('images/icono.png') }}">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }

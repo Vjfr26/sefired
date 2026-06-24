@@ -24,7 +24,7 @@ class PolizaEmitidaMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Póliza Emitida — ' . $this->poliza->nro_contrato . ' | J&M Seguros',
+            subject: 'Póliza Emitida — ' . $this->poliza->nro_contrato . ' | La Venezolana de Seguros y Vida',
         );
     }
 

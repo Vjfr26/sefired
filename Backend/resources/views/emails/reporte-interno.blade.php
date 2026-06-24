@@ -1,5 +1,5 @@
 @extends('emails.layout')
-@section('title', 'Reporte Interno Semanal — J&M Seguros')
+@section('title', 'Reporte Interno Semanal — Inversiones J&M, C.A.')
 
 @section('content')
 <table width="100%" cellpadding="0" cellspacing="0">
@@ -59,6 +59,6 @@
 </table>
 
 <p style="margin:0;font-size:12px;color:#cbd5e1;text-align:center;">
-  Generado automáticamente por J&M Seguros · {{ now()->format('d/m/Y H:i') }}
+  Generado automáticamente por Inversiones J&M, C.A. · {{ now()->format('d/m/Y H:i') }}
 </p>
 @endsection

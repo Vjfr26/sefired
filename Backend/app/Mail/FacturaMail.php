@@ -19,7 +19,7 @@ class FacturaMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Recibo ' . $this->factura->numero . ' | J&M Seguros',
+            subject: 'Recibo ' . $this->factura->numero . ' | La Venezolana de Seguros y Vida',
         );
     }
 

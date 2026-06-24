@@ -1,5 +1,5 @@
 @extends('emails.layout')
-@section('title', ($aprobado ? 'Cotización aprobada' : 'Cotización rechazada') . ' — J&M Seguros')
+@section('title', ($aprobado ? 'Cotización aprobada' : 'Cotización rechazada') . ' — La Venezolana de Seguros y Vida')
 
 @section('content')
 <table width="100%" cellpadding="0" cellspacing="0">

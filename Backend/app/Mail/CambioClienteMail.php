@@ -21,8 +21,8 @@ class CambioClienteMail extends Mailable
     public function envelope(): Envelope
     {
         $asunto = $this->esCambioCorreo
-            ? 'Aviso: cambio de correo electrónico en su cuenta | J&M Seguros'
-            : 'Actualización de datos en su expediente | J&M Seguros';
+            ? 'Aviso: cambio de correo electrónico en su cuenta | La Venezolana de Seguros y Vida'
+            : 'Actualización de datos en su expediente | La Venezolana de Seguros y Vida';
 
         return new Envelope(subject: $asunto);
     }

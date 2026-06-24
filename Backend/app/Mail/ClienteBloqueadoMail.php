@@ -22,7 +22,7 @@ class ClienteBloqueadoMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: ($this->bloqueado ? 'Cuenta suspendida' : 'Cuenta reactivada') . ' | J&M Seguros',
+            subject: ($this->bloqueado ? 'Cuenta suspendida' : 'Cuenta reactivada') . ' | La Venezolana de Seguros y Vida',
         );
     }
 

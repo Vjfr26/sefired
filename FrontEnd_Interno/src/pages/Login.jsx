@@ -152,7 +152,7 @@ export default function Login({ onLogin }) {
           <div className="flex flex-col items-center mb-3 sm:mb-6">
             <img src="/logo-sinfondo.png" alt="Logo J&M" className="h-20 sm:h-28 lg:h-36 w-auto object-contain" />
             <p className="text-[8px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] text-center mt-2.5">
-              La Venezolana de Seguros y Vida
+              LA VENEZOLANA DE SEGUROS Y VIDA C.A.
             </p>
           </div>
 

@@ -22,7 +22,7 @@ class CambioPolizaMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Actualización en póliza ' . $this->poliza->nro_contrato . ' | J&M Seguros',
+            subject: 'Actualización en póliza ' . $this->poliza->nro_contrato . ' | La Venezolana de Seguros y Vida',
         );
     }
 

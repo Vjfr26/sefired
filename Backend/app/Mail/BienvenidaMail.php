@@ -18,7 +18,7 @@ class BienvenidaMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: '¡Bienvenido/a a J&M Seguros!',
+            subject: '¡Bienvenido/a a La Venezolana de Seguros y Vida!',
         );
     }
 

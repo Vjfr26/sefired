@@ -21,7 +21,7 @@ class SolicitudContactoInternaMail extends Mailable
         $tipo = $this->solicitud->destino === 'tecnico' ? 'Soporte técnico' : 'Asesor';
 
         return new Envelope(
-            subject: "Nueva solicitud de contacto ({$tipo}) | J&M Seguros",
+            subject: "Nueva solicitud de contacto ({$tipo}) | Inversiones J&M, C.A.",
         );
     }
 

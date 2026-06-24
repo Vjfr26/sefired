@@ -28,7 +28,7 @@ class BienAseguradoMail extends Mailable
             default       => 'Notificación de bien asegurado',
         };
 
-        return new Envelope(subject: $label . ' — J&M Seguros');
+        return new Envelope(subject: $label . ' — La Venezolana de Seguros y Vida');
     }
 
     public function content(): Content

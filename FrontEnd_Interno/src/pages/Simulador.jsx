@@ -1926,10 +1926,6 @@ export default function Simulador() {
         <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at 75% 40%,rgba(99,140,255,0.2) 0%,transparent 60%)' }} />
         <div className="relative flex flex-col sm:flex-row sm:items-center gap-6 p-6 sm:p-9">
           <div className="flex-1 min-w-0">
-            <div className="inline-flex items-center gap-2 bg-white/10 border border-white/15 rounded-full px-3 py-1.5 mb-3">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="text-xs font-bold text-white/70 uppercase tracking-wider">J&M · Simulador</span>
-            </div>
             <h2 className="text-2xl sm:text-3xl font-black text-white leading-snug mb-1.5">
               Cotiza cualquier<br /><span className="text-emerald-400">tipo de póliza</span>
             </h2>

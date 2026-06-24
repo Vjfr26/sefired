@@ -10,7 +10,7 @@ CACHE_DRV=${CACHE_DRV:-database}
 # ── Generar .env ───────────────────────────────────────────────────────────────
 if [ -n "$APP_KEY" ]; then
     cat > /var/www/.env <<EOF
-APP_NAME="${APP_NAME:-J&M Seguros}"
+APP_NAME="${APP_NAME:-J&M}"
 APP_ENV=${APP_ENV:-production}
 APP_KEY=${APP_KEY}
 APP_DEBUG=${APP_DEBUG:-false}

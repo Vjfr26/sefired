@@ -1,5 +1,5 @@
 @extends('emails.layout')
-@section('title', 'Póliza Emitida — J&M Seguros')
+@section('title', 'Póliza Emitida — La Venezolana de Seguros y Vida')
 
 @section('content')
 {{-- Icono --}}

@@ -2445,7 +2445,7 @@ function ClienteFacturasModal({ c }) {
         <div style="display:flex;align-items:center;margin-bottom:10px;gap:12px;border-bottom:2px solid #001463;padding-bottom:10px">
           <img src="${logoUrl}" alt="Logo" style="height:48px;object-fit:contain" onerror="this.style.display='none'" />
           <div style="flex:1;text-align:center">
-            <p style="font-size:13px;font-weight:900;color:#001463;margin:0;line-height:1.2">La Venezolana de Seguros y Vida</p>
+            <p style="font-size:13px;font-weight:900;color:#001463;margin:0;line-height:1.2">LA VENEZOLANA DE SEGUROS Y VIDA C.A.</p>
             <p style="font-size:9px;color:#555;margin:2px 0 0">Sistema de Emisión y Registro de Pólizas</p>
           </div>
         </div>

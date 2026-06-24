@@ -449,8 +449,8 @@ function TabAbout() {
         <div className="flex items-center gap-4 mb-6 pb-4 border-b border-slate-100">
           <img src="/logo2.png" alt="J&M" className="h-14 object-contain" />
           <div>
-            <h3 className="font-bold text-slate-800 text-lg">Seguros J&M</h3>
-            <p className="text-sm text-slate-500">La Venezolana de Seguros y Vida</p>
+            <h3 className="font-bold text-slate-800 text-lg">LA VENEZOLANA DE SEGUROS Y VIDA C.A.</h3>
+            <p className="text-sm text-slate-500">Operado por Inversiones J&M, C.A.</p>
           </div>
         </div>
         <div className="space-y-3 text-sm">
@@ -490,7 +490,7 @@ function TabAbout() {
         </div>
         <div className="mt-5 p-4 bg-blue-50 rounded-xl">
           <p className="text-xs font-semibold text-blue-800 mb-1">Licencia de uso</p>
-          <p className="text-xs text-blue-600">Este sistema es propiedad de Seguros J&M C.A. Su uso no autorizado está prohibido.</p>
+          <p className="text-xs text-blue-600">Este sistema es propiedad de Inversiones J&M, C.A. Su uso no autorizado está prohibido.</p>
         </div>
       </div>
     </div>
