@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Póliza {{ $nro_contrato ?? '' }} — La Venezolana de Seguros y Vida</title>
+    <title>Póliza {{ $nro_contrato ?? '' }} — LA VENEZOLANA DE SEGUROS Y VIDA C.A.</title>
     <link rel="icon" type="image/png" href="{{ url('images/icono.png') }}">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -270,9 +270,9 @@
 
     {{-- ── Header ── --}}
     <div class="header">
-        <img src="{{ url('images/logon.jpg') }}" alt="La Venezolana de Seguros" class="header-logo">
+        <img src="{{ url('images/logon.jpg') }}" alt="LA VENEZOLANA DE SEGUROS Y VIDA C.A." class="header-logo">
         <h1>J&amp;M Seguros</h1>
-        <p>La Venezolana de Seguros y Vida, C.A.</p>
+        <p>LA VENEZOLANA DE SEGUROS Y VIDA C.A.</p>
         @if(isset($nro_contrato))
             <p class="nro">{{ $nro_contrato }}</p>
         @endif
@@ -450,7 +450,7 @@
 
     @endif
 
-    <p class="footer">La Venezolana de Seguros y Vida, C.A. &mdash; J&amp;M Seguros &copy; {{ date('Y') }}</p>
+    <p class="footer">LA VENEZOLANA DE SEGUROS Y VIDA C.A. &mdash; J&amp;M Seguros &copy; {{ date('Y') }}</p>
 
 </div>
 

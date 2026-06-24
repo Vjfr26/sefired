@@ -272,7 +272,7 @@
                         <img src="{{ $imgFirma }}" style="width:2.5cm; height:1.2cm; vertical-align:bottom;" alt="firma"/>
                         <img src="{{ $imgSello }}" style="width:3.5cm; height:1.9cm; vertical-align:bottom;" alt="sello"/>
                         <div class="lineaf"></div>
-                        <span style="font-size:9px;">Por la Venezolana de Seguros y Vida, C.A.</span>
+                        <span style="font-size:9px;">Por LA VENEZOLANA DE SEGUROS Y VIDA C.A.</span>
                     </td>
                 </tr>
             </table>

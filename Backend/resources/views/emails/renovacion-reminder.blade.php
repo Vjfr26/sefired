@@ -1,5 +1,5 @@
 @extends('emails.layout')
-@section('title', 'Recordatorio de Renovación — La Venezolana de Seguros y Vida')
+@section('title', 'Recordatorio de Renovación — LA VENEZOLANA DE SEGUROS Y VIDA C.A.')
 
 @section('content')
 <table width="100%" cellpadding="0" cellspacing="0">

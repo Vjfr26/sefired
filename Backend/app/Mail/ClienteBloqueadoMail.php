@@ -22,7 +22,7 @@ class ClienteBloqueadoMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: ($this->bloqueado ? 'Cuenta suspendida' : 'Cuenta reactivada') . ' | La Venezolana de Seguros y Vida',
+            subject: ($this->bloqueado ? 'Cuenta suspendida' : 'Cuenta reactivada') . ' | LA VENEZOLANA DE SEGUROS Y VIDA C.A.',
         );
     }
 

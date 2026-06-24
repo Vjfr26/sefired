@@ -141,7 +141,7 @@ class PolizaController extends Controller
                     Mail::to($correo)->queue(new CambioPolizaMail(
                         $poliza->fresh(),
                         $cambios,
-                        auth()->user()?->nombre ?? 'La Venezolana de Seguros y Vida',
+                        auth()->user()?->nombre ?? 'LA VENEZOLANA DE SEGUROS Y VIDA C.A.',
                     ));
                     EmailLog::registrar('cambio_poliza', $correo, 'Póliza ajustada ' . $poliza->nro_contrato, $poliza->solicitud?->persona_id);
                 } catch (\Throwable) {}

@@ -21,8 +21,8 @@ class ClienteExistenteMail extends Mailable
     {
         return new Envelope(
             subject: $this->tienePoliza
-                ? 'Ya cuentas con una póliza activa — La Venezolana de Seguros y Vida'
-                : 'Ya estás en nuestro sistema — La Venezolana de Seguros y Vida',
+                ? 'Ya cuentas con una póliza activa — LA VENEZOLANA DE SEGUROS Y VIDA C.A.'
+                : 'Ya estás en nuestro sistema — LA VENEZOLANA DE SEGUROS Y VIDA C.A.',
         );
     }
 

@@ -28,7 +28,7 @@ class BienAseguradoMail extends Mailable
             default       => 'Notificación de bien asegurado',
         };
 
-        return new Envelope(subject: $label . ' — La Venezolana de Seguros y Vida');
+        return new Envelope(subject: $label . ' — LA VENEZOLANA DE SEGUROS Y VIDA C.A.');
     }
 
     public function content(): Content

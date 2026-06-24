@@ -17,7 +17,7 @@ class CumpleaniosMail extends Mailable
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: '¡Feliz Cumpleaños! 🎂 La Venezolana de Seguros y Vida');
+        return new Envelope(subject: '¡Feliz Cumpleaños! 🎂 LA VENEZOLANA DE SEGUROS Y VIDA C.A.');
     }
 
     public function content(): Content

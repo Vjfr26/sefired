@@ -505,7 +505,7 @@
                 <img src="{{ $imgSello }}" style="position:absolute; right:0; top:0; width:2.6cm; height:1.47cm; opacity:0.88;" alt="sello"/>
             </div>
             <div class="lineaf"></div>
-            <span style="font-size:9px; color:#333;">Por la Venezolana de Seguros y Vida, C.A.</span>
+            <span style="font-size:9px; color:#333;">Por LA VENEZOLANA DE SEGUROS Y VIDA C.A.</span>
         </td>
     </tr>
 </table>

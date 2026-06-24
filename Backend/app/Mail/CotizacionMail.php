@@ -19,7 +19,7 @@ class CotizacionMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Su simulación de seguro ' . $this->nroCotizacion() . ' | La Venezolana de Seguros y Vida',
+            subject: 'Su simulación de seguro ' . $this->nroCotizacion() . ' | LA VENEZOLANA DE SEGUROS Y VIDA C.A.',
         );
     }
 

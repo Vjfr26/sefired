@@ -19,7 +19,7 @@ class SolicitudContactoMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Recibimos tu solicitud de contacto | La Venezolana de Seguros y Vida',
+            subject: 'Recibimos tu solicitud de contacto | LA VENEZOLANA DE SEGUROS Y VIDA C.A.',
         );
     }
 

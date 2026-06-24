@@ -20,7 +20,7 @@ class RenovacionReminderMail extends Mailable
     {
         $asunto = $this->diasRestantes <= 0
             ? 'Su póliza ha vencido — ' . $this->poliza->nro_contrato
-            : 'Recordatorio: su póliza vence en ' . $this->diasRestantes . ' día(s) | La Venezolana de Seguros y Vida';
+            : 'Recordatorio: su póliza vence en ' . $this->diasRestantes . ' día(s) | LA VENEZOLANA DE SEGUROS Y VIDA C.A.';
 
         return new Envelope(subject: $asunto);
     }

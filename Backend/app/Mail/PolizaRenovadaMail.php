@@ -22,7 +22,7 @@ class PolizaRenovadaMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Póliza renovada — ' . $this->polizaNueva->nro_contrato . ' | La Venezolana de Seguros y Vida',
+            subject: 'Póliza renovada — ' . $this->polizaNueva->nro_contrato . ' | LA VENEZOLANA DE SEGUROS Y VIDA C.A.',
         );
     }
 

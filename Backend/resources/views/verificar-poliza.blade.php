@@ -81,7 +81,7 @@
         @endif
 
         <div class="footer">
-            La Venezolana de Seguros y Vida, C.A. &mdash; J&M &copy; {{ date('Y') }}
+            LA VENEZOLANA DE SEGUROS Y VIDA C.A. &mdash; J&M &copy; {{ date('Y') }}
         </div>
     </div>
 </body>

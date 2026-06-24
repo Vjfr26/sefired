@@ -1523,7 +1523,7 @@ function confAbout() {
         <img src="/logo2.png" alt="J&M" class="h-14 object-contain">
         <div>
           <h3 class="font-bold text-slate-800 text-lg">Seguros J&M</h3>
-          <p class="text-sm text-slate-500">La Venezolana de Seguros y Vida.</p>
+          <p class="text-sm text-slate-500">LA VENEZOLANA DE SEGUROS Y VIDA C.A.</p>
         </div>
       </div>
       <div class="space-y-3 text-sm">
@@ -2946,7 +2946,7 @@ function pdfHdr(docTitle, docSub, ref, date) {
   return `<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:32px;padding-bottom:20px;border-bottom:2px solid #001463">
     <div>
       <p style="font-size:22px;font-weight:900;color:#001463;letter-spacing:-0.5px">J&M</p>
-      <p style="font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:2px;margin-top:2px">La Venezolana de Seguros y Vida.</p>
+      <p style="font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:2px;margin-top:2px">LA VENEZOLANA DE SEGUROS Y VIDA C.A.</p>
       <p style="font-size:9px;color:#94a3b8;margin-top:2px">RIF J-12.345.678-9 · Av. Principal, Caracas 1010</p>
     </div>
     <div style="text-align:right">
@@ -3063,7 +3063,7 @@ window.showPdfCertificado = function() {
     ${pdfHdr('Certificado de Seguro', 'Seguro de Vehículo Automotor', 'POL-VEH-2026-0042', 'Vigente: 10/05/2026 — 10/05/2027')}
     ${pdfSec('Datos generales de la póliza')}
     ${pdfRow('N° de Póliza', 'POL-VEH-2026-0042', true)}
-    ${pdfRow('Aseguradora', 'J&M · La Venezolana de Seguros y Vida')}
+    ${pdfRow('Aseguradora', 'J&M · LA VENEZOLANA DE SEGUROS Y VIDA C.A.')}
     ${pdfRow('Tipo de seguro', 'Vehículo Automotor — Particular')}
     ${pdfRow('Inicio de vigencia', '10/05/2026 a las 12:00 m')}
     ${pdfRow('Vencimiento', '10/05/2027 a las 12:00 m')}
@@ -3085,7 +3085,7 @@ window.showPdfCertificado = function() {
     ${pdfRow('Accidentes Personales', usd(40000) + ' — 4 ocupantes')}
     ${pdfRow('RC Obligatoria SUDEASEG', 'Según Ley y Resolución SUDEASEG')}
     <p style="font-size:9px;color:#475569;margin-top:18px;padding:12px 14px;background:#f8fafc;border-radius:6px;border-left:3px solid #001463;line-height:1.7">
-      Este certificado acredita la existencia de una póliza de seguros emitida por J&M, La Venezolana de Seguros y Vida, bajo las condiciones generales y particulares del contrato de seguro correspondiente. Autorizado por SUDEASEG según Resolución N° 001-2025.
+      Este certificado acredita la existencia de una póliza de seguros emitida por J&M, LA VENEZOLANA DE SEGUROS Y VIDA C.A., bajo las condiciones generales y particulares del contrato de seguro correspondiente. Autorizado por SUDEASEG según Resolución N° 001-2025.
     </p>
     ${pdfFooter('Agente · Oficina Caracas Principal', 'Caracas Principal')}
   `));

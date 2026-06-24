@@ -1,4 +1,4 @@
-# J&M — La Venezolana de Seguros y Vida
+# J&M — LA VENEZOLANA DE SEGUROS Y VIDA C.A.
 
 Sistema interno de gestión de pólizas, clientes y ventas.
 

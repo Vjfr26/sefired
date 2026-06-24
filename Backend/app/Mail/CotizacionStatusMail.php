@@ -22,9 +22,9 @@ class CotizacionStatusMail extends Mailable
     public function envelope(): Envelope
     {
         $asunto = match ($this->nuevoStatus) {
-            'aprobado'  => 'Cotización aprobada — La Venezolana de Seguros y Vida',
-            'rechazado' => 'Cotización rechazada — La Venezolana de Seguros y Vida',
-            default     => 'Actualización de cotización — La Venezolana de Seguros y Vida',
+            'aprobado'  => 'Cotización aprobada — LA VENEZOLANA DE SEGUROS Y VIDA C.A.',
+            'rechazado' => 'Cotización rechazada — LA VENEZOLANA DE SEGUROS Y VIDA C.A.',
+            default     => 'Actualización de cotización — LA VENEZOLANA DE SEGUROS Y VIDA C.A.',
         };
 
         return new Envelope(subject: $asunto);

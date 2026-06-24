@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>@yield('title', 'La Venezolana de Seguros y Vida')</title>
+<title>@yield('title', 'LA VENEZOLANA DE SEGUROS Y VIDA C.A.')</title>
 </head>
 <body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1e293b;">
 
@@ -11,13 +11,13 @@
     <tr><td align="center">
       <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
 
-        {{-- HEADER — solo el logo de La Venezolana de Seguros y Vida, C.A.,
+        {{-- HEADER — solo el logo de LA VENEZOLANA DE SEGUROS Y VIDA C.A.,
              la aseguradora que respalda la póliza. La relación con Inversiones
              J&M, C.A. (operador del sistema) queda reflejada en el pie del
              correo, visible ante cualquier revisión legal. --}}
         <tr>
           <td style="background:#ffffff;border-radius:12px 12px 0 0;padding:28px 36px 18px;text-align:center;border-bottom:3px solid {{ $accentColor ?? '#001463' }};">
-            <img src="{{ url('images/logo-venezolana-oficial.png') }}" alt="La Venezolana de Seguros y Vida, C.A." style="height:56px;width:auto;" />
+            <img src="{{ url('images/logo-venezolana-oficial.png') }}" alt="LA VENEZOLANA DE SEGUROS Y VIDA C.A." style="height:56px;width:auto;" />
           </td>
         </tr>
 
@@ -51,7 +51,7 @@
             </p>
             <p style="margin:0 0 6px;font-size:12px;color:#94a3b8;">
               Servicio operado por <strong style="color:#64748b;">Inversiones J&amp;M, C.A.</strong>,
-              con el respaldo de <strong style="color:#64748b;">La Venezolana de Seguros y Vida, C.A.</strong> (RIF J-00021447-6).
+              con el respaldo de <strong style="color:#64748b;">LA VENEZOLANA DE SEGUROS Y VIDA C.A.</strong> (RIF J-00021447-6).
             </p>
             <p style="margin:0;font-size:12px;color:#94a3b8;">
               <a href="mailto:tuseguro@jmlavenezolana.com" style="color:#64748b;text-decoration:none;">tuseguro@jmlavenezolana.com</a>
