@@ -471,6 +471,8 @@ function RenovarModal({ client, diasVencimiento, onSaved, onCancel }) {
   const totalIngresadoUsd = pagos.reduce((sum, p) => sum + pagoEnUsd(p), 0)
   const diferencia        = Math.abs(Math.round(totalIngresadoUsd * 100) - Math.round(montoEsperadoUsd * 100)) / 100
   const totalOk           = diferencia === 0
+  const difBs             = convertirMoneda(diferencia, monedaNativa, 'BS', tasas.usd || 0, tasas.eur || 0)
+  const difEur            = convertirMoneda(diferencia, monedaNativa, 'EUR', tasas.usd || 0, tasas.eur || 0)
 
   const handleRenovar = async () => {
     if (!client.poliza_id) { showToast('Este cliente no tiene póliza para renovar', 'error'); return }
@@ -637,11 +639,11 @@ function RenovarModal({ client, diasVencimiento, onSaved, onCancel }) {
                   </div>
                 ))}
               </div>
-              <div className={`mt-3 p-2.5 rounded-xl border text-xs flex items-center justify-between ${
+              <div className={`mt-3 p-2.5 rounded-xl border text-xs flex items-center justify-between flex-wrap gap-2 ${
                 totalOk ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'
               }`}>
-                <span>{totalOk ? '✓ Total cuadra' : `⚠ Diferencia: ${fmtMonto(diferencia, monedaNativa)}`}</span>
-                <span className="font-bold font-mono">{fmtMonto(totalIngresadoUsd, monedaNativa)} / {fmtMonto(primaUsd, monedaNativa)}</span>
+                <span>{totalOk ? '✓ Total cuadra' : `⚠ Resta: ${fmtMonto(diferencia, monedaNativa)} | ${fmtMonto(difBs, 'BS')} | ${fmtMonto(difEur, 'EUR')}`}</span>
+                <span className="font-bold font-mono ml-auto">{fmtMonto(totalIngresadoUsd, monedaNativa)} / {fmtMonto(primaUsd, monedaNativa)}</span>
               </div>
               {formErr.total && <p className="text-xs text-rose-600 mt-1">{formErr.total}</p>}
             </div>
@@ -704,6 +706,8 @@ function EmitirCotizacionModal({ cot, onSaved }) {
   const totalIngresadoUsd = pagos.reduce((sum, p) => sum + pagoEnUsd(p), 0)
   const diferencia = Math.abs(Math.round(totalIngresadoUsd * 100) - Math.round(montoEsperadoUsd * 100)) / 100
   const totalOk    = diferencia === 0
+  const difBs      = convertirMoneda(diferencia, monedaNativa, 'BS', tasas.usd || 0, tasas.eur || 0)
+  const difEur     = convertirMoneda(diferencia, monedaNativa, 'EUR', tasas.usd || 0, tasas.eur || 0)
 
   const handleEmitir = async () => {
     const errs = {}
@@ -856,11 +860,11 @@ function EmitirCotizacionModal({ cot, onSaved }) {
             ))}
           </div>
           {/* Indicador de total */}
-          <div className={`mt-3 p-2.5 rounded-xl border text-xs flex items-center justify-between ${
+          <div className={`mt-3 p-2.5 rounded-xl border text-xs flex items-center justify-between flex-wrap gap-2 ${
             totalOk ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'
           }`}>
-            <span>{totalOk ? '✓ Total cuadra' : `⚠ Diferencia: ${fmtMonto(diferencia, monedaNativa)}`}</span>
-            <span className="font-bold font-mono">
+            <span>{totalOk ? '✓ Total cuadra' : `⚠ Resta: ${fmtMonto(diferencia, monedaNativa)} | ${fmtMonto(difBs, 'BS')} | ${fmtMonto(difEur, 'EUR')}`}</span>
+            <span className="font-bold font-mono ml-auto">
               {fmtMonto(totalIngresadoUsd, monedaNativa)} / {fmtMonto(totalPoliza, monedaNativa)}
             </span>
           </div>

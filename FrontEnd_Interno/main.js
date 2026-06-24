@@ -31,7 +31,7 @@ const NAV = [
 ];
 
 const VIEW_META = {
-  'home': { navId: 'home', title: 'Inicio', sub: 'Cotizador de Seguros' },
+  'home': { navId: 'home', title: 'Inicio', sub: 'Cotizador de Seguros J&M' },
   'cat-productos': { navId: 'productos', title: 'Productos', sub: 'Catálogo de coberturas y servicios' },
   'cli-cliente': { navId: 'clientes', title: 'Clientes & Pólizas', sub: 'Gestión de clientes, pólizas y renovaciones' },
   'cli-vehiculo': { navId: 'vehiculos', title: 'Vehículos', sub: 'Registro y consulta de vehículos asegurados' },
@@ -163,8 +163,8 @@ function simBar(active) {
   return `<div class="flex items-center select-none">${steps.map((s, i) => {
     const n = i + 1, done = n < active, cur = n === active;
     const dot = `<div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all ${done ? 'bg-emerald-500 text-white'
-      : cur ? 'bg-jm-blue text-white shadow-[0_0_0_4px_rgba(0,20,99,0.15)]'
-        : 'bg-slate-100 text-slate-400'
+        : cur ? 'bg-jm-blue text-white shadow-[0_0_0_4px_rgba(0,20,99,0.15)]'
+          : 'bg-slate-100 text-slate-400'
       }">${done ? '<i data-lucide="check" class="w-3.5 h-3.5"></i>' : n}</div>`;
     const lbl = `<p class="text-[9px] font-bold mt-1 text-center leading-tight ${done ? 'text-emerald-500' : cur ? 'text-jm-blue' : 'text-slate-400'
       }">${s.label}</p>`;
@@ -715,8 +715,8 @@ window.simToggle = function (cod, chk) {
   simState.coberturas[cod].chk = chk;
   const row = document.getElementById(`sim-row-${cod}`);
   if (row) row.className = `flex items-start gap-3 p-3.5 rounded-2xl border-2 transition-all select-none ${simState.coberturas[cod].req ? 'cursor-not-allowed border-rose-200/50 bg-rose-50/20'
-    : chk ? 'cursor-pointer border-jm-blue/25 bg-blue-50/40'
-      : 'cursor-pointer border-slate-200 bg-white hover:border-slate-300'}`;
+      : chk ? 'cursor-pointer border-jm-blue/25 bg-blue-50/40'
+        : 'cursor-pointer border-slate-200 bg-white hover:border-slate-300'}`;
   const sub = Object.values(simState.coberturas).filter(c => c.chk).reduce((s, c) => s + c.prima, 0);
   const iva = sub * 0.16;
   const tot = sub + iva + 5;
@@ -1397,7 +1397,7 @@ function cotSimulador() {
           <button onclick="simIniciar()"
             class="flex items-center gap-2.5 bg-white text-jm-blue text-sm font-black px-7 py-4 rounded-2xl hover:bg-blue-50 transition-all shadow-xl shadow-black/25 group">
             <i data-lucide="calculator" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
-            Iniciar Simulación
+            Emitir
           </button>
         </div>
       </div>

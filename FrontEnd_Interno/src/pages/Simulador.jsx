@@ -31,17 +31,17 @@ import { BIEN_TIPO_PRESETS } from '../utils/bienPresets.js'
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const STATUS_BADGE = {
   'en_revision': 'bg-amber-100 text-amber-700',
-  'aprobado':    'bg-blue-100 text-blue-700',
-  'emitida':     'bg-emerald-100 text-emerald-700',
-  'rechazado':   'bg-rose-100 text-rose-700',
-  'pendiente':   'bg-slate-100 text-slate-500',
+  'aprobado': 'bg-blue-100 text-blue-700',
+  'emitida': 'bg-emerald-100 text-emerald-700',
+  'rechazado': 'bg-rose-100 text-rose-700',
+  'pendiente': 'bg-slate-100 text-slate-500',
 }
 const STATUS_LABEL = {
   'en_revision': 'En Revisión',
-  'aprobado':    'Aprobado',
-  'emitida':     'Emitida',
-  'rechazado':   'Rechazado',
-  'pendiente':   'Pendiente',
+  'aprobado': 'Aprobado',
+  'emitida': 'Emitida',
+  'rechazado': 'Rechazado',
+  'pendiente': 'Pendiente',
 }
 
 function StatusBadge({ status }) {
@@ -55,13 +55,13 @@ function StatusBadge({ status }) {
 function freshState() {
   return {
     // Paso 1
-    producto_id:   null,
-    producto:      null,
+    producto_id: null,
+    producto: null,
     // Paso 2
-    cliente_id:    null,
+    cliente_id: null,
     cliente_nuevo: false,
-    nombre:        '', ci: '', tel: '', email: '',
-    direccion:     '', nacimiento: '', sexo: 'M',
+    nombre: '', ci: '', tel: '', email: '',
+    direccion: '', nacimiento: '', sexo: 'M',
     // Paso 3 — bien asegurado vinculado
     bien_asegurado_id: null,
     // Paso 3 — vehículo
@@ -77,7 +77,7 @@ function freshState() {
     vehiculos_adicionales: [],
     // Paso 4 — tarifario
     tarifario_id: null,
-    tarifa:       null,
+    tarifa: null,
     // Paso 4 — por_valor
     valor_declarado: 0,
     // Coberturas calculadas (snapshot)
@@ -89,46 +89,46 @@ function simFromCot(q) {
   const cobs = q.coberturas || {}
   const attr = q.bien_atributos || {}
   return {
-    producto_id:      q.producto_id ?? null,
-    producto:         null,
-    cliente_id:       q.cliente_id,
-    cliente_nuevo:    false,
-    nombre:           q.nombre  || '',
-    ci:               q.ci      || '',
+    producto_id: q.producto_id ?? null,
+    producto: null,
+    cliente_id: q.cliente_id,
+    cliente_nuevo: false,
+    nombre: q.nombre || '',
+    ci: q.ci || '',
     tel: '', email: '', direccion: '', nacimiento: '', sexo: 'M',
     bien_asegurado_id: q.bien_asegurado_id || null,
-    placa:            attr.placa  || '',
-    marca:            attr.marca  || cobs.marca  || 'Toyota',
-    modelo:           attr.modelo || cobs.modelo || '',
-    año:              String(attr.anio || cobs.año || new Date().getFullYear()),
-    color:            attr.color  || cobs.color  || '',
-    uso:              attr.uso    || cobs.uso    || 'Particular',
-    valor:            parseFloat(cobs.valor_mercado) || 15000,
-    clase:            attr.clase || 'Automóvil',
-    version:          attr.version || '',
-    puestos:          attr.puestos || '',
+    placa: attr.placa || '',
+    marca: attr.marca || cobs.marca || 'Toyota',
+    modelo: attr.modelo || cobs.modelo || '',
+    año: String(attr.anio || cobs.año || new Date().getFullYear()),
+    color: attr.color || cobs.color || '',
+    uso: attr.uso || cobs.uso || 'Particular',
+    valor: parseFloat(cobs.valor_mercado) || 15000,
+    clase: attr.clase || 'Automóvil',
+    version: attr.version || '',
+    puestos: attr.puestos || '',
     serial_carroceria: attr.serial_carroceria || '',
-    serial_motor:     attr.serial_motor || '',
-    asegurado_nombre:    q.asegurado_nombre    || '',
-    asegurado_ci:        q.asegurado_ci        || '',
-    asegurado_telefono:  q.asegurado_telefono  || '',
+    serial_motor: attr.serial_motor || '',
+    asegurado_nombre: q.asegurado_nombre || '',
+    asegurado_ci: q.asegurado_ci || '',
+    asegurado_telefono: q.asegurado_telefono || '',
     asegurado_direccion: q.asegurado_direccion || '',
-    bienCampos:       attr,
+    bienCampos: attr,
     bien_observaciones: q.bien_observaciones || '',
     vehiculos_adicionales: cobs.vehiculos_adicionales || [],
-    tarifario_id:     q.tarifario_id ?? null,
-    tarifa:           null,
-    valor_declarado:  parseFloat(cobs.valor_declarado) || 0,
-    coberturas:       cobs,
+    tarifario_id: q.tarifario_id ?? null,
+    tarifa: null,
+    valor_declarado: parseFloat(cobs.valor_declarado) || 0,
+    coberturas: cobs,
   }
 }
 
 // ── Barra de pasos ────────────────────────────────────────────────────────────
 const STEPS = [
-  { label: 'Producto',  Icon: Shield    },
-  { label: 'Cliente',   Icon: User      },
-  { label: 'Bien',      Icon: Car       },
-  { label: 'Tarifa',    Icon: Calculator },
+  { label: 'Producto', Icon: Shield },
+  { label: 'Cliente', Icon: User },
+  { label: 'Bien', Icon: Car },
+  { label: 'Tarifa', Icon: Calculator },
   { label: 'Confirmar', Icon: FileCheck },
 ]
 
@@ -140,16 +140,14 @@ function SimBar({ active }) {
         return (
           <div key={i} className="flex items-center" style={{ flex: i < STEPS.length - 1 ? '1' : '0 0 auto' }}>
             <div className="flex flex-col items-center" style={{ flexShrink: 0, width: '4.5rem' }}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all ${
-                done ? 'bg-emerald-500 text-white'
-                     : cur ? 'bg-jm-blue text-white shadow-[0_0_0_4px_rgba(0,20,99,0.15)]'
-                           : 'bg-slate-100 text-slate-400'
-              }`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all ${done ? 'bg-emerald-500 text-white'
+                  : cur ? 'bg-jm-blue text-white shadow-[0_0_0_4px_rgba(0,20,99,0.15)]'
+                    : 'bg-slate-100 text-slate-400'
+                }`}>
                 {done ? <Check className="w-3.5 h-3.5" /> : n}
               </div>
-              <p className={`text-[9px] font-bold mt-1 text-center leading-tight ${
-                done ? 'text-emerald-500' : cur ? 'text-jm-blue' : 'text-slate-400'
-              }`}>{s.label}</p>
+              <p className={`text-[9px] font-bold mt-1 text-center leading-tight ${done ? 'text-emerald-500' : cur ? 'text-jm-blue' : 'text-slate-400'
+                }`}>{s.label}</p>
             </div>
             {i < STEPS.length - 1 && (
               <div className={`flex-1 h-0.5 mb-5 mx-1 transition-colors ${done ? 'bg-emerald-400' : 'bg-slate-200'}`} />
@@ -212,14 +210,14 @@ function SecLabel({ icon: Icon, label }) {
 const CAT_ICON = { vehicular: Car, bienes: Package, personas: Users }
 
 const CAT_COLOR = {
-  vehicular: { bg: 'bg-blue-600',   light: 'bg-blue-50',   text: 'text-blue-600',   border: 'border-blue-500' },
-  bienes:    { bg: 'bg-violet-600', light: 'bg-violet-50', text: 'text-violet-600', border: 'border-violet-500' },
-  personas:  { bg: 'bg-emerald-600',light: 'bg-emerald-50',text: 'text-emerald-600',border: 'border-emerald-500' },
-  default:   { bg: 'bg-slate-600',  light: 'bg-slate-50',  text: 'text-slate-600',  border: 'border-slate-400' },
+  vehicular: { bg: 'bg-blue-600', light: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-500' },
+  bienes: { bg: 'bg-violet-600', light: 'bg-violet-50', text: 'text-violet-600', border: 'border-violet-500' },
+  personas: { bg: 'bg-emerald-600', light: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-500' },
+  default: { bg: 'bg-slate-600', light: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-400' },
 }
 
 function Step1({ sim, setSim, onNext, onClose, productos }) {
-  const [err, setErr]   = useState('')
+  const [err, setErr] = useState('')
   const [page, setPage] = useState(0)
   const [cols, setCols] = useState(3)
 
@@ -235,9 +233,9 @@ function Step1({ sim, setSim, onNext, onClose, productos }) {
     return () => window.removeEventListener('resize', update)
   }, [])
 
-  const perPage    = cols * 2          // 2 filas siempre
+  const perPage = cols * 2          // 2 filas siempre
   const totalPages = Math.ceil(productos.length / perPage)
-  const pageItems  = productos.slice(page * perPage, page * perPage + perPage)
+  const pageItems = productos.slice(page * perPage, page * perPage + perPage)
 
   // Si el producto seleccionado no está en la página actual, ir a su página
   useEffect(() => {
@@ -283,70 +281,70 @@ function Step1({ sim, setSim, onNext, onClose, productos }) {
               <ArrowLeft className="w-3.5 h-3.5 text-slate-600" />
             </button>
 
-          <div className="grid gap-3 flex-1 min-h-[200px]"
-               style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
-            {pageItems.map(p => {
-              const CatIcon = CAT_ICON[p.categoria] ?? Shield
-              const colors  = CAT_COLOR[p.categoria] ?? CAT_COLOR.default
-              const on      = sim.producto_id === p.id
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => setSim(prev => (prev.producto_id === p.id ? prev : {
-                    ...prev,
-                    producto_id: p.id,
-                    producto: p,
-                    // Limpiar selección de tarifa/valor del producto anterior — cada
-                    // producto puede tener un tipo_calculo distinto (fijo/por_plan/
-                    // por_nivel/por_valor) y arrastrar la tarifa previa daba totales
-                    // incorrectos o en $0.
-                    tarifario_id: null,
-                    tarifa: null,
-                    valor_declarado: null,
-                  }))}
-                  className={`relative flex flex-col rounded-2xl border-2 text-left transition-all duration-200 overflow-hidden
+            <div className="grid gap-3 flex-1 min-h-[200px]"
+              style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+              {pageItems.map(p => {
+                const CatIcon = CAT_ICON[p.categoria] ?? Shield
+                const colors = CAT_COLOR[p.categoria] ?? CAT_COLOR.default
+                const on = sim.producto_id === p.id
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setSim(prev => (prev.producto_id === p.id ? prev : {
+                      ...prev,
+                      producto_id: p.id,
+                      producto: p,
+                      // Limpiar selección de tarifa/valor del producto anterior — cada
+                      // producto puede tener un tipo_calculo distinto (fijo/por_plan/
+                      // por_nivel/por_valor) y arrastrar la tarifa previa daba totales
+                      // incorrectos o en $0.
+                      tarifario_id: null,
+                      tarifa: null,
+                      valor_declarado: null,
+                    }))}
+                    className={`relative flex flex-col rounded-2xl border-2 text-left transition-all duration-200 overflow-hidden
                     ${on
-                      ? `${colors.border} ${colors.light} shadow-lg`
-                      : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-md'
-                    }`}
-                >
-                  {/* Header */}
-                  <div className={`${on ? colors.bg : 'bg-slate-100'} px-3 pt-3 pb-2.5 transition-colors`}>
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center mb-1.5 ${on ? 'bg-white/20' : 'bg-white'}`}>
-                      <CatIcon className={`w-4 h-4 ${on ? 'text-white' : colors.text}`} />
+                        ? `${colors.border} ${colors.light} shadow-lg`
+                        : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-md'
+                      }`}
+                  >
+                    {/* Header */}
+                    <div className={`${on ? colors.bg : 'bg-slate-100'} px-3 pt-3 pb-2.5 transition-colors`}>
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center mb-1.5 ${on ? 'bg-white/20' : 'bg-white'}`}>
+                        <CatIcon className={`w-4 h-4 ${on ? 'text-white' : colors.text}`} />
+                      </div>
+                      <p className={`text-[13px] font-bold leading-tight ${on ? 'text-white' : 'text-slate-800'}`}>{p.nombre}</p>
                     </div>
-                    <p className={`text-[13px] font-bold leading-tight ${on ? 'text-white' : 'text-slate-800'}`}>{p.nombre}</p>
-                  </div>
-                  {/* Cuerpo */}
-                  <div className="px-3 py-2 flex-1 flex flex-col gap-1.5">
-                    <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">{p.descripcion}</p>
-                    <div className="flex flex-wrap gap-1 mt-auto">
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${on ? `${colors.light} ${colors.text}` : 'bg-slate-100 text-slate-500'}`}>
-                        {p.tipo_calculo}
-                      </span>
-                      {p.tipo_bien && p.tipo_bien !== 'ninguno' && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-600 font-semibold capitalize">{p.tipo_bien}</span>
-                      )}
-                      {p.derecho_poliza > 0 && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">+ {fmtMonto(p.derecho_poliza, p.moneda)}</span>
-                      )}
+                    {/* Cuerpo */}
+                    <div className="px-3 py-2 flex-1 flex flex-col gap-1.5">
+                      <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">{p.descripcion}</p>
+                      <div className="flex flex-wrap gap-1 mt-auto">
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${on ? `${colors.light} ${colors.text}` : 'bg-slate-100 text-slate-500'}`}>
+                          {p.tipo_calculo}
+                        </span>
+                        {p.tipo_bien && p.tipo_bien !== 'ninguno' && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-600 font-semibold capitalize">{p.tipo_bien}</span>
+                        )}
+                        {p.derecho_poliza > 0 && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">+ {fmtMonto(p.derecho_poliza, p.moneda)}</span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  {/* Check seleccionado */}
-                  {on && (
-                    <div className={`absolute top-2 right-2 w-5 h-5 rounded-full ${colors.bg} flex items-center justify-center shadow`}>
-                      <Check className="w-3 h-3 text-white" />
-                    </div>
-                  )}
-                </button>
-              )
-            })}
-            {/* Relleno para completar la última página */}
-            {Array.from({ length: perPage - pageItems.length }).map((_, i) => (
-              <div key={`empty-${i}`} className="rounded-2xl border-2 border-dashed border-slate-100" />
-            ))}
-          </div>
+                    {/* Check seleccionado */}
+                    {on && (
+                      <div className={`absolute top-2 right-2 w-5 h-5 rounded-full ${colors.bg} flex items-center justify-center shadow`}>
+                        <Check className="w-3 h-3 text-white" />
+                      </div>
+                    )}
+                  </button>
+                )
+              })}
+              {/* Relleno para completar la última página */}
+              {Array.from({ length: perPage - pageItems.length }).map((_, i) => (
+                <div key={`empty-${i}`} className="rounded-2xl border-2 border-dashed border-slate-100" />
+              ))}
+            </div>
 
             <button
               onClick={() => goPage(page + 1)}
@@ -364,11 +362,10 @@ function Step1({ sim, setSim, onNext, onClose, productos }) {
                 <button
                   key={i}
                   onClick={() => goPage(i)}
-                  className={`rounded-full transition-all duration-200 ${
-                    i === page
+                  className={`rounded-full transition-all duration-200 ${i === page
                       ? 'w-6 h-3 bg-blue-600'
                       : 'w-3 h-3 bg-slate-200 hover:bg-slate-400'
-                  }`}
+                    }`}
                 />
               ))}
             </div>
@@ -408,13 +405,13 @@ function Step1({ sim, setSim, onNext, onClose, productos }) {
 
 // ── PASO 2: Cliente ───────────────────────────────────────────────────────────
 function Step2({ sim, setSim, onNext, onBack, onClose }) {
-  const [query,    setQuery]    = useState('')
-  const [results,  setResults]  = useState([])
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState([])
   const [buscando, setBuscando] = useState(false)
   const [selected, setSelected] = useState(!!sim.cliente_id)
-  const [modo,     setModo]     = useState('buscar') // 'buscar' | 'nuevo'
-  const [err,      setErr]      = useState('')
-  const [saving,   setSaving]   = useState(false)
+  const [modo, setModo] = useState('buscar') // 'buscar' | 'nuevo'
+  const [err, setErr] = useState('')
+  const [saving, setSaving] = useState(false)
 
   const [nuevoForm, setNuevoForm] = useState({
     nombre: sim.nombre || '', ci: sim.ci?.replace(/^[VEJ]-?/i, '') || '', ciPrefijo: sim.ci?.match(/^([VEJ])-?/i)?.[1]?.toUpperCase() || 'V',
@@ -454,11 +451,11 @@ function Step2({ sim, setSim, onNext, onBack, onClose }) {
 
   const crearCliente = async () => {
     if (!nuevoForm.nombre.trim()) { setErr('El nombre es obligatorio.'); return }
-    if (!nuevoForm.ci.trim())     { setErr('La cédula / RIF es obligatoria.'); return }
-    if (!nuevoForm.condicion)     { setErr('La condición civil es obligatoria.'); return }
-    if (!nuevoForm.email.trim())  { setErr('El correo electrónico es obligatorio.'); return }
+    if (!nuevoForm.ci.trim()) { setErr('La cédula / RIF es obligatoria.'); return }
+    if (!nuevoForm.condicion) { setErr('La condición civil es obligatoria.'); return }
+    if (!nuevoForm.email.trim()) { setErr('El correo electrónico es obligatorio.'); return }
     if (!nuevoForm.ciudad.trim()) { setErr('La ciudad es obligatoria.'); return }
-    if (!nuevoForm.nacimiento)    { setErr('La fecha de nacimiento es obligatoria.'); return }
+    if (!nuevoForm.nacimiento) { setErr('La fecha de nacimiento es obligatoria.'); return }
     const cedulaCompleta = `${nuevoForm.ciPrefijo}-${nuevoForm.ci.replace(/\D/g, '')}`
     setSaving(true); setErr('')
     try {
@@ -605,7 +602,7 @@ function Step2({ sim, setSim, onNext, onBack, onClose }) {
               <label className={lbl}>Condición civil <span className="text-rose-500">*</span></label>
               <select className="select-field text-sm" value={nuevoForm.condicion} onChange={e => setNf('condicion', e.target.value)}>
                 <option value="">— Seleccionar —</option>
-                {['Soltero/a','Casado/a','Viudo/a','Divorciado/a','Concubino/a'].map(o => <option key={o}>{o}</option>)}
+                {['Soltero/a', 'Casado/a', 'Viudo/a', 'Divorciado/a', 'Concubino/a'].map(o => <option key={o}>{o}</option>)}
               </select>
             </div>
             <div>
@@ -615,7 +612,7 @@ function Step2({ sim, setSim, onNext, onBack, onClose }) {
             <div>
               <label className={lbl}>Nacionalidad</label>
               <select className="select-field text-sm" value={nuevoForm.nacionalidad} onChange={e => setNf('nacionalidad', e.target.value)}>
-                {['Venezolano/a','Extranjero/a'].map(o => <option key={o}>{o}</option>)}
+                {['Venezolano/a', 'Extranjero/a'].map(o => <option key={o}>{o}</option>)}
               </select>
             </div>
             <div>
@@ -629,7 +626,7 @@ function Step2({ sim, setSim, onNext, onBack, onClose }) {
             <div>
               <label className={lbl}>Estado <span className="text-rose-500">*</span></label>
               <select className="select-field text-sm" value={nuevoForm.estado} onChange={e => setNf('estado', e.target.value)}>
-                {['Amazonas','Anzoátegui','Apure','Aragua','Barinas','Bolívar','Carabobo','Cojedes','Delta Amacuro','Distrito Capital','Falcón','Guárico','Lara','Mérida','Miranda','Monagas','Nueva Esparta','Portuguesa','Sucre','Táchira','Trujillo','La Guaira','Yaracuy','Zulia'].map(o => <option key={o}>{o}</option>)}
+                {['Amazonas', 'Anzoátegui', 'Apure', 'Aragua', 'Barinas', 'Bolívar', 'Carabobo', 'Cojedes', 'Delta Amacuro', 'Distrito Capital', 'Falcón', 'Guárico', 'Lara', 'Mérida', 'Miranda', 'Monagas', 'Nueva Esparta', 'Portuguesa', 'Sucre', 'Táchira', 'Trujillo', 'La Guaira', 'Yaracuy', 'Zulia'].map(o => <option key={o}>{o}</option>)}
               </select>
             </div>
             <div>
@@ -651,12 +648,12 @@ function Step2({ sim, setSim, onNext, onBack, onClose }) {
 }
 
 // ── PASO 3: Bien asegurado ────────────────────────────────────────────────────
-const USOS   = ['Particular','Ejecutivo / Transporte de personal','Carga liviana','Carga pesada','Colectivo / Minibús','Rústico / Pickup','Oficial']
+const USOS = ['Particular', 'Ejecutivo / Transporte de personal', 'Carga liviana', 'Carga pesada', 'Colectivo / Minibús', 'Rústico / Pickup', 'Oficial']
 
 function Step3({ sim, setSim, onNext, onBack, onClose, vehiculosCatalogo }) {
-  const tipoBien        = sim.producto?.tipo_bien ?? 'ninguno'
+  const tipoBien = sim.producto?.tipo_bien ?? 'ninguno'
   const requiereVehiculo = tipoBien === 'vehiculo'
-  const preset           = BIEN_TIPO_PRESETS[tipoBien] ?? null
+  const preset = BIEN_TIPO_PRESETS[tipoBien] ?? null
   const setCampo = (key, val) => setSim(p => ({ ...p, bienCampos: { ...p.bienCampos, [key]: val } }))
   const [err, setErr] = useState('')
 
@@ -713,7 +710,7 @@ function Step3({ sim, setSim, onNext, onBack, onClose, vehiculosCatalogo }) {
       {requiereVehiculo ? (
         <>
           <SecLabel icon={Car} label="Datos del vehículo" />
-          <div className="text-xs text-red-500 mb-2">DEBUG: permite_multiples={JSON.stringify(sim.producto?.permite_multiples_bienes)} | max_bienes={sim.producto?.max_bienes}</div>
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="field-label">Tipo de vehículo <span className="text-rose-500">*</span></label>
@@ -833,7 +830,7 @@ function Step3({ sim, setSim, onNext, onBack, onClose, vehiculosCatalogo }) {
                   {(sim.vehiculos_adicionales?.length || 0) + 1} / {sim.producto.max_bienes || '∞'} permitidos
                 </span>
               </div>
-              
+
               {(sim.vehiculos_adicionales || []).map((v, i) => {
                 const addMarcasUnicas = (() => {
                   const list = (vehiculosCatalogo || [])
@@ -878,7 +875,7 @@ function Step3({ sim, setSim, onNext, onBack, onClose, vehiculosCatalogo }) {
                         <X className="w-4 h-4" />
                       </button>
                     </div>
-                    
+
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
                       <div>
                         <label className="field-label">Tipo de vehículo <span className="text-rose-500">*</span></label>
@@ -1093,23 +1090,23 @@ function calcTotal(tarifa, tipoCalculo, valorDeclarado, derecho, producto) {
   }
 
   const ivaPct = producto?.iva_aplica ? (parseFloat(producto.iva_porcentaje) || 0) : 0
-  const iva    = Math.round(prima * ivaPct) / 100
-  const total  = prima + iva + (parseFloat(derecho) || 0)
+  const iva = Math.round(prima * ivaPct) / 100
+  const total = prima + iva + (parseFloat(derecho) || 0)
   return { prima, iva, ivaPct, total }
 }
 
 function Step4({ sim, setSim, tasaBcv, tasaEur, onNext, onBack, onClose }) {
-  const producto     = sim.producto
-  const moneda       = producto?.moneda || 'USD'
-  const tipoCalculo  = producto?.tipo_calculo || 'fijo'
-  const [tarifas,    setTarifas]    = useState([])
-  const [loading,    setLoading]    = useState(true)
+  const producto = sim.producto
+  const moneda = producto?.moneda || 'USD'
+  const tipoCalculo = producto?.tipo_calculo || 'fijo'
+  const [tarifas, setTarifas] = useState([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!producto?.id) return
     fetchTarifario(producto.id)
       .then(res => setTarifas(res.tarifario.filter(t => t.activo)))
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoading(false))
   }, [producto?.id])
 
@@ -1132,10 +1129,10 @@ function Step4({ sim, setSim, tasaBcv, tasaEur, onNext, onBack, onClose }) {
   const renderDatos = (d) => {
     if (tipoCalculo === 'fijo') {
       const filas = [
-        d.suma_persona  && ['Suma asegurada personas', fmtMonto(d.suma_persona, moneda)],
-        d.suma_cosa     && ['Suma asegurada cosas',    fmtMonto(d.suma_cosa, moneda)],
-        d.prima_persona && ['Prima personas',          fmtMonto(d.prima_persona, moneda)],
-        d.prima_cosa    && ['Prima cosas',             fmtMonto(d.prima_cosa, moneda)],
+        d.suma_persona && ['Suma asegurada personas', fmtMonto(d.suma_persona, moneda)],
+        d.suma_cosa && ['Suma asegurada cosas', fmtMonto(d.suma_cosa, moneda)],
+        d.prima_persona && ['Prima personas', fmtMonto(d.prima_persona, moneda)],
+        d.prima_cosa && ['Prima cosas', fmtMonto(d.prima_cosa, moneda)],
       ].filter(Boolean)
       return filas.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 mt-2 text-xs text-slate-500">
@@ -1281,35 +1278,35 @@ function Step4({ sim, setSim, tasaBcv, tasaEur, onNext, onBack, onClose }) {
 
 // ── PASO 5: Documentos + Confirmar ────────────────────────────────────────────
 function Step5({ sim, tasaBcv, tasaEur, editId, onBack, onClose, onSaved, showToast, currentUser }) {
-  const isEdit  = !!editId
-  const prod    = sim.producto
-  const moneda  = prod?.moneda || 'USD'
+  const isEdit = !!editId
+  const prod = sim.producto
+  const moneda = prod?.moneda || 'USD'
   const { prima, iva, ivaPct, total } = calcTotal(sim.tarifa, prod?.tipo_calculo, sim.valor_declarado, prod?.derecho_poliza, prod)
-  const totBs   = convertirMoneda(total, moneda, 'BS', tasaBcv, tasaEur)
-  const hoy     = new Date()
+  const totBs = convertirMoneda(total, moneda, 'BS', tasaBcv, tasaEur)
+  const hoy = new Date()
   const fechaISO = hoy.toISOString().slice(0, 10)
-  const fecha   = `${String(hoy.getDate()).padStart(2,'0')}/${String(hoy.getMonth()+1).padStart(2,'0')}/${hoy.getFullYear()}`
+  const fecha = `${String(hoy.getDate()).padStart(2, '0')}/${String(hoy.getMonth() + 1).padStart(2, '0')}/${hoy.getFullYear()}`
   const nroPreview = isEdit
-    ? 'COT-' + hoy.getFullYear() + '-' + String(editId).padStart(5,'0')
+    ? 'COT-' + hoy.getFullYear() + '-' + String(editId).padStart(5, '0')
     : 'COT-' + hoy.getFullYear() + '-XXXXX'
 
-  const [docs,    setDocs]    = useState([])
-  const [saving,  setSaving]  = useState(false)
+  const [docs, setDocs] = useState([])
+  const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadNombre, setUploadNombre] = useState('')
-  const [uploadFile,   setUploadFile]   = useState(null)
-  const [showUpload, setShowUpload]     = useState(false)
+  const [uploadFile, setUploadFile] = useState(null)
+  const [showUpload, setShowUpload] = useState(false)
   const fileRef = useRef(null)
 
   const loadDocs = useCallback(async () => {
     if (!sim.cliente_id) return
-    try { setDocs(await fetchDocumentosCliente(sim.cliente_id)) } catch {}
+    try { setDocs(await fetchDocumentosCliente(sim.cliente_id)) } catch { }
   }, [sim.cliente_id])
 
   useEffect(() => { loadDocs() }, [loadDocs])
 
   const docsRequeridos = prod?.documentos_requeridos || []
-  const docsFaltantes  = docsRequeridos.filter(dr => dr.obligatorio && !docs.find(d => d.nombre === dr.nombre))
+  const docsFaltantes = docsRequeridos.filter(dr => dr.obligatorio && !docs.find(d => d.nombre === dr.nombre))
 
   const handleUpload = async () => {
     if (!uploadFile || !uploadNombre.trim()) return
@@ -1415,7 +1412,7 @@ function Step5({ sim, tasaBcv, tasaEur, editId, onBack, onClose, onSaved, showTo
         // se hacía para vehículos y el resto nunca aparecía en "Bienes".
         const campos = { ...sim.bienCampos }
         if (sim.asegurado_nombre) campos.asegurado_nombre = sim.asegurado_nombre
-        if (sim.asegurado_ci)     campos.asegurado_ci     = sim.asegurado_ci
+        if (sim.asegurado_ci) campos.asegurado_ci = sim.asegurado_ci
         const bienData = {
           tipo: tipoBien,
           atributos: Object.keys(campos).length > 0 ? campos : null,
@@ -1432,22 +1429,22 @@ function Step5({ sim, tasaBcv, tasaEur, editId, onBack, onClose, onSaved, showTo
       }
 
       const payload = {
-        persona_id:        sim.cliente_id  || null,
+        persona_id: sim.cliente_id || null,
         bien_asegurado_id: bienId,
-        producto_id:       sim.producto_id,
-        tarifario_id:      sim.tarifario_id || null,
-        total,             total_bs: totBs,
-        fecha_solicitud:   fechaISO,
+        producto_id: sim.producto_id,
+        tarifario_id: sim.tarifario_id || null,
+        total, total_bs: totBs,
+        fecha_solicitud: fechaISO,
         coberturas,
-        nombre_tomador:    sim.nombre,
-        ci_tomador:        sim.ci,
-        asegurado_nombre:    sim.asegurado_nombre    || null,
-        asegurado_ci:        sim.asegurado_ci        || null,
-        asegurado_telefono:  sim.asegurado_telefono  || null,
+        nombre_tomador: sim.nombre,
+        ci_tomador: sim.ci,
+        asegurado_nombre: sim.asegurado_nombre || null,
+        asegurado_ci: sim.asegurado_ci || null,
+        asegurado_telefono: sim.asegurado_telefono || null,
         asegurado_direccion: sim.asegurado_direccion || null,
       }
       if (isEdit) await updateCotizacion(editId, payload)
-      else        await createCotizacion(payload)
+      else await createCotizacion(payload)
       showToast(isEdit ? 'Cotización actualizada' : 'Cotización guardada', 'success')
       onSaved(); onClose()
     } catch (e) {
@@ -1609,10 +1606,10 @@ function Step5({ sim, tasaBcv, tasaEur, editId, onBack, onClose, onSaved, showTo
 
 // ── Modal: Evaluación de Underwriting ────────────────────────────────────────
 const UW_RESULTADO_META = {
-  pendiente:  { label: 'Pendiente',  bg: 'bg-slate-100',   text: 'text-slate-600'  },
-  aprobado:   { label: 'Aprobado',   bg: 'bg-emerald-100', text: 'text-emerald-700' },
-  rechazado:  { label: 'Rechazado',  bg: 'bg-rose-100',    text: 'text-rose-700'   },
-  observado:  { label: 'Observado',  bg: 'bg-amber-100',   text: 'text-amber-700'  },
+  pendiente: { label: 'Pendiente', bg: 'bg-slate-100', text: 'text-slate-600' },
+  aprobado: { label: 'Aprobado', bg: 'bg-emerald-100', text: 'text-emerald-700' },
+  rechazado: { label: 'Rechazado', bg: 'bg-rose-100', text: 'text-rose-700' },
+  observado: { label: 'Observado', bg: 'bg-amber-100', text: 'text-amber-700' },
 }
 
 function UwBadge({ resultado }) {
@@ -1632,16 +1629,16 @@ function UnderwritingModal({ cot, onClose, onStatusChanged, showToast }) {
   const panelRef = useRef(null)
   useModalLock(panelRef)
   const [evaluaciones, setEvaluaciones] = useState([])
-  const [loading,   setLoading]   = useState(true)
-  const [form,      setForm]      = useState(freshUwForm())
-  const [saving,    setSaving]    = useState(false)
-  const [err,       setErr]       = useState('')
+  const [loading, setLoading] = useState(true)
+  const [form, setForm] = useState(freshUwForm())
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
   const setF = (k, v) => setForm(p => ({ ...p, [k]: v }))
 
   const load = useCallback(async () => {
     setLoading(true)
     try { setEvaluaciones(await fetchUnderwriting(cot.id)) }
-    catch {}
+    catch { }
     finally { setLoading(false) }
   }, [cot.id])
 
@@ -1655,11 +1652,11 @@ function UnderwritingModal({ cot, onClose, onStatusChanged, showToast }) {
     setSaving(true); setErr('')
     try {
       const payload = {
-        resultado:           form.resultado,
-        observaciones:       form.observaciones.trim() || undefined,
-        motivo_rechazo:      form.resultado === 'rechazado' ? (form.motivo_rechazo.trim() || undefined) : undefined,
+        resultado: form.resultado,
+        observaciones: form.observaciones.trim() || undefined,
+        motivo_rechazo: form.resultado === 'rechazado' ? (form.motivo_rechazo.trim() || undefined) : undefined,
         requiere_inspeccion: form.requiere_inspeccion,
-        score:               form.score !== '' ? parseFloat(form.score) : undefined,
+        score: form.score !== '' ? parseFloat(form.score) : undefined,
       }
       await createUnderwriting(cot.id, payload)
       showToast('Evaluación registrada correctamente', 'success')
@@ -1785,7 +1782,7 @@ function UnderwritingModal({ cot, onClose, onStatusChanged, showToast }) {
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">Inspección</span>
                         )}
                       </div>
-                      <span className="text-[10px] text-slate-400 font-mono shrink-0">{ev.fecha_evaluacion?.slice(0,10)}</span>
+                      <span className="text-[10px] text-slate-400 font-mono shrink-0">{ev.fecha_evaluacion?.slice(0, 10)}</span>
                     </div>
                     {ev.evaluador && <p className="text-[10px] text-slate-400">Evaluador: <span className="font-semibold text-slate-600">{ev.evaluador}</span></p>}
                     {ev.observaciones && <p className="text-xs text-slate-600 mt-1.5 leading-relaxed line-clamp-3">{ev.observaciones}</p>}
@@ -1810,29 +1807,29 @@ function UnderwritingModal({ cot, onClose, onStatusChanged, showToast }) {
 export default function Simulador() {
   const { showToast, showModal, currentUser, canAct } = useApp()
   const canCreate = canAct('cotizaciones', 'create')
-  const canEdit   = canAct('cotizaciones', 'edit')
+  const canEdit = canAct('cotizaciones', 'edit')
   const canDelete = canAct('cotizaciones', 'delete')
-  const canEmit   = canAct('cotizaciones', 'emit')
+  const canEmit = canAct('cotizaciones', 'emit')
   const canAdjust = canAct('clientes', 'adjust')
   const canUnderwrite = canAct('cotizaciones', 'underwrite')
   const canViewList = canAct('cotizaciones', 'view_list')
   const hasAnyAction = canEdit || canEmit || canDelete || canAdjust || canUnderwrite
 
-  const [sim,     setSim]     = useState(freshState())
-  const [step,    setStep]    = useState(0)
-  const [editId,  setEditId]  = useState(null)
+  const [sim, setSim] = useState(freshState())
+  const [step, setStep] = useState(0)
+  const [editId, setEditId] = useState(null)
   const [tasaBcv, setTasaBcv] = useState(null)
   const [tasaEur, setTasaEur] = useState(null)
   const [productos, setProductos] = useState([])
   const [vehiculosCatalogo, setVehiculosCatalogo] = useState([])
 
   const [cotizaciones, setCotizaciones] = useState([])
-  const [loadingCot,   setLoadingCot]   = useState(true)
-  const [chipActive,   setChipActive]   = useState(0)
-  const [search,       setSearch]       = useState('')
-  const [uwModal,      setUwModal]      = useState(null) // cotización para underwriting
-  const [cotPage,      setCotPage]      = useState(0)
-  const [cotPageSize,  setCotPageSize]  = useState(20)
+  const [loadingCot, setLoadingCot] = useState(true)
+  const [chipActive, setChipActive] = useState(0)
+  const [search, setSearch] = useState('')
+  const [uwModal, setUwModal] = useState(null) // cotización para underwriting
+  const [cotPage, setCotPage] = useState(0)
+  const [cotPageSize, setCotPageSize] = useState(20)
 
   const loadData = useCallback(async () => {
     setLoadingCot(true)
@@ -1876,19 +1873,19 @@ export default function Simulador() {
   const byChip = chipActive === 0 ? cotizaciones : cotizaciones.filter(q => q.status === statuses[chipActive])
   const visibleCots = search.trim()
     ? byChip.filter(q => {
-        const sq = search.toLowerCase()
-        const placaRef = q.bien_atributos?.placa || q.bien_atributos?.descripcion || ''
-        return q.nombre.toLowerCase().includes(sq) || q.ci.toLowerCase().includes(sq)
-          || placaRef.toLowerCase().includes(sq) || q.nro.toLowerCase().includes(sq)
-      })
+      const sq = search.toLowerCase()
+      const placaRef = q.bien_atributos?.placa || q.bien_atributos?.descripcion || ''
+      return q.nombre.toLowerCase().includes(sq) || q.ci.toLowerCase().includes(sq)
+        || placaRef.toLowerCase().includes(sq) || q.nro.toLowerCase().includes(sq)
+    })
     : byChip
 
   const cotTotalPages = Math.max(1, Math.ceil(visibleCots.length / cotPageSize))
-  const cotSafePage   = Math.min(cotPage, cotTotalPages - 1)
-  const cotStart      = cotSafePage * cotPageSize
-  const pagedCots      = visibleCots.slice(cotStart, cotStart + cotPageSize)
+  const cotSafePage = Math.min(cotPage, cotTotalPages - 1)
+  const cotStart = cotSafePage * cotPageSize
+  const pagedCots = visibleCots.slice(cotStart, cotStart + cotPageSize)
 
-  const simEmitidas   = cotizaciones.filter(q => q.status === 'emitida').length
+  const simEmitidas = cotizaciones.filter(q => q.status === 'emitida').length
   const simEnRevision = cotizaciones.filter(q => q.status === 'en_revision').length
   const simRechazadas = cotizaciones.filter(q => q.status === 'rechazado').length
 
@@ -1941,7 +1938,7 @@ export default function Simulador() {
             <div className="shrink-0">
               <button onClick={openSim} className="flex items-center gap-2.5 bg-white text-jm-blue text-sm font-black px-7 py-4 rounded-2xl hover:bg-blue-50 transition-all shadow-xl shadow-black/25 group">
                 <Calculator className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                Iniciar Simulación
+                Emitir
               </button>
             </div>
           )}
@@ -1966,10 +1963,10 @@ export default function Simulador() {
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { l: 'Total Simulaciones', v: cotizaciones.length, sub: 'Registradas',      Icon: Calculator, bg: 'bg-slate-100',  ic: 'text-slate-600' },
-          { l: 'Emitidas',           v: simEmitidas,         sub: 'Pólizas generadas', Icon: FileCheck,  bg: 'bg-emerald-100', ic: 'text-emerald-600' },
-          { l: 'En Revisión',        v: simEnRevision,       sub: 'Pendientes',        Icon: Clock,      bg: 'bg-amber-100',  ic: 'text-amber-600' },
-          { l: 'Rechazadas',         v: simRechazadas,       sub: 'Sin aprobación',    Icon: XCircle,    bg: 'bg-rose-100',   ic: 'text-rose-600' },
+          { l: 'Total Simulaciones', v: cotizaciones.length, sub: 'Registradas', Icon: Calculator, bg: 'bg-slate-100', ic: 'text-slate-600' },
+          { l: 'Emitidas', v: simEmitidas, sub: 'Pólizas generadas', Icon: FileCheck, bg: 'bg-emerald-100', ic: 'text-emerald-600' },
+          { l: 'En Revisión', v: simEnRevision, sub: 'Pendientes', Icon: Clock, bg: 'bg-amber-100', ic: 'text-amber-600' },
+          { l: 'Rechazadas', v: simRechazadas, sub: 'Sin aprobación', Icon: XCircle, bg: 'bg-rose-100', ic: 'text-rose-600' },
         ].map(({ l, v, sub, Icon, bg, ic }) => (
           <div key={l} className="card p-4 flex items-start gap-3">
             <div className={`w-9 h-9 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
@@ -2006,159 +2003,159 @@ export default function Simulador() {
             <p className="text-xs text-slate-400">No tienes permiso para ver el listado de cotizaciones.</p>
           </div>
         ) : (
-        <>
-        <div className="flex flex-wrap gap-2 px-1 sm:px-0">
-          {statuses.map((s, i) => {
-            const count = i === 0 ? cotizaciones.length : cotizaciones.filter(q => q.status === s).length
-            return (
-              <button key={s} onClick={() => setChipActive(i)}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${i === chipActive ? 'bg-jm-blue text-white border-jm-blue shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}>
-                {statusLabels[i]}
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${i === chipActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>{count}</span>
-              </button>
-            )
-          })}
-        </div>
-
-        <div className="card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-slate-50 border-b border-slate-100">
-                <tr>
-                  <th className="th-cell text-left hidden md:table-cell">N° Cotización</th>
-                  <th className="th-cell text-left">Cliente</th>
-                  <th className="th-cell text-left hidden sm:table-cell">Vendedor</th>
-                  <th className="th-cell text-left hidden xl:table-cell">Producto</th>
-                  <th className="th-cell text-right hidden sm:table-cell">Total USD</th>
-                  <th className="th-cell text-left hidden lg:table-cell">Fecha</th>
-                  <th className="th-cell text-left">Estado</th>
-                  {hasAnyAction && <th className="th-cell text-center">Acciones</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {loadingCot ? (
-                  <tr><td colSpan={hasAnyAction ? 8 : 7} className="td-cell text-center py-10 text-slate-400">
-                    <div className="flex items-center justify-center gap-2">
-                      <div className="w-4 h-4 border-2 border-slate-300 border-t-jm-blue rounded-full animate-spin" />
-                      Cargando cotizaciones…
-                    </div>
-                  </td></tr>
-                ) : visibleCots.length === 0 ? (
-                  <tr><td colSpan={hasAnyAction ? 8 : 7} className="td-cell text-center py-10 text-slate-400">
-                    {search ? `Sin resultados para "${search}"` : 'No hay cotizaciones registradas.'}
-                  </td></tr>
-                ) : pagedCots.map(q => (
-                  <tr key={q.id} className="hover:bg-slate-50/60 transition-colors">
-                    <td className="td-cell hidden md:table-cell"><span className="font-mono font-bold text-xs sm:text-sm text-slate-700">{q.nro}</span></td>
-                    <td className="td-cell">
-                      <p className="text-xs sm:text-sm font-semibold text-slate-800">{q.nombre}</p>
-                      <p className="text-xs sm:text-sm text-slate-400 font-mono">{q.ci}</p>
-                      <p className="text-xs sm:text-sm font-mono font-bold text-slate-500 md:hidden mt-0.5">{q.nro}</p>
-                    </td>
-                    <td className="td-cell text-xs sm:text-sm text-slate-600 hidden sm:table-cell">
-                      {q.vendedor_nombre || '—'}
-                    </td>
-                    <td className="td-cell text-xs sm:text-sm text-slate-600 hidden xl:table-cell">{q.producto || '—'}</td>
-                    <td className="td-cell text-right font-bold text-xs sm:text-sm text-slate-800 hidden sm:table-cell">{fmtMonto(q.total, q.moneda_producto)}</td>
-                    <td className="td-cell text-xs sm:text-sm text-slate-500 hidden lg:table-cell">{q.fecha}</td>
-                    <td className="td-cell"><StatusBadge status={q.status} /></td>
-                    {hasAnyAction && (
-                      <td className="px-2 sm:px-3 py-2">
-                        <div className="flex flex-wrap gap-1.5 justify-center">
-                          {canUnderwrite && q.status === 'en_revision' && (
-                            <button onClick={() => setUwModal(q)} className="p-2.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition" title="Evaluación de Underwriting">
-                              <ClipboardList className="w-[18px] h-[18px]" />
-                            </button>
-                          )}
-                          {canEdit && q.status === 'en_revision' && (
-                            <button onClick={() => handleChangeStatus(q.id, 'rechazado')} className="p-2.5 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition" title="Rechazar directo">
-                              <X className="w-[18px] h-[18px]" />
-                            </button>
-                          )}
-                          {canEmit && q.status === 'aprobado' && (
-                            <button onClick={() => {
-                              const prod = productos.find(p => p.id === q.producto_id)
-                              showModal('emitirCotizacion', {
-                                cot: { ...q, producto_permite_mensualidades: !!prod?.permite_mensualidades, producto_recargo_mensual_pct: prod?.recargo_mensual_pct },
-                                onSaved: loadData,
-                              })
-                            }} className="p-2.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition" title="Emitir póliza">
-                              <FileCheck className="w-[18px] h-[18px]" />
-                            </button>
-                          )}
-                          {canEdit && q.status !== 'emitida' && (
-                            <button onClick={() => openEditSim(q)} className="p-2.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition" title="Editar">
-                              <Pencil className="w-[18px] h-[18px]" />
-                            </button>
-                          )}
-                          {canAdjust && q.status === 'emitida' && q.poliza_id && (
-                            <button
-                              onClick={() => showModal('ajustarPoliza', {
-                                c: { id: q.persona_id, nombre: q.nombre },
-                                polizaId: q.poliza_id,
-                                onSave: loadData,
-                              })}
-                              className="p-2.5 rounded-lg bg-violet-50 text-violet-600 hover:bg-violet-100 transition"
-                              title="Editar póliza emitida"
-                            >
-                              <SlidersHorizontal className="w-[18px] h-[18px]" />
-                            </button>
-                          )}
-                          {canDelete && (
-                            <button onClick={() => handleDelete(q.id, q.nro)} className="p-2.5 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition" title="Eliminar">
-                              <Trash2 className="w-[18px] h-[18px]" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="px-4 py-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400">
-            <div className="flex flex-wrap items-center gap-3">
-              <span>
-                {visibleCots.length === 0
-                  ? '0 cotizaciones'
-                  : `${cotStart + 1}–${Math.min(cotStart + cotPageSize, visibleCots.length)} de ${visibleCots.length}`}
-              </span>
-              <label className="flex items-center gap-1.5">
-                Mostrar
-                <select
-                  value={cotPageSize}
-                  onChange={e => { setCotPageSize(Number(e.target.value)); setCotPage(0) }}
-                  className="border border-slate-200 rounded-lg px-1.5 py-0.5 text-xs bg-white text-slate-600 outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  {[10, 20, 50, 100, 200].map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
-              </label>
+          <>
+            <div className="flex flex-wrap gap-2 px-1 sm:px-0">
+              {statuses.map((s, i) => {
+                const count = i === 0 ? cotizaciones.length : cotizaciones.filter(q => q.status === s).length
+                return (
+                  <button key={s} onClick={() => setChipActive(i)}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${i === chipActive ? 'bg-jm-blue text-white border-jm-blue shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}>
+                    {statusLabels[i]}
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${i === chipActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>{count}</span>
+                  </button>
+                )
+              })}
             </div>
-            {cotTotalPages > 1 && (
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setCotPage(p => Math.max(0, p - 1))}
-                  disabled={cotSafePage === 0}
-                  className="px-2 py-1 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50 transition"
-                >
-                  Anterior
-                </button>
-                <span>Página {cotSafePage + 1} de {cotTotalPages}</span>
-                <button
-                  type="button"
-                  onClick={() => setCotPage(p => Math.min(cotTotalPages - 1, p + 1))}
-                  disabled={cotSafePage >= cotTotalPages - 1}
-                  className="px-2 py-1 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50 transition"
-                >
-                  Siguiente
-                </button>
+
+            <div className="card overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-slate-50 border-b border-slate-100">
+                    <tr>
+                      <th className="th-cell text-left hidden md:table-cell">N° Cotización</th>
+                      <th className="th-cell text-left">Cliente</th>
+                      <th className="th-cell text-left hidden sm:table-cell">Vendedor</th>
+                      <th className="th-cell text-left hidden xl:table-cell">Producto</th>
+                      <th className="th-cell text-right hidden sm:table-cell">Total USD</th>
+                      <th className="th-cell text-left hidden lg:table-cell">Fecha</th>
+                      <th className="th-cell text-left">Estado</th>
+                      {hasAnyAction && <th className="th-cell text-center">Acciones</th>}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {loadingCot ? (
+                      <tr><td colSpan={hasAnyAction ? 8 : 7} className="td-cell text-center py-10 text-slate-400">
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="w-4 h-4 border-2 border-slate-300 border-t-jm-blue rounded-full animate-spin" />
+                          Cargando cotizaciones…
+                        </div>
+                      </td></tr>
+                    ) : visibleCots.length === 0 ? (
+                      <tr><td colSpan={hasAnyAction ? 8 : 7} className="td-cell text-center py-10 text-slate-400">
+                        {search ? `Sin resultados para "${search}"` : 'No hay cotizaciones registradas.'}
+                      </td></tr>
+                    ) : pagedCots.map(q => (
+                      <tr key={q.id} className="hover:bg-slate-50/60 transition-colors">
+                        <td className="td-cell hidden md:table-cell"><span className="font-mono font-bold text-xs sm:text-sm text-slate-700">{q.nro}</span></td>
+                        <td className="td-cell">
+                          <p className="text-xs sm:text-sm font-semibold text-slate-800">{q.nombre}</p>
+                          <p className="text-xs sm:text-sm text-slate-400 font-mono">{q.ci}</p>
+                          <p className="text-xs sm:text-sm font-mono font-bold text-slate-500 md:hidden mt-0.5">{q.nro}</p>
+                        </td>
+                        <td className="td-cell text-xs sm:text-sm text-slate-600 hidden sm:table-cell">
+                          {q.vendedor_nombre || '—'}
+                        </td>
+                        <td className="td-cell text-xs sm:text-sm text-slate-600 hidden xl:table-cell">{q.producto || '—'}</td>
+                        <td className="td-cell text-right font-bold text-xs sm:text-sm text-slate-800 hidden sm:table-cell">{fmtMonto(q.total, q.moneda_producto)}</td>
+                        <td className="td-cell text-xs sm:text-sm text-slate-500 hidden lg:table-cell">{q.fecha}</td>
+                        <td className="td-cell"><StatusBadge status={q.status} /></td>
+                        {hasAnyAction && (
+                          <td className="px-2 sm:px-3 py-2">
+                            <div className="flex flex-wrap gap-1.5 justify-center">
+                              {canUnderwrite && q.status === 'en_revision' && (
+                                <button onClick={() => setUwModal(q)} className="p-2.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition" title="Evaluación de Underwriting">
+                                  <ClipboardList className="w-[18px] h-[18px]" />
+                                </button>
+                              )}
+                              {canEdit && q.status === 'en_revision' && (
+                                <button onClick={() => handleChangeStatus(q.id, 'rechazado')} className="p-2.5 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition" title="Rechazar directo">
+                                  <X className="w-[18px] h-[18px]" />
+                                </button>
+                              )}
+                              {canEmit && q.status === 'aprobado' && (
+                                <button onClick={() => {
+                                  const prod = productos.find(p => p.id === q.producto_id)
+                                  showModal('emitirCotizacion', {
+                                    cot: { ...q, producto_permite_mensualidades: !!prod?.permite_mensualidades, producto_recargo_mensual_pct: prod?.recargo_mensual_pct },
+                                    onSaved: loadData,
+                                  })
+                                }} className="p-2.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition" title="Emitir póliza">
+                                  <FileCheck className="w-[18px] h-[18px]" />
+                                </button>
+                              )}
+                              {canEdit && q.status !== 'emitida' && (
+                                <button onClick={() => openEditSim(q)} className="p-2.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition" title="Editar">
+                                  <Pencil className="w-[18px] h-[18px]" />
+                                </button>
+                              )}
+                              {canAdjust && q.status === 'emitida' && q.poliza_id && (
+                                <button
+                                  onClick={() => showModal('ajustarPoliza', {
+                                    c: { id: q.persona_id, nombre: q.nombre },
+                                    polizaId: q.poliza_id,
+                                    onSave: loadData,
+                                  })}
+                                  className="p-2.5 rounded-lg bg-violet-50 text-violet-600 hover:bg-violet-100 transition"
+                                  title="Editar póliza emitida"
+                                >
+                                  <SlidersHorizontal className="w-[18px] h-[18px]" />
+                                </button>
+                              )}
+                              {canDelete && (
+                                <button onClick={() => handleDelete(q.id, q.nro)} className="p-2.5 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition" title="Eliminar">
+                                  <Trash2 className="w-[18px] h-[18px]" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            )}
-          </div>
-        </div>
-        </>
+              <div className="px-4 py-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span>
+                    {visibleCots.length === 0
+                      ? '0 cotizaciones'
+                      : `${cotStart + 1}–${Math.min(cotStart + cotPageSize, visibleCots.length)} de ${visibleCots.length}`}
+                  </span>
+                  <label className="flex items-center gap-1.5">
+                    Mostrar
+                    <select
+                      value={cotPageSize}
+                      onChange={e => { setCotPageSize(Number(e.target.value)); setCotPage(0) }}
+                      className="border border-slate-200 rounded-lg px-1.5 py-0.5 text-xs bg-white text-slate-600 outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                      {[10, 20, 50, 100, 200].map(n => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                  </label>
+                </div>
+                {cotTotalPages > 1 && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCotPage(p => Math.max(0, p - 1))}
+                      disabled={cotSafePage === 0}
+                      className="px-2 py-1 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50 transition"
+                    >
+                      Anterior
+                    </button>
+                    <span>Página {cotSafePage + 1} de {cotTotalPages}</span>
+                    <button
+                      type="button"
+                      onClick={() => setCotPage(p => Math.min(cotTotalPages - 1, p + 1))}
+                      disabled={cotSafePage >= cotTotalPages - 1}
+                      className="px-2 py-1 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50 transition"
+                    >
+                      Siguiente
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
         )}
       </div>
 

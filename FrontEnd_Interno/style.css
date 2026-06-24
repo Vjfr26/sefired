@@ -266,8 +266,8 @@
 
   /* Form fields */
   .field-label  { @apply text-sm font-semibold text-slate-600 mb-1 block; }
-  .input-field  { @apply w-full max-w-full text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500 transition; min-width: 0; }
-  .select-field { @apply w-full max-w-full text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500 transition; min-width: 0; }
+  .input-field  { @apply w-full max-w-full text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500 transition uppercase; min-width: 0; }
+  .select-field { @apply w-full max-w-full text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500 transition uppercase; min-width: 0; }
 
   /* Extra buttons */
   .btn-success { @apply inline-flex items-center justify-center gap-2 bg-emerald-600 text-white text-sm font-bold px-4 sm:px-6 py-2.5 sm:py-3 rounded-2xl hover:bg-emerald-700 transition-all shadow-lg cursor-pointer; min-width: 0; }
@@ -275,7 +275,7 @@
 
   /* Table cells — compact on mobile, comfortable on desktop */
   .th-cell { @apply px-0.5 sm:px-5 py-2 sm:py-3 text-xs font-bold uppercase tracking-wider text-slate-500 whitespace-nowrap; }
-  .td-cell { @apply px-0.5 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-slate-800 overflow-hidden; }
+  .td-cell { @apply px-0.5 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-slate-800 overflow-hidden uppercase; }
 
   /* Toggle switch */
   .toggle-wrap  { @apply relative inline-flex items-center; }

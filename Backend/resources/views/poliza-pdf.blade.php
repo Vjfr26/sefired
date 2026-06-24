@@ -307,19 +307,19 @@
         <th>{{ $monedaLabel }}</th>
     </tr>
     <tr class="titu">
-        <td style="border-right:none;">Sucursal de Cobro:</td>
-        <td style="border:none;">Canal de Venta</td>
+        <td>Sucursal de Cobro:</td>
+        <td>Canal de Venta</td>
         <td>Frecuencia de Pago</td>
     </tr>
     <tr class="titu2">
-        <th style="border-right:none;">{{ $poliza->sede_poliza }}</th>
-        <th style="border:none; border-bottom:1px solid #888;">{{ $canalVenta }}</th>
+        <th>{{ $poliza->sede_poliza }}</th>
+        <th>{{ $canalVenta }}</th>
         <th>{{ $frecuenciaPago }}</th>
     </tr>
     <tr class="titu"><td colspan="2">Código del Intermediario</td><td>Participación</td></tr>
     <tr class="titu2">
-        <th style="border-right:none;">{{ $vendedorCodigo }}</th>
-        <th style="border:none; border-bottom:1px solid #888; text-transform:uppercase;">{{ $vendedorNombre }}</th>
+        <th>{{ $vendedorCodigo }}</th>
+        <th style="text-transform:uppercase;">{{ $vendedorNombre }}</th>
         <th>100%</th>
     </tr>
 </table>
@@ -329,8 +329,8 @@
     <tr><th colspan="4" class="linea">Datos del Recibo</th></tr>
     <tr class="titu"><td>Número de Recibo:</td><td colspan="2">Vigencia:</td><td>Tipo de Movimiento</td></tr>
     <tr class="titu2">
-        <th style="border-right:none;">{{ $numeroRecibo }}</th>
-        <th colspan="2" style="border:none;">
+        <th>{{ $numeroRecibo }}</th>
+        <th colspan="2">
             &nbsp;&nbsp;&nbsp;Desde: {{ $poliza->fecha_emision?->format('d-m-Y') }}
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Hasta: {{ $poliza->fecha_vencimiento?->format('d-m-Y') }}
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Hora: {{ now()->format('H:i') }}
@@ -338,14 +338,14 @@
         <th>{{ $esRenovacion ? 'RENOVACIÓN' : 'EMISIÓN / ALTA' }}</th>
     </tr>
     <tr class="titu">
-        <td style="border-right:none;">Sucursal de Oficina:</td>
-        <td style="border:none;">Canal de Venta</td>
+        <td>Sucursal de Oficina:</td>
+        <td>Canal de Venta</td>
         <td>Frecuencia de Pago</td>
         <td>Total a Cobrar</td>
     </tr>
     <tr class="titu2">
-        <th style="border-right:none;">{{ $poliza->sede_poliza }}</th>
-        <th style="border:none; border-bottom:1px solid #888;">{{ $canalVenta }}</th>
+        <th>{{ $poliza->sede_poliza }}</th>
+        <th>{{ $canalVenta }}</th>
         <th>{{ $frecuenciaPago }}</th>
         <th>{{ $monedaSimbolo }}{{ number_format((float)$poliza->total, 2) }}</th>
     </tr>
