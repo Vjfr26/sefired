@@ -37,8 +37,18 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 WORKDIR /var/www
 COPY . .
 
-RUN composer install --no-interaction --prefer-dist --optimize-autoloader \
-    && chmod -R 775 storage bootstrap/cache
+# composer install con reintentos: codeload.github.com a veces devuelve HTTP 400
+# al bajar los zips (prefer-dist) de forma intermitente. Cada reintento reusa la
+# caché de composer (los paquetes ya bajados no se vuelven a pedir), así que en
+# pocas pasadas completa. El install final (con set -e) garantiza que el build
+# falle si tras los reintentos sigue incompleto.
+RUN set -e; \
+    for i in 1 2 3 4 5; do \
+      composer install --no-interaction --prefer-dist --optimize-autoloader && break; \
+      echo "composer install falló, reintento $i…"; sleep 8; \
+    done; \
+    composer install --no-interaction --prefer-dist --optimize-autoloader; \
+    chmod -R 775 storage bootstrap/cache
 
 EXPOSE 8000
 
