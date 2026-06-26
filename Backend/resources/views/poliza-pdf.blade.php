@@ -16,6 +16,14 @@
     $bienPrincipal        = $bienScope ?? ($poliza->bienes->firstWhere('certificado', null) ?? $poliza->bienes->first());
     $certificadoPrincipal = $bienPrincipal?->certificado ?? '0';
 
+    // Lista de bienes para los carnets/certificados:
+    //  - acotado (vista de Bienes): solo el bien del scope
+    //  - completo (vista de Clientes): TODOS los bienes de la póliza
+    //  - póliza sin bienes físicos (vida/accidentes): un único carnet
+    $carnetList = $bienScope
+        ? collect([$bienScope])
+        : ($poliza->bienes->isNotEmpty() ? $poliza->bienes : collect([null]));
+
     $snap        = $poliza->snapshot_datos ?? [];
     $tomador     = $snap['tomador']    ?? [];
     $asegurado   = $snap['asegurado']  ?? [];
@@ -535,8 +543,25 @@
     </tr>
 </table>
 
-<!-- ══════════════════════════════════════════════ CARNETS + QR -->
-<table width="100%" cellspacing="0" cellpadding="0" style="margin-top:5px;">
+<!-- ══════════════════════════════════════════════ CARNETS + QR (uno por bien/vehículo) -->
+@foreach($carnetList as $cb)
+@php
+    // Datos del bien de este carnet. El principal conserva los datos ya
+    // calculados arriba (snapshot/acotado); los adicionales derivan de su
+    // propio BienAsegurado y muestran su número de certificado.
+    $carnetNro = ($cb?->certificado) ?: $poliza->nro_contrato;
+    if ($cb && $cb->certificado !== null && $cb->bien) {
+        $bien   = ['tipo' => $cb->bien->tipo, 'atributos' => $cb->bien->atributos ?? []];
+        $attrs  = $cb->bien->atributos ?? [];
+        $marca  = strtoupper($attrs['marca']  ?? '—');
+        $modelo = strtoupper($attrs['modelo'] ?? '—');
+        $anio   = $attrs['anio']              ?? '—';
+        $placa  = strtoupper($attrs['placa']  ?? '—');
+        $color  = strtoupper($attrs['color']  ?? '—');
+        $serCar = strtoupper($attrs['serial_carroceria'] ?? ($attrs['serialCarroceria'] ?? '—'));
+    }
+@endphp
+<table width="100%" cellspacing="0" cellpadding="0" style="margin-top:5px; page-break-inside:avoid;">
     <tr>
         <!-- Carnet Frontal -->
         <td style="width:290px; height:182px; border:2px solid #127481; font-size:9px; vertical-align:top; position:relative; overflow:hidden;">
@@ -546,7 +571,7 @@
                 <!-- N° esquina superior derecha -->
                 <tr>
                     <th colspan="3" style="text-align:right; padding:4px 8px 0 0; white-space:nowrap; font-weight:normal;">
-                        <strong style="font-size:9px;">N° {{ $poliza->nro_contrato }}</strong>
+                        <strong style="font-size:9px;">N° {{ $carnetNro }}</strong>
                     </th>
                 </tr>
                 <!-- Tipo de póliza centrado -->
@@ -656,6 +681,7 @@
         </td>
     </tr>
 </table>
+@endforeach
 
 </body>
 </html>
