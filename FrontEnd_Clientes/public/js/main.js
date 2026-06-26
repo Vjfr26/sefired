@@ -1797,7 +1797,32 @@ function showNotFound() {
   });
 }
 
+/* Límite de caracteres por campo (defensa en profundidad; el backend valida).
+   Solo fija `maxlength`; no toca valores. Respeta los maxlength ya puestos. */
+function capInputLengths() {
+  const TEXTY = ['text', 'search', 'url', 'tel', 'email', 'password', ''];
+  document.querySelectorAll('input, textarea').forEach(el => {
+    if (el.getAttribute('maxlength')) return;
+    if (el.tagName.toLowerCase() === 'textarea') { el.maxLength = 1000; return; }
+    const type = (el.getAttribute('type') || 'text').toLowerCase();
+    if (!TEXTY.includes(type)) return;
+    const hint = `${el.id} ${el.getAttribute('name') || ''} ${el.placeholder || ''} ${el.getAttribute('autocomplete') || ''}`.toLowerCase();
+    const has = s => hint.includes(s);
+    let max = 120;
+    if (type === 'email' || has('correo') || has('email'))             max = 150;
+    else if (type === 'tel' || has('tel') || has('celular'))           max = 20;
+    else if (has('cedula') || has('rif') || has('documento'))          max = 15;
+    else if (has('postal'))                                            max = 10;
+    else if (has('placa'))                                             max = 10;
+    else if (has('direccion') || has('descripcion'))                   max = 200;
+    else if (has('ciudad') || has('color') || has('modelo') || has('marca')) max = 60;
+    else if (has('nombre'))                                            max = 120;
+    el.maxLength = max;
+  });
+}
+
 /* ─── Arranque ─────────────────────────────── */
+capInputLengths();
 setupOfflineBanner();
 
 async function bootPortal() {

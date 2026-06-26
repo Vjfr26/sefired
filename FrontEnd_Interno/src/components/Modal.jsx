@@ -36,6 +36,7 @@ import { createPortal } from 'react-dom'
 import { X, Trash2, Pencil, Check, Lock, LockOpen, ShieldCheck, Building, UserCheck, Truck, UserCog, Car, Shield, DollarSign, RotateCcw, FileText, SlidersHorizontal, Receipt, FileCheck, Eye, Upload, ClipboardList, Search, AlertTriangle, AlertCircle, CheckCircle, Clock, User, Phone, MapPin, Briefcase, Download, RefreshCw, Users, Plus, ChevronRight, Package } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import FormGrid from './FormGrid.jsx'
+import { useInputLimits } from '../utils/inputLimits.js'
 import { fmtMonto, fmtTasa, convertirMoneda, PERMISOS_POR_ROL, getEffectivePerms, getEffectivePermsObj, PERMS_CATALOG, PERMS_ORDER, LOCKED_PERMS, pdfPage, pdfHdr, pdfSec, pdfRow, pdfTotal, pdfFooterSimple, useModalLock, filtrarCedula, filtrarTelefono, filtrarSoloDigitos } from '../utils/helpers.jsx'
 import { TIPOS_PRODUCTO, TIPOS_CALCULO, tipoBadge } from '../utils/productos.jsx'
 import { storeUsuario, updateUsuario, verifyPassword, fetchVendedoresDisponibles } from '../api/usuarios.js'
@@ -58,6 +59,8 @@ function ModalShell({ title, children, footer, wide = false, maxW }) {
   // Mientras el modal está abierto: el fondo no debe scrollear ni recibir
   // foco por teclado (Tab no debe poder "escapar" hacia botones de atrás).
   useModalLock(panelRef)
+  // Límite de caracteres central a todos los campos de cualquier modal.
+  useInputLimits(panelRef)
 
   return (
     // Fondo oscuro — no cierra al hacer clic; solo la X o "Cancelar/Cerrar" cierran el modal
