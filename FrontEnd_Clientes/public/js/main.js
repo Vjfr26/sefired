@@ -129,6 +129,14 @@ const T = {
     'err.min_age':           'Debes ser mayor de 18 años para solicitar un seguro.',
     'err.http_fallback':     'Error {status}. Intenta nuevamente.',
     'err.connection_failed': 'No se pudo conectar con el servidor. Revisa tu conexión e intenta nuevamente, o contacta a un asesor.',
+    /* Estados de página: sin conexión / error de servidor / 404 */
+    'status.offline':     'Sin conexión a internet — algunas acciones no funcionarán hasta reconectarte.',
+    'status.conn.title':  'No se pudo conectar',
+    'status.conn.msg':    'No pudimos contactar al servidor. Verifica tu conexión a internet e inténtalo de nuevo.',
+    'status.retry':       'Reintentar',
+    'status.404.title':   'Página no encontrada',
+    'status.404.msg':     'La dirección que ingresaste no existe o fue movida.',
+    'status.404.home':    'Volver al inicio',
     /* Paso 5 — coincidencia con cliente existente */
     's5.match.title.has_policy': '¡Tienes una póliza activa!',
     's5.match.title.found':      '¡Encontramos tu registro!',
@@ -260,6 +268,13 @@ const T = {
     'err.min_age':           'You must be at least 18 years old to request insurance.',
     'err.http_fallback':     'Error {status}. Please try again.',
     'err.connection_failed': 'Could not connect to the server. Check your connection and try again, or contact an advisor.',
+    'status.offline':     'No internet connection — some actions will not work until you reconnect.',
+    'status.conn.title':  'Could not connect',
+    'status.conn.msg':    'We could not reach the server. Check your internet connection and try again.',
+    'status.retry':       'Retry',
+    'status.404.title':   'Page not found',
+    'status.404.msg':     'The address you entered does not exist or was moved.',
+    'status.404.home':    'Back to home',
     's5.match.title.has_policy': 'You already have an active policy!',
     's5.match.title.found':      'We found your record!',
     's5.match.sub.has_policy':   'You already have an active policy with us. To renew or add coverage, talk to an advisor.',
@@ -535,20 +550,23 @@ async function loadTasas() {
    PASO 1 — cargar productos
    ───────────────────────────────────────────── */
 async function loadProductos() {
-  try {
-    const res = await fetch(API_BASE + '/api/portal/productos', { headers: { Accept: 'application/json' } });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    renderProductCards(await res.json());
-  } catch {
-    const loading = document.getElementById('products-loading');
-    const grid    = document.getElementById('products-grid');
-    if (loading) loading.classList.add('hidden');
-    if (grid) {
-      grid.innerHTML = `<div class="col-span-3 text-center py-4 text-sm text-gray-500">
-        <i class="fa-solid fa-triangle-exclamation text-amber-400 block text-xl mb-2"></i>
-        ${t('products.error')}</div>`;
-      grid.classList.remove('hidden');
-    }
+  // Lanza si no se puede cargar. El llamador (bootPortal) distingue una falla
+  // de red (TypeError de fetch → overlay de conexión) de un error HTTP del
+  // servidor (Error 'HTTP …' → aviso embebido en el grid).
+  const res = await fetch(API_BASE + '/api/portal/productos', { headers: { Accept: 'application/json' } });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  renderProductCards(await res.json());
+}
+
+function renderProductosError() {
+  const loading = document.getElementById('products-loading');
+  const grid    = document.getElementById('products-grid');
+  if (loading) loading.classList.add('hidden');
+  if (grid) {
+    grid.innerHTML = `<div class="col-span-3 text-center py-4 text-sm text-gray-500">
+      <i class="fa-solid fa-triangle-exclamation text-amber-400 block text-xl mb-2"></i>
+      ${t('products.error')}</div>`;
+    grid.classList.remove('hidden');
   }
 }
 
@@ -1705,9 +1723,95 @@ chatInput.addEventListener('keydown', e => { if (e.key === 'Enter') handleContac
 
 showRootMenu();
 
+/* ─────────────────────────────────────────────
+   ESTADOS DE PÁGINA — sin conexión / error / 404
+   Portal de una sola página (nginx sirve index.html para cualquier ruta),
+   así que el 404 se resuelve aquí: si el path no es la raíz, es desconocido.
+   ───────────────────────────────────────────── */
+
+/* Overlay a pantalla completa reutilizable (conexión y 404). */
+function showStatusOverlay({ icon, title, message, actionLabel, onAction }) {
+  hideStatusOverlay();
+  const el = document.createElement('div');
+  el.id = 'status-overlay';
+  el.className = 'fixed inset-0 z-[10000] bg-brand-50 flex items-center justify-center p-6';
+  el.innerHTML = `
+    <div class="text-center max-w-sm w-full bg-white rounded-2xl shadow-xl px-6 py-10">
+      <div class="w-16 h-16 mx-auto mb-5 rounded-full bg-brand-50 flex items-center justify-center">
+        <i class="fa-solid ${icon} text-2xl text-brand-600"></i>
+      </div>
+      <h2 class="text-lg font-bold text-gray-800 mb-2">${title}</h2>
+      <p class="text-sm text-gray-500 mb-6">${message}</p>
+      <button id="status-overlay-action"
+        class="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold transition-colors">
+        ${actionLabel}
+      </button>
+    </div>`;
+  document.body.appendChild(el);
+  el.querySelector('#status-overlay-action').addEventListener('click', onAction);
+}
+
+function hideStatusOverlay() {
+  document.getElementById('status-overlay')?.remove();
+}
+
+/* Banner fijo de "sin conexión" (eventos online/offline del navegador). */
+function setupOfflineBanner() {
+  const banner = document.createElement('div');
+  banner.id = 'offline-banner';
+  banner.className = 'fixed top-0 inset-x-0 z-[100] bg-red-600 text-white text-xs sm:text-sm font-semibold py-2 px-4 text-center shadow-lg hidden';
+  banner.innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-2"></i><span id="offline-banner-text">${t('status.offline')}</span>`;
+  document.body.appendChild(banner);
+  const sync = () => {
+    banner.querySelector('#offline-banner-text').textContent = t('status.offline');
+    banner.classList.toggle('hidden', navigator.onLine);
+  };
+  window.addEventListener('online', sync);
+  window.addEventListener('offline', sync);
+  sync();
+}
+
+function showConnError() {
+  showStatusOverlay({
+    icon: 'fa-plug-circle-exclamation',
+    title: t('status.conn.title'),
+    message: t('status.conn.msg'),
+    actionLabel: t('status.retry'),
+    onAction: () => { hideStatusOverlay(); bootPortal(); },
+  });
+}
+
+function showNotFound() {
+  showStatusOverlay({
+    icon: 'fa-compass',
+    title: t('status.404.title'),
+    message: t('status.404.msg'),
+    actionLabel: t('status.404.home'),
+    onAction: () => { window.location.href = '/'; },
+  });
+}
+
 /* ─── Arranque ─────────────────────────────── */
-loadProductos();
-loadTasas();
+setupOfflineBanner();
+
+async function bootPortal() {
+  loadTasas();
+  try {
+    await loadProductos();
+  } catch (err) {
+    // TypeError = fetch no alcanzó el servidor (red caída / backend inaccesible).
+    // Error 'HTTP …' = el servidor respondió con error → solo aviso en el grid.
+    if (err instanceof TypeError) showConnError();
+    else renderProductosError();
+  }
+}
+
+// Ruta desconocida → 404 (el portal solo vive en la raíz). Si no, carga normal.
+if (window.location.pathname !== '/' && window.location.pathname !== '') {
+  showNotFound();
+} else {
+  bootPortal();
+}
 
 /* ─────────────────────────────────────────────
    GLOBAL LOADER (Página completa)
