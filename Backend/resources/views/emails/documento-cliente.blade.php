@@ -16,7 +16,7 @@
 <p style="margin:0 0 20px;font-size:14px;color:#64748b;text-align:center;line-height:1.6;">
   Estimado/a <strong>{{ $nombre }}</strong>, le informamos que se ha
   {{ $accion === 'subido' ? 'subido un nuevo documento a' : 'eliminado un documento de' }}
-  su expediente en J&amp;M Seguros.
+  su expediente en LA VENEZOLANA DE SEGUROS Y VIDA C.A..
 </p>
 
 <table width="100%" cellpadding="0" cellspacing="0"
@@ -48,7 +48,7 @@
 @else
 <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:16px 20px;margin-bottom:24px;">
   <p style="margin:0;font-size:13px;color:#075985;line-height:1.6;">
-    Este documento forma parte de su expediente en J&amp;M Seguros.
+    Este documento forma parte de su expediente en LA VENEZOLANA DE SEGUROS Y VIDA C.A..
     Si tiene alguna duda, no dude en contactarnos.
   </p>
 </div>

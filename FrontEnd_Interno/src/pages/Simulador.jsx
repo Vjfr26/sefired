@@ -174,7 +174,7 @@ function SimShell({ step, size = 'md', onClose, footer, children }) {
                 <Calculator className="w-5 h-5 text-white" />
               </div>
               <div className="min-w-0">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">J&M · Simulador de Seguros</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Simulador · LA VENEZOLANA DE SEGUROS Y VIDA C.A.</p>
                 <h3 className="text-base font-black text-slate-800">Cotización</h3>
               </div>
             </div>

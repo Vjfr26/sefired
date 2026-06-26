@@ -13,7 +13,7 @@
 </h1>
 <p style="margin:0 0 20px;font-size:14px;color:#64748b;text-align:center;line-height:1.6;">
   Estimado/a <strong>{{ $nombre }}</strong>, le informamos que su expediente ha sido
-  eliminado de nuestro sistema J&amp;M Seguros.
+  eliminado de nuestro sistema de LA VENEZOLANA DE SEGUROS Y VIDA C.A..
 </p>
 
 <table width="100%" cellpadding="0" cellspacing="0"

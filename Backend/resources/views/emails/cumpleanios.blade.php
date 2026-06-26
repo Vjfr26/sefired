@@ -12,7 +12,7 @@
   ¡Feliz Cumpleaños, {{ $nombre }}!
 </h1>
 <p style="margin:0 0 24px;font-size:15px;color:#64748b;text-align:center;line-height:1.7;">
-  En este día especial, todo el equipo de <strong>J&amp;M Seguros</strong><br>
+  En este día especial, todo el equipo de <strong>LA VENEZOLANA DE SEGUROS Y VIDA C.A.</strong><br>
   le desea un año lleno de salud, prosperidad y protección.
 </p>
 
@@ -23,6 +23,6 @@
 </div>
 
 <p style="margin:0;font-size:13px;color:#94a3b8;text-align:center;">
-  Con aprecio, el equipo de J&amp;M Seguros 💙
+  Con aprecio, el equipo de LA VENEZOLANA DE SEGUROS Y VIDA C.A. 💙
 </p>
 @endsection

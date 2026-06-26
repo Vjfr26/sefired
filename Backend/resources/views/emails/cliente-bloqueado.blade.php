@@ -16,9 +16,9 @@
 <p style="margin:0 0 24px;font-size:14px;color:#64748b;text-align:center;line-height:1.6;">
   Estimado/a <strong>{{ $nombre }}</strong>,<br>
   @if($bloqueado)
-    su cuenta en J&amp;M Seguros ha sido <strong>suspendida temporalmente</strong>.
+    su cuenta en LA VENEZOLANA DE SEGUROS Y VIDA C.A. ha sido <strong>suspendida temporalmente</strong>.
   @else
-    su cuenta en J&amp;M Seguros ha sido <strong>reactivada</strong> exitosamente.
+    su cuenta en LA VENEZOLANA DE SEGUROS Y VIDA C.A. ha sido <strong>reactivada</strong> exitosamente.
   @endif
 </p>
 

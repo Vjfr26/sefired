@@ -16,7 +16,7 @@
 <p style="margin:0 0 24px;font-size:14px;color:#64748b;text-align:center;line-height:1.6;">
   Estimado/a <strong>{{ $nombre }}</strong>,<br>
   @if($esCambioCorreo)
-    el correo electrónico asociado a su cuenta en J&amp;M Seguros fue modificado.
+    el correo electrónico asociado a su cuenta en LA VENEZOLANA DE SEGUROS Y VIDA C.A. fue modificado.
   @else
     le informamos que la siguiente información de su expediente fue actualizada.
   @endif
@@ -51,7 +51,7 @@
 <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px 18px;margin-bottom:24px;">
   <p style="margin:0;font-size:13px;color:#991b1b;line-height:1.6;">
     <strong>⚠️ Aviso de seguridad:</strong> si usted no realizó este cambio, comuníquese
-    con J&amp;M Seguros de inmediato para proteger su cuenta.
+    con LA VENEZOLANA DE SEGUROS Y VIDA C.A. de inmediato para proteger su cuenta.
   </p>
 </div>
 @endif

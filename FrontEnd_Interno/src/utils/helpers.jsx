@@ -650,7 +650,7 @@ export function pdfHdr(docTitle, docSub, ref, date, logoUrl = '') {
 export function pdfFooterSimple() {
   const now = new Date().toLocaleDateString('es-VE', { day:'2-digit', month:'long', year:'numeric' })
   return `<div style="margin-top:48px;padding-top:16px;border-top:1px solid #e2e8f0;text-align:center">
-    <p style="font-size:11px;font-weight:700;color:#001463">J&M — LA VENEZOLANA DE SEGUROS Y VIDA C.A.</p>
+    <p style="font-size:11px;font-weight:700;color:#001463">LA VENEZOLANA DE SEGUROS Y VIDA C.A.</p>
     <p style="font-size:9px;color:#94a3b8;margin-top:4px">RIF J-12.345.678-9 · Av. Principal, Caracas 1010 · Tel. (0212) 000-0000</p>
     <p style="font-size:8px;color:#cbd5e1;margin-top:8px;line-height:1.6">Documento generado el ${now} · Autorizado por SUDEASEG · Válido únicamente con sello oficial.</p>
   </div>`
