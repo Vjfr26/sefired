@@ -382,7 +382,7 @@ class ClienteController extends Controller
                         'producto_documentos'   => array_map(
                             fn($d) => [
                                 'nombre' => $d['nombre'],
-                                'url'    => Storage::disk('public')->url($d['path']),
+                                'url'    => Storage::disk(config('filesystems.docs_disk'))->url($d['path']),
                             ],
                             $poliza->producto?->documentos ?? []
                         ),

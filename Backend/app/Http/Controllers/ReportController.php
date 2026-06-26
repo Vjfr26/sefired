@@ -360,10 +360,10 @@ class ReportController extends Controller
         if (!$record) {
             return response()->json(['error' => 'Archivo no encontrado'], 404);
         }
-        if (!Storage::disk('public')->exists($record->archivo_path)) {
+        if (!Storage::disk(config('filesystems.docs_disk'))->exists($record->archivo_path)) {
             return response()->json(['error' => 'Archivo no disponible en servidor'], 404);
         }
-        return Storage::disk('public')->download($record->archivo_path);
+        return Storage::disk(config('filesystems.docs_disk'))->download($record->archivo_path);
     }
 
     /**
@@ -476,7 +476,7 @@ class ReportController extends Controller
         ]);
 
         $file = $request->file('archivo');
-        $path = $file->store('reportes_adjuntos', 'public');
+        $path = $file->store('reportes_adjuntos', config('filesystems.docs_disk'));
 
         return response()->json([
             'nombre' => $file->getClientOriginalName(),
@@ -690,7 +690,7 @@ class ReportController extends Controller
                 $row['notas']             = $retiro?->notas;
                 $row['documento_nombre']  = $retiro?->documento_nombre;
                 $row['documento_url']     = $retiro?->documento_path
-                    ? Storage::disk('public')->url($retiro->documento_path)
+                    ? Storage::disk(config('filesystems.docs_disk'))->url($retiro->documento_path)
                     : null;
             }
 
@@ -722,10 +722,10 @@ class ReportController extends Controller
 
         if ($request->hasFile('documento')) {
             if ($retiro->documento_path) {
-                Storage::disk('public')->delete($retiro->documento_path);
+                Storage::disk(config('filesystems.docs_disk'))->delete($retiro->documento_path);
             }
             $file = $request->file('documento');
-            $retiro->documento_path   = $file->store('retiros_efectivo', 'public');
+            $retiro->documento_path   = $file->store('retiros_efectivo', config('filesystems.docs_disk'));
             $retiro->documento_nombre = $file->getClientOriginalName();
         }
 
@@ -740,7 +740,7 @@ class ReportController extends Controller
 
         return response()->json([
             ...$retiro->toArray(),
-            'documento_url' => $retiro->documento_path ? Storage::disk('public')->url($retiro->documento_path) : null,
+            'documento_url' => $retiro->documento_path ? Storage::disk(config('filesystems.docs_disk'))->url($retiro->documento_path) : null,
         ]);
     }
 

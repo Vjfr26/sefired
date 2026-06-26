@@ -24,6 +24,6 @@ class ReporteGeneratorService
         $path     = 'reportes_externos/' . $filename;
         (new ExternalReportExport($policies))->store($path);
 
-        return ['path' => $path, 'filename' => $filename, 'size' => Storage::disk('public')->size($path)];
+        return ['path' => $path, 'filename' => $filename, 'size' => Storage::disk(config('filesystems.docs_disk'))->size($path)];
     }
 }

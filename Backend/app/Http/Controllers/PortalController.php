@@ -246,7 +246,7 @@ class PortalController extends Controller
             foreach ($request->file('documentos') as $i => $file) {
                 if (!$file || !$file->isValid()) continue;
                 $docNombre = $data['documentos_nombres'][$i] ?? "documento_{$i}";
-                $path      = $file->store("portal/{$slug}", 'public');
+                $path      = $file->store("portal/{$slug}", config('filesystems.docs_disk'));
                 $docPaths[] = [
                     'nombre' => $docNombre,
                     'path'   => $path,

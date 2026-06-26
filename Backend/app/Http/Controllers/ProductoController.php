@@ -218,7 +218,7 @@ class ProductoController extends Controller
 
         $restantes = $documentos->reject(fn($d) => $d['path'] === $path)->values()->all();
 
-        Storage::disk('public')->delete($path);
+        Storage::disk(config('filesystems.docs_disk'))->delete($path);
         $producto->update(['documentos' => $restantes ?: null]);
 
         $this->logActivity('Documento Eliminado', "Producto \"{$producto->nombre}\" — doc eliminado", 'producto', auth()->id());
@@ -231,7 +231,7 @@ class ProductoController extends Controller
         return array_map(fn($d) => [
             'nombre' => $d['nombre'],
             'path'   => $d['path'],
-            'url'    => Storage::disk('public')->url($d['path']),
+            'url'    => Storage::disk(config('filesystems.docs_disk'))->url($d['path']),
         ], $docs);
     }
 

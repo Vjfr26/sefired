@@ -46,6 +46,14 @@ return [
 
         'mysql' => [
             'driver' => 'mysql',
+            // Réplica de lectura para multi-instancia: si DB_READ_HOST está
+            // definido, las lecturas (listados/reportes) van ahí; las escrituras
+            // siempre a DB_HOST. Sin DB_READ_HOST, read = write = DB_HOST (un
+            // solo servidor, idéntico al actual). sticky=true: tras escribir,
+            // las lecturas del mismo request usan el master (consistencia).
+            'read'   => ['host' => [env('DB_READ_HOST') ?: env('DB_HOST', '127.0.0.1')]],
+            'write'  => ['host' => [env('DB_HOST', '127.0.0.1')]],
+            'sticky' => true,
             'url' => env('DB_URL'),
             'host' => env('DB_HOST', '127.0.0.1'),
             'port' => env('DB_PORT', '3306'),

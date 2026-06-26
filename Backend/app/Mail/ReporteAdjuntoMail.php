@@ -59,17 +59,17 @@ class ReporteAdjuntoMail extends Mailable
     {
         $attachments = [
             Attachment::fromData(
-                fn() => Storage::disk('public')->get($this->archivoPath),
+                fn() => Storage::disk(config('filesystems.docs_disk'))->get($this->archivoPath),
                 $this->archivoNombre,
             )->withMime('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
         ];
 
         foreach ($this->adjuntosExtra as $extra) {
-            if (!Storage::disk('public')->exists($extra['path'])) {
+            if (!Storage::disk(config('filesystems.docs_disk'))->exists($extra['path'])) {
                 continue;
             }
             $attachment = Attachment::fromData(
-                fn() => Storage::disk('public')->get($extra['path']),
+                fn() => Storage::disk(config('filesystems.docs_disk'))->get($extra['path']),
                 $extra['nombre'],
             );
             if (!empty($extra['mime'])) {

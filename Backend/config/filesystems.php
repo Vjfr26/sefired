@@ -16,6 +16,14 @@ return [
     'default' => env('FILESYSTEM_DISK', 'local'),
 
     /*
+    | Disco para archivos PERSISTENTES subidos (documentos de clientes/productos,
+    | adjuntos, reportes). En un solo servidor: 'public' (disco local). Para
+    | multi-instancia: poner DOCS_DISK=s3 (todas las instancias comparten S3).
+    | El código usa siempre config('filesystems.docs_disk'), nunca 'public' fijo.
+    */
+    'docs_disk' => env('DOCS_DISK', 'public'),
+
+    /*
     |--------------------------------------------------------------------------
     | Filesystem Disks
     |--------------------------------------------------------------------------
@@ -56,6 +64,7 @@ return [
             'url' => env('AWS_URL'),
             'endpoint' => env('AWS_ENDPOINT'),
             'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
+            'visibility' => 'public',
             'throw' => false,
             'report' => false,
         ],

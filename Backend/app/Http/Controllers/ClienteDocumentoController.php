@@ -44,7 +44,7 @@ class ClienteDocumentoController extends Controller
 
         $file     = $request->file('documento');
         $filename = uniqid('cdoc_') . '.' . $file->getClientOriginalExtension();
-        $path     = $file->storeAs("clientes/{$personaId}/documentos", $filename, 'public');
+        $path     = $file->storeAs("clientes/{$personaId}/documentos", $filename, config('filesystems.docs_disk'));
 
         $doc = ClienteDocumento::create([
             'persona_id' => $personaId,
@@ -77,7 +77,7 @@ class ClienteDocumentoController extends Controller
         $persona = Persona::findOrFail($personaId);
         $this->assertAccesoCliente($persona);
 
-        Storage::disk('public')->delete($doc->path);
+        Storage::disk(config('filesystems.docs_disk'))->delete($doc->path);
         $docNombre = $doc->nombre;
         $doc->delete();
 
@@ -105,7 +105,7 @@ class ClienteDocumentoController extends Controller
             'persona_id' => $d->persona_id,
             'nombre'     => $d->nombre,
             'path'       => $d->path,
-            'url'        => Storage::disk('public')->url($d->path),
+            'url'        => Storage::disk(config('filesystems.docs_disk'))->url($d->path),
             'size'       => $d->size,
             'mime'       => $d->mime,
             'created_at' => $d->created_at?->format('d/m/Y H:i'),

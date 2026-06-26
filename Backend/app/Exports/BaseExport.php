@@ -64,8 +64,9 @@ abstract class BaseExport
     /**
      * Guarda el archivo Excel en un disco de Storage y retorna el contenido binario.
      */
-    public function store(string $path, string $disk = 'public'): string
+    public function store(string $path, ?string $disk = null): string
     {
+        $disk = $disk ?? config('filesystems.docs_disk');
         $spreadsheet = $this->build();
         $writer = new Xlsx($spreadsheet);
 
