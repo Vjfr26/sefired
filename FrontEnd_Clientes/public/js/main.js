@@ -512,7 +512,9 @@ function sanitizeInput(el) {
 
 function sanitizeTel(el) {
   const before = el.value;
-  const after  = before.replace(/[^0-9+\-()\s]/g, '');
+  // Solo dígitos, +, -, paréntesis y espacios, y máximo 20 caracteres
+  // (el backend valida máx. 30; cortar aquí evita errores al enviar).
+  const after  = before.replace(/[^0-9+\-()\s]/g, '').slice(0, 20);
   if (after === before) return;
   const pos = Math.max(0, (el.selectionStart || 0) - (before.length - after.length));
   el.value = after;
@@ -1036,7 +1038,7 @@ function checkStep2() {
   }
 
   const ok = nombre.length >= 2 && cedula.length >= 6
-          && tel.length >= 7 && email.includes('@') && emailsMatch
+          && tel.length >= 7 && tel.length <= 20 && email.includes('@') && emailsMatch
           && estado && ciudad && direccion && condicion && nacStr
           && terms && ageOk;
   document.getElementById('btn-next').disabled = !ok;
