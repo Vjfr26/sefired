@@ -132,3 +132,27 @@ export async function quitarBienPoliza(polizaId, polizaBienId) {
     throw new Error(json.error || json.message || 'Error al quitar el bien')
   }
 }
+
+// ── Cuotas mensuales ─────────────────────────────────────────────────────────
+
+/** Lista las cuotas de una póliza mensual (numero, monto, saldo, status, vencimiento). */
+export async function fetchCuotas(polizaId) {
+  const res = await fetch(`${API}/${polizaId}/cuotas`, { cache: 'no-store', headers: getAuthHeaders() })
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({}))
+    throw new Error(json.error || json.message || 'Error al cargar las cuotas')
+  }
+  return res.json()
+}
+
+/** Registra un cobro de cuota(s): asigna a las pendientes, emite recibo y notifica. */
+export async function pagarCuota(polizaId, data) {
+  const res = await fetch(`${API}/${polizaId}/cuotas/pago`, {
+    method: 'POST',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(data),
+  })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json.error || json.message || 'Error al registrar el pago')
+  return json
+}

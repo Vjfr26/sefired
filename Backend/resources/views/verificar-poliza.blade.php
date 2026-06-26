@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Verificación de Póliza — J&M</title>
+    <title>Verificación de Póliza</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: Arial, sans-serif; background: #f0f4f8; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
@@ -81,7 +81,10 @@
         @endif
 
         <div class="footer">
-            LA VENEZOLANA DE SEGUROS Y VIDA C.A. &mdash; J&M &copy; {{ date('Y') }}
+            <p style="margin:0 0 6px;font-size:12px;color:#94a3b8;">
+              Servicio operado por <strong style="color:#64748b;">INVERSIONES J&amp;M, C.A. &copy;</strong>,
+              con el respaldo de <strong style="color:#64748b;">LA VENEZOLANA DE SEGUROS Y VIDA C.A.</strong> {{ date('Y') }}.
+            </p>
         </div>
     </div>
 </body>

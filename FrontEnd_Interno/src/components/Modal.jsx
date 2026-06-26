@@ -43,7 +43,7 @@ import { uploadDocumentoProducto, deleteDocumentoProducto } from '../api/product
 import { fetchPolizasCliente, fetchFacturasCliente, fetchSolicitudesCliente } from '../api/clientes.js'
 import { fetchDocumentosCliente, uploadDocumentoCliente, deleteDocumentoCliente } from '../api/clienteDocumentos.js'
 import { fetchProductos } from '../api/productos.js'
-import { updatePoliza, renovarPoliza, downloadPolizaPdf, fetchBeneficiarios, createBeneficiario, updateBeneficiario, deleteBeneficiario, fetchBienesPoliza, agregarBienPoliza, quitarBienPoliza } from '../api/polizas.js'
+import { updatePoliza, renovarPoliza, downloadPolizaPdf, fetchBeneficiarios, createBeneficiario, updateBeneficiario, deleteBeneficiario, fetchBienesPoliza, agregarBienPoliza, quitarBienPoliza, fetchCuotas, pagarCuota } from '../api/polizas.js'
 import { fetchBienes, createBien } from '../api/bienes.js'
 import { BIEN_TIPO_PRESETS } from '../utils/bienPresets.js'
 import { emitirCotizacion } from '../api/solicitudes.js'
@@ -461,21 +461,25 @@ function RenovarModal({ client, diasVencimiento, onSaved, onCancel }) {
   // Al renovar con pago mensual solo se cobra la primera cuota (con su
   // recargo de financiamiento, si el producto tiene uno configurado) — las
   // 11 cuotas restantes se cobran después, fuera de este paso.
-  const montoEsperadoUsd = frecuencia === 'Mensual' && permiteMensualidades
+  const esMensual = frecuencia === 'Mensual' && permiteMensualidades
+  const montoEsperadoUsd = esMensual
     ? Math.round((primaUsd / 12) * (1 + recargoMensualPct / 100) * 100) / 100
+    : primaUsd
+  // Tope = total financiado (prima*(1+recargo%)) en mensual; la prima en anual.
+  const montoMaximo = esMensual
+    ? Math.round(primaUsd * (1 + recargoMensualPct / 100) * 100) / 100
     : primaUsd
 
   // Convierte cada pago a la moneda nativa del producto (no siempre USD)
   // antes de comparar contra el monto esperado — igual que Moneda::convertir() en el backend.
   const pagoEnUsd = (p) => convertirMoneda(parseFloat(p.monto) || 0, p.moneda, monedaNativa, tasas.usd || 0, tasas.eur || 0)
 
-  // El pago puede ir desde la primera cuota (montoEsperadoUsd) hasta la prima
-  // anual completa: se permite adelantar pagos, pero no pagar menos del mes ni
-  // más del año.
+  // El pago puede ir desde la primera cuota (montoEsperadoUsd) hasta el total
+  // financiado: se permite adelantar pagos, pero no menos del mes ni más del tope.
   const totalIngresadoUsd = pagos.reduce((sum, p) => sum + pagoEnUsd(p), 0)
   const pagCents          = Math.round(totalIngresadoUsd * 100)
   const minCents          = Math.round(montoEsperadoUsd * 100)
-  const maxCents          = Math.round(primaUsd * 100)
+  const maxCents          = Math.round(montoMaximo * 100)
   const faltante          = Math.max(0, minCents - pagCents) / 100
   const excedente         = Math.max(0, pagCents - maxCents) / 100
   const adelanto          = Math.max(0, Math.min(pagCents, maxCents) - minCents) / 100
@@ -490,7 +494,7 @@ function RenovarModal({ client, diasVencimiento, onSaved, onCancel }) {
     })
     if (!totalOk) errs.total = faltante > 0
       ? `El pago (${fmtMonto(totalIngresadoUsd, monedaNativa)}) es menor a ${frecuencia === 'Mensual' ? 'la primera cuota mensual' : 'la prima'} (${fmtMonto(montoEsperadoUsd, monedaNativa)}).`
-      : `El pago (${fmtMonto(totalIngresadoUsd, monedaNativa)}) supera la prima anual (${fmtMonto(primaUsd, monedaNativa)}).`
+      : `El pago (${fmtMonto(totalIngresadoUsd, monedaNativa)}) supera el ${esMensual ? 'total financiado' : 'total de la prima'} (${fmtMonto(montoMaximo, monedaNativa)}).`
     if (Object.keys(errs).length) { setFormErr(errs); return }
     setSaving(true)
     try {
@@ -594,7 +598,7 @@ function RenovarModal({ client, diasVencimiento, onSaved, onCancel }) {
               {frecuencia === 'Mensual' && permiteMensualidades && primaUsd > 0 && (
                 <p className="text-xs text-slate-500 mt-1.5">
                   Primera cuota a cobrar ahora{recargoMensualPct > 0 ? ` (incluye recargo de ${recargoMensualPct}%)` : ''}: <strong>{fmtMonto(montoEsperadoUsd, monedaNativa)}</strong>
-                  <span className="block text-[10px] text-slate-400 mt-0.5">Puede pagar solo esta cuota o adelantar más, hasta el total anual; el excedente cubre los meses siguientes.</span>
+                  <span className="block text-[10px] text-slate-400 mt-0.5">Puede pagar solo esta cuota o adelantar más, hasta el total financiado de las 12 cuotas; el excedente cubre los meses siguientes.</span>
                 </p>
               )}
             </div>
@@ -653,10 +657,10 @@ function RenovarModal({ client, diasVencimiento, onSaved, onCancel }) {
               }`}>
                 <span>
                   {!totalOk && faltante  > 0 && `⚠ Falta ${fmtMonto(faltante, monedaNativa)} para cubrir ${frecuencia === 'Mensual' ? 'la cuota del mes' : 'la prima'}`}
-                  {!totalOk && excedente > 0 && `⚠ Excede la prima anual por ${fmtMonto(excedente, monedaNativa)}`}
+                  {!totalOk && excedente > 0 && `⚠ Excede el ${esMensual ? 'total financiado' : 'total anual'} por ${fmtMonto(excedente, monedaNativa)}`}
                   {totalOk && (adelanto > 0 ? `✓ Cuota cubierta · adelanto de ${fmtMonto(adelanto, monedaNativa)}` : '✓ Total cuadra')}
                 </span>
-                <span className="font-bold font-mono ml-auto">{fmtMonto(totalIngresadoUsd, monedaNativa)} / {fmtMonto(primaUsd, monedaNativa)}</span>
+                <span className="font-bold font-mono ml-auto">{fmtMonto(totalIngresadoUsd, monedaNativa)} / {fmtMonto(montoMaximo, monedaNativa)}</span>
               </div>
               {formErr.total && <p className="text-xs text-rose-600 mt-1">{formErr.total}</p>}
             </div>
@@ -712,16 +716,21 @@ function EmitirCotizacionModal({ cot, onSaved }) {
   const recargoMensualPct    = parseFloat(cot.producto_recargo_mensual_pct) || 0
   // Igual que en renovación: con pago mensual solo se cobra la primera
   // cuota (con su recargo de financiamiento, si aplica) en este paso.
-  const montoEsperadoUsd = frecuencia === 'Mensual' && permiteMensualidades
+  const esMensual = frecuencia === 'Mensual' && permiteMensualidades
+  const montoEsperadoUsd = esMensual
     ? Math.round((totalPoliza / 12) * (1 + recargoMensualPct / 100) * 100) / 100
+    : totalPoliza
+  // Tope = total financiado (prima*(1+recargo%)) en mensual; el total en anual.
+  const montoMaximo = esMensual
+    ? Math.round(totalPoliza * (1 + recargoMensualPct / 100) * 100) / 100
     : totalPoliza
 
   const totalIngresadoUsd = pagos.reduce((sum, p) => sum + pagoEnUsd(p), 0)
   // El pago puede ir desde la primera cuota (montoEsperadoUsd) hasta el total
-  // anual: se permite adelantar pagos, pero no pagar menos del mes ni más del año.
+  // financiado: se permite adelantar, pero no menos del mes ni más del tope.
   const pagCents   = Math.round(totalIngresadoUsd * 100)
   const minCents   = Math.round(montoEsperadoUsd * 100)
-  const maxCents   = Math.round(totalPoliza * 100)
+  const maxCents   = Math.round(montoMaximo * 100)
   const faltante   = Math.max(0, minCents - pagCents) / 100
   const excedente  = Math.max(0, pagCents - maxCents) / 100
   const adelanto   = Math.max(0, Math.min(pagCents, maxCents) - minCents) / 100
@@ -735,7 +744,7 @@ function EmitirCotizacionModal({ cot, onSaved }) {
     })
     if (!totalOk) errs.total = faltante > 0
       ? `El pago (${fmtMonto(totalIngresadoUsd, monedaNativa)}) es menor a ${frecuencia === 'Mensual' && permiteMensualidades ? 'la primera cuota' : 'la póliza'} (${fmtMonto(montoEsperadoUsd, monedaNativa)}).`
-      : `El pago (${fmtMonto(totalIngresadoUsd, monedaNativa)}) supera el total anual (${fmtMonto(totalPoliza, monedaNativa)}).`
+      : `El pago (${fmtMonto(totalIngresadoUsd, monedaNativa)}) supera el ${esMensual ? 'total financiado' : 'total anual'} (${fmtMonto(montoMaximo, monedaNativa)}).`
     if (Object.keys(errs).length) { setFormErr(errs); return }
     setFormErr({})
     setSaving(true)
@@ -885,11 +894,11 @@ function EmitirCotizacionModal({ cot, onSaved }) {
           }`}>
             <span>
               {!totalOk && faltante  > 0 && `⚠ Falta ${fmtMonto(faltante, monedaNativa)} para cubrir ${frecuencia === 'Mensual' && permiteMensualidades ? 'la cuota del mes' : 'la póliza'}`}
-              {!totalOk && excedente > 0 && `⚠ Excede el total anual por ${fmtMonto(excedente, monedaNativa)}`}
+              {!totalOk && excedente > 0 && `⚠ Excede el ${esMensual ? 'total financiado' : 'total anual'} por ${fmtMonto(excedente, monedaNativa)}`}
               {totalOk && (adelanto > 0 ? `✓ Cuota cubierta · adelanto de ${fmtMonto(adelanto, monedaNativa)}` : '✓ Total cuadra')}
             </span>
             <span className="font-bold font-mono ml-auto">
-              {fmtMonto(totalIngresadoUsd, monedaNativa)} / {fmtMonto(totalPoliza, monedaNativa)}
+              {fmtMonto(totalIngresadoUsd, monedaNativa)} / {fmtMonto(montoMaximo, monedaNativa)}
             </span>
           </div>
           {formErr.total && <p className="text-xs text-rose-600 mt-1">{formErr.total}</p>}
@@ -3387,6 +3396,165 @@ function PolizaBienesModal({ poliza, personaId, onClose }) {
   )
 }
 
+// ── Cuotas mensuales de una póliza ───────────────────────────────────────────
+/**
+ * Muestra el plan de 12 cuotas de una póliza mensual y permite al asesor
+ * registrar un cobro (asigna a las cuotas pendientes, emite recibo y notifica).
+ */
+const CUOTA_BADGE = { PAGADA: 'green', PARCIAL: 'amber', PENDIENTE: 'slate', VENCIDA: 'red' }
+
+function PolizaCuotasModal({ poliza, onClose }) {
+  const { closeModal, showToast, canAct } = useApp()
+  const [data,    setData]    = useState(null)   // { cuotas, total, pagado, saldo, moneda, moneda_simbolo }
+  const [tasas,   setTasas]   = useState({ usd: null, eur: null })
+  const [loading, setLoading] = useState(true)
+  const [pagos,   setPagos]   = useState([pagoVacio()])
+  const [saving,  setSaving]  = useState(false)
+  const [formErr, setFormErr] = useState({})
+  const [cobrar,  setCobrar]  = useState(false)
+  const puedeCobrar = canAct('cotizaciones', 'emit')
+  const handleClose = () => { if (onClose) onClose(); else closeModal() }
+
+  const load = async () => {
+    try { setData(await fetchCuotas(poliza.id)) }
+    catch (e) { showToast(e.message, 'error') }
+    finally { setLoading(false) }
+  }
+  useEffect(() => {
+    fetchTasas().then(t => setTasas({ usd: t.usd?.valor ?? null, eur: t.eur?.valor ?? null })).catch(() => {})
+    load()
+  }, [poliza.id])
+
+  const monedaNativa = data?.moneda || poliza.moneda_producto || 'USD'
+  const setPago    = (i, f, v) => setPagos(prev => prev.map((p, idx) => idx === i ? { ...p, [f]: v, ...(f === 'forma' ? { referencia: '' } : {}) } : p))
+  const addPago    = () => setPagos(p => [...p, pagoVacio()])
+  const removePago = i  => setPagos(p => p.filter((_, idx) => idx !== i))
+
+  const pagoEnNativo    = (p) => convertirMoneda(parseFloat(p.monto) || 0, p.moneda, monedaNativa, tasas.usd || 0, tasas.eur || 0)
+  const totalIngresado  = pagos.reduce((s, p) => s + pagoEnNativo(p), 0)
+  const saldo           = data?.saldo ?? 0
+  const excede          = Math.max(0, Math.round((totalIngresado - saldo) * 100) / 100)
+  const pagoOk          = totalIngresado > 0 && Math.round(totalIngresado * 100) <= Math.round(saldo * 100) + 10
+
+  const handlePagar = async () => {
+    const errs = {}
+    pagos.forEach((p, i) => {
+      if (!p.monto || parseFloat(p.monto) <= 0) errs[`monto_${i}`] = 'Ingrese el monto.'
+      if (!PAGOS_SIN_REF.has(p.forma) && !p.referencia.trim()) errs[`ref_${i}`] = 'Referencia requerida.'
+    })
+    if (totalIngresado <= 0) errs.total = 'Ingrese un pago.'
+    else if (!pagoOk)        errs.total = `El pago (${fmtMonto(totalIngresado, monedaNativa)}) supera el saldo pendiente (${fmtMonto(saldo, monedaNativa)}).`
+    if (Object.keys(errs).length) { setFormErr(errs); return }
+    setFormErr({})
+    setSaving(true)
+    try {
+      const r = await pagarCuota(poliza.id, { tasa_bcv: tasas.usd ?? 1, tasa_eur: tasas.eur ?? 0, pagos })
+      showToast(`Pago registrado · recibo ${r.nro_factura ?? ''}`.trim(), 'success')
+      setPagos([pagoVacio()]); setCobrar(false)
+      await load()
+    } catch (e) { showToast(e.message, 'error') }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <ModalShell title={`Cuotas — ${poliza.nro_contrato}`} maxW="max-w-xl" footer={
+      <button onClick={handleClose} className="btn-secondary ml-auto">Cerrar</button>
+    }>
+      {loading ? (
+        <div className="flex items-center gap-2 py-8 text-slate-400 text-sm justify-center">
+          <div className="w-4 h-4 border-2 border-slate-300 border-t-blue-500 rounded-full animate-spin" /> Cargando cuotas…
+        </div>
+      ) : !data || !data.cuotas?.length ? (
+        <p className="py-8 text-center text-sm text-slate-400">Esta póliza no tiene cuotas (no es de pago mensual).</p>
+      ) : (
+        <div className="space-y-4">
+          {/* Resumen */}
+          <div className="grid grid-cols-3 gap-2">
+            {[['Total', data.total], ['Pagado', data.pagado], ['Saldo', data.saldo]].map(([l, v], i) => (
+              <div key={l} className={`p-2.5 rounded-xl border text-center ${i === 2 && v > 0 ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-100'}`}>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{l}</p>
+                <p className={`text-sm font-black ${i === 2 && v > 0 ? 'text-amber-700' : 'text-slate-800'}`}>{fmtMonto(v, monedaNativa)}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Lista de cuotas */}
+          <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+            {data.cuotas.map(c => (
+              <div key={c.id} className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center shrink-0 text-xs font-black text-blue-700">{c.numero}</div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-800">{fmtMonto(c.monto, monedaNativa)}
+                    {c.saldo > 0 && c.saldo < c.monto && <span className="text-[11px] text-amber-600 font-normal"> · falta {fmtMonto(c.saldo, monedaNativa)}</span>}
+                  </p>
+                  <p className="text-[11px] text-slate-400">Vence {c.fecha_vencimiento}</p>
+                </div>
+                {badge(c.status === 'PAGADA' ? 'Pagada' : c.status === 'PARCIAL' ? 'Parcial' : c.status === 'VENCIDA' ? 'Vencida' : 'Pendiente', CUOTA_BADGE[c.status] ?? 'slate')}
+              </div>
+            ))}
+          </div>
+
+          {/* Registrar cobro */}
+          {puedeCobrar && data.saldo > 0 && (
+            !cobrar ? (
+              <button onClick={() => setCobrar(true)} className="btn-primary w-full justify-center">
+                <DollarSign className="w-4 h-4" /> Registrar pago de cuota
+              </button>
+            ) : (
+              <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Registrar cobro</p>
+                  <button onClick={() => { setCobrar(false); setPagos([pagoVacio()]); setFormErr({}) }} className="text-xs font-semibold text-slate-400 hover:text-slate-600">Cancelar</button>
+                </div>
+                <p className="text-[11px] text-slate-500">Tasas BCV: USD {tasas.usd ? fmtTasa(tasas.usd) : '—'}{tasas.eur ? ` · EUR ${fmtTasa(tasas.eur)}` : ''}</p>
+                {pagos.map((p, i) => (
+                  <div key={i} className="p-2.5 bg-white rounded-xl border border-slate-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-500">Pago {i + 1}</span>
+                      {pagos.length > 1 && <button onClick={() => removePago(i)} className="text-xs text-rose-500 hover:text-rose-700 font-semibold">Eliminar</button>}
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="field-label">Forma</label>
+                        <select className="select-field" value={p.forma} onChange={e => setPago(i, 'forma', e.target.value)}>{PAGOS_OPCIONES.map(o => <option key={o}>{o}</option>)}</select>
+                      </div>
+                      <div>
+                        <label className="field-label">Moneda</label>
+                        <select className="select-field" value={p.moneda} onChange={e => setPago(i, 'moneda', e.target.value)}>{MONEDAS_OPCIONES.map(m => <option key={m}>{m}</option>)}</select>
+                      </div>
+                      <div>
+                        <label className="field-label">Monto <span className="text-rose-500">*</span></label>
+                        <input type="number" step="0.01" min="0.01" className={`input-field ${formErr[`monto_${i}`] ? 'border-rose-400' : ''}`} placeholder="0.00" value={p.monto}
+                          onChange={e => { setPago(i, 'monto', e.target.value); setFormErr(f => ({ ...f, [`monto_${i}`]: '' })) }} />
+                      </div>
+                      <div>
+                        <label className="field-label">Referencia {!PAGOS_SIN_REF.has(p.forma) && <span className="text-rose-500">*</span>}</label>
+                        <input className={`input-field ${formErr[`ref_${i}`] ? 'border-rose-400' : ''}`} placeholder={PAGOS_SIN_REF.has(p.forma) ? 'Opcional' : 'N° confirmación'} value={p.referencia}
+                          onChange={e => { setPago(i, 'referencia', e.target.value); setFormErr(f => ({ ...f, [`ref_${i}`]: '' })) }} />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                <button onClick={addPago} className="text-xs font-semibold text-blue-600 hover:text-blue-800">+ Agregar forma de pago</button>
+                <div className={`p-2.5 rounded-xl border text-xs flex items-center justify-between flex-wrap gap-2 ${excede > 0 ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-emerald-50 border-emerald-200 text-emerald-700'}`}>
+                  <span>{excede > 0 ? `⚠ Excede el saldo por ${fmtMonto(excede, monedaNativa)}` : `Abono: ${fmtMonto(totalIngresado, monedaNativa)}`}</span>
+                  <span className="font-bold font-mono ml-auto">{fmtMonto(totalIngresado, monedaNativa)} / {fmtMonto(saldo, monedaNativa)}</span>
+                </div>
+                {formErr.total && <p className="text-xs text-rose-600">{formErr.total}</p>}
+                <button onClick={handlePagar} disabled={saving || !pagoOk} className="btn-success w-full justify-center disabled:opacity-50">
+                  {saving ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <Receipt className="w-4 h-4" />}
+                  {saving ? 'Registrando…' : 'Registrar y emitir recibo'}
+                </button>
+              </div>
+            )
+          )}
+          {data.saldo <= 0 && <p className="text-center text-sm text-emerald-600 font-semibold">✓ Todas las cuotas están pagadas.</p>}
+        </div>
+      )}
+    </ModalShell>
+  )
+}
+
 // ── Cotizaciones del cliente ─────────────────────────────────────────────────
 const SOL_STATUS_STYLE = {
   'en_revision': { bg: 'bg-amber-100',  text: 'text-amber-700',  dot: 'bg-amber-500'  },
@@ -3799,6 +3967,14 @@ function ClienteHistorialModal({ c, onSaved }) {
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-50 text-xs font-semibold text-sky-600 hover:bg-sky-100 transition whitespace-nowrap"
                         >
                           <Package className="w-4 h-4 shrink-0" /> Bienes
+                        </button>
+                      )}
+                      {pol.id && pol.frecuencia_pago === 'Mensual' && pol.status !== 'RECHAZADA' && (
+                        <button
+                          onClick={() => showModal('polizaCuotas', { poliza: pol })}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-xs font-semibold text-emerald-600 hover:bg-emerald-100 transition whitespace-nowrap"
+                        >
+                          <Receipt className="w-4 h-4 shrink-0" /> Cuotas
                         </button>
                       )}
                     </div>
@@ -4600,6 +4776,7 @@ export default function Modal() {
     case 'ajustarPoliza':        return <AjustarPolizaModal {...props} />
     case 'polizaBeneficiarios':  return <PolizaBeneficiariosModal {...props} />
     case 'polizaBienes':         return <PolizaBienesModal {...props} />
+    case 'polizaCuotas':         return <PolizaCuotasModal {...props} />
     case 'clienteSolicitudes':  return <ClienteSolicitudesModal {...props} />
     case 'clienteHistorial':      return <ClienteHistorialModal {...props} />
     case 'clienteDocumentos':     return <ClienteDocumentosPanel {...props} />
