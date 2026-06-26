@@ -274,6 +274,23 @@ class PolizaController extends Controller
         // no una ANULADA ni una que ya fue RENOVADA (QR viejo reutilizado).
         $renovable = in_array($poliza->status, ['ACTIVA', 'VENCIDA'], true);
 
+        // Pago de cuota en línea: solo pólizas mensuales con saldo pendiente.
+        $cuotaSaldo   = 0.0;
+        $cuotaProxima = null;
+        if ($poliza->frecuencia_pago === 'Mensual' && $renovable) {
+            $cuotas = $poliza->cuotas()->orderBy('numero')->get();
+            $cuotaSaldo = round($cuotas->sum(fn($c) => max(0, (float) $c->monto - (float) $c->monto_pagado)), 2);
+            $prox = $cuotas->first(fn($c) => $c->status !== 'PAGADA');
+            if ($prox) {
+                $cuotaProxima = [
+                    'numero'      => $prox->numero,
+                    'monto'       => round(max(0, (float) $prox->monto - (float) $prox->monto_pagado), 2),
+                    'vencimiento' => $prox->fecha_vencimiento?->format('d/m/Y'),
+                ];
+            }
+        }
+        $puedePagarCuota = $cuotaSaldo > 0 && $cuotaProxima !== null;
+
         return response()->view('poliza-landing', [
             'encontrada'        => true,
             'nro_contrato'      => $poliza->nro_contrato,
@@ -282,6 +299,9 @@ class PolizaController extends Controller
             'permite_mensualidades' => $permiteMensual,
             'recargo_mensual_pct'   => $recargoPct,
             'cuota_mensual'         => $cuotaMensual,
+            'puede_pagar_cuota'     => $puedePagarCuota,
+            'cuota_saldo'           => $cuotaSaldo,
+            'cuota_proxima'         => $cuotaProxima,
             'fecha_emision'     => $poliza->fecha_emision?->format('d/m/Y'),
             'fecha_vencimiento' => $poliza->fecha_vencimiento?->format('d/m/Y'),
             'asegurado_nombre'  => $snap['asegurado']['nombre'] ?? $poliza->asegurado_nombre ?? '—',
@@ -400,6 +420,66 @@ class PolizaController extends Controller
             'pagos'               => $pagosLimpios,
             'total_usd_estimado'  => null, // El asesor verifica el monto real
             'status'              => 'PENDIENTE',
+        ]);
+
+        return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Recibe una solicitud pública de PAGO DE CUOTA desde la landing del QR.
+     * Mismo mecanismo que la renovación (queda PENDIENTE y el asesor confirma),
+     * distinguida por concepto='cuota'.
+     */
+    public function solicitarPagoCuota(Request $request, $nroContrato)
+    {
+        $poliza = Poliza::where('nro_contrato', $nroContrato)
+                        ->whereNull('deleted_at')
+                        ->firstOrFail();
+
+        if ($poliza->frecuencia_pago !== 'Mensual' || !in_array($poliza->status, ['ACTIVA', 'VENCIDA'], true)) {
+            return response()->json(['message' => 'Esta póliza no admite pago de cuota en línea.'], 422);
+        }
+
+        $saldo = round($poliza->cuotas()->get()->sum(fn($c) => max(0, (float) $c->monto - (float) $c->monto_pagado)), 2);
+        if ($saldo <= 0) {
+            return response()->json(['message' => 'Esta póliza no tiene cuotas pendientes.'], 422);
+        }
+
+        if (SolicitudRenovacionQr::where('poliza_id', $poliza->id)->where('concepto', 'cuota')->where('status', 'PENDIENTE')->exists()) {
+            return response()->json(['message' => 'Ya recibimos un pago de cuota para esta póliza y está en revisión.'], 422);
+        }
+
+        $metodosPermitidos = ['Transferencia Bancaria', 'Pago Móvil', 'Zelle', 'Binance / Cripto'];
+        $data = $request->validate([
+            'pagos'              => 'required|array|min:1|max:5',
+            'pagos.*.metodo'     => 'required|string|in:' . implode(',', $metodosPermitidos),
+            'pagos.*.banco'      => 'nullable|string|max:80|regex:/^[\w\s\-\.áéíóúÁÉÍÓÚñÑ]+$/u',
+            'pagos.*.referencia' => ['required', 'string', 'max:100', 'regex:/^[\w\s\-\/]+$/'],
+            'pagos.*.monto'      => 'required|numeric|min:0.01|max:9999999',
+            'pagos.*.moneda'     => 'required|string|in:USD,EUR,Bs.',
+        ]);
+
+        $pagosLimpios = collect($data['pagos'])->map(fn($p) => [
+            'metodo'     => $p['metodo'],
+            'banco'      => isset($p['banco']) ? strip_tags(trim($p['banco'])) : null,
+            'referencia' => preg_replace('/[^\w\s\-\/]/', '', trim($p['referencia'])),
+            'monto'      => round((float) $p['monto'], 2),
+            'moneda'     => $p['moneda'],
+        ])->values()->all();
+
+        $snap     = $poliza->snapshot_datos ?? [];
+        $persona  = $poliza->solicitud?->persona;
+
+        SolicitudRenovacionQr::create([
+            'poliza_id'          => $poliza->id,
+            'nro_contrato'       => $poliza->nro_contrato,
+            'concepto'           => 'cuota',
+            'nombre'             => $snap['asegurado']['nombre'] ?? $poliza->asegurado_nombre ?? $persona?->nombre ?? null,
+            'telefono'           => $snap['tomador']['telefono'] ?? $persona?->celular ?? $persona?->telefono ?? null,
+            'correo'             => $persona?->correo ?? null,
+            'pagos'              => $pagosLimpios,
+            'total_usd_estimado' => null,
+            'status'             => 'PENDIENTE',
         ]);
 
         return response()->json(['ok' => true]);

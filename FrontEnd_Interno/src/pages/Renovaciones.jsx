@@ -42,19 +42,20 @@ export default function Renovaciones() {
   useEffect(() => { load(1, filter) }, [filter]) // eslint-disable-line
 
   const handleAutorizar = (row) => {
+    const esCuota = row.concepto === 'cuota'
     showModal('editForm', {
-      title: `Autorizar Renovación — ${row.nro_contrato}`,
+      title: `Autorizar ${esCuota ? 'Pago de Cuota' : 'Renovación'} — ${row.nro_contrato}`,
       fields: [
         { label: 'Tasa BCV Bs./USD',  fname: 'tasa_bcv', type: 'number', req: true, ph: 'Ej. 36.5000' },
         { label: 'Tasa BCV Bs./EUR',  fname: 'tasa_eur', type: 'number', req: false, ph: 'Dejar vacío para usar tasa USD' },
       ],
-      saveLabel: 'Autorizar y Renovar',
+      saveLabel: esCuota ? 'Autorizar y Cobrar' : 'Autorizar y Renovar',
       onSave: async ({ tasa_bcv, tasa_eur }) => {
         await autorizarRenovacion(row.id, {
           tasa_bcv: parseFloat(tasa_bcv),
           tasa_eur: tasa_eur ? parseFloat(tasa_eur) : undefined,
         })
-        showToast(`Póliza renovada correctamente`, 'success')
+        showToast(esCuota ? 'Cuota cobrada · recibo emitido' : 'Póliza renovada correctamente', 'success')
         load(1, filter)
       },
     })
@@ -81,7 +82,14 @@ export default function Renovaciones() {
   const dataRows = rows.map(r => ({
     ...r,
     f:      r.fecha,
-    pol:    <span className="font-bold text-jm-blue">{r.nro_contrato}</span>,
+    pol: (
+      <div>
+        <span className="font-bold text-jm-blue">{r.nro_contrato}</span>
+        <span className={`block text-[10px] font-bold uppercase tracking-wider ${r.concepto === 'cuota' ? 'text-emerald-600' : 'text-indigo-600'}`}>
+          {r.concepto === 'cuota' ? 'Pago de cuota' : 'Renovación'}
+        </span>
+      </div>
+    ),
     cli:    r.nombre,
     tel:    r.telefono,
     met: (

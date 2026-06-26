@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\FacturaMail;
 use App\Mail\PolizaRenovadaMail;
 use App\Models\Comision;
 use App\Models\EmailLog;
@@ -11,6 +12,7 @@ use App\Models\SolicitudRenovacionQr;
 use App\Rules\NoInjectionChars;
 use App\Services\WorkflowService;
 use App\Support\CodigoPoliza;
+use App\Support\Mensualidades;
 use App\Support\Moneda;
 use App\Traits\LogsActivity;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -50,6 +52,7 @@ class SolicitudRenovacionQrController extends Controller
             'data' => $items->map(fn($s) => [
                 'id'                   => $s->id,
                 'nro_contrato'         => $s->nro_contrato,
+                'concepto'             => $s->concepto ?? 'renovacion',
                 'poliza_id'            => $s->poliza_id,
                 'nombre'               => $s->nombre,
                 'telefono'             => $s->telefono,
@@ -89,6 +92,13 @@ class SolicitudRenovacionQrController extends Controller
         ]);
 
         $polizaAnterior = Poliza::findOrFail($solicitud->poliza_id);
+
+        // Pago de cuota: flujo distinto a la renovación (aplica el cobro y emite recibo).
+        if ($solicitud->concepto === 'cuota') {
+            $tasaBcv = (float) $data['tasa_bcv'];
+            $tasaEur = isset($data['tasa_eur']) && $data['tasa_eur'] > 0 ? (float) $data['tasa_eur'] : $tasaBcv;
+            return $this->autorizarCuota($solicitud, $polizaAnterior, $tasaBcv, $tasaEur);
+        }
 
         if (in_array($polizaAnterior->status, ['ANULADA', 'RENOVADA'])) {
             return response()->json(['error' => "No se puede renovar una póliza {$polizaAnterior->status}."], 409);
@@ -222,6 +232,64 @@ class SolicitudRenovacionQrController extends Controller
             'nro_contrato' => $result['nro_contrato'],
             'nro_factura'  => $result['nro_factura'],
         ], 201);
+    }
+
+    /**
+     * Autoriza un pago de cuota recibido por el landing: aplica el cobro a las
+     * cuotas pendientes, emite el recibo y notifica al cliente.
+     */
+    private function autorizarCuota(SolicitudRenovacionQr $solicitud, Poliza $poliza, float $tasaBcv, float $tasaEur)
+    {
+        if ($poliza->frecuencia_pago !== 'Mensual' || !in_array($poliza->status, ['ACTIVA', 'VENCIDA'], true)) {
+            return response()->json(['error' => 'Esta póliza no admite pago de cuota.'], 409);
+        }
+
+        $monedaNativa = $poliza->monedaNativa();
+        $pagos        = $solicitud->pagos ?? [];
+        $montoNativo  = collect($pagos)->sum(
+            fn($p) => Moneda::convertir((float) $p['monto'], $p['moneda'], $monedaNativa, $tasaBcv, $tasaEur)
+        );
+        if ($montoNativo <= 0) {
+            return response()->json(['error' => 'El monto del pago no es válido.'], 422);
+        }
+
+        $saldo = round($poliza->cuotas()->get()->sum(fn($c) => max(0, (float) $c->monto - (float) $c->monto_pagado)), 2);
+        if ($saldo <= 0) {
+            return response()->json(['error' => 'Esta póliza ya está totalmente pagada.'], 422);
+        }
+
+        $pagoResumen = collect($pagos)->map(fn($p) => $p['metodo'] . ' ' . $p['moneda'])->join(' / ');
+        $moneda      = $pagos[0]['moneda'] ?? 'USD';
+        $referencia  = $pagos[0]['referencia'] ?? null;
+
+        $factura = DB::transaction(function () use ($poliza, $montoNativo, $pagoResumen, $moneda, $referencia, $tasaBcv, $tasaEur, $solicitud) {
+            $f = Mensualidades::aplicarPago($poliza, (float) $montoNativo, $pagoResumen, $moneda, $referencia, $tasaBcv, $tasaEur, auth()->id());
+            $solicitud->update(['status' => 'AUTORIZADA', 'procesado_por' => auth()->id()]);
+            return $f;
+        });
+
+        $correo = $poliza->solicitud?->persona?->correo;
+        if ($factura && $correo) {
+            try {
+                Mail::to($correo)->queue(new FacturaMail($factura->fresh(), $poliza->solicitud?->persona?->nombre ?? ''));
+                EmailLog::registrar(
+                    tipo: 'recibo_cuota',
+                    destinatario: $correo,
+                    asunto: 'Recibo ' . $factura->numero,
+                    personaId: $poliza->solicitud?->persona_id,
+                    polizaId: $poliza->id,
+                );
+            } catch (\Throwable) {}
+        }
+
+        $this->logActivity(
+            'Pago de cuota',
+            "Cuota autorizada (QR) en póliza {$poliza->nro_contrato} (recibo {$factura?->numero})",
+            'poliza',
+            auth()->id()
+        );
+
+        return response()->json(['ok' => true, 'nro_factura' => $factura?->numero]);
     }
 
     /**

@@ -310,6 +310,9 @@
     <div class="tabs">
         <button class="tab-btn active" onclick="showTab('ver', this)">&#128196; Ver Póliza</button>
         <button class="tab-btn"        onclick="showTab('pdf', this)">&#128438; Reimprimir</button>
+        @if($puede_pagar_cuota ?? false)
+        <button class="tab-btn"        onclick="showTab('cuota', this)">&#128179; Pagar Cuota</button>
+        @endif
         @if($renovable ?? false)
         <button class="tab-btn"        onclick="showTab('renov', this)">&#128260; Renovar</button>
         @endif
@@ -373,6 +376,72 @@
                 <p class="note">El documento generado es válido como comprobante de cobertura.<br>Para correcciones comuníquese con su agente.</p>
             </div>
         </div>
+
+        {{-- ══ TAB: PAGAR CUOTA ══ --}}
+        @if($puede_pagar_cuota ?? false)
+        @php $monedaSel = ($moneda ?? 'USD') === 'BS' ? 'Bs.' : ($moneda ?? 'USD'); @endphp
+        <div id="pane-cuota" class="pane">
+            <div class="renew-summary">
+                <strong>Póliza:</strong> {{ $nro_contrato }}<br>
+                <strong>Próxima cuota:</strong> N° {{ $cuota_proxima['numero'] }} · vence {{ $cuota_proxima['vencimiento'] }}<br>
+                <div style="margin-top:12px; padding-top:10px; border-top:1px solid #b2e0e6; text-align:center;">
+                    <div style="font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:#6b7280; margin-bottom:6px;">Monto de la cuota</div>
+                    <div style="display:inline-block; background:white; border:1.5px solid #127481; border-radius:8px; padding:10px 24px; min-width:150px;">
+                        <div style="font-size:22px; font-weight:800; color:#127481;">{{ $moneda_simbolo ?? '$' }}{{ number_format((float) $cuota_proxima['monto'], 2) }}</div>
+                        <div style="font-size:10px; color:#6b7280; margin-top:2px;">{{ $moneda ?? 'USD' }}</div>
+                    </div>
+                    <div style="font-size:10px; color:#9ca3af; margin-top:6px;">Saldo total pendiente: {{ $moneda_simbolo ?? '$' }}{{ number_format((float) $cuota_saldo, 2) }} {{ $moneda ?? 'USD' }} · puede pagar una o más cuotas.</div>
+                    @if(isset($tasa_usd) && $tasa_usd)
+                    <div style="font-size:10px; color:#9ca3af; margin-top:4px;">Tasa BCV: 1 USD = Bs. {{ number_format($tasa_usd, 4) }}@if(isset($tasa_eur) && $tasa_eur) · 1 EUR = Bs. {{ number_format($tasa_eur, 4) }}@endif</div>
+                    @endif
+                </div>
+            </div>
+
+            <div class="error-msg" id="cuota-error"></div>
+
+            <div id="cuota-form">
+                <div class="form-group">
+                    <label>Método de pago *</label>
+                    <select id="cuota-metodo" onchange="cuotaToggleBanco()">
+                        <option value="Transferencia Bancaria">Transferencia Bancaria</option>
+                        <option value="Pago Móvil">Pago Móvil</option>
+                        <option value="Zelle">Zelle</option>
+                        <option value="Binance / Cripto">Binance / Cripto</option>
+                    </select>
+                </div>
+                <div class="form-group" id="cuota-banco-group">
+                    <label>Banco</label>
+                    <input type="text" id="cuota-banco" placeholder="Ej. Banesco" maxlength="80">
+                </div>
+                <div class="form-group">
+                    <label>N° de referencia *</label>
+                    <input type="text" id="cuota-ref" placeholder="Ej. 00123456789" maxlength="100" oninput="this.value=this.value.replace(/[^A-Za-z0-9\s\-\/]/g,'')">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Monto *</label>
+                        <input type="number" id="cuota-monto" min="0.01" step="0.01" value="{{ number_format((float) $cuota_proxima['monto'], 2, '.', '') }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Moneda *</label>
+                        <select id="cuota-moneda">
+                            <option value="USD" @if($monedaSel==='USD') selected @endif>USD — Dólares</option>
+                            <option value="EUR" @if($monedaSel==='EUR') selected @endif>EUR — Euros</option>
+                            <option value="Bs." @if($monedaSel==='Bs.') selected @endif>Bs. — Bolívares</option>
+                        </select>
+                    </div>
+                </div>
+                <button class="btn-primary btn-full" id="cuota-btn" onclick="enviarPagoCuota()" style="margin-top:8px;">Enviar Comprobante de Pago</button>
+                <p class="note">Un asesor verificará su pago y registrará la cuota. Solo se aprueba internamente.</p>
+            </div>
+
+            <div class="success-msg" id="cuota-success">
+                <div class="icon">✅</div>
+                <h3>¡Pago enviado!</h3>
+                <p>Hemos recibido su comprobante.<br>Un asesor lo verificará y registrará su cuota a la brevedad.</p>
+            </div>
+        </div>
+        @endif
 
         {{-- ══ TAB 3: RENOVAR ══ --}}
         <div id="pane-renov" class="pane">
@@ -798,6 +867,64 @@
             errEl.style.display = 'block';
             btn.disabled    = false;
             btn.textContent = 'Enviar Comprobante de Pago';
+        });
+    }
+
+    // ── Pago de cuota (mensualidades) ─────────────────────────────────────────
+    function cuotaToggleBanco() {
+        const el = document.getElementById('cuota-metodo');
+        if (!el) return;
+        const mostrar = el.value === 'Transferencia Bancaria' || el.value === 'Pago Móvil';
+        document.getElementById('cuota-banco-group').style.display = mostrar ? 'block' : 'none';
+    }
+
+    function enviarPagoCuota() {
+        const errEl = document.getElementById('cuota-error');
+        const btn   = document.getElementById('cuota-btn');
+        errEl.style.display = 'none';
+
+        const metodo     = document.getElementById('cuota-metodo').value;
+        const banco      = sanitizar(document.getElementById('cuota-banco').value || '');
+        const referencia = sanitizarRef(document.getElementById('cuota-ref').value || '');
+        const monto      = parseFloat(document.getElementById('cuota-monto').value) || 0;
+        const moneda     = document.getElementById('cuota-moneda').value;
+
+        if (!referencia) { errEl.textContent = 'Ingrese la referencia.';  errEl.style.display = 'block'; return; }
+        if (monto <= 0)  { errEl.textContent = 'Ingrese un monto válido.'; errEl.style.display = 'block'; return; }
+
+        btn.disabled = true; btn.textContent = 'Enviando…';
+
+        fetch('{{ route("poliza.solicitar-pago-cuota", $nro_contrato ?? "", false) }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+            body: JSON.stringify({ pagos: [{ metodo, banco: banco || null, referencia, monto: Math.round(monto * 100) / 100, moneda }] }),
+        })
+        .then(async r => {
+            if (!r.ok) {
+                let msg = 'Error al procesar la solicitud.';
+                try { const e = await r.json(); msg = e.message || (e.errors ? Object.values(e.errors).flat().join(' ') : msg); }
+                catch (_) {
+                    if (r.status === 419) msg = 'La sesión o el token de seguridad han expirado. Recargue la página.';
+                    else if (r.status === 429) msg = 'Demasiadas solicitudes en poco tiempo. Intente más tarde.';
+                }
+                throw new Error(msg);
+            }
+            return r.json();
+        })
+        .then(data => {
+            if (data.ok) {
+                document.getElementById('cuota-form').style.display    = 'none';
+                document.getElementById('cuota-success').style.display = 'block';
+            } else {
+                errEl.textContent = data.message || 'Error al enviar.';
+                errEl.style.display = 'block';
+                btn.disabled = false; btn.textContent = 'Enviar Comprobante de Pago';
+            }
+        })
+        .catch(err => {
+            errEl.textContent = err.message || 'Error de conexión. Intente nuevamente.';
+            errEl.style.display = 'block';
+            btn.disabled = false; btn.textContent = 'Enviar Comprobante de Pago';
         });
     }
 </script>

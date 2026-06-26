@@ -10,7 +10,7 @@ class SolicitudRenovacionQr extends Model
     protected $table = 'solicitudes_renovacion_qr';
 
     protected $fillable = [
-        'poliza_id', 'nro_contrato',
+        'poliza_id', 'nro_contrato', 'concepto',
         'nombre', 'telefono', 'correo',
         'pagos', 'total_usd_estimado',
         'status', 'nota_agente', 'procesado_por',

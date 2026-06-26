@@ -27,3 +27,8 @@ Route::post('/ver/{nroContrato}/renovacion', [PolizaController::class, 'solicita
     ->name('poliza.solicitar-renovacion')
     ->where('nroContrato', '[A-Za-z0-9\-]+')
     ->middleware('throttle:5,1');
+
+Route::post('/ver/{nroContrato}/pago-cuota', [PolizaController::class, 'solicitarPagoCuota'])
+    ->name('poliza.solicitar-pago-cuota')
+    ->where('nroContrato', '[A-Za-z0-9\-]+')
+    ->middleware('throttle:5,1');
