@@ -49,7 +49,7 @@ export default function Layout() {
       <Sidebar sidebarOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       {/* Main content */}
-      <div className="flex-1 lg:ml-64 flex flex-col min-h-screen">
+      <div className="flex-1 lg:ml-64 flex flex-col min-h-screen min-w-0">
         <Header onSidebarOpen={() => setSidebarOpen(true)} />
         <main className="flex-1 px-4 sm:px-8 lg:px-12 py-6 sm:py-8">
           <ErrorBoundary key={currentView} onReset={() => navigateTo('home')}>
