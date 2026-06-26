@@ -139,3 +139,15 @@ export async function deleteCliente(id) {
   if (!res.ok) throw new Error(json.error || json.message || 'Error al eliminar cliente')
   return json
 }
+
+/** Reasigna el vendedor (dueño) de un cliente. Requiere permiso clientes.reasignar. */
+export async function reasignarVendedorCliente(id, vendedorId) {
+  const res = await fetch(`${API}/${id}/vendedor`, {
+    method: 'PUT',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ vendedor_id: vendedorId }),
+  })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json.error || json.message || 'Error al reasignar vendedor')
+  return json
+}

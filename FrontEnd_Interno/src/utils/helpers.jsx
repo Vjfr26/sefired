@@ -301,6 +301,7 @@ export const PERMS_CATALOG = {
       { id: 'view_cards',    label: 'Ver tarjetas de resumen (cards)' },
       { id: 'view_list',     label: 'Ver tabla/listado de clientes' },
       { id: 'view_all',      label: 'Ver TODOS los clientes (no solo los propios)' },
+      { id: 'reasignar',     label: 'Reasignar el vendedor (dueño) de un cliente' },
       { id: 'create',        label: 'Registrar nuevo cliente' },
       { id: 'edit',          label: 'Editar datos del cliente' },
       { id: 'delete',        label: 'Eliminar cliente (requiere contraseña)' },
@@ -440,7 +441,7 @@ export const LOCKED_PERMS = new Set(['home'])
 export const PERMISOS_POR_ROL = {
   'Admin': {
     home:         ['view'],
-    clientes:     ['view', 'view_cards', 'view_list', 'view_all', 'create', 'edit', 'delete', 'block', 'view_polizas', 'view_facturas', 'view_docs', 'renew', 'adjust', 'manage_beneficiarios', 'manage_bienes'],
+    clientes:     ['view', 'view_cards', 'view_list', 'view_all', 'reasignar', 'create', 'edit', 'delete', 'block', 'view_polizas', 'view_facturas', 'view_docs', 'renew', 'adjust', 'manage_beneficiarios', 'manage_bienes'],
     vehiculos:    ['view', 'view_cards', 'view_list', 'view_poliza', 'view_docs', 'edit', 'delete'],
     cotizaciones: ['view', 'view_list', 'create', 'edit', 'delete', 'emit', 'underwrite'],
     productos:    ['view', 'view_cards', 'view_list', 'create', 'edit', 'delete', 'manage_docs', 'manage_beneficios'],
@@ -452,7 +453,7 @@ export const PERMISOS_POR_ROL = {
   },
   'Oficina': {
     home:         ['view'],
-    clientes:     ['view', 'view_cards', 'view_list', 'view_all', 'create', 'edit', 'delete', 'block', 'view_polizas', 'view_facturas', 'view_docs', 'renew', 'adjust', 'manage_beneficiarios', 'manage_bienes'],
+    clientes:     ['view', 'view_cards', 'view_list', 'view_all', 'reasignar', 'create', 'edit', 'delete', 'block', 'view_polizas', 'view_facturas', 'view_docs', 'renew', 'adjust', 'manage_beneficiarios', 'manage_bienes'],
     vehiculos:    ['view', 'view_cards', 'view_list', 'view_poliza', 'view_docs', 'edit'],
     cotizaciones: ['view', 'view_list', 'create', 'edit', 'emit', 'underwrite'],
     productos:    ['view', 'view_cards', 'view_list'],

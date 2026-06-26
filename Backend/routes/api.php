@@ -110,6 +110,7 @@ Route::middleware([\App\Http\Middleware\ApiTokenMiddleware::class, 'throttle:120
         // (permiso cotizaciones.*) — perm_any acepta cualquiera de los dos.
         Route::post('/clientes',                   [ClienteController::class,         'store'])->middleware('perm_any:clientes.create,cotizaciones.create');
         Route::put('/clientes/{id}',               [ClienteController::class,         'update'])->middleware('perm:clientes,edit');
+        Route::put('/clientes/{id}/vendedor',      [ClienteController::class,         'reasignarVendedor'])->middleware('perm:clientes,reasignar');
         Route::patch('/clientes/{id}/toggle',      [ClienteController::class,         'toggle'])->middleware('perm:clientes,block');
         Route::delete('/clientes/{id}',            [ClienteController::class,         'destroy'])->middleware('perm:clientes,delete');
         Route::post('/clientes/{id}/documentos',           [ClienteDocumentoController::class,'store'])->middleware('perm_any:clientes.view_docs,cotizaciones.create,cotizaciones.edit');

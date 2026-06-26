@@ -141,6 +141,7 @@ export default function Clientes() {
   const canViewPolizas    = canAct('clientes', 'view_polizas')
   const canViewFacturas   = canAct('clientes', 'view_facturas')
   const canViewDocs       = canAct('clientes', 'view_docs')
+  const canReasignar      = canAct('clientes', 'reasignar')
   const canViewCards      = canAct('clientes', 'view_cards')
   const canViewList       = canAct('clientes', 'view_list')
 
@@ -228,6 +229,7 @@ export default function Clientes() {
             activo: c.activo,
             onConfirm: async (motivo) => { await toggleCliente(c.id, motivo); await loadClientes() },
           }) },
+          canReasignar && { icon: UserCheck, label: 'Reasignar vendedor', color: 'indigo', onClick: () => showModal('reasignarVendedor', { c, onSaved: loadClientes }) },
           canDeleteClientes && { icon: Trash2, label: 'Eliminar cliente', color: 'rose', onClick: () => showModal('confirmDelete', {
             name: c.nom,
             onConfirm: async () => { await deleteCliente(c.id); await loadClientes() },

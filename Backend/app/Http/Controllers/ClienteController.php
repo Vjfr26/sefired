@@ -11,6 +11,7 @@ use App\Models\ClienteDocumento;
 use App\Models\EmailLog;
 use App\Models\IndicadorEconomico;
 use App\Models\Persona;
+use App\Models\Usuario;
 use App\Models\Poliza;
 use App\Rules\CedulaValida;
 use App\Rules\CodigoPostalValido;
@@ -498,6 +499,37 @@ class ClienteController extends Controller
             ->values();
 
         return response()->json($facturas);
+    }
+
+    /**
+     * Reasigna el vendedor (dueño) de un cliente. Acción interna gobernada por
+     * el permiso clientes.reasignar — sin assertAccesoCliente, porque el punto
+     * es justamente poder mover un cliente entre vendedores.
+     */
+    public function reasignarVendedor(Request $request, $id)
+    {
+        $persona = Persona::findOrFail($id);
+
+        $data = $request->validate([
+            'vendedor_id' => 'required|integer|exists:usuario,id',
+        ]);
+
+        $vendedor = Usuario::findOrFail($data['vendedor_id']);
+        if (!$vendedor->activo) {
+            return response()->json(['error' => 'El usuario seleccionado está inactivo.'], 422);
+        }
+
+        $anterior = $persona->vendedor_id;
+        $persona->update(['vendedor_id' => $vendedor->id]);
+
+        $this->logActivity(
+            'reasignar_vendedor',
+            "Cliente {$persona->nombre} reasignado a {$vendedor->nombre} (antes vendedor #" . ($anterior ?? '—') . ')',
+            'persona',
+            auth()->id()
+        );
+
+        return response()->json(['ok' => true, 'vendedor_nombre' => $vendedor->nombre]);
     }
 
     public function destroy($id)

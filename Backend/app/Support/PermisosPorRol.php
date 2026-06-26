@@ -19,7 +19,7 @@ class PermisosPorRol
     private const TABLA = [
         'Admin' => [
             'home'         => ['view'],
-            'clientes'     => ['view', 'view_cards', 'view_list', 'view_all', 'create', 'edit', 'delete', 'block', 'view_polizas', 'view_facturas', 'view_docs', 'renew', 'adjust', 'manage_beneficiarios', 'manage_bienes'],
+            'clientes'     => ['view', 'view_cards', 'view_list', 'view_all', 'reasignar', 'create', 'edit', 'delete', 'block', 'view_polizas', 'view_facturas', 'view_docs', 'renew', 'adjust', 'manage_beneficiarios', 'manage_bienes'],
             'vehiculos'    => ['view', 'view_cards', 'view_list', 'view_poliza', 'view_docs', 'edit', 'delete'],
             'cotizaciones' => ['view', 'view_list', 'create', 'edit', 'delete', 'emit', 'underwrite'],
             'productos'    => ['view', 'view_cards', 'view_list', 'create', 'edit', 'delete', 'manage_docs', 'manage_beneficios'],
@@ -30,7 +30,7 @@ class PermisosPorRol
         ],
         'Oficina' => [
             'home'         => ['view'],
-            'clientes'     => ['view', 'view_cards', 'view_list', 'view_all', 'create', 'edit', 'delete', 'block', 'view_polizas', 'view_facturas', 'view_docs', 'renew', 'adjust', 'manage_beneficiarios', 'manage_bienes'],
+            'clientes'     => ['view', 'view_cards', 'view_list', 'view_all', 'reasignar', 'create', 'edit', 'delete', 'block', 'view_polizas', 'view_facturas', 'view_docs', 'renew', 'adjust', 'manage_beneficiarios', 'manage_bienes'],
             'vehiculos'    => ['view', 'view_cards', 'view_list', 'view_poliza', 'view_docs', 'edit'],
             'cotizaciones' => ['view', 'view_list', 'create', 'edit', 'emit', 'underwrite'],
             'productos'    => ['view', 'view_cards', 'view_list'],
