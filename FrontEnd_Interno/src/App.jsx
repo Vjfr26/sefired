@@ -10,9 +10,11 @@
  * de mostrar cualquier dato. Si el token es inválido o expirado se limpia y
  * se redirige al login. Nunca se muestra el panel sin autenticación verificada.
  */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { WifiOff, RefreshCw } from 'lucide-react'
 import Login from './pages/Login.jsx'
 import Layout from './pages/Layout.jsx'
+import StatusScreen from './components/StatusScreen.jsx'
 import { AppProvider } from './context/AppContext.jsx'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
@@ -22,8 +24,13 @@ export default function App() {
   // false → no autenticado → mostrar login
   // true  → autenticado y verificado → mostrar panel
   const [loggedIn, setLoggedIn] = useState(null)
+  // true → no se pudo contactar al backend al validar la sesión (sin conexión /
+  // servidor caído). Distinto de "no autenticado": aquí NO se borra el token,
+  // se ofrece reintentar para no echar al usuario por una caída momentánea.
+  const [connError, setConnError] = useState(false)
 
-  useEffect(() => {
+  const checkSession = useCallback(() => {
+    setConnError(false)
     const token = localStorage.getItem('auth_token')
 
     if (!token) {
@@ -31,6 +38,7 @@ export default function App() {
       return
     }
 
+    setLoggedIn(null)
     // Validar el token contra el backend antes de mostrar cualquier dato
     fetch(`${API_BASE}/api/user`, {
       headers: {
@@ -42,18 +50,36 @@ export default function App() {
         if (res.ok) {
           setLoggedIn(true)
         } else {
+          // Token inválido/expirado → cerrar sesión y mostrar login
           localStorage.removeItem('auth_token')
           localStorage.removeItem('user')
           setLoggedIn(false)
         }
       })
       .catch(() => {
-        // Si no hay conexión, no mostrar el panel — el usuario debe volver a autenticarse
-        localStorage.removeItem('auth_token')
-        localStorage.removeItem('user')
-        setLoggedIn(false)
+        // Falla de red / backend caído → no desloguear, ofrecer reintentar
+        setConnError(true)
       })
   }, [])
+
+  useEffect(() => { checkSession() }, [checkSession])
+
+  // Pantalla de error de conexión con la opción de reintentar
+  if (connError) {
+    return (
+      <StatusScreen
+        fullscreen
+        icon={WifiOff}
+        title="No se pudo conectar"
+        message="No pudimos contactar al servidor. Verifica tu conexión a internet e inténtalo de nuevo."
+        actions={
+          <button onClick={checkSession} className="btn-primary">
+            <RefreshCw className="w-4 h-4" /> Reintentar
+          </button>
+        }
+      />
+    )
+  }
 
   // Pantalla de carga mientras se verifica la sesión — sin datos visibles
   if (loggedIn === null) {

@@ -6,6 +6,8 @@ import Modal from '../components/Modal.jsx'
 import Toast from '../components/Toast.jsx'
 import PdfViewer from '../components/PdfViewer.jsx'
 import ErrorBoundary from '../components/ErrorBoundary.jsx'
+import ConnectionBanner from '../components/ConnectionBanner.jsx'
+import NotFound from './NotFound.jsx'
 import { SkeletonPage } from '../components/Skeleton.jsx'
 
 const PAGE_MAP = {
@@ -32,6 +34,9 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-jm-light flex">
+      {/* Aviso de pérdida de conexión a internet */}
+      <ConnectionBanner />
+
       {/* Sidebar overlay for mobile */}
       {sidebarOpen && (
         <div
@@ -49,10 +54,7 @@ export default function Layout() {
         <main className="flex-1 px-4 sm:px-8 lg:px-12 py-6 sm:py-8">
           <ErrorBoundary key={currentView} onReset={() => navigateTo('home')}>
             <Suspense fallback={<PageSpinner />}>
-              {PageComponent
-                ? <PageComponent />
-                : <div className="card p-8 text-center text-slate-400">Vista en construcción: {currentView}</div>
-              }
+              {PageComponent ? <PageComponent /> : <NotFound />}
             </Suspense>
           </ErrorBoundary>
         </main>
