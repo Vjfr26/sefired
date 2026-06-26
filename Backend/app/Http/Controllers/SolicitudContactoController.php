@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\SolicitudContactoStatusMail;
+use App\Models\EmailLog;
 use App\Models\SolicitudContacto;
 use App\Rules\NoInjectionChars;
 use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 
 /**
  * Solicitudes de contacto capturadas por el chatbot del portal público
@@ -47,7 +50,24 @@ class SolicitudContactoController extends Controller
             'status' => 'required|string|in:pendiente,atendido',
         ]);
 
+        $anterior = $solicitud->status;
         $solicitud->update($data);
+
+        // Notificar al cliente por correo cuando el estado cambia: atendida,
+        // reabierta (atendido → pendiente) o pendiente. Solo si hay correo y
+        // hubo un cambio real, para no enviar avisos duplicados.
+        if ($solicitud->email && $anterior !== $data['status']) {
+            $atendida  = $data['status'] === 'atendido';
+            $reabierta = $data['status'] === 'pendiente' && $anterior === 'atendido';
+            $asunto    = $atendida ? 'Solicitud de contacto atendida'
+                       : ($reabierta ? 'Solicitud de contacto reabierta' : 'Solicitud de contacto pendiente');
+            try {
+                Mail::to($solicitud->email)->queue(new SolicitudContactoStatusMail($solicitud, $atendida, $reabierta));
+                EmailLog::registrar('contacto_status', $solicitud->email, $asunto);
+            } catch (\Throwable $e) {
+                EmailLog::registrar('contacto_status', $solicitud->email, $asunto, null, null, 'error', $e->getMessage());
+            }
+        }
 
         $this->logActivity(
             'Solicitud de Contacto Actualizada',
