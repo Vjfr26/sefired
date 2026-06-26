@@ -60,8 +60,8 @@ class UnderwritingController extends Controller
             'tipo'                => 'sometimes|in:manual,automatica',
             'resultado'           => 'required|in:pendiente,aprobado,rechazado,observado',
             'score'               => 'nullable|numeric|min:0|max:100',
-            'observaciones'       => ['nullable', 'string', $noInjection],
-            'motivo_rechazo'      => ['nullable', 'string', $noInjection],
+            'observaciones'       => ['nullable', 'string', 'max:1000', $noInjection],
+            'motivo_rechazo'      => ['nullable', 'string', 'max:1000', $noInjection],
             'requiere_inspeccion' => 'boolean',
             'reglas_aplicadas'    => 'nullable|array',
         ]);
@@ -113,8 +113,8 @@ class UnderwritingController extends Controller
         $data = $request->validate([
             'resultado'           => 'sometimes|in:pendiente,aprobado,rechazado,observado',
             'score'               => 'nullable|numeric|min:0|max:100',
-            'observaciones'       => ['nullable', 'string', $noInjection],
-            'motivo_rechazo'      => ['nullable', 'string', $noInjection],
+            'observaciones'       => ['nullable', 'string', 'max:1000', $noInjection],
+            'motivo_rechazo'      => ['nullable', 'string', 'max:1000', $noInjection],
             'requiere_inspeccion' => 'sometimes|boolean',
             'reglas_aplicadas'    => 'nullable|array',
         ]);

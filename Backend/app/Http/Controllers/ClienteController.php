@@ -149,7 +149,7 @@ class ClienteController extends Controller
             'estado'        => ['required', 'string', 'max:70', $noInjection],
             'ciudad'        => ['required', 'string', 'max:60', $noInjection],
             'codigo_postal' => ['nullable', 'string', 'max:10', new CodigoPostalValido()],
-            'direccion'     => ['required', 'string', $noInjection],
+            'direccion'     => ['required', 'string', 'max:255', $noInjection],
             'profesion'     => ['nullable', 'string', 'max:50', $noInjection],
             'actividad'     => ['nullable', 'string', 'max:50', $noInjection],
         ]);
@@ -201,7 +201,7 @@ class ClienteController extends Controller
             'estado'        => ['sometimes', 'required', 'string', 'max:70', $noInjection],
             'ciudad'        => ['sometimes', 'required', 'string', 'max:60', $noInjection],
             'codigo_postal' => ['nullable', 'string', 'max:10', new CodigoPostalValido()],
-            'direccion'     => ['sometimes', 'required', 'string', $noInjection],
+            'direccion'     => ['sometimes', 'required', 'string', 'max:255', $noInjection],
             'profesion'     => ['nullable', 'string', 'max:50', $noInjection],
             'actividad'     => ['nullable', 'string', 'max:50', $noInjection],
         ]);

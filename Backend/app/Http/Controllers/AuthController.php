@@ -223,8 +223,8 @@ class AuthController extends Controller
     public function changePassword(Request $request)
     {
         $request->validate([
-            'current_password' => 'required|string',
-            'new_password' => 'required|string|min:8|confirmed',
+            'current_password' => 'required|string|max:128',
+            'new_password' => 'required|string|min:8|max:128|confirmed',
         ]);
 
         $usuario = auth()->user();
@@ -260,7 +260,7 @@ class AuthController extends Controller
     /** Verifica que la contraseña ingresada coincide con la del usuario en sesión. */
     public function verifyPassword(Request $request)
     {
-        $request->validate(['password' => 'required|string']);
+        $request->validate(['password' => 'required|string|max:128']);
 
         $token   = str_replace('Bearer ', '', $request->header('Authorization'));
         $usuario = Usuario::where('api_token', hash('sha256', $token))->first();
