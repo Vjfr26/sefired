@@ -1938,7 +1938,7 @@ export default function Simulador() {
             <div className="shrink-0">
               <button onClick={openSim} className="flex items-center gap-2.5 bg-white text-jm-blue text-sm font-black px-7 py-4 rounded-2xl hover:bg-blue-50 transition-all shadow-xl shadow-black/25 group">
                 <Calculator className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                Emitir
+                EMITIR
               </button>
             </div>
           )}

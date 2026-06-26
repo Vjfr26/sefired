@@ -9,7 +9,7 @@
 </table>
 
 <h1 style="margin:0 0 8px;font-size:22px;font-weight:800;color:#1e293b;text-align:center;">
-  ¡Bienvenido/a a J&amp;M Seguros!
+  ¡Bienvenido/a!
 </h1>
 <p style="margin:0 0 20px;font-size:14px;color:#64748b;text-align:center;line-height:1.6;">
   Estimado/a <strong>{{ $nombre }}</strong>, nos complace tenerle como cliente.<br>

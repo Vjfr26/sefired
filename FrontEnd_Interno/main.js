@@ -1397,7 +1397,7 @@ function cotSimulador() {
           <button onclick="simIniciar()"
             class="flex items-center gap-2.5 bg-white text-jm-blue text-sm font-black px-7 py-4 rounded-2xl hover:bg-blue-50 transition-all shadow-xl shadow-black/25 group">
             <i data-lucide="calculator" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
-            Emitir
+            EMITIR
           </button>
         </div>
       </div>

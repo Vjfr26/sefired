@@ -61,21 +61,16 @@ export default function App() {
       <div className="min-h-screen flex items-center justify-center bg-jm-light">
         <div className="flex flex-col items-center gap-5">
           {/* Logo con anillo giratorio */}
-          <div className="relative flex items-center justify-center">
+          <div className="relative flex items-center justify-center w-24 h-24">
             {/* Anillo exterior */}
-            <svg className="absolute w-20 h-20 animate-spin" style={{ animationDuration: '2s' }} viewBox="0 0 80 80">
+            <svg className="absolute w-24 h-24 animate-spin" style={{ animationDuration: '2s' }} viewBox="0 0 80 80">
               <circle cx="40" cy="40" r="36" fill="none" stroke="#001463" strokeWidth="2.5"
                 strokeDasharray="56 170" strokeLinecap="round" />
             </svg>
-            {/* Badge de marca */}
-            <div className="w-14 h-14 rounded-2xl bg-jm-blue shadow-xl shadow-jm-blue/30 flex items-center justify-center">
-              <span className="text-white font-black text-2xl tracking-tighter select-none">J</span>
-            </div>
+            {/* Logo (mismo que el login) */}
+            <img src="/logo-sinfondo.png" alt="Logo J&amp;M" className="w-14 h-14 object-contain animate-pulse select-none" />
           </div>
-          <div className="flex flex-col items-center gap-1">
-            <p className="text-sm font-bold text-jm-blue tracking-wide">J&amp;M Reaseguradora</p>
-            <p className="text-xs text-slate-400 font-medium">Verificando sesión…</p>
-          </div>
+          <p className="text-xs text-slate-400 font-medium">Verificando sesión…</p>
           {/* Dots animados */}
           <div className="flex gap-1.5">
             {[0, 1, 2].map(i => (
