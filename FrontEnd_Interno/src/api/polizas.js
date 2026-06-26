@@ -47,10 +47,14 @@ export async function updatePoliza(id, data) {
 /**
  * Obtiene el blob PDF oficial de una póliza generado por el backend (diseño La Venezolana).
  * Devuelve el Blob para que el llamador decida si abrir en pestaña o forzar descarga.
- * @param {number} id  ID de la póliza
+ * @param {number} id      ID de la póliza
+ * @param {number} [bienId] Si se indica, el documento se acota a ese bien (su
+ *                          certificado) — usado en la vista de Bienes. Sin él, se
+ *                          devuelve la póliza completa con todos los bienes (Clientes).
  */
-export async function downloadPolizaPdf(id) {
-  const res = await fetch(`${API}/${id}/pdf`, { headers: getAuthHeaders() })
+export async function downloadPolizaPdf(id, bienId = null) {
+  const qs  = bienId != null ? `?bien=${encodeURIComponent(bienId)}` : ''
+  const res = await fetch(`${API}/${id}/pdf${qs}`, { headers: getAuthHeaders() })
   if (!res.ok) {
     const json = await res.json().catch(() => ({}))
     throw new Error(json.error || json.message || 'Error al generar el PDF')

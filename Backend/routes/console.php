@@ -15,6 +15,7 @@ Schedule::command('polizas:marcar-vencidas')->dailyAt('08:30')->timezone('Americ
 
 // ── Correos programados ────────────────────────────────────────────────────
 Schedule::command('correos:renovacion')  ->dailyAt('09:00')->timezone('America/Caracas');
+Schedule::command('correos:cuotas')      ->dailyAt('09:15')->timezone('America/Caracas');
 Schedule::command('correos:cumpleanios') ->dailyAt('08:00')->timezone('America/Caracas');
 Schedule::command('correos:reporte-interno')->weeklyOn(1, '08:00')->timezone('America/Caracas');
 Schedule::command('reportes:enviar-programados')->everyFifteenMinutes()->timezone('America/Caracas')->withoutOverlapping();

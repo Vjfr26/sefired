@@ -1924,9 +1924,8 @@ export default function Simulador() {
         <div className="relative flex flex-col sm:flex-row sm:items-center gap-6 p-6 sm:p-9">
           <div className="flex-1 min-w-0">
             <h2 className="text-2xl sm:text-3xl font-black text-white leading-snug mb-1.5">
-              Cotiza cualquier<br /><span className="text-emerald-400">tipo de póliza</span>
+              COTIZADOR/<br /><span className="text-emerald-400">EMISION</span>
             </h2>
-            <p className="text-sm text-white/50 max-w-xs">Wizard dinámico de 5 pasos. El simulador se adapta al producto seleccionado.</p>
             {tasaBcv && (
               <p className="text-xs text-white/40 mt-2">
                 <DollarSign className="w-3 h-3 inline mr-1" />

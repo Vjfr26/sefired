@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Mail\CambioPolizaMail;
 use App\Mail\PolizaRenovadaMail;
 use App\Models\Comision;
+use App\Mail\FacturaMail;
+use App\Models\Cuota;
 use App\Models\EmailLog;
 use App\Models\Poliza;
 use App\Models\PolizaBien;
@@ -18,6 +20,7 @@ use App\Rules\CedulaValida;
 use App\Rules\NoInjectionChars;
 use App\Services\WorkflowService;
 use App\Support\CodigoPoliza;
+use App\Support\Mensualidades;
 use App\Support\Documento;
 use App\Support\Moneda;
 use App\Traits\LogsActivity;
@@ -154,17 +157,21 @@ class PolizaController extends Controller
     /**
      * Genera el PDF de la póliza.
      */
-    public function pdf($id)
+    public function pdf(Request $request, $id)
     {
         $poliza = Poliza::with(['solicitud.bien', 'solicitud.persona', 'producto', 'vendedor', 'bienes.bien', 'facturas'])->findOrFail($id);
         $this->assertAccesoVendedorId($poliza->solicitud?->vendedor_id, 'No tienes acceso a esta póliza.');
 
-        $snap  = $poliza->snapshot_datos ?? [];
-        $attrs = $snap['bien']['atributos'] ?? $poliza->solicitud?->bien?->atributos ?? [];
+        // Vista de Bienes: el documento se acota a un solo bien (con su
+        // certificado), sin la sección de bienes adicionales. Vista de Clientes
+        // (sin ?bien=): se muestra la póliza completa con todos los bienes.
+        $bienScope = $request->filled('bien')
+            ? $poliza->bienes->firstWhere('bien_asegurado_id', (int) $request->query('bien'))
+            : null;
+
         // Bienes adicionales (más allá del original de la solicitud, que no
-        // tiene certificado propio) — solo se muestra esta sección extra si
-        // la póliza cubre más de un bien.
-        $bienesAdicionales = $poliza->bienesAdicionales();
+        // tiene certificado propio) — solo cuando NO se acota a un bien.
+        $bienesAdicionales = $bienScope ? collect() : $poliza->bienesAdicionales();
         $numeroRecibo      = $poliza->numeroRecibo();
         $esRenovacion      = $poliza->esRenovacion();
 
@@ -179,10 +186,13 @@ class PolizaController extends Controller
             $qrCode = null; // si falla, el blade lo omite
         }
 
-        $pdf = Pdf::loadView('poliza-pdf', compact('poliza', 'qrCode', 'bienesAdicionales', 'numeroRecibo', 'esRenovacion'))
+        $pdf = Pdf::loadView('poliza-pdf', compact('poliza', 'qrCode', 'bienesAdicionales', 'numeroRecibo', 'esRenovacion', 'bienScope'))
                   ->setPaper('letter', 'portrait');
 
-        $filename = 'poliza-' . str_replace(['/', ' '], '-', $poliza->nro_contrato) . '.pdf';
+        $certSuffix = $bienScope && $bienScope->certificado
+            ? '-' . str_replace(['/', ' '], '-', $bienScope->certificado)
+            : '';
+        $filename = 'poliza-' . str_replace(['/', ' '], '-', $poliza->nro_contrato) . $certSuffix . '.pdf';
 
         return $pdf->download($filename);
     }
@@ -251,10 +261,27 @@ class PolizaController extends Controller
         $totalEur = $tasaEur > 0 ? round(Moneda::convertir($total, $moneda, 'EUR', $tasaUsd, $tasaEur), 2) : null;
         $totalUsdEquiv = $tasaUsd > 0 ? round(Moneda::aUsd($total, $moneda, $tasaUsd, $tasaEur), 2) : $total;
 
+        // Datos de mensualidad (igual que al emitir): si el producto admite pago
+        // mensual, la primera cuota es el mínimo a cubrir; el cliente puede
+        // adelantar hasta el total anual.
+        $permiteMensual = (bool) ($poliza->producto?->permite_mensualidades);
+        $recargoPct     = (float) ($poliza->producto?->recargo_mensual_pct ?? 0);
+        $cuotaMensual   = $permiteMensual && $total > 0
+            ? round(($total / 12) * (1 + $recargoPct / 100), 2)
+            : null;
+
+        // Solo se puede renovar en línea una póliza vigente o ya vencida —
+        // no una ANULADA ni una que ya fue RENOVADA (QR viejo reutilizado).
+        $renovable = in_array($poliza->status, ['ACTIVA', 'VENCIDA'], true);
+
         return response()->view('poliza-landing', [
             'encontrada'        => true,
             'nro_contrato'      => $poliza->nro_contrato,
             'status'            => $poliza->status,
+            'renovable'             => $renovable,
+            'permite_mensualidades' => $permiteMensual,
+            'recargo_mensual_pct'   => $recargoPct,
+            'cuota_mensual'         => $cuotaMensual,
             'fecha_emision'     => $poliza->fecha_emision?->format('d/m/Y'),
             'fecha_vencimiento' => $poliza->fecha_vencimiento?->format('d/m/Y'),
             'asegurado_nombre'  => $snap['asegurado']['nombre'] ?? $poliza->asegurado_nombre ?? '—',
@@ -320,6 +347,21 @@ class PolizaController extends Controller
                         ->whereNull('deleted_at')
                         ->firstOrFail();
 
+        // Solo pólizas vigentes o vencidas admiten renovación en línea.
+        if (!in_array($poliza->status, ['ACTIVA', 'VENCIDA'], true)) {
+            return response()->json([
+                'message' => 'Esta póliza no admite renovación en línea (estado: ' . $poliza->status . '). Contacte a su asesor.',
+            ], 422);
+        }
+
+        // Evita solicitudes duplicadas: si ya hay una pendiente para esta póliza,
+        // no se crea otra (el asesor ya la tiene en cola para revisar).
+        if (SolicitudRenovacionQr::where('poliza_id', $poliza->id)->where('status', 'PENDIENTE')->exists()) {
+            return response()->json([
+                'message' => 'Ya recibimos una solicitud de renovación para esta póliza y está en revisión. Un asesor la procesará pronto.',
+            ], 422);
+        }
+
         $metodosPermitidos = [
             'Transferencia Bancaria', 'Pago Móvil', 'Zelle', 'Binance / Cripto',
         ];
@@ -364,6 +406,120 @@ class PolizaController extends Controller
     }
 
     /**
+     * Lista las cuotas de una póliza mensual (panel del asesor).
+     */
+    public function cuotas($id)
+    {
+        $poliza = Poliza::with(['solicitud', 'cuotas' => fn($q) => $q->orderBy('numero')])->findOrFail($id);
+        $this->assertAccesoVendedorId($poliza->solicitud?->vendedor_id, 'No tienes acceso a esta póliza.');
+
+        $monedaNativa = $poliza->monedaNativa();
+        $cuotas = $poliza->cuotas->map(fn($c) => [
+            'id'                => $c->id,
+            'numero'            => $c->numero,
+            'monto'             => (float) $c->monto,
+            'monto_pagado'      => (float) $c->monto_pagado,
+            'saldo'             => $c->saldo(),
+            'fecha_vencimiento' => $c->fecha_vencimiento?->format('Y-m-d'),
+            'status'            => $c->status,
+        ])->values();
+
+        $total  = round($poliza->cuotas->sum('monto'), 2);
+        $pagado = round($poliza->cuotas->sum('monto_pagado'), 2);
+
+        return response()->json([
+            'frecuencia'     => $poliza->frecuencia_pago,
+            'moneda'         => $monedaNativa,
+            'moneda_simbolo' => Moneda::simbolo($monedaNativa),
+            'cuotas'         => $cuotas,
+            'total'          => $total,
+            'pagado'         => $pagado,
+            'saldo'          => round($total - $pagado, 2),
+        ]);
+    }
+
+    /**
+     * Registra un cobro de cuota(s) desde el panel del asesor: aplica el pago a
+     * las cuotas pendientes, emite un recibo y envía el correo al cliente.
+     */
+    public function pagarCuota(Request $request, $id)
+    {
+        $poliza = Poliza::with('solicitud.persona', 'producto')->findOrFail($id);
+        $this->assertAccesoVendedorId($poliza->solicitud?->vendedor_id, 'No tienes acceso a esta póliza.');
+
+        if ($poliza->frecuencia_pago !== 'Mensual') {
+            return response()->json(['error' => 'Esta póliza no es de pago mensual.'], 422);
+        }
+        if (!in_array($poliza->status, ['ACTIVA', 'VENCIDA'], true)) {
+            return response()->json(['error' => "No se pueden registrar pagos en una póliza {$poliza->status}."], 422);
+        }
+
+        $noInjection = new NoInjectionChars();
+        $data = $request->validate([
+            'tasa_bcv'           => 'required|numeric|min:0.0001',
+            'tasa_eur'           => 'nullable|numeric|min:0.0001',
+            'pagos'              => 'required|array|min:1',
+            'pagos.*.forma'      => ['required', 'string', 'max:30', $noInjection],
+            'pagos.*.moneda'     => 'required|string|in:USD,EUR,Bs.',
+            'pagos.*.monto'      => 'required|numeric|min:0.01',
+            'pagos.*.referencia' => ['nullable', 'string', 'max:100', $noInjection],
+        ]);
+
+        $tasaBcv      = (float) $data['tasa_bcv'];
+        $tasaEur      = isset($data['tasa_eur']) && $data['tasa_eur'] > 0 ? (float) $data['tasa_eur'] : $tasaBcv;
+        $monedaNativa = $poliza->monedaNativa();
+        $montoNativo  = collect($data['pagos'])->sum(
+            fn($p) => Moneda::convertir((float) $p['monto'], $p['moneda'], $monedaNativa, $tasaBcv, $tasaEur)
+        );
+
+        // No aceptar más que el saldo pendiente de la póliza.
+        $saldo = round($poliza->cuotas()->get()->sum(fn($c) => $c->saldo()), 2);
+        if ($saldo <= 0) {
+            return response()->json(['error' => 'Esta póliza ya está totalmente pagada.'], 422);
+        }
+        if ((int) round($montoNativo * 100) > (int) round($saldo * 100) + 10) {
+            return response()->json([
+                'error' => sprintf(
+                    'El pago (%s%.2f) supera el saldo pendiente (%s%.2f).',
+                    Moneda::simbolo($monedaNativa), round($montoNativo, 2),
+                    Moneda::simbolo($monedaNativa), $saldo
+                ),
+            ], 422);
+        }
+
+        $pagoResumen = collect($data['pagos'])->map(fn($p) => $p['forma'] . ' ' . $p['moneda'])->join(' / ');
+        $moneda      = $data['pagos'][0]['moneda'] ?? 'USD';
+
+        $factura = DB::transaction(fn() => Mensualidades::aplicarPago(
+            $poliza, (float) $montoNativo, $pagoResumen, $moneda,
+            $data['pagos'][0]['referencia'] ?? null, $tasaBcv, $tasaEur, auth()->id()
+        ));
+
+        $correo = $poliza->solicitud?->persona?->correo;
+        if ($factura && $correo) {
+            try {
+                Mail::to($correo)->queue(new FacturaMail($factura->fresh(), $poliza->solicitud?->persona?->nombre ?? ''));
+                EmailLog::registrar(
+                    tipo: 'recibo_cuota',
+                    destinatario: $correo,
+                    asunto: 'Recibo ' . $factura->numero,
+                    personaId: $poliza->solicitud?->persona_id,
+                    polizaId: $poliza->id,
+                );
+            } catch (\Throwable) {}
+        }
+
+        $this->logActivity(
+            'Pago de cuota',
+            "Cobro registrado en póliza {$poliza->nro_contrato} (recibo {$factura?->numero})",
+            'poliza',
+            auth()->id()
+        );
+
+        return response()->json(['ok' => true, 'nro_factura' => $factura?->numero]);
+    }
+
+    /**
      * Renueva una póliza: marca la actual como VENCIDA y crea una nueva
      * póliza + factura con los mismos datos de cobertura por un año más.
      */
@@ -395,25 +551,44 @@ class PolizaController extends Controller
         $totalBsNuevo   = round(Moneda::aBs((float) $polizaAnterior->total, $monedaNativa, $tasaBcv, $tasaEur), 2);
         $coberturaBsNew = round(Moneda::aBs((float) $polizaAnterior->cobertura_dolares, $monedaNativa, $tasaBcv, $tasaEur), 2);
 
-        // Validar total pagos = total póliza (en la moneda nativa del producto)
-        $totalPagado = collect($data['pagos'])->sum(
+        // Mismo criterio que al emitir: el pago puede ir desde la primera cuota
+        // (Mensual, si el producto admite mensualidades) hasta el total anual.
+        $totalPoliza    = (float) $polizaAnterior->total;
+        $totalPagado    = collect($data['pagos'])->sum(
             fn($p) => Moneda::convertir((float) $p['monto'], $p['moneda'], $monedaNativa, $tasaBcv, $tasaEur)
         );
 
-        if ((int) round($totalPagado * 100) !== (int) round((float) $polizaAnterior->total * 100)) {
+        $permiteMensual = (bool) ($polizaAnterior->producto?->permite_mensualidades);
+        $recargoPct     = (float) ($polizaAnterior->producto?->recargo_mensual_pct ?? 0);
+        $esMensual      = $frecuencia === 'Mensual' && $permiteMensual;
+        $montoMinimo    = $esMensual ? Mensualidades::montoCuota($totalPoliza, $recargoPct) : $totalPoliza;
+        $montoMaximo    = $esMensual ? Mensualidades::totalFinanciado($totalPoliza, $recargoPct) : $totalPoliza;
+
+        $pagCents = (int) round($totalPagado * 100);
+        $minCents = (int) round($montoMinimo * 100);
+        $maxCents = (int) round($montoMaximo * 100);
+        if ($pagCents < $minCents - 10 || $pagCents > $maxCents + 10) {
             return response()->json([
-                'error' => sprintf(
-                    'El total de los pagos (%s%.2f %s) no coincide con el total de la póliza (%s%.2f %s).',
-                    Moneda::simbolo($monedaNativa), round($totalPagado, 2), Moneda::etiqueta($monedaNativa),
-                    Moneda::simbolo($monedaNativa), $polizaAnterior->total, Moneda::etiqueta($monedaNativa)
-                ),
+                'error' => $pagCents < $minCents - 10
+                    ? sprintf(
+                        'El pago (%s%.2f %s) es menor a %s (%s%.2f %s).',
+                        Moneda::simbolo($monedaNativa), round($totalPagado, 2), Moneda::etiqueta($monedaNativa),
+                        $esMensual ? 'la primera cuota mensual' : 'el total de la póliza',
+                        Moneda::simbolo($monedaNativa), $montoMinimo, Moneda::etiqueta($monedaNativa)
+                    )
+                    : sprintf(
+                        'El pago (%s%.2f %s) supera el %s (%s%.2f %s).',
+                        Moneda::simbolo($monedaNativa), round($totalPagado, 2), Moneda::etiqueta($monedaNativa),
+                        $esMensual ? 'total financiado de las 12 cuotas' : 'total anual de la póliza',
+                        Moneda::simbolo($monedaNativa), $montoMaximo, Moneda::etiqueta($monedaNativa)
+                    ),
             ], 422);
         }
 
         $hoy  = now()->toDateString();
         $vence = now()->addYear()->toDateString();
 
-        $result = DB::transaction(function () use ($polizaAnterior, $data, $hoy, $vence, $sede, $pagoResumen, $moneda, $monedaNativa, $frecuencia, $tasaBcv, $tasaEur, $totalBsNuevo, $coberturaBsNew) {
+        $result = DB::transaction(function () use ($polizaAnterior, $data, $hoy, $vence, $sede, $pagoResumen, $moneda, $monedaNativa, $frecuencia, $tasaBcv, $tasaEur, $totalBsNuevo, $coberturaBsNew, $esMensual, $recargoPct, $totalPagado) {
             $polizaAnterior->update(['status' => 'RENOVADA']);
 
             $nueva = Poliza::create([
@@ -480,18 +655,28 @@ class PolizaController extends Controller
                 ]);
             }
 
-            Factura::create([
-                'numero'        => $nroFactura,
-                'sede'          => $sede,
-                'fecha_factura' => $hoy,
-                'poliza_id'     => $nueva->id,
-                'valor'         => $polizaAnterior->total,
-                'valor_bs'      => $totalBsNuevo,
-                'forma_pago'    => $pagoResumen,
-                'moneda'        => $moneda,
-                'referencia'    => $data['pagos'][0]['referencia'] ?? null,
-                'usuario_id'    => auth()->id(),
-            ]);
+            if ($esMensual) {
+                // Renovación mensual: 12 cuotas nuevas + cobro inicial (emite recibo).
+                Mensualidades::generarCuotas($nueva, (float) $polizaAnterior->total, $recargoPct, $hoy);
+                $factura = Mensualidades::aplicarPago(
+                    $nueva, (float) $totalPagado, $pagoResumen, $moneda,
+                    $data['pagos'][0]['referencia'] ?? null, $tasaBcv, $tasaEur, auth()->id(), $sede
+                );
+                $nroFactura = $factura?->numero ?? $nroFactura;
+            } else {
+                Factura::create([
+                    'numero'        => $nroFactura,
+                    'sede'          => $sede,
+                    'fecha_factura' => $hoy,
+                    'poliza_id'     => $nueva->id,
+                    'valor'         => $polizaAnterior->total,
+                    'valor_bs'      => $totalBsNuevo,
+                    'forma_pago'    => $pagoResumen,
+                    'moneda'        => $moneda,
+                    'referencia'    => $data['pagos'][0]['referencia'] ?? null,
+                    'usuario_id'    => auth()->id(),
+                ]);
+            }
 
             Venta::create([
                 'usuario_id'  => $nueva->vendedor_id,

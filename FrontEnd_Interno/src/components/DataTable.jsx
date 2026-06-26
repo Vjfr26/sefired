@@ -54,7 +54,7 @@ const tdCls = c =>
   `${c.bold        ? ' font-bold text-slate-800'        : ''}` +
   `${c.nw          ? ' whitespace-nowrap'               : ''}` +
   `${c.hide        ? ' ' + HIDE[c.hide]                 : ''}` +
-  `${c.tr          ? ' max-w-0'                         : ''}` +
+  `${c.tr          ? ' max-w-[220px] truncate'          : ''}` +
   `${c.acc         ? ' whitespace-nowrap !overflow-visible min-w-[150px]' : ''}`
 
 /**
@@ -194,9 +194,9 @@ export default function DataTable({ cols, rows, footer = null, id, searchable = 
               paged.map((r, i) => (
                 <tr key={i} className="hover:bg-slate-50/80 transition-colors">
                   {cols.map(c => (
-                    <td key={c.k} className={tdCls(c)}>
-                      {/* tr: columnas con texto largo; el span permite que el texto se rompa */}
-                      {c.tr ? <span className="break-words">{r[c.k] ?? '—'}</span> : (r[c.k] ?? '—')}
+                    <td key={c.k} className={tdCls(c)} title={c.tr && typeof r[c.k] === 'string' ? r[c.k] : undefined}>
+                      {/* tr: texto largo en una línea con elipsis (max-w + truncate en td) */}
+                      {r[c.k] ?? '—'}
                     </td>
                   ))}
                 </tr>

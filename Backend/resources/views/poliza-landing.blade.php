@@ -172,6 +172,22 @@
         .renew-summary strong { color: #127481; }
         .renew-summary .amount { font-size: 18px; font-weight: 800; color: #127481; }
 
+        /* ── Toggle frecuencia ── */
+        .freq-btn {
+            flex: 1;
+            padding: 9px 6px;
+            border: 1px solid #b2e0e6;
+            background: white;
+            color: #127481;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            font-family: Arial, sans-serif;
+            transition: background .15s, color .15s;
+        }
+        .freq-btn.active { background: #127481; color: white; border-color: #127481; }
+
         /* ── Messages ── */
         .success-msg { display: none; text-align: center; padding: 20px 10px; }
         .success-msg .icon { font-size: 48px; margin-bottom: 12px; }
@@ -271,8 +287,8 @@
     {{-- ── Header ── --}}
     <div class="header">
         <img src="{{ url('images/logon.jpg') }}" alt="LA VENEZOLANA DE SEGUROS Y VIDA C.A." class="header-logo">
-        <h1>J&amp;M Seguros</h1>
-        <p>LA VENEZOLANA DE SEGUROS Y VIDA C.A.</p>
+        <h1>LA VENEZOLANA DE SEGUROS Y VIDA C.A.</h1>
+        <p>Operado por Inversiones J&amp;M, C.A.</p>
         @if(isset($nro_contrato))
             <p class="nro">{{ $nro_contrato }}</p>
         @endif
@@ -294,7 +310,9 @@
     <div class="tabs">
         <button class="tab-btn active" onclick="showTab('ver', this)">&#128196; Ver Póliza</button>
         <button class="tab-btn"        onclick="showTab('pdf', this)">&#128438; Reimprimir</button>
+        @if($renovable ?? false)
         <button class="tab-btn"        onclick="showTab('renov', this)">&#128260; Renovar</button>
+        @endif
     </div>
 
     <div class="card">
@@ -365,33 +383,32 @@
                 <strong>Titular:</strong> {{ $asegurado_nombre }}<br>
                 <strong>Vencimiento actual:</strong> {{ $fecha_vencimiento }}<br>
                 @if(isset($total) && $total)
-                @php
-                    // La moneda nativa del producto va primero y resaltada;
-                    // las otras dos son solo conversión de referencia — nunca
-                    // se mezclan montos de monedas distintas en la misma cifra.
-                    $cajasMoneda = [
-                        'USD' => ['label' => 'Dólares',   'simbolo' => '$',    'valor' => $total_usd_equiv ?? null, 'color' => '#127481'],
-                        'EUR' => ['label' => 'Euros',     'simbolo' => '€',    'valor' => $total_eur        ?? null, 'color' => '#b45309'],
-                        'BS'  => ['label' => 'Bolívares', 'simbolo' => 'Bs. ', 'valor' => $total_bs         ?? null, 'color' => '#374151'],
-                    ];
-                    $cajasMoneda[$moneda ?? 'USD']['valor'] = $total;
-                @endphp
-                <div style="margin-top:10px; padding-top:10px; border-top:1px solid #b2e0e6;">
+
+                {{-- Frecuencia: solo si el producto admite mensualidades --}}
+                @if(($permite_mensualidades ?? false) && ($cuota_mensual ?? null))
+                <div style="display:flex; gap:8px; margin-top:12px;">
+                    <button type="button" class="freq-btn active" data-freq="Anual"   onclick="setFrecuencia('Anual', this)">Pago anual</button>
+                    <button type="button" class="freq-btn"        data-freq="Mensual" onclick="setFrecuencia('Mensual', this)">Mensual · 1ª cuota</button>
+                </div>
+                @endif
+
+                {{-- Monto a cancelar — SOLO en la moneda nativa del producto (no se mezclan monedas) --}}
+                <div style="margin-top:12px; padding-top:10px; border-top:1px solid #b2e0e6;">
                     <div style="font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:#6b7280; margin-bottom:6px;">Monto a cancelar</div>
-                    <div style="display:flex; flex-wrap:wrap; gap:8px; justify-content:center;">
-                        @foreach($cajasMoneda as $cod => $caja)
-                        @if($caja['valor'])
-                        <div style="background:white; border:1px solid {{ $cod === ($moneda ?? 'USD') ? $caja['color'] : '#d1d5db' }}; border-radius:8px; padding:8px 14px; text-align:center; min-width:110px;">
-                            <div style="font-size:10px; color:#6b7280; margin-bottom:2px;">{{ $caja['label'] }}{{ $cod === ($moneda ?? 'USD') ? ' (a pagar)' : '' }}</div>
-                            <div style="font-size:18px; font-weight:800; color:{{ $caja['color'] }};">{{ $caja['simbolo'] }}{{ number_format((float)$caja['valor'], 2) }}</div>
+                    <div style="text-align:center;">
+                        <div style="display:inline-block; background:white; border:1.5px solid #127481; border-radius:8px; padding:10px 24px; min-width:150px;">
+                            <div id="monto-cancelar" style="font-size:22px; font-weight:800; color:#127481;">{{ $moneda_simbolo ?? '$' }}{{ number_format((float)$total, 2) }}</div>
+                            <div style="font-size:10px; color:#6b7280; margin-top:2px;">{{ $moneda ?? 'USD' }}</div>
                         </div>
-                        @endif
-                        @endforeach
                     </div>
+                    @if(($permite_mensualidades ?? false) && ($cuota_mensual ?? null))
+                    <div id="adelanto-note" style="font-size:10px; color:#9ca3af; margin-top:6px; text-align:center; display:none;">
+                        Puede adelantar más, hasta el total anual ({{ $moneda_simbolo ?? '$' }}{{ number_format((float)$total, 2) }} {{ $moneda ?? 'USD' }}).
+                    </div>
+                    @endif
                     @if(isset($tasa_usd) && $tasa_usd)
                     <div style="font-size:10px; color:#9ca3af; margin-top:6px; text-align:center;">
-                        Tasa BCV: 1 USD = Bs. {{ number_format($tasa_usd, 4) }}
-                        @if(isset($tasa_eur) && $tasa_eur) · 1 EUR = Bs. {{ number_format($tasa_eur, 4) }} @endif
+                        Tasa BCV: 1 USD = Bs. {{ number_format($tasa_usd, 4) }}@if(isset($tasa_eur) && $tasa_eur) · 1 EUR = Bs. {{ number_format($tasa_eur, 4) }}@endif
                     </div>
                     @else
                     <div style="font-size:10px; color:#f59e0b; margin-top:6px; text-align:center;">
@@ -450,7 +467,7 @@
 
     @endif
 
-    <p class="footer">LA VENEZOLANA DE SEGUROS Y VIDA C.A. &mdash; J&amp;M Seguros &copy; {{ date('Y') }}</p>
+    <p class="footer">LA VENEZOLANA DE SEGUROS Y VIDA C.A. &middot; Operado por Inversiones J&amp;M, C.A. &copy; {{ date('Y') }}</p>
 
 </div>
 
@@ -464,6 +481,10 @@
     const TASA_EUR      = {{ isset($tasa_eur) && $tasa_eur ? (float)$tasa_eur : 0 }};
     const MONEDA_NATIVA = "{{ $moneda ?? 'USD' }}";
     const SIMBOLO_NATIVO = "{{ $moneda_simbolo ?? '$' }}";
+    // Pago mensual (1ª cuota) — mínimo a cubrir si el producto admite mensualidades.
+    const CUOTA_MENSUAL   = {{ ($cuota_mensual ?? null) ? (float)$cuota_mensual : 0 }};
+    const PERMITE_MENSUAL = {{ (($permite_mensualidades ?? false) && ($cuota_mensual ?? null)) ? 'true' : 'false' }};
+    let   frecuencia = 'Anual';
 
     function normalizarMoneda(m) {
         const x = String(m || '').toUpperCase().replace(/[.\s]/g, '');
@@ -588,47 +609,87 @@
         grupo.style.display = mostrar ? 'block' : 'none';
     }
 
+    // ── Frecuencia (Anual / Mensual) ──────────────────────────────────────────
+    // Mínimo a cubrir: la primera cuota si es Mensual; el total anual si es Anual.
+    function objetivo() {
+        return (frecuencia === 'Mensual' && PERMITE_MENSUAL && CUOTA_MENSUAL) ? CUOTA_MENSUAL : TOTAL_POLIZA;
+    }
+
+    function setFrecuencia(f, btn) {
+        frecuencia = f;
+        document.querySelectorAll('.freq-btn').forEach(b => b.classList.remove('active'));
+        if (btn) btn.classList.add('active');
+        const montoEl = document.getElementById('monto-cancelar');
+        if (montoEl) montoEl.textContent = SIMBOLO_NATIVO + objetivo().toFixed(2);
+        const nota = document.getElementById('adelanto-note');
+        if (nota) nota.style.display = (f === 'Mensual') ? 'block' : 'none';
+        recalcular();
+    }
+
+    // Suma de todos los pagos convertida a la moneda nativa + monedas usadas.
+    function totalEnNativo() {
+        let total = 0, sinTasa = false;
+        const monedas = new Set();
+        document.querySelectorAll('.pago-row').forEach(row => {
+            const inputs  = row.querySelectorAll('input[type="number"]');
+            const selects = row.querySelectorAll('select');
+            const monto   = parseFloat(inputs[0]?.value) || 0;
+            const moneda  = selects[1]?.value || 'USD';
+            if (monto > 0) monedas.add(normalizarMoneda(moneda));
+            const { valor, sinTasa: faltaTasa } = convertirMoneda(monto, moneda, MONEDA_NATIVA);
+            total += valor;
+            if (faltaTasa) sinTasa = true;
+        });
+        return { total: Math.round(total * 100) / 100, sinTasa, monedas: [...monedas] };
+    }
+
+    // Texto del monto en la moneda nativa y, además, en cada moneda con la que
+    // el cliente está pagando (igual que en emitir póliza — sin mezclar cifras).
+    function montoMultimoneda(prefijo, montoNativo, monedas) {
+        let txt = `${prefijo} <strong>${SIMBOLO_NATIVO}${montoNativo.toFixed(2)} ${MONEDA_NATIVA}</strong>`;
+        monedas
+            .filter(m => m !== normalizarMoneda(MONEDA_NATIVA))
+            .forEach(m => {
+                const { valor, sinTasa } = convertirMoneda(montoNativo, MONEDA_NATIVA, m);
+                if (sinTasa) return;
+                const sim = m === 'BS' ? 'Bs. ' : m === 'EUR' ? '€' : '$';
+                txt += `<br><span style="font-size:11px;font-weight:normal;opacity:.85">≈ ${sim}${valor.toFixed(2)} ${m}</span>`;
+            });
+        return txt;
+    }
+
     // ── Balance en tiempo real ────────────────────────────────────────────────
     function recalcular() {
         if (!TOTAL_POLIZA) return;
         const box = document.getElementById('balance-box');
         if (!box) return;
 
-        let totalNativo = 0;
-        let sinTasa      = false; // algún pago necesitó una tasa que no está registrada
-
-        document.querySelectorAll('.pago-row').forEach(row => {
-            const inputs  = row.querySelectorAll('input[type="number"]');
-            const selects = row.querySelectorAll('select');
-            const monto   = parseFloat(inputs[0]?.value) || 0;
-            const moneda  = selects[1]?.value || 'USD';
-
-            const { valor, sinTasa: faltaTasa } = convertirMoneda(monto, moneda, MONEDA_NATIVA);
-            totalNativo += valor;
-            if (faltaTasa) sinTasa = true;
-        });
-
-        const diff  = Math.round((totalNativo - TOTAL_POLIZA) * 100) / 100;
-        const falta = Math.round((TOTAL_POLIZA - totalNativo) * 100) / 100;
-
-        box.style.display = 'block';
+        const { total: totalNativo, sinTasa, monedas } = totalEnNativo();
+        const obj      = objetivo();
+        const falta    = Math.round((obj - totalNativo) * 100) / 100;
+        const adelanto = Math.round((totalNativo - obj) * 100) / 100;
+        const excede   = Math.round((totalNativo - TOTAL_POLIZA) * 100) / 100;
 
         const BASE = 'border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px;text-align:center;';
+        box.style.display = 'block';
 
         if (sinTasa) {
             box.innerHTML = '⚠️ Hay pagos en una moneda sin tasa registrada — el asesor verificará el total.';
             box.style.cssText = BASE + 'background:#fef3c7;color:#92400e;';
         } else if (totalNativo <= 0) {
             box.style.display = 'none';
-        } else if (Math.abs(diff) < 0.01) {
-            box.innerHTML = '✅ <strong>Monto completo</strong> — listo para enviar.';
-            box.style.cssText = BASE + 'font-weight:bold;background:#d1fae5;color:#065f46;';
-        } else if (diff > 0) {
-            box.innerHTML = `ℹ️ Saldo a favor: <strong>${SIMBOLO_NATIVO}${diff.toFixed(2)} ${MONEDA_NATIVA}</strong> — el asesor lo considerará.`;
+        } else if (falta > 0.01) {
+            box.innerHTML = montoMultimoneda('⚠️ Falta por pagar:', falta, monedas);
+            box.style.cssText = BASE + 'font-weight:bold;background:#fef3c7;color:#92400e;';
+        } else if (excede > 0.01) {
+            box.innerHTML = montoMultimoneda('⚠️ Excede el total anual por', excede, monedas);
+            box.style.cssText = BASE + 'font-weight:bold;background:#fee2e2;color:#991b1b;';
+        } else if (adelanto > 0.01) {
+            box.innerHTML = montoMultimoneda('ℹ️ Cuota cubierta · adelanto de', adelanto, monedas) + ' — el asesor lo considerará.';
             box.style.cssText = BASE + 'background:#dbeafe;color:#1e40af;';
         } else {
-            box.innerHTML = `⚠️ Falta por pagar: <strong>${SIMBOLO_NATIVO}${falta.toFixed(2)} ${MONEDA_NATIVA}</strong>`;
-            box.style.cssText = BASE + 'font-weight:bold;background:#fef3c7;color:#92400e;';
+            box.innerHTML = '✅ <strong>Monto completo</strong> — listo para enviar.';
+            box.style.cssText = BASE + 'font-weight:bold;background:#d1fae5;color:#065f46;';
         }
     }
 
@@ -672,6 +733,22 @@
         });
 
         if (!valido) { errEl.textContent = errMsg; errEl.style.display = 'block'; return; }
+
+        // Cobertura mínima/máxima (igual que emitir): no menos que el objetivo
+        // (cuota o total), no más que el total anual. Si hay monedas sin tasa,
+        // no se puede calcular aquí — lo verifica el asesor.
+        const bal = totalEnNativo();
+        if (!bal.sinTasa) {
+            const obj = objetivo();
+            if (bal.total < obj - 0.01) {
+                errEl.textContent = `Falta por pagar ${SIMBOLO_NATIVO}${(obj - bal.total).toFixed(2)} ${MONEDA_NATIVA} para cubrir ${frecuencia === 'Mensual' ? 'la primera cuota' : 'el total anual'}.`;
+                errEl.style.display = 'block'; return;
+            }
+            if (bal.total > TOTAL_POLIZA + 0.01) {
+                errEl.textContent = `El pago supera el total anual por ${SIMBOLO_NATIVO}${(bal.total - TOTAL_POLIZA).toFixed(2)} ${MONEDA_NATIVA}.`;
+                errEl.style.display = 'block'; return;
+            }
+        }
 
         btn.disabled    = true;
         btn.textContent = 'Enviando…';

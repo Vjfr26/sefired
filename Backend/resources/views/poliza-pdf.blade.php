@@ -6,10 +6,14 @@
 </head>
 
 @php
+    // Si el documento está acotado a un bien (vista de Bienes), ese bien es el
+    // principal; si no, se usa el bien original de la solicitud.
+    $bienScope = $bienScope ?? null;
+
     // El bien original de la póliza siempre tiene certificado=NULL (los
     // certificados numerados son solo para bienes ADICIONALES agregados
     // después) — "0" es la representación estándar de ese bien base.
-    $bienPrincipal       = $poliza->bienes->firstWhere('certificado', null) ?? $poliza->bienes->first();
+    $bienPrincipal        = $bienScope ?? ($poliza->bienes->firstWhere('certificado', null) ?? $poliza->bienes->first());
     $certificadoPrincipal = $bienPrincipal?->certificado ?? '0';
 
     $snap        = $poliza->snapshot_datos ?? [];
@@ -29,12 +33,24 @@
     // PRODUCTO admite certificados (RCV/APOV se venden individual o en
     // flota) — la póliza es colectiva de verdad cuando además tiene más de
     // un bien asociado (el bien original + adicionales con certificado).
-    $llevaCertificado = (bool) ($poliza->producto?->lleva_certificado ?? false) && $poliza->bienes->count() > 1;
+    // Colectiva (muestra certificado) cuando hay más de un bien; o, si el
+    // documento está acotado, cuando ese bien tiene certificado propio.
+    $llevaCertificado = (bool) ($poliza->producto?->lleva_certificado ?? false)
+        && ($bienScope ? $bienScope->certificado !== null : $poliza->bienes->count() > 1);
     $bien        = $snap['bien'] ?? ($poliza->solicitud?->bien ? [
         'tipo'          => $poliza->solicitud->bien->tipo,
         'atributos'     => $poliza->solicitud->bien->atributos ?? [],
         'observaciones' => $poliza->solicitud->bien->observaciones,
     ] : []);
+    // Documento acotado a un bien adicional: sus datos vienen del propio bien
+    // (el snapshot solo guarda el bien original de la solicitud).
+    if ($bienScope && $bienScope->certificado !== null && $bienScope->bien) {
+        $bien = [
+            'tipo'          => $bienScope->bien->tipo,
+            'atributos'     => $bienScope->bien->atributos ?? [],
+            'observaciones' => $bienScope->bien->observaciones,
+        ];
+    }
     $attrs            = $bien['atributos'] ?? [];
     $bienObservaciones = $bien['observaciones'] ?? $poliza->solicitud?->bien?->observaciones ?? '—';
     // Antes el encabezado decía "Automóvil" siempre, sin importar el tipo de

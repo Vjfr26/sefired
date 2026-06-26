@@ -44,7 +44,8 @@ import { fetchPolizasCliente, fetchFacturasCliente, fetchSolicitudesCliente } fr
 import { fetchDocumentosCliente, uploadDocumentoCliente, deleteDocumentoCliente } from '../api/clienteDocumentos.js'
 import { fetchProductos } from '../api/productos.js'
 import { updatePoliza, renovarPoliza, downloadPolizaPdf, fetchBeneficiarios, createBeneficiario, updateBeneficiario, deleteBeneficiario, fetchBienesPoliza, agregarBienPoliza, quitarBienPoliza } from '../api/polizas.js'
-import { fetchBienes } from '../api/bienes.js'
+import { fetchBienes, createBien } from '../api/bienes.js'
+import { BIEN_TIPO_PRESETS } from '../utils/bienPresets.js'
 import { emitirCotizacion } from '../api/solicitudes.js'
 import { fetchTasas } from '../api/tasas.js'
 
@@ -468,11 +469,17 @@ function RenovarModal({ client, diasVencimiento, onSaved, onCancel }) {
   // antes de comparar contra el monto esperado — igual que Moneda::convertir() en el backend.
   const pagoEnUsd = (p) => convertirMoneda(parseFloat(p.monto) || 0, p.moneda, monedaNativa, tasas.usd || 0, tasas.eur || 0)
 
+  // El pago puede ir desde la primera cuota (montoEsperadoUsd) hasta la prima
+  // anual completa: se permite adelantar pagos, pero no pagar menos del mes ni
+  // más del año.
   const totalIngresadoUsd = pagos.reduce((sum, p) => sum + pagoEnUsd(p), 0)
-  const diferencia        = Math.abs(Math.round(totalIngresadoUsd * 100) - Math.round(montoEsperadoUsd * 100)) / 100
-  const totalOk           = diferencia === 0
-  const difBs             = convertirMoneda(diferencia, monedaNativa, 'BS', tasas.usd || 0, tasas.eur || 0)
-  const difEur            = convertirMoneda(diferencia, monedaNativa, 'EUR', tasas.usd || 0, tasas.eur || 0)
+  const pagCents          = Math.round(totalIngresadoUsd * 100)
+  const minCents          = Math.round(montoEsperadoUsd * 100)
+  const maxCents          = Math.round(primaUsd * 100)
+  const faltante          = Math.max(0, minCents - pagCents) / 100
+  const excedente         = Math.max(0, pagCents - maxCents) / 100
+  const adelanto          = Math.max(0, Math.min(pagCents, maxCents) - minCents) / 100
+  const totalOk           = pagCents >= minCents - 10 && pagCents <= maxCents + 10
 
   const handleRenovar = async () => {
     if (!client.poliza_id) { showToast('Este cliente no tiene póliza para renovar', 'error'); return }
@@ -481,7 +488,9 @@ function RenovarModal({ client, diasVencimiento, onSaved, onCancel }) {
       if (!p.monto || parseFloat(p.monto) <= 0) errs[`monto_${i}`] = 'Ingrese el monto.'
       if (!PAGOS_SIN_REF.has(p.forma) && !p.referencia.trim()) errs[`ref_${i}`] = 'Referencia requerida.'
     })
-    if (!totalOk) errs.total = `El total (${fmtMonto(totalIngresadoUsd, monedaNativa)}) no coincide con ${frecuencia === 'Mensual' ? 'la primera cuota mensual' : 'la prima'} (${fmtMonto(montoEsperadoUsd, monedaNativa)}).`
+    if (!totalOk) errs.total = faltante > 0
+      ? `El pago (${fmtMonto(totalIngresadoUsd, monedaNativa)}) es menor a ${frecuencia === 'Mensual' ? 'la primera cuota mensual' : 'la prima'} (${fmtMonto(montoEsperadoUsd, monedaNativa)}).`
+      : `El pago (${fmtMonto(totalIngresadoUsd, monedaNativa)}) supera la prima anual (${fmtMonto(primaUsd, monedaNativa)}).`
     if (Object.keys(errs).length) { setFormErr(errs); return }
     setSaving(true)
     try {
@@ -585,7 +594,7 @@ function RenovarModal({ client, diasVencimiento, onSaved, onCancel }) {
               {frecuencia === 'Mensual' && permiteMensualidades && primaUsd > 0 && (
                 <p className="text-xs text-slate-500 mt-1.5">
                   Primera cuota a cobrar ahora{recargoMensualPct > 0 ? ` (incluye recargo de ${recargoMensualPct}%)` : ''}: <strong>{fmtMonto(montoEsperadoUsd, monedaNativa)}</strong>
-                  <span className="block text-[10px] text-slate-400 mt-0.5">Las 11 cuotas restantes se cobran fuera de este paso.</span>
+                  <span className="block text-[10px] text-slate-400 mt-0.5">Puede pagar solo esta cuota o adelantar más, hasta el total anual; el excedente cubre los meses siguientes.</span>
                 </p>
               )}
             </div>
@@ -642,7 +651,11 @@ function RenovarModal({ client, diasVencimiento, onSaved, onCancel }) {
               <div className={`mt-3 p-2.5 rounded-xl border text-xs flex items-center justify-between flex-wrap gap-2 ${
                 totalOk ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'
               }`}>
-                <span>{totalOk ? '✓ Total cuadra' : `⚠ Resta: ${fmtMonto(diferencia, monedaNativa)} | ${fmtMonto(difBs, 'BS')} | ${fmtMonto(difEur, 'EUR')}`}</span>
+                <span>
+                  {!totalOk && faltante  > 0 && `⚠ Falta ${fmtMonto(faltante, monedaNativa)} para cubrir ${frecuencia === 'Mensual' ? 'la cuota del mes' : 'la prima'}`}
+                  {!totalOk && excedente > 0 && `⚠ Excede la prima anual por ${fmtMonto(excedente, monedaNativa)}`}
+                  {totalOk && (adelanto > 0 ? `✓ Cuota cubierta · adelanto de ${fmtMonto(adelanto, monedaNativa)}` : '✓ Total cuadra')}
+                </span>
                 <span className="font-bold font-mono ml-auto">{fmtMonto(totalIngresadoUsd, monedaNativa)} / {fmtMonto(primaUsd, monedaNativa)}</span>
               </div>
               {formErr.total && <p className="text-xs text-rose-600 mt-1">{formErr.total}</p>}
@@ -704,10 +717,15 @@ function EmitirCotizacionModal({ cot, onSaved }) {
     : totalPoliza
 
   const totalIngresadoUsd = pagos.reduce((sum, p) => sum + pagoEnUsd(p), 0)
-  const diferencia = Math.abs(Math.round(totalIngresadoUsd * 100) - Math.round(montoEsperadoUsd * 100)) / 100
-  const totalOk    = diferencia === 0
-  const difBs      = convertirMoneda(diferencia, monedaNativa, 'BS', tasas.usd || 0, tasas.eur || 0)
-  const difEur     = convertirMoneda(diferencia, monedaNativa, 'EUR', tasas.usd || 0, tasas.eur || 0)
+  // El pago puede ir desde la primera cuota (montoEsperadoUsd) hasta el total
+  // anual: se permite adelantar pagos, pero no pagar menos del mes ni más del año.
+  const pagCents   = Math.round(totalIngresadoUsd * 100)
+  const minCents   = Math.round(montoEsperadoUsd * 100)
+  const maxCents   = Math.round(totalPoliza * 100)
+  const faltante   = Math.max(0, minCents - pagCents) / 100
+  const excedente  = Math.max(0, pagCents - maxCents) / 100
+  const adelanto   = Math.max(0, Math.min(pagCents, maxCents) - minCents) / 100
+  const totalOk    = pagCents >= minCents - 10 && pagCents <= maxCents + 10
 
   const handleEmitir = async () => {
     const errs = {}
@@ -715,7 +733,9 @@ function EmitirCotizacionModal({ cot, onSaved }) {
       if (!p.monto || parseFloat(p.monto) <= 0) errs[`monto_${i}`] = 'Ingrese el monto.'
       if (!PAGOS_SIN_REF.has(p.forma) && !p.referencia.trim()) errs[`ref_${i}`] = 'Referencia requerida.'
     })
-    if (!totalOk) errs.total = `El total (${fmtMonto(totalIngresadoUsd, monedaNativa)}) no coincide con ${frecuencia === 'Mensual' ? 'la primera cuota mensual' : 'la póliza'} (${fmtMonto(montoEsperadoUsd, monedaNativa)}).`
+    if (!totalOk) errs.total = faltante > 0
+      ? `El pago (${fmtMonto(totalIngresadoUsd, monedaNativa)}) es menor a ${frecuencia === 'Mensual' && permiteMensualidades ? 'la primera cuota' : 'la póliza'} (${fmtMonto(montoEsperadoUsd, monedaNativa)}).`
+      : `El pago (${fmtMonto(totalIngresadoUsd, monedaNativa)}) supera el total anual (${fmtMonto(totalPoliza, monedaNativa)}).`
     if (Object.keys(errs).length) { setFormErr(errs); return }
     setFormErr({})
     setSaving(true)
@@ -793,7 +813,7 @@ function EmitirCotizacionModal({ cot, onSaved }) {
           {frecuencia === 'Mensual' && permiteMensualidades && totalPoliza > 0 && (
             <p className="text-xs text-slate-500 mt-1.5">
               Primera cuota a cobrar ahora{recargoMensualPct > 0 ? ` (incluye recargo de ${recargoMensualPct}%)` : ''}: <strong>{fmtMonto(montoEsperadoUsd, monedaNativa)}</strong>
-              <span className="block text-[10px] text-slate-400 mt-0.5">Las 11 cuotas restantes se cobran fuera de este paso.</span>
+              <span className="block text-[10px] text-slate-400 mt-0.5">Puede pagar solo esta cuota o adelantar más, hasta el total anual; el excedente cubre los meses siguientes.</span>
             </p>
           )}
         </div>
@@ -863,7 +883,11 @@ function EmitirCotizacionModal({ cot, onSaved }) {
           <div className={`mt-3 p-2.5 rounded-xl border text-xs flex items-center justify-between flex-wrap gap-2 ${
             totalOk ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'
           }`}>
-            <span>{totalOk ? '✓ Total cuadra' : `⚠ Resta: ${fmtMonto(diferencia, monedaNativa)} | ${fmtMonto(difBs, 'BS')} | ${fmtMonto(difEur, 'EUR')}`}</span>
+            <span>
+              {!totalOk && faltante  > 0 && `⚠ Falta ${fmtMonto(faltante, monedaNativa)} para cubrir ${frecuencia === 'Mensual' && permiteMensualidades ? 'la cuota del mes' : 'la póliza'}`}
+              {!totalOk && excedente > 0 && `⚠ Excede el total anual por ${fmtMonto(excedente, monedaNativa)}`}
+              {totalOk && (adelanto > 0 ? `✓ Cuota cubierta · adelanto de ${fmtMonto(adelanto, monedaNativa)}` : '✓ Total cuadra')}
+            </span>
             <span className="font-bold font-mono ml-auto">
               {fmtMonto(totalIngresadoUsd, monedaNativa)} / {fmtMonto(totalPoliza, monedaNativa)}
             </span>
@@ -3124,7 +3148,8 @@ function PolizaBeneficiariosModal({ poliza, onClose }) {
  * certificado propio (POL-xxxx-02, -03...).
  */
 function PolizaBienesModal({ poliza, personaId, onClose }) {
-  const { closeModal, showToast } = useApp()
+  const { closeModal, showToast, canAct } = useApp()
+  const puedeCrearBien = canAct('cotizaciones', 'create') // crear bien = POST /bienes
   const [items,      setItems]      = useState([])
   const [config,     setConfig]     = useState({ permite_multiples_bienes: true, max_bienes: null })
   const [disponibles, setDisponibles] = useState([])
@@ -3183,6 +3208,65 @@ function PolizaBienesModal({ poliza, personaId, onClose }) {
     }
   }
 
+  // ── Crear un bien nuevo y asociarlo a la póliza, sin salir del modal ──────────
+  // El tipo del bien nuevo debe coincidir con el de la póliza (se toma del bien
+  // original; por defecto 'vehiculo', el caso dominante).
+  const tipoBien  = items[0]?.tipo ?? 'vehiculo'
+  const preset    = BIEN_TIPO_PRESETS[tipoBien] ?? null
+  const tipoLabel = preset?.label ?? (tipoBien === 'vehiculo' ? 'Vehículo' : tipoBien)
+  const camposCrear = tipoBien === 'vehiculo'
+    ? [
+        { key: 'placa',             label: 'Placa',               upper: true },
+        { key: 'marca',             label: 'Marca' },
+        { key: 'modelo',            label: 'Modelo' },
+        { key: 'anio',              label: 'Año',                 type: 'number' },
+        { key: 'color',             label: 'Color' },
+        { key: 'serial_carroceria', label: 'Serial de carrocería', upper: true },
+        { key: 'serial_motor',      label: 'Serial de motor',      upper: true },
+      ]
+    : preset
+      ? preset.campos
+      : [{ key: 'descripcion', label: 'Descripción' }]
+
+  const [crear,   setCrear]   = useState(false)
+  const [creando, setCreando] = useState(false)
+  const [nuevo,   setNuevo]   = useState({})
+  const setCampo = (k, v) => setNuevo(p => ({ ...p, [k]: v }))
+  const cancelarCrear = () => { setCrear(false); setNuevo({}) }
+
+  const handleCrear = async () => {
+    const atributos = {}
+    camposCrear.forEach(c => {
+      let v = nuevo[c.key]
+      if (v == null || String(v).trim() === '') return
+      atributos[c.key] = c.upper ? String(v).toUpperCase() : v
+    })
+    if (Object.keys(atributos).length === 0) {
+      showToast('Completa al menos un dato del bien', 'error'); return
+    }
+    const descripcion = tipoBien === 'vehiculo'
+      ? [atributos.marca, atributos.modelo, atributos.placa].filter(Boolean).join(' ')
+      : (atributos.descripcion ?? Object.values(atributos)[0] ?? '')
+    setCreando(true)
+    try {
+      const bien = await createBien({
+        persona_id:      personaId,
+        tipo:            tipoBien,
+        atributos,
+        valor_declarado: parseFloat(nuevo.valor_declarado) || null,
+        descripcion:     descripcion || null,
+      })
+      await agregarBienPoliza(poliza.id, { bien_asegurado_id: bien.id })
+      showToast('Bien creado y asociado a la póliza', 'success')
+      cancelarCrear()
+      await load()
+    } catch (e) {
+      showToast(e.message, 'error')
+    } finally {
+      setCreando(false)
+    }
+  }
+
   return (
     <ModalShell title={`Bienes Cubiertos — ${poliza.nro_contrato}`} footer={
       <button onClick={handleClose} className="btn-secondary ml-auto">Cerrar</button>
@@ -3229,22 +3313,72 @@ function PolizaBienesModal({ poliza, personaId, onClose }) {
                   ? `Esta póliza ya alcanzó el máximo de ${config.max_bienes} bienes cubiertos para el tipo "${poliza.producto}".`
                   : `El tipo de póliza "${poliza.producto}" no admite más de un bien cubierto.`}
               </div>
-            ) : disponibles.length === 0 ? (
-              <p className="text-xs text-slate-400 mt-1">
-                Este cliente no tiene más bienes registrados. Crea uno nuevo desde la sección Bienes y luego vuelve aquí para asociarlo.
-              </p>
             ) : (
-              <div className="flex gap-2 mt-1">
-                <select className="select-field flex-1" value={seleccion} onChange={e => setSeleccion(e.target.value)}>
-                  <option value="">— Seleccionar bien —</option>
-                  {disponibles.map(b => (
-                    <option key={b.id} value={b.id}>{bienRef(b)} ({b.tipo})</option>
-                  ))}
-                </select>
-                <button onClick={handleAgregar} disabled={!seleccion || saving} className="btn-primary shrink-0 disabled:opacity-50">
-                  <Plus className="w-4 h-4" />Agregar
-                </button>
-              </div>
+              <>
+                {/* Asociar un bien ya existente del cliente */}
+                {disponibles.length > 0 && !crear && (
+                  <div className="flex gap-2 mt-1">
+                    <select className="select-field flex-1" value={seleccion} onChange={e => setSeleccion(e.target.value)}>
+                      <option value="">— Seleccionar bien existente —</option>
+                      {disponibles.map(b => (
+                        <option key={b.id} value={b.id}>{bienRef(b)} ({b.tipo})</option>
+                      ))}
+                    </select>
+                    <button onClick={handleAgregar} disabled={!seleccion || saving} className="btn-primary shrink-0 disabled:opacity-50">
+                      <Plus className="w-4 h-4" />Agregar
+                    </button>
+                  </div>
+                )}
+
+                {/* Crear un bien nuevo y asociarlo directamente */}
+                {!puedeCrearBien ? (
+                  disponibles.length === 0 && (
+                    <p className="text-xs text-slate-400 mt-2">
+                      Este cliente no tiene bienes disponibles para asociar.
+                    </p>
+                  )
+                ) : !crear ? (
+                  <button onClick={() => setCrear(true)} className="btn-secondary w-full justify-center mt-2">
+                    <Plus className="w-4 h-4" />Crear {tipoLabel.toLowerCase()} nuevo y asociarlo
+                  </button>
+                ) : (
+                  <div className="mt-2 p-3 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Nuevo {tipoLabel}</p>
+                      <button onClick={cancelarCrear} className="text-xs font-semibold text-slate-400 hover:text-slate-600">Cancelar</button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {camposCrear.map(c => (
+                        <div key={c.key}>
+                          <label className="field-label">{c.label}</label>
+                          {c.opciones ? (
+                            <select className="select-field" value={nuevo[c.key] ?? ''} onChange={e => setCampo(c.key, e.target.value)}>
+                              <option value="">—</option>
+                              {c.opciones.map(o => <option key={o}>{o}</option>)}
+                            </select>
+                          ) : (
+                            <input
+                              className="input-field"
+                              type={c.type === 'number' ? 'number' : 'text'}
+                              placeholder={c.placeholder ?? ''}
+                              value={nuevo[c.key] ?? ''}
+                              onChange={e => setCampo(c.key, e.target.value)}
+                            />
+                          )}
+                        </div>
+                      ))}
+                      <div>
+                        <label className="field-label">Valor declarado (opcional)</label>
+                        <input className="input-field" type="number" step="0.01" min="0" placeholder="0.00"
+                          value={nuevo.valor_declarado ?? ''} onChange={e => setCampo('valor_declarado', e.target.value)} />
+                      </div>
+                    </div>
+                    <button onClick={handleCrear} disabled={creando} className="btn-primary w-full justify-center disabled:opacity-50">
+                      <Plus className="w-4 h-4" />{creando ? 'Creando…' : 'Crear y asociar'}
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -3506,7 +3640,9 @@ function ClienteHistorialModal({ c, onSaved }) {
     if (!pol.id) return
     setPdfLoading(pol.id)
     try {
-      const blob = await downloadPolizaPdf(pol.id, pol.nro_contrato)
+      // Vista de Clientes: póliza completa con todos los bienes y certificados
+      // (sin acotar a un bien — eso es solo en la vista de Bienes).
+      const blob = await downloadPolizaPdf(pol.id)
       const url  = URL.createObjectURL(blob)
       setPdfVisor({ url, title: `Póliza — ${pol.nro_contrato}`, nro: pol.nro_contrato })
     } catch (err) {

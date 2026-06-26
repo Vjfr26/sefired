@@ -248,10 +248,11 @@ export default function Login({ onLogin }) {
       <footer className="w-full px-4 py-3 sm:py-5 border-t border-slate-200/60 bg-white/20 backdrop-blur-sm">
         <div className="flex flex-col items-center gap-0.5 text-center px-2">
           <p className="text-[10px] font-bold text-slate-700 uppercase tracking-widest leading-snug">
-            © 2024 J&M C.A. — Todos los derechos reservados
+            © 2026 - Inversiones J&M, C.A. — Todos los derechos reservados
           </p>
           <p className="text-[9px] text-slate-400 uppercase tracking-[0.15em] leading-snug">
-            V 2.4.0 — Internal System · Made with <span className="text-red-400">❤</span> by Victecnology lda.
+            Respaldado por LA VENEZOLANA DE SEGUROS Y VIDA C.A. <br />
+            V 2.7.0 — Internal System · Made with <span className="text-red-400">❤</span> by Victecnology lda.
           </p>
         </div>
       </footer>

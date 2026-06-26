@@ -2993,7 +2993,7 @@ function pdfFooter(agente, oficina) {
         </div>
       </div>
     </div>
-    <p style="font-size:8px;color:#94a3b8;text-align:center;margin-top:18px;line-height:1.6">Documento generado por el sistema interno J&M. Válido únicamente con sello y firma del supervisor autorizado. Autorizado por SUDEASEG.</p>
+    <p style="font-size:8px;color:#94a3b8;text-align:center;margin-top:18px;line-height:1.6">Documento generado por Inversiones J&M, C.A., con el respaldo de LA VENEZOLANA DE SEGUROS Y VIDA C.A. (RIF J-00021447-6). Válido únicamente con sello y firma del supervisor autorizado. Autorizado por SUDEASEG.</p>
   </div>`;
 }
 

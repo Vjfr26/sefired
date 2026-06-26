@@ -93,6 +93,8 @@ Route::middleware([\App\Http\Middleware\ApiTokenMiddleware::class, 'throttle:120
         Route::get('/polizas/{id}/pdf',            [PolizaController::class,          'pdf'])->middleware('perm:cotizaciones,view');
         Route::put('/polizas/{id}',                [PolizaController::class,          'update'])->middleware('perm:cotizaciones,edit');
         Route::post('/polizas/{id}/renovar',       [PolizaController::class,          'renovar'])->middleware('perm:cotizaciones,emit');
+        Route::get('/polizas/{id}/cuotas',         [PolizaController::class,          'cuotas'])->middleware('perm:cotizaciones,view');
+        Route::post('/polizas/{id}/cuotas/pago',   [PolizaController::class,          'pagarCuota'])->middleware('perm:cotizaciones,emit');
         Route::get('/polizas/{id}/beneficiarios',           [PolizaController::class, 'beneficiarios'])->middleware('perm:clientes,manage_beneficiarios');
         Route::post('/polizas/{id}/beneficiarios',          [PolizaController::class, 'agregarBeneficiario'])->middleware('perm:clientes,manage_beneficiarios');
         Route::put('/polizas/{id}/beneficiarios/{benId}',   [PolizaController::class, 'actualizarBeneficiario'])->middleware('perm:clientes,manage_beneficiarios');

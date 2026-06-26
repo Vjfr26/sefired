@@ -130,6 +130,15 @@ class Poliza extends Model
     }
 
     /**
+     * Cuotas mensuales (solo pólizas con frecuencia_pago='Mensual'). Ver
+     * App\Models\Cuota y App\Support\Mensualidades.
+     */
+    public function cuotas(): HasMany
+    {
+        return $this->hasMany(Cuota::class, 'poliza_id');
+    }
+
+    /**
      * Bienes ADICIONALES (más allá del original de la solicitud, que no
      * tiene certificado propio) — usado por el cuadro póliza para mostrar
      * la sección "Bienes Adicionales" solo cuando aplica.

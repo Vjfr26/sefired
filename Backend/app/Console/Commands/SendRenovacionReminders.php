@@ -13,11 +13,11 @@ class SendRenovacionReminders extends Command
     protected $signature   = 'correos:renovacion';
     protected $description = 'Envía recordatorios de renovación según los hitos configurados';
 
-    // Días antes del vencimiento en los que se envía recordatorio.
-    // El aviso de "ya venció" ahora lo manda polizas:marcar-vencidas en el
-    // mismo paso en que bloquea la póliza (ver ese comando) — antes este
-    // hito -1 nunca se disparaba porque nada pasaba pólizas a VENCIDA.
-    private const HITOS = [30, 15, 7, 3, 0];
+    // Días antes del vencimiento en los que se envía recordatorio:
+    // 1 semana, 5 días, 3 días y 1 día antes.
+    // El aviso de "ya venció" lo manda polizas:marcar-vencidas en el mismo paso
+    // en que bloquea la póliza (ver ese comando).
+    private const HITOS = [7, 5, 3, 1];
 
     public function handle(): void
     {

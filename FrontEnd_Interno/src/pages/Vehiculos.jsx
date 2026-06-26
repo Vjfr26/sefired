@@ -320,7 +320,8 @@ export default function Vehiculos() {
     if (!b.poliza_id) return
     setPdfLoading(b.id)
     try {
-      const blob = await downloadPolizaPdf(b.poliza_id)
+      // En la vista de Bienes el documento se acota a ESTE bien (su certificado).
+      const blob = await downloadPolizaPdf(b.poliza_id, b.id)
       const url  = URL.createObjectURL(blob)
       setPdfVisor({ url, title: `Póliza — ${b.poliza_nro ?? b.poliza_id}`, nro: b.poliza_nro ?? b.poliza_id })
     } catch (e) {

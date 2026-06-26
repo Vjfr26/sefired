@@ -20,6 +20,7 @@ use App\Rules\NoInjectionChars;
 use App\Rules\TelefonoValido;
 use App\Services\WorkflowService;
 use App\Support\CodigoPoliza;
+use App\Support\Mensualidades;
 use App\Support\Documento;
 use App\Support\Moneda;
 use App\Traits\LogsActivity;
@@ -268,22 +269,46 @@ class SolicitudController extends Controller
         // del producto contratado, no la moneda en la que el cliente pague.
         $monedaNativa = Moneda::normalizar($solicitud->moneda_producto ?? $solicitud->producto?->moneda ?? 'USD');
 
-        // Validar que la suma de los pagos equivale al total de la póliza
-        // (±0.10 en la moneda nativa del producto), convirtiendo cada pago a esa moneda.
+        // El pago al emitir puede ir desde la primera cuota (si es Mensual y el
+        // producto admite mensualidades) hasta el total anual completo: el cliente
+        // puede adelantar pagos mensuales o pagar el año entero de una vez. Lo que
+        // NO se permite es pagar menos que la cuota del mes ni más que el total anual.
         $totalPoliza  = (float) $solicitud->total;
         $totalPagado  = 0.0;
         foreach ($data['pagos'] as $p) {
             $totalPagado += Moneda::convertir((float) $p['monto'], $p['moneda'], $monedaNativa, $tasaBcv, $tasaEur);
         }
 
-        // Comparación exacta en centavos para evitar errores de punto flotante
-        if ((int) round($totalPagado * 100) !== (int) round($totalPoliza * 100)) {
+        $frecuencia     = $data['frecuencia_pago'] ?? 'Anual';
+        $permiteMensual = (bool) ($solicitud->producto?->permite_mensualidades);
+        $recargoPct     = (float) ($solicitud->producto?->recargo_mensual_pct ?? 0);
+        $esMensual      = $frecuencia === 'Mensual' && $permiteMensual;
+        // En mensual el cliente puede pagar desde la 1ª cuota hasta el total
+        // financiado (prima * (1+recargo%)); en anual, exactamente la prima.
+        $montoMinimo    = $esMensual ? Mensualidades::montoCuota($totalPoliza, $recargoPct) : $totalPoliza;
+        $montoMaximo    = $esMensual ? Mensualidades::totalFinanciado($totalPoliza, $recargoPct) : $totalPoliza;
+
+        // Comparación en centavos con tolerancia ±0.10 para absorber redondeos de conversión.
+        $pagCents = (int) round($totalPagado * 100);
+        $minCents = (int) round($montoMinimo * 100);
+        $maxCents = (int) round($montoMaximo * 100);
+        if ($pagCents < $minCents - 10) {
             return response()->json([
                 'error' => sprintf(
-                    'El total de los pagos (%s%.2f %s) no coincide con el total de la póliza (%s%.2f %s). Diferencia: %s%.2f %s.',
+                    'El pago (%s%.2f %s) es menor a %s (%s%.2f %s).',
                     Moneda::simbolo($monedaNativa), round($totalPagado, 2), Moneda::etiqueta($monedaNativa),
-                    Moneda::simbolo($monedaNativa), $totalPoliza, Moneda::etiqueta($monedaNativa),
-                    Moneda::simbolo($monedaNativa), abs(round($totalPagado, 2) - $totalPoliza), Moneda::etiqueta($monedaNativa)
+                    $esMensual ? 'la primera cuota mensual' : 'el total de la póliza',
+                    Moneda::simbolo($monedaNativa), $montoMinimo, Moneda::etiqueta($monedaNativa)
+                ),
+            ], 422);
+        }
+        if ($pagCents > $maxCents + 10) {
+            return response()->json([
+                'error' => sprintf(
+                    'El pago (%s%.2f %s) supera el %s (%s%.2f %s).',
+                    Moneda::simbolo($monedaNativa), round($totalPagado, 2), Moneda::etiqueta($monedaNativa),
+                    $esMensual ? 'total financiado de las 12 cuotas' : 'total anual de la póliza',
+                    Moneda::simbolo($monedaNativa), $montoMaximo, Moneda::etiqueta($monedaNativa)
                 ),
             ], 422);
         }
@@ -294,7 +319,6 @@ class SolicitudController extends Controller
             ->join(' / ');
 
         $moneda      = $data['pagos'][0]['moneda'] ?? 'USD';
-        $frecuencia  = $data['frecuencia_pago'] ?? 'Anual';
 
         // Sede desde el usuario autenticado o fallback
         $sede = auth()->user()?->sede ?? 'Principal';
@@ -365,7 +389,7 @@ class SolicitudController extends Controller
             'total_bs'      => $totalBs,
         ];
 
-        $result = DB::transaction(function () use ($solicitud, $data, $hoy, $venc, $coberturaDolares, $coberturaBS, $aseguradoNombre, $aseguradoCi, $snapshot, $tasaBcv, $tasaEur, $totalUsd, $totalBs, $moneda, $monedaNativa, $pagoResumen, $sede, $frecuencia) {
+        $result = DB::transaction(function () use ($solicitud, $data, $hoy, $venc, $coberturaDolares, $coberturaBS, $aseguradoNombre, $aseguradoCi, $snapshot, $tasaBcv, $tasaEur, $totalUsd, $totalBs, $moneda, $monedaNativa, $pagoResumen, $sede, $frecuencia, $esMensual, $recargoPct, $totalPagado) {
             $poliza = Poliza::create([
                 'nro_contrato'         => 'TMP-' . uniqid(),
                 'solicitud_id'         => $solicitud->id,
@@ -432,18 +456,30 @@ class SolicitudController extends Controller
                 ]);
             }
 
-            Factura::create([
-                'numero'        => $nroFactura,
-                'sede'          => $sede,
-                'fecha_factura' => $hoy,
-                'poliza_id'     => $poliza->id,
-                'valor'         => $totalUsd,
-                'valor_bs'      => $totalBs,
-                'forma_pago'    => $pagoResumen,
-                'moneda'        => $moneda,
-                'referencia'    => $data['pagos'][0]['referencia'] ?? null,
-                'usuario_id'    => auth()->id(),
-            ]);
+            if ($esMensual) {
+                // Pago mensual: se generan las 12 cuotas (total financiado =
+                // prima * (1+recargo%)) y se aplica el cobro inicial, que emite
+                // el recibo y marca las cuotas cubiertas (la 1ª y las adelantadas).
+                Mensualidades::generarCuotas($poliza, (float) $totalUsd, $recargoPct, $hoy);
+                $factura = Mensualidades::aplicarPago(
+                    $poliza, (float) $totalPagado, $pagoResumen, $moneda,
+                    $data['pagos'][0]['referencia'] ?? null, $tasaBcv, $tasaEur, auth()->id(), $sede
+                );
+                $nroFactura = $factura?->numero ?? $nroFactura;
+            } else {
+                Factura::create([
+                    'numero'        => $nroFactura,
+                    'sede'          => $sede,
+                    'fecha_factura' => $hoy,
+                    'poliza_id'     => $poliza->id,
+                    'valor'         => $totalUsd,
+                    'valor_bs'      => $totalBs,
+                    'forma_pago'    => $pagoResumen,
+                    'moneda'        => $moneda,
+                    'referencia'    => $data['pagos'][0]['referencia'] ?? null,
+                    'usuario_id'    => auth()->id(),
+                ]);
+            }
 
             $solicitud->update(['status' => 'emitida']);
 
