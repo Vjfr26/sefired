@@ -90,6 +90,7 @@ const COLS = [
 export default function Clientes() {
   const { showModal, showToast, canAct } = useApp()
   const [search, setSearch]     = useState('')
+  const [soloDocsPend, setSoloDocsPend] = useState(false) // filtrar solo con documentos obligatorios pendientes
   const [clients, setClients]   = useState([])
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState(null)
@@ -116,16 +117,19 @@ export default function Clientes() {
 
   // ── Filtrado local ────────────────────────────────────────────────────────
   // La búsqueda trabaja sobre los datos ya cargados en memoria, sin peticiones adicionales
-  const filtered = search
-    ? clients.filter(c => {
-        const q = search.toLowerCase()
-        return c.nom.toLowerCase().includes(q) || c.ci.toLowerCase().includes(q) || c.email.toLowerCase().includes(q)
-      })
-    : clients
+  const filtered = clients.filter(c => {
+    if (soloDocsPend && !c.documentos_faltantes) return false
+    if (search) {
+      const q = search.toLowerCase()
+      return c.nom.toLowerCase().includes(q) || c.ci.toLowerCase().includes(q) || c.email.toLowerCase().includes(q)
+    }
+    return true
+  })
 
   // ── Estadísticas para los cards ───────────────────────────────────────────
   const activos    = clients.filter(c => c.est === 'Activo').length
   const conPoliza  = clients.filter(c => c.prima && c.prima !== '—').length
+  const docsPendientes = clients.filter(c => c.documentos_faltantes).length
 
   // ── Transformación de datos para la tabla ─────────────────────────────────
   // Se mantiene el objeto original (con todos los campos del backend) y se agregan
@@ -317,6 +321,18 @@ export default function Clientes() {
         onSearch={setSearch}
         extra={
           <>
+            {canViewDocs && (
+              <button
+                onClick={() => setSoloDocsPend(v => !v)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition whitespace-nowrap ${
+                  soloDocsPend ? 'bg-amber-500 text-white border-amber-500' : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                }`}
+                title="Mostrar solo clientes con documentos obligatorios pendientes"
+              >
+                <FolderOpen className="w-4 h-4 shrink-0" />
+                Docs. pendientes{docsPendientes > 0 ? ` (${docsPendientes})` : ''}
+              </button>
+            )}
 
             {canCreateCliente && (
               <button
