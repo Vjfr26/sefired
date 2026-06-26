@@ -17,7 +17,7 @@ class ReporteInternoMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Reporte Interno Semanal — ' . now()->format('d/m/Y') . ' | Inversiones J&M, C.A.',
+            subject: 'Reporte Interno Semanal — ' . now()->format('d/m/Y') . ' | INVERSIONES J&M, C.A.',
         );
     }
 

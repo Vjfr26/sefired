@@ -288,7 +288,7 @@
     <div class="header">
         <img src="{{ url('images/logon.jpg') }}" alt="LA VENEZOLANA DE SEGUROS Y VIDA C.A." class="header-logo">
         <h1>LA VENEZOLANA DE SEGUROS Y VIDA C.A.</h1>
-        <p>Operado por Inversiones J&amp;M, C.A.</p>
+        <p>Operado por INVERSIONES J&amp;M, C.A.</p>
         @if(isset($nro_contrato))
             <p class="nro">{{ $nro_contrato }}</p>
         @endif
@@ -536,7 +536,7 @@
 
     @endif
 
-    <p class="footer">LA VENEZOLANA DE SEGUROS Y VIDA C.A. &middot; Operado por Inversiones J&amp;M, C.A. &copy; {{ date('Y') }}</p>
+    <p class="footer">Servicio operado por INVERSIONES J&amp;M, C.A., con el respaldo de LA VENEZOLANA DE SEGUROS Y VIDA C.A. &copy; {{ date('Y') }} — Todos los derechos reservados.</p>
 
 </div>
 

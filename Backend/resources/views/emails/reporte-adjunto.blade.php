@@ -1,5 +1,5 @@
 @extends('emails.layout')
-@section('title', $nombreReporte . ' — Inversiones J&M, C.A.')
+@section('title', $nombreReporte . ' — INVERSIONES J&M, C.A.')
 
 @section('content')
 <table width="100%" cellpadding="0" cellspacing="0">

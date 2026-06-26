@@ -1,5 +1,5 @@
 @extends('emails.layout')
-@section('title', 'Nueva solicitud de contacto — Inversiones J&M, C.A.')
+@section('title', 'Nueva solicitud de contacto — INVERSIONES J&M, C.A.')
 
 @section('content')
 <h1 style="margin:0 0 8px;font-size:20px;font-weight:800;color:#1e293b;text-align:center;">

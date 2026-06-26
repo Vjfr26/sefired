@@ -35,7 +35,7 @@ class ReporteAdjuntoMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: $this->nombreReporte . ' — Inversiones J&M, C.A.',
+            subject: $this->nombreReporte . ' — INVERSIONES J&M, C.A.',
         );
     }
 
