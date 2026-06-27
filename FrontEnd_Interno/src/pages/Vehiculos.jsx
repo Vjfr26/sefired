@@ -309,7 +309,7 @@ export default function Vehiculos() {
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
-    try { setBienes(await fetchBienes()) }
+    try { setBienes(await fetchBienes({ con_poliza: 1 })) }
     catch (e) { setError(e.message); showToast(e.message, 'error') }
     finally { setLoading(false) }
   }, [showToast])

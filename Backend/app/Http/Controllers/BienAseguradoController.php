@@ -44,6 +44,15 @@ class BienAseguradoController extends Controller
             $query->whereHas('persona', fn($q) => $this->whereVendedorPropio($q));
         }
 
+        // La página de Bienes solo lista bienes asociados a una póliza (regla:
+        // todo bien debe tener póliza). Los bienes "sueltos" de cotizaciones aún
+        // no emitidas son borradores y no se muestran aquí. El selector de
+        // "agregar bien a póliza" (que filtra por persona_id) sí los necesita,
+        // por eso el filtro es opt-in con ?con_poliza=1.
+        if ($request->boolean('con_poliza')) {
+            $query->has('polizaBienes');
+        }
+
         if ($request->filled('tipo')) {
             $query->where('tipo', $request->tipo);
         }
