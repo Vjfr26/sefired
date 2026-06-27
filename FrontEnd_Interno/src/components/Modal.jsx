@@ -3229,6 +3229,12 @@ function PolizaBienesModal({ poliza, personaId, onClose }) {
   const [saving,     setSaving]     = useState(false)
   const [seleccion,  setSeleccion]  = useState('')
   const [catalogo,   setCatalogo]   = useState([])
+  // Prima adicional al agregar un bien (cobro por la cobertura extra).
+  const [prima,   setPrima]   = useState('')
+  const [tasa,    setTasa]    = useState('')
+  const [tasaEur, setTasaEur] = useState('')
+  const [forma,   setForma]   = useState('Transferencia')
+  const [refPago, setRefPago] = useState('')
   const handleClose = () => { if (onClose) onClose(); else closeModal() }
 
   const load = async () => {
@@ -3262,13 +3268,42 @@ function PolizaBienesModal({ poliza, personaId, onClose }) {
 
   const bienRef = (b) => b.atributos?.placa || b.atributos?.descripcion || b.descripcion || `Bien #${b.id}`
 
+  // Construye el payload de prima adicional. Devuelve {} si no hay prima (no se
+  // recalcula nada), null si los datos son inválidos (abortar), o el payload.
+  const esMensualPol = config.frecuencia_pago === 'Mensual'
+  const buildPrimaPayload = () => {
+    const p = parseFloat(prima)
+    if (!p || p <= 0) return {}
+    const t = parseFloat(tasa)
+    if (!t || t <= 0) { showToast('Ingresa la tasa BCV para cobrar la prima adicional', 'error'); return null }
+    if (esMensualPol && !config.cuotas_restantes) {
+      showToast('No quedan cuotas pendientes donde repartir la prima. Renueva la póliza.', 'error'); return null
+    }
+    const payload = { prima_adicional: p, tasa_bcv: t }
+    if (config.usa_eur && parseFloat(tasaEur) > 0) payload.tasa_eur = parseFloat(tasaEur)
+    if (!esMensualPol) {
+      payload.forma_pago = forma || 'Transferencia'
+      if (refPago.trim()) payload.referencia = refPago.trim()
+    }
+    return payload
+  }
+  const resetPrima = () => { setPrima(''); setTasa(''); setTasaEur(''); setRefPago('') }
+  const avisoPrima = (res) => {
+    if (res?.prima_aplicada == null) return
+    showToast(res.recibo ? `Prima cobrada — recibo ${res.recibo}` : 'Prima repartida en las cuotas pendientes', 'success')
+  }
+
   const handleAgregar = async () => {
     if (!seleccion) return
+    const primaPayload = buildPrimaPayload()
+    if (primaPayload === null) return
     setSaving(true)
     try {
-      await agregarBienPoliza(poliza.id, { bien_asegurado_id: Number(seleccion) })
+      const res = await agregarBienPoliza(poliza.id, { bien_asegurado_id: Number(seleccion), ...primaPayload })
       showToast('Bien agregado a la póliza', 'success')
+      avisoPrima(res)
       setSeleccion('')
+      resetPrima()
       await load()
     } catch (e) {
       showToast(e.message, 'error')
@@ -3353,6 +3388,9 @@ function PolizaBienesModal({ poliza, personaId, onClose }) {
       }
       descripcion = atributos.descripcion ?? Object.values(atributos)[0] ?? ''
     }
+    // Validar la prima ANTES de crear el bien para no dejar huérfanos si falla.
+    const primaPayload = buildPrimaPayload()
+    if (primaPayload === null) return
     setCreando(true)
     try {
       // Valor declarado NO se captura aquí: el cobro del bien agregado se
@@ -3363,9 +3401,11 @@ function PolizaBienesModal({ poliza, personaId, onClose }) {
         atributos,
         descripcion: descripcion || null,
       })
-      await agregarBienPoliza(poliza.id, { bien_asegurado_id: bien.id })
+      const res = await agregarBienPoliza(poliza.id, { bien_asegurado_id: bien.id, ...primaPayload })
       showToast('Bien creado y asociado a la póliza', 'success')
+      avisoPrima(res)
       cancelarCrear()
+      resetPrima()
       await load()
     } catch (e) {
       showToast(e.message, 'error')
@@ -3422,6 +3462,50 @@ function PolizaBienesModal({ poliza, personaId, onClose }) {
               </div>
             ) : (
               <>
+                {/* Prima adicional por la cobertura del bien que se agrega.
+                    Opcional: en blanco no cobra nada. Aplica al asociar o crear. */}
+                <div className="mt-1 mb-3 p-3 rounded-xl border border-indigo-100 bg-indigo-50/60 space-y-2">
+                  <p className="text-[11px] font-black text-indigo-600 uppercase tracking-widest">Prima adicional (opcional)</p>
+                  <p className="text-[11px] text-slate-500 leading-snug">
+                    {esMensualPol
+                      ? `Se reparte en las ${config.cuotas_restantes ?? 0} cuotas pendientes (con recargo del producto).`
+                      : 'Genera un recibo por el cobro adicional.'}
+                    {config.prima_sugerida > 0 && <> Sugerido: {config.moneda_simbolo}{config.prima_sugerida}.</>}
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="field-label">Prima adicional ({config.moneda_nativa || 'USD'})</label>
+                      <input className="input-field" type="number" min="0" step="0.01"
+                        placeholder={config.prima_sugerida ? String(config.prima_sugerida) : '0.00'}
+                        value={prima} onChange={e => setPrima(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="field-label">Tasa BCV</label>
+                      <input className="input-field" type="number" min="0" step="0.0001" placeholder="0.0000"
+                        value={tasa} onChange={e => setTasa(e.target.value)} />
+                    </div>
+                    {config.usa_eur && (
+                      <div>
+                        <label className="field-label">Tasa EUR</label>
+                        <input className="input-field" type="number" min="0" step="0.0001" placeholder="0.0000"
+                          value={tasaEur} onChange={e => setTasaEur(e.target.value)} />
+                      </div>
+                    )}
+                    {!esMensualPol && (
+                      <>
+                        <div>
+                          <label className="field-label">Forma de pago</label>
+                          <input className="input-field" maxLength={30} value={forma} onChange={e => setForma(e.target.value)} />
+                        </div>
+                        <div className="col-span-2">
+                          <label className="field-label">Referencia (opcional)</label>
+                          <input className="input-field" maxLength={100} value={refPago} onChange={e => setRefPago(e.target.value)} />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
                 {/* Asociar un bien ya existente del cliente */}
                 {disponibles.length > 0 && !crear && (
                   <div className="flex gap-2 mt-1">

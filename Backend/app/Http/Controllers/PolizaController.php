@@ -827,17 +827,35 @@ class PolizaController extends Controller
      */
     public function bienesPoliza($id)
     {
-        $poliza = Poliza::with('solicitud', 'producto')->findOrFail($id);
+        $poliza = Poliza::with('solicitud', 'producto', 'cuotas')->findOrFail($id);
         $this->assertAccesoVendedorId($poliza->solicitud?->vendedor_id, 'No tienes acceso a esta póliza.');
 
         $bienes   = $poliza->bienes()->with('bien')->orderBy('certificado')->get()->map(fn($pb) => $this->formatPolizaBien($pb, $poliza));
         $producto = $poliza->producto;
+
+        // Contexto para recalcular prima al agregar un bien: moneda nativa, si
+        // es mensual cuántas cuotas quedan por cobrar, y una prima sugerida
+        // (prorrateo de la prima actual entre los bienes ya cubiertos).
+        $monedaNativa  = $poliza->monedaNativa();
+        $cuotasRest    = $poliza->frecuencia_pago === 'Mensual'
+            ? $poliza->cuotas->where('status', '!=', 'PAGADA')->count()
+            : 0;
+        $nBienes       = max(1, $bienes->count());
+        $primaSugerida = round((float) $poliza->total / $nBienes, 2);
 
         return response()->json([
             'items'  => $bienes,
             'config' => [
                 'permite_multiples_bienes' => (bool) $producto?->permite_multiples_bienes,
                 'max_bienes'               => $producto?->max_bienes,
+                'frecuencia_pago'          => $poliza->frecuencia_pago,
+                'moneda_nativa'            => $monedaNativa,
+                'moneda_simbolo'           => Moneda::simbolo($monedaNativa),
+                'usa_eur'                  => $monedaNativa === 'EUR',
+                'recargo_mensual_pct'      => (float) ($producto?->recargo_mensual_pct ?? 0),
+                'cuotas_restantes'         => $cuotasRest,
+                'prima_actual'             => (float) $poliza->total,
+                'prima_sugerida'           => $primaSugerida,
             ],
         ]);
     }
@@ -856,6 +874,13 @@ class PolizaController extends Controller
             'bien_asegurado_id' => 'required|integer|exists:bien_asegurado,id',
             'cobertura_dolares' => 'nullable|numeric|min:0',
             'cobertura_bs'      => 'nullable|numeric|min:0',
+            // Recálculo de prima al agregar el bien (opcional). Si se envía una
+            // prima adicional > 0, se exige la tasa para la conversión a Bs.
+            'prima_adicional'   => 'nullable|numeric|min:0',
+            'tasa_bcv'          => 'required_with:prima_adicional|nullable|numeric|min:0.0001',
+            'tasa_eur'          => 'nullable|numeric|min:0.0001',
+            'forma_pago'        => ['nullable', 'string', 'max:30', new NoInjectionChars()],
+            'referencia'        => ['nullable', 'string', 'max:100', new NoInjectionChars()],
         ]);
 
         $bien = \App\Models\BienAsegurado::findOrFail($data['bien_asegurado_id']);
@@ -879,26 +904,118 @@ class PolizaController extends Controller
             return response()->json(['error' => "Esta póliza ya alcanzó el máximo de {$producto->max_bienes} bienes cubiertos para el tipo \"{$producto->nombre}\"."], 422);
         }
 
-        $siguiente    = $poliza->bienes()->count() + 1;
+        $primaAdic = isset($data['prima_adicional']) ? round((float) $data['prima_adicional'], 2) : 0.0;
+
+        // Si la póliza es mensual y se va a cobrar, debe haber cuotas vivas
+        // donde repartir el adicional — si no, hay que saldar/renovar primero.
+        if ($primaAdic > 0 && $poliza->frecuencia_pago === 'Mensual') {
+            $cuotasRest = $poliza->cuotas()->where('status', '!=', 'PAGADA')->count();
+            if ($cuotasRest === 0) {
+                return response()->json(['error' => 'No quedan cuotas pendientes donde repartir la prima adicional. Renueva la póliza para agregar cobertura.'], 422);
+            }
+        }
+
+        $siguiente    = $bienesActuales + 1;
         $certificado  = $poliza->nro_contrato . '-' . str_pad($siguiente, 2, '0', STR_PAD_LEFT);
 
-        $polizaBien = PolizaBien::create([
-            'poliza_id'         => $poliza->id,
-            'bien_asegurado_id' => $bien->id,
-            'certificado'       => $certificado,
-            'cobertura_dolares' => $data['cobertura_dolares'] ?? null,
-            'cobertura_bs'      => $data['cobertura_bs'] ?? null,
-            'created_by'        => auth()->id(),
-        ]);
+        $resultado = DB::transaction(function () use ($poliza, $bien, $certificado, $data, $primaAdic, $producto) {
+            $polizaBien = PolizaBien::create([
+                'poliza_id'         => $poliza->id,
+                'bien_asegurado_id' => $bien->id,
+                'certificado'       => $certificado,
+                'cobertura_dolares' => $data['cobertura_dolares'] ?? null,
+                'cobertura_bs'      => $data['cobertura_bs'] ?? null,
+                'created_by'        => auth()->id(),
+            ]);
 
+            $recibo = null;
+            if ($primaAdic > 0) {
+                $recibo = $this->recalcularPrimaPorBien($poliza, $primaAdic, $data, $producto);
+            }
+
+            return [$polizaBien, $recibo];
+        });
+
+        [$polizaBien, $recibo] = $resultado;
+
+        $detallePrima = $primaAdic > 0
+            ? ($poliza->frecuencia_pago === 'Mensual'
+                ? " — prima +{$primaAdic} repartida en cuotas restantes"
+                : " — prima +{$primaAdic}, recibo {$recibo}")
+            : '';
         $this->logActivity(
             'Bien Agregado a Póliza',
-            "Póliza {$poliza->nro_contrato} — bien #{$bien->id} agregado con certificado {$certificado}",
+            "Póliza {$poliza->nro_contrato} — bien #{$bien->id} agregado con certificado {$certificado}{$detallePrima}",
             'poliza',
             auth()->id()
         );
 
-        return response()->json($this->formatPolizaBien($polizaBien->load('bien'), $poliza), 201);
+        $out = $this->formatPolizaBien($polizaBien->load('bien'), $poliza);
+        if ($primaAdic > 0) {
+            $out['prima_aplicada'] = $primaAdic;
+            $out['recibo']         = $recibo; // null en mensual (se cobra por cuota)
+        }
+        return response()->json($out, 201);
+    }
+
+    /**
+     * Recalcula la prima de la póliza al agregar un bien adicional:
+     *  - Sube poliza.total / total_bs por la prima adicional (moneda nativa).
+     *  - Anual: emite un recibo (factura) por el cobro adicional.
+     *  - Mensual: reparte el adicional financiado (con recargo) entre las
+     *    cuotas que aún no están PAGADA; se cobra al pagar cada una.
+     * Devuelve el número de recibo (anual) o null (mensual).
+     * Debe llamarse dentro de una transacción.
+     */
+    private function recalcularPrimaPorBien(Poliza $poliza, float $primaAdic, array $data, $producto): ?string
+    {
+        $monedaNativa = $poliza->monedaNativa();
+        $tasaBcv      = (float) $data['tasa_bcv'];
+        $tasaEur      = isset($data['tasa_eur']) && $data['tasa_eur'] > 0 ? (float) $data['tasa_eur'] : $tasaBcv;
+        $primaBs      = round(Moneda::aBs($primaAdic, $monedaNativa, $tasaBcv, $tasaEur), 2);
+
+        $poliza->total    = round((float) $poliza->total + $primaAdic, 2);
+        $poliza->total_bs = round((float) $poliza->total_bs + $primaBs, 2);
+        $poliza->save();
+
+        if ($poliza->frecuencia_pago === 'Mensual') {
+            // Repartir el adicional financiado (con el mismo recargo del producto)
+            // entre las cuotas vivas; la última absorbe el redondeo.
+            $recargo        = (float) ($producto?->recargo_mensual_pct ?? 0);
+            $financiadoAdic = round($primaAdic * (1 + $recargo / 100), 2);
+            $cuotas         = $poliza->cuotas()->where('status', '!=', 'PAGADA')->orderBy('numero')->get();
+            $n              = $cuotas->count();
+            $base           = round($financiadoAdic / $n, 2);
+            $acum           = 0.0;
+            foreach ($cuotas->values() as $i => $cuota) {
+                $delta = $i < $n - 1 ? $base : round($financiadoAdic - $acum, 2);
+                $acum  = round($acum + $delta, 2);
+                $cuota->monto = round((float) $cuota->monto + $delta, 2);
+                $cuota->save();
+            }
+            return null;
+        }
+
+        // Anual: recibo por el cobro adicional, numerado tras los recibos previos.
+        $seq    = Factura::where('poliza_id', $poliza->id)->count() + 1;
+        $base   = CodigoPoliza::codigoRecibo($poliza->nro_contrato);
+        $numero = $seq === 1 ? $base : $base . '-' . $seq;
+        $monedaLabel = $monedaNativa === 'BS' ? 'Bs.' : $monedaNativa;
+
+        $factura = Factura::create([
+            'numero'        => $numero,
+            'sede'          => $poliza->sede_poliza ?? 'Principal',
+            'fecha_factura' => now()->toDateString(),
+            'poliza_id'     => $poliza->id,
+            'valor'         => $primaAdic,
+            'valor_bs'      => $primaBs,
+            'forma_pago'    => $data['forma_pago'] ?? 'Transferencia',
+            'moneda'        => $monedaLabel,
+            'referencia'    => $data['referencia'] ?? null,
+            'usuario_id'    => auth()->id(),
+        ]);
+
+        return $factura->numero;
     }
 
     /** Quita un bien de una póliza (ej. se registró por error, o el bien se vendió). */
