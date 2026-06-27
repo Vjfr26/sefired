@@ -46,6 +46,7 @@ import { fetchDocumentosCliente, uploadDocumentoCliente, deleteDocumentoCliente 
 import { fetchProductos } from '../api/productos.js'
 import { updatePoliza, renovarPoliza, downloadPolizaPdf, fetchBeneficiarios, createBeneficiario, updateBeneficiario, deleteBeneficiario, fetchBienesPoliza, agregarBienPoliza, quitarBienPoliza, fetchCuotas, pagarCuota } from '../api/polizas.js'
 import { fetchBienes, createBien } from '../api/bienes.js'
+import { fetchVehiculosCatalogo } from '../api/vehiculosCatalogo.js'
 import { BIEN_TIPO_PRESETS } from '../utils/bienPresets.js'
 import { emitirCotizacion } from '../api/solicitudes.js'
 import { fetchTasas } from '../api/tasas.js'
@@ -3202,6 +3203,15 @@ function PolizaBeneficiariosModal({ poliza, onClose }) {
 }
 
 // ── Bienes cubiertos por una póliza ──────────────────────────────────────────
+
+// Clases de vehículo del catálogo (igual que el Simulador) y lista cerrada de
+// colores — el color de un vehículo se escoge de una lista, no se escribe libre.
+const CLASES_VEHICULO = ['Automóvil', 'Camioneta', 'Motocicleta', 'Camión / Carga']
+const COLORES_VEHICULO = [
+  'Blanco', 'Negro', 'Gris', 'Plata', 'Rojo', 'Azul', 'Verde', 'Amarillo',
+  'Beige', 'Marrón', 'Dorado', 'Naranja', 'Vino tinto', 'Celeste',
+]
+
 /**
  * Gestiona los bienes que cubre una póliza (ej. una póliza que admite hasta
  * 5 vehículos pero al solicitarla solo se registró 1). El bien original
@@ -3218,6 +3228,7 @@ function PolizaBienesModal({ poliza, personaId, onClose }) {
   const [loading,    setLoading]    = useState(true)
   const [saving,     setSaving]     = useState(false)
   const [seleccion,  setSeleccion]  = useState('')
+  const [catalogo,   setCatalogo]   = useState([])
   const handleClose = () => { if (onClose) onClose(); else closeModal() }
 
   const load = async () => {
@@ -3239,6 +3250,12 @@ function PolizaBienesModal({ poliza, personaId, onClose }) {
     }
   }
   useEffect(() => { load() }, [poliza.id])
+
+  // Catálogo de vehículos permitidos (marca/modelo/año) para el formulario de
+  // crear un vehículo nuevo y asociarlo. Se carga una sola vez.
+  useEffect(() => {
+    fetchVehiculosCatalogo().then(setCatalogo).catch(() => setCatalogo([]))
+  }, [])
 
   const limiteAlcanzado = (items.length >= 1 && !config.permite_multiples_bienes) ||
     (config.max_bienes != null && items.length >= config.max_bienes)
@@ -3273,22 +3290,14 @@ function PolizaBienesModal({ poliza, personaId, onClose }) {
   // ── Crear un bien nuevo y asociarlo a la póliza, sin salir del modal ──────────
   // El tipo del bien nuevo debe coincidir con el de la póliza (se toma del bien
   // original; por defecto 'vehiculo', el caso dominante).
-  const tipoBien  = items[0]?.tipo ?? 'vehiculo'
-  const preset    = BIEN_TIPO_PRESETS[tipoBien] ?? null
-  const tipoLabel = preset?.label ?? (tipoBien === 'vehiculo' ? 'Vehículo' : tipoBien)
-  const camposCrear = tipoBien === 'vehiculo'
-    ? [
-        { key: 'placa',             label: 'Placa',               upper: true },
-        { key: 'marca',             label: 'Marca' },
-        { key: 'modelo',            label: 'Modelo' },
-        { key: 'anio',              label: 'Año',                 type: 'number' },
-        { key: 'color',             label: 'Color' },
-        { key: 'serial_carroceria', label: 'Serial de carrocería', upper: true },
-        { key: 'serial_motor',      label: 'Serial de motor',      upper: true },
-      ]
-    : preset
-      ? preset.campos
-      : [{ key: 'descripcion', label: 'Descripción' }]
+  const tipoBien   = items[0]?.tipo ?? 'vehiculo'
+  const esVehiculo = tipoBien === 'vehiculo'
+  const preset     = BIEN_TIPO_PRESETS[tipoBien] ?? null
+  const tipoLabel  = preset?.label ?? (esVehiculo ? 'Vehículo' : tipoBien)
+  // Para tipos NO vehículo se mantienen los campos libres del preset.
+  const camposCrear = esVehiculo
+    ? []
+    : preset ? preset.campos : [{ key: 'descripcion', label: 'Descripción' }]
 
   const [crear,   setCrear]   = useState(false)
   const [creando, setCreando] = useState(false)
@@ -3296,27 +3305,63 @@ function PolizaBienesModal({ poliza, personaId, onClose }) {
   const setCampo = (k, v) => setNuevo(p => ({ ...p, [k]: v }))
   const cancelarCrear = () => { setCrear(false); setNuevo({}) }
 
+  // Listas en cascada del catálogo de vehículos permitidos (Tipo→Marca→Modelo→Año).
+  const claseSel   = nuevo.clase || 'Automóvil'
+  const marcasCat  = esVehiculo
+    ? [...new Set(catalogo.filter(c => c.tipo === claseSel).map(c => c.marca))].sort()
+    : []
+  const modelosCat = esVehiculo && nuevo.marca
+    ? [...new Set(catalogo.filter(c => c.tipo === claseSel && c.marca === nuevo.marca).map(c => c.modelo))].sort()
+    : []
+  const aniosCat = (() => {
+    if (!esVehiculo || !nuevo.marca || !nuevo.modelo) return []
+    const m = catalogo.find(c => c.tipo === claseSel && c.marca === nuevo.marca && c.modelo === nuevo.modelo)
+    if (!m) return []
+    const ys = []
+    for (let y = m.anio_fin; y >= m.anio_inicio; y--) ys.push(y)
+    return ys
+  })()
+
   const handleCrear = async () => {
-    const atributos = {}
-    camposCrear.forEach(c => {
-      let v = nuevo[c.key]
-      if (v == null || String(v).trim() === '') return
-      atributos[c.key] = c.upper ? String(v).toUpperCase() : v
-    })
-    if (Object.keys(atributos).length === 0) {
-      showToast('Completa al menos un dato del bien', 'error'); return
+    let atributos, descripcion
+    if (esVehiculo) {
+      if (!nuevo.marca || !nuevo.modelo || !nuevo.anio) {
+        showToast('Selecciona marca, modelo y año del vehículo', 'error'); return
+      }
+      atributos = {
+        clase:             claseSel,
+        marca:             nuevo.marca,
+        modelo:            nuevo.modelo,
+        anio:              String(nuevo.anio),
+        color:             nuevo.color || '',
+        placa:             (nuevo.placa || '').trim().toUpperCase(),
+        serial_carroceria: (nuevo.serial_carroceria || '').trim().toUpperCase(),
+        serial_motor:      (nuevo.serial_motor || '').trim().toUpperCase(),
+        uso:               'Particular',
+      }
+      Object.keys(atributos).forEach(k => { if (atributos[k] === '') delete atributos[k] })
+      descripcion = [nuevo.marca, nuevo.modelo, nuevo.anio].filter(Boolean).join(' ')
+    } else {
+      atributos = {}
+      camposCrear.forEach(c => {
+        const v = nuevo[c.key]
+        if (v == null || String(v).trim() === '') return
+        atributos[c.key] = c.upper ? String(v).toUpperCase() : v
+      })
+      if (Object.keys(atributos).length === 0) {
+        showToast('Completa al menos un dato del bien', 'error'); return
+      }
+      descripcion = atributos.descripcion ?? Object.values(atributos)[0] ?? ''
     }
-    const descripcion = tipoBien === 'vehiculo'
-      ? [atributos.marca, atributos.modelo, atributos.placa].filter(Boolean).join(' ')
-      : (atributos.descripcion ?? Object.values(atributos)[0] ?? '')
     setCreando(true)
     try {
+      // Valor declarado NO se captura aquí: el cobro del bien agregado se
+      // calcula al recalcular la prima de la póliza, no como valor del bien.
       const bien = await createBien({
-        persona_id:      personaId,
-        tipo:            tipoBien,
+        persona_id:  personaId,
+        tipo:        tipoBien,
         atributos,
-        valor_declarado: parseFloat(nuevo.valor_declarado) || null,
-        descripcion:     descripcion || null,
+        descripcion: descripcion || null,
       })
       await agregarBienPoliza(poliza.id, { bien_asegurado_id: bien.id })
       showToast('Bien creado y asociado a la póliza', 'success')
@@ -3409,32 +3454,93 @@ function PolizaBienesModal({ poliza, personaId, onClose }) {
                       <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Nuevo {tipoLabel}</p>
                       <button onClick={cancelarCrear} className="text-xs font-semibold text-slate-400 hover:text-slate-600">Cancelar</button>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {camposCrear.map(c => (
-                        <div key={c.key}>
-                          <label className="field-label">{c.label}</label>
-                          {c.opciones ? (
-                            <select className="select-field" value={nuevo[c.key] ?? ''} onChange={e => setCampo(c.key, e.target.value)}>
-                              <option value="">—</option>
-                              {c.opciones.map(o => <option key={o}>{o}</option>)}
+                    {esVehiculo ? (
+                      <>
+                        {catalogo.length === 0 && (
+                          <div className="flex items-start gap-2 p-2 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-700">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                            No hay vehículos en el catálogo. Agrégalos en Vehículos → Catálogo para poder seleccionarlos.
+                          </div>
+                        )}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <div>
+                            <label className="field-label">Tipo de vehículo</label>
+                            <select className="select-field" value={claseSel}
+                              onChange={e => setNuevo(p => ({ ...p, clase: e.target.value, marca: '', modelo: '', anio: '' }))}>
+                              {CLASES_VEHICULO.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
-                          ) : (
-                            <input
-                              className="input-field"
-                              type={c.type === 'number' ? 'number' : 'text'}
-                              placeholder={c.placeholder ?? ''}
-                              value={nuevo[c.key] ?? ''}
-                              onChange={e => setCampo(c.key, e.target.value)}
-                            />
-                          )}
+                          </div>
+                          <div>
+                            <label className="field-label">Marca</label>
+                            <select className="select-field" value={nuevo.marca || ''}
+                              onChange={e => setNuevo(p => ({ ...p, marca: e.target.value, modelo: '', anio: '' }))}>
+                              <option value="">Seleccione marca…</option>
+                              {marcasCat.map(m => <option key={m} value={m}>{m}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="field-label">Modelo</label>
+                            <select className="select-field" value={nuevo.modelo || ''} disabled={!nuevo.marca}
+                              onChange={e => setNuevo(p => ({ ...p, modelo: e.target.value, anio: '' }))}>
+                              <option value="">Seleccione modelo…</option>
+                              {modelosCat.map(m => <option key={m} value={m}>{m}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="field-label">Año</label>
+                            <select className="select-field" value={nuevo.anio || ''} disabled={!nuevo.modelo}
+                              onChange={e => setCampo('anio', e.target.value)}>
+                              <option value="">Seleccione año…</option>
+                              {aniosCat.map(y => <option key={y} value={y}>{y}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="field-label">Color</label>
+                            <select className="select-field" value={nuevo.color || ''} onChange={e => setCampo('color', e.target.value)}>
+                              <option value="">Seleccione color…</option>
+                              {COLORES_VEHICULO.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="field-label">Placa</label>
+                            <input className="input-field font-mono uppercase" placeholder="ABC-123" maxLength={8}
+                              value={nuevo.placa || ''} onChange={e => setCampo('placa', e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''))} />
+                          </div>
+                          <div>
+                            <label className="field-label">Serial de carrocería</label>
+                            <input className="input-field font-mono uppercase" maxLength={30} value={nuevo.serial_carroceria || ''}
+                              onChange={e => setCampo('serial_carroceria', e.target.value.toUpperCase())} />
+                          </div>
+                          <div>
+                            <label className="field-label">Serial de motor</label>
+                            <input className="input-field font-mono uppercase" maxLength={30} value={nuevo.serial_motor || ''}
+                              onChange={e => setCampo('serial_motor', e.target.value.toUpperCase())} />
+                          </div>
                         </div>
-                      ))}
-                      <div>
-                        <label className="field-label">Valor declarado (opcional)</label>
-                        <input className="input-field" type="number" step="0.01" min="0" placeholder="0.00"
-                          value={nuevo.valor_declarado ?? ''} onChange={e => setCampo('valor_declarado', e.target.value)} />
+                      </>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {camposCrear.map(c => (
+                          <div key={c.key}>
+                            <label className="field-label">{c.label}</label>
+                            {c.opciones ? (
+                              <select className="select-field" value={nuevo[c.key] ?? ''} onChange={e => setCampo(c.key, e.target.value)}>
+                                <option value="">—</option>
+                                {c.opciones.map(o => <option key={o}>{o}</option>)}
+                              </select>
+                            ) : (
+                              <input
+                                className="input-field"
+                                type={c.type === 'number' ? 'number' : 'text'}
+                                placeholder={c.placeholder ?? ''}
+                                value={nuevo[c.key] ?? ''}
+                                onChange={e => setCampo(c.key, e.target.value)}
+                              />
+                            )}
+                          </div>
+                        ))}
                       </div>
-                    </div>
+                    )}
                     <button onClick={handleCrear} disabled={creando} className="btn-primary w-full justify-center disabled:opacity-50">
                       <Plus className="w-4 h-4" />{creando ? 'Creando…' : 'Crear y asociar'}
                     </button>
