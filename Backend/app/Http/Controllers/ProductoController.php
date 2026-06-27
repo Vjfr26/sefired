@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Producto;
 use App\Rules\NoInjectionChars;
+use App\Support\EnvioDocumentosProducto;
 use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -185,7 +187,7 @@ class ProductoController extends Controller
         $path     = $request->file('documento')->storeAs(
             "productos/{$id}",
             $filename,
-            'public'
+            config('filesystems.docs_disk')
         );
 
         $documentos   = $producto->documentos ?? [];
@@ -195,9 +197,20 @@ class ProductoController extends Controller
 
         $this->logActivity('Documento Agregado', "Producto \"{$producto->nombre}\" — doc \"{$request->input('nombre')}\"", 'producto', auth()->id());
 
+        // Enviar el documento (y cualquier otro pendiente) por correo a los
+        // clientes con póliza ACTIVA de este producto que aún no lo tengan.
+        // No debe romper la subida si el envío falla.
+        $notificados = 0;
+        try {
+            $notificados = EnvioDocumentosProducto::aClientesDelProducto($producto->fresh());
+        } catch (\Throwable $e) {
+            Log::warning('Envío de documentos de producto falló: ' . $e->getMessage());
+        }
+
         return response()->json([
-            'mensaje'    => 'Documento subido correctamente',
-            'documentos' => $this->formatDocumentos($documentos),
+            'mensaje'     => 'Documento subido correctamente',
+            'documentos'  => $this->formatDocumentos($documentos),
+            'notificados' => $notificados,
         ]);
     }
 

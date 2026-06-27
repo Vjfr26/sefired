@@ -20,6 +20,7 @@ use App\Rules\NoInjectionChars;
 use App\Rules\TelefonoValido;
 use App\Services\WorkflowService;
 use App\Support\CodigoPoliza;
+use App\Support\EnvioDocumentosProducto;
 use App\Support\Mensualidades;
 use App\Support\Documento;
 use App\Support\Moneda;
@@ -521,6 +522,16 @@ class SolicitudController extends Controller
                 EmailLog::registrar('factura', $correo, 'Recibo ' . $result['nro_factura'],
                     $solicitud->persona?->id, $polizaEmitida?->id);
             } catch (\Throwable) {}
+        }
+
+        // Documentos del tipo de póliza (producto): al cliente nuevo se le envían
+        // todos; si ya tenía pólizas de ese producto, solo los que le falten.
+        if ($polizaEmitida?->solicitud?->persona && $polizaEmitida->producto) {
+            EnvioDocumentosProducto::paraPersona(
+                $polizaEmitida->solicitud->persona,
+                $polizaEmitida->producto,
+                $polizaEmitida->id
+            );
         }
 
         return response()->json([

@@ -1743,7 +1743,10 @@ function ProductoDocumentosModal({ p, onSaved }) {
   const [file, setFile]             = useState(null)
   const [uploading, setUploading]   = useState(false)
   const [deletingPath, setDeletingPath] = useState(null)
+  const [replacingPath, setReplacingPath] = useState(null)
   const fileRef = useRef(null)
+  const replaceRef = useRef(null)
+  const replaceTargetRef = useRef(null)
   const canManageDocs = canAct('productos', 'manage_docs')
 
   if (!p) return null
@@ -1760,7 +1763,7 @@ function ProductoDocumentosModal({ p, onSaved }) {
       setNombre('')
       setFile(null)
       if (fileRef.current) fileRef.current.value = ''
-      showToast('Documento subido correctamente', 'success')
+      showToast('Documento subido' + (result.notificados ? ` · ${result.notificados} cliente(s) notificados` : ''), 'success')
       onSaved?.()
     } catch (err) {
       showToast(err.message, 'error')
@@ -1780,6 +1783,30 @@ function ProductoDocumentosModal({ p, onSaved }) {
       showToast(err.message, 'error')
     } finally {
       setDeletingPath(null)
+    }
+  }
+
+  // Reemplazar = subir el nuevo PDF (mismo nombre; cuenta como documento nuevo y
+  // se reenvía a los clientes) y luego eliminar el anterior.
+  const startReplace = (doc) => { replaceTargetRef.current = doc; replaceRef.current?.click() }
+
+  const handleReplaceFile = async (e) => {
+    const f = e.target.files?.[0]
+    e.target.value = ''
+    const target = replaceTargetRef.current
+    if (!f || !target) return
+    setReplacingPath(target.path)
+    try {
+      const result = await uploadDocumentoProducto(p.id, f, target.nombre)
+      await deleteDocumentoProducto(p.id, target.path)
+      setDocs((result.documentos || []).filter(d => d.path !== target.path))
+      showToast('Documento reemplazado' + (result.notificados ? ` · ${result.notificados} cliente(s) notificados` : ''), 'success')
+      onSaved?.()
+    } catch (err) {
+      showToast(err.message, 'error')
+    } finally {
+      setReplacingPath(null)
+      replaceTargetRef.current = null
     }
   }
 
@@ -1812,17 +1839,30 @@ function ProductoDocumentosModal({ p, onSaved }) {
                     <Eye className="w-4 h-4" />
                   </a>
                   {canManageDocs && (
-                    <button
-                      onClick={() => handleDelete(d.path)}
-                      disabled={deletingPath === d.path}
-                      className="p-2 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition inline-flex items-center justify-center disabled:opacity-50"
-                      title="Eliminar documento"
-                    >
-                      {deletingPath === d.path
-                        ? <div className="w-4 h-4 border-2 border-rose-300 border-t-rose-600 rounded-full animate-spin" />
-                        : <Trash2 className="w-4 h-4" />
-                      }
-                    </button>
+                    <>
+                      <button
+                        onClick={() => startReplace(d)}
+                        disabled={replacingPath === d.path}
+                        className="p-2 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 transition inline-flex items-center justify-center disabled:opacity-50"
+                        title="Reemplazar documento"
+                      >
+                        {replacingPath === d.path
+                          ? <div className="w-4 h-4 border-2 border-amber-300 border-t-amber-600 rounded-full animate-spin" />
+                          : <RefreshCw className="w-4 h-4" />
+                        }
+                      </button>
+                      <button
+                        onClick={() => handleDelete(d.path)}
+                        disabled={deletingPath === d.path}
+                        className="p-2 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition inline-flex items-center justify-center disabled:opacity-50"
+                        title="Eliminar documento"
+                      >
+                        {deletingPath === d.path
+                          ? <div className="w-4 h-4 border-2 border-rose-300 border-t-rose-600 rounded-full animate-spin" />
+                          : <Trash2 className="w-4 h-4" />
+                        }
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
@@ -1832,7 +1872,8 @@ function ProductoDocumentosModal({ p, onSaved }) {
 
         {canManageDocs && (
           <div className="pt-3 border-t border-slate-100">
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Agregar Documento</p>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Agregar Documento</p>
+            <p className="text-[11px] text-slate-400 mb-3">Al subir o reemplazar, se envía por correo (adjunto) a los clientes con póliza activa de este producto que aún no lo tengan.</p>
             <div className="space-y-3">
               <div>
                 <label className="field-label">Nombre del documento <span className="text-rose-500">*</span></label>
@@ -1874,6 +1915,15 @@ function ProductoDocumentosModal({ p, onSaved }) {
             </div>
           </div>
         )}
+
+        {/* Input oculto para "Reemplazar" un documento existente */}
+        <input
+          ref={replaceRef}
+          type="file"
+          accept="application/pdf"
+          className="hidden"
+          onChange={handleReplaceFile}
+        />
       </div>
     </ModalShell>
   )

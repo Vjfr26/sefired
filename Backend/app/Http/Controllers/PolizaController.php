@@ -20,6 +20,7 @@ use App\Rules\CedulaValida;
 use App\Rules\NoInjectionChars;
 use App\Services\WorkflowService;
 use App\Support\CodigoPoliza;
+use App\Support\EnvioDocumentosProducto;
 use App\Support\Mensualidades;
 use App\Support\Documento;
 use App\Support\Moneda;
@@ -784,6 +785,15 @@ class PolizaController extends Controller
                 if ($nuevaPoliza) {
                     Mail::to($correo)->queue(new PolizaRenovadaMail($nuevaPoliza, $polizaAnterior->fresh()));
                     EmailLog::registrar('poliza_renovada', $correo, 'Renovación ' . $result['nro_contrato'], $polizaAnterior->solicitud?->persona_id);
+
+                    // Documentos del producto que el cliente aún no haya recibido
+                    if ($nuevaPoliza->solicitud?->persona && $nuevaPoliza->producto) {
+                        EnvioDocumentosProducto::paraPersona(
+                            $nuevaPoliza->solicitud->persona,
+                            $nuevaPoliza->producto,
+                            $nuevaPoliza->id
+                        );
+                    }
                 }
             } catch (\Throwable) {}
         }
