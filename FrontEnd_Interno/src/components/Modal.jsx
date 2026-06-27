@@ -4008,6 +4008,11 @@ function ClienteHistorialModal({ c, onSaved }) {
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${POL_STATUS_STYLE[pol.status] ?? 'bg-slate-100 text-slate-500'}`}>
                           {pol.status}
                         </span>
+                        {pol.bienes_count > 0 && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-600 inline-flex items-center gap-1">
+                            <Package className="w-3 h-3 shrink-0" />{pol.bienes_count} {pol.bienes_count === 1 ? 'bien' : 'bienes'}
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs font-semibold text-slate-700 truncate">{pol.producto}</p>
                       <p className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">

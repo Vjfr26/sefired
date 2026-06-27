@@ -143,6 +143,38 @@
     $clase   = strtoupper($attrs['clase']  ?? ($attrs['tipo'] ?? '—'));
     $version = strtoupper($attrs['version'] ?? 'A INDICAR');
 
+    // Datos de presentación de un bien (principal o adicional) para las secciones
+    // que se repiten por vehículo. El principal usa el snapshot ya calculado; los
+    // adicionales, su propio BienAsegurado. No muta variables globales.
+    $datosBien = function ($cb) use ($bien, $attrs, $poliza) {
+        if ($cb && $cb->certificado !== null && $cb->bien) {
+            $a = $cb->bien->atributos ?? [];
+            $t = $cb->bien->tipo;
+            $obs = $cb->bien->observaciones ?? '—';
+        } else {
+            $a = $attrs;
+            $t = $bien['tipo'] ?? null;
+            $obs = $bien['observaciones'] ?? '—';
+        }
+        return [
+            'cert'    => ($cb?->certificado) ?: $poliza->nro_contrato,
+            'tipo'    => $t,
+            'attrs'   => $a,
+            'obs'     => $obs ?: '—',
+            'marca'   => strtoupper($a['marca']  ?? '—'),
+            'modelo'  => strtoupper($a['modelo'] ?? '—'),
+            'anio'    => $a['anio']              ?? '—',
+            'placa'   => strtoupper($a['placa']  ?? '—'),
+            'color'   => strtoupper($a['color']  ?? '—'),
+            'uso'     => strtoupper($a['uso']    ?? '—'),
+            'serCar'  => strtoupper($a['serial_carroceria'] ?? ($a['serialCarroceria'] ?? '—')),
+            'serMot'  => strtoupper($a['serial_motor']      ?? ($a['serialMotor']      ?? '—')),
+            'puestos' => $a['puestos'] ?? '—',
+            'clase'   => strtoupper($a['clase'] ?? ($a['tipo'] ?? '—')),
+            'version' => strtoupper($a['version'] ?? 'A INDICAR'),
+        ];
+    };
+
     $cobertura_items = [];
     if ($tipoCal === 'por_valor') {
         // "por_valor" no es exclusivo de vehículos (ej. Póliza Muebles también
@@ -396,43 +428,45 @@
         </td>
     </tr>
 
-    @if(($bien['tipo'] ?? null) === 'vehiculo')
-    <tr><th colspan="6" class="linea">Datos del Vehículo</th></tr>
+    @foreach($carnetList as $cb)
+    @php $D = $datosBien($cb); $multi = count($carnetList) > 1; @endphp
+    @if($D['tipo'] === 'vehiculo')
+    <tr><th colspan="6" class="linea">Datos del Vehículo{{ $multi ? ' — '.$tipoPolizaLabel.' N° '.$D['cert'] : '' }}</th></tr>
     <tr>
         <td style="width:13%; text-align:right; border-left:1px solid #888; padding:1.5px 3px; color:#555; font-size:9px;">Marca:</td>
-        <td style="padding:1.5px 4px;"><strong>{{ $marca }}</strong></td>
+        <td style="padding:1.5px 4px;"><strong>{{ $D['marca'] }}</strong></td>
         <td style="width:13%; text-align:right; padding:1.5px 3px; color:#555; font-size:9px;">Modelo:</td>
-        <td style="padding:1.5px 4px;"><strong>{{ $modelo }}</strong></td>
+        <td style="padding:1.5px 4px;"><strong>{{ $D['modelo'] }}</strong></td>
         <td style="width:14%; text-align:right; padding:1.5px 3px; color:#555; font-size:9px;">Núm. Pasajeros:</td>
-        <td style="border-right:1px solid #888; padding:1.5px 4px;"><strong>{{ $puestos }}</strong></td>
+        <td style="border-right:1px solid #888; padding:1.5px 4px;"><strong>{{ $D['puestos'] }}</strong></td>
     </tr>
     <tr>
         <td style="width:13%; text-align:right; border-left:1px solid #888; padding:1.5px 3px; color:#555; font-size:9px;">Versión:</td>
-        <td style="padding:1.5px 4px;"><strong>{{ $version }}</strong></td>
+        <td style="padding:1.5px 4px;"><strong>{{ $D['version'] }}</strong></td>
         <td style="width:13%; text-align:right; padding:1.5px 3px; color:#555; font-size:9px;">Año:</td>
-        <td style="padding:1.5px 4px;"><strong>{{ $anio }}</strong></td>
+        <td style="padding:1.5px 4px;"><strong>{{ $D['anio'] }}</strong></td>
         <td style="width:14%; text-align:right; padding:1.5px 3px; color:#555; font-size:9px;">Tipo de Vehículo:</td>
-        <td style="border-right:1px solid #888; padding:1.5px 4px;"><strong>{{ $clase }}</strong></td>
+        <td style="border-right:1px solid #888; padding:1.5px 4px;"><strong>{{ $D['clase'] }}</strong></td>
     </tr>
     <tr>
         <td style="width:13%; text-align:right; border-left:1px solid #888; padding:1.5px 3px; color:#555; font-size:9px;">Placa:</td>
-        <td style="padding:1.5px 4px;"><strong>{{ $placa }}</strong></td>
+        <td style="padding:1.5px 4px;"><strong>{{ $D['placa'] }}</strong></td>
         <td style="width:13%; text-align:right; padding:1.5px 3px; color:#555; font-size:9px;">Serial Motor:</td>
-        <td style="padding:1.5px 4px;"><strong>{{ $serMot }}</strong></td>
+        <td style="padding:1.5px 4px;"><strong>{{ $D['serMot'] }}</strong></td>
         <td style="width:14%; text-align:right; padding:1.5px 3px; color:#555; font-size:9px;">Uso:</td>
-        <td style="border-right:1px solid #888; padding:1.5px 4px;"><strong>{{ $uso }}</strong></td>
+        <td style="border-right:1px solid #888; padding:1.5px 4px;"><strong>{{ $D['uso'] }}</strong></td>
     </tr>
     <tr>
         <td style="width:13%; text-align:right; border-left:1px solid #888; border-bottom:1px solid #888; padding:1.5px 3px; color:#555; font-size:9px;">Color:</td>
-        <td style="padding:3px 5px; border-bottom:1px solid #888;"><strong>{{ $color }}</strong></td>
+        <td style="padding:3px 5px; border-bottom:1px solid #888;"><strong>{{ $D['color'] }}</strong></td>
         <td style="width:13%; text-align:right; padding:1.5px 3px; color:#555; font-size:9px; border-bottom:1px solid #888;">Serial Carrocería:</td>
-        <td style="padding:3px 5px; border-bottom:1px solid #888;"><strong>{{ $serCar }}</strong></td>
+        <td style="padding:3px 5px; border-bottom:1px solid #888;"><strong>{{ $D['serCar'] }}</strong></td>
         <td style="width:14%; text-align:right; padding:1.5px 3px; color:#555; font-size:9px; border-bottom:1px solid #888;">Otros:</td>
-        <td style="border-right:1px solid #888; padding:3px 5px; border-bottom:1px solid #888;"><strong>{{ $bienObservaciones ?: '—' }}</strong></td>
+        <td style="border-right:1px solid #888; padding:3px 5px; border-bottom:1px solid #888;"><strong>{{ $D['obs'] ?: '—' }}</strong></td>
     </tr>
-    @elseif(!empty($bien['tipo']))
-    <tr><th colspan="6" class="linea">Datos del Bien Asegurado — {{ ucfirst(str_replace('_', ' ', $bien['tipo'])) }}</th></tr>
-    @php $attrsPares = collect($attrs)->filter(fn($v) => $v !== null && $v !== '')->all(); @endphp
+    @elseif(!empty($D['tipo']))
+    <tr><th colspan="6" class="linea">Datos del Bien Asegurado — {{ ucfirst(str_replace('_', ' ', $D['tipo'])) }}{{ $multi ? ' (N° '.$D['cert'].')' : '' }}</th></tr>
+    @php $attrsPares = collect($D['attrs'])->filter(fn($v) => $v !== null && $v !== '')->all(); @endphp
     @if(count($attrsPares) > 0)
         @foreach(array_chunk(array_keys($attrsPares), 3) as $grupo)
         <tr>
@@ -449,20 +483,7 @@
         @endforeach
     @endif
     @endif
-
-    @if($bienesAdicionales->isNotEmpty())
-    <tr><th colspan="6" class="linea">Bienes Adicionales Cubiertos por esta Póliza</th></tr>
-    @foreach($bienesAdicionales as $pb)
-    <tr>
-        <td style="width:13%; text-align:right; border-left:1px solid #888; padding:1.5px 3px; color:#555; font-size:9px;">{{ $tipoPolizaLabel }}:</td>
-        <td style="padding:1.5px 4px;"><strong>{{ $pb->certificado }}</strong></td>
-        <td style="width:13%; text-align:right; padding:1.5px 3px; color:#555; font-size:9px;">Tipo:</td>
-        <td style="padding:1.5px 4px;"><strong>{{ ucfirst($pb->bien?->tipo ?? '—') }}</strong></td>
-        <td style="width:14%; text-align:right; padding:1.5px 3px; color:#555; font-size:9px;">Referencia:</td>
-        <td style="border-right:1px solid #888; padding:1.5px 4px;"><strong>{{ strtoupper($pb->bien?->atributos['placa'] ?? $pb->bien?->atributos['descripcion'] ?? $pb->bien?->descripcion ?? '—') }}</strong></td>
-    </tr>
     @endforeach
-    @endif
 
     <tr><th colspan="6" class="linea">Coberturas / Sumas Aseguradas</th></tr>
     @if($coberturaGrid)
@@ -561,13 +582,13 @@
         $serCar = strtoupper($attrs['serial_carroceria'] ?? ($attrs['serialCarroceria'] ?? '—'));
     }
 @endphp
-<table width="100%" cellspacing="0" cellpadding="0" style="margin-top:5px; page-break-inside:avoid;">
+<table width="100%" cellspacing="0" cellpadding="0" style="margin-top:20px; page-break-inside:avoid;">
     <tr>
         <!-- Carnet Frontal -->
-        <td style="width:290px; height:182px; border:2px solid #127481; font-size:9px; vertical-align:top; position:relative; overflow:hidden;">
-            <img src="{{ $imgCarnet }}" style="position:absolute; z-index:-1; width:100%; height:100%; top:0; left:0; opacity:0.07;"/>
+        <td style="width:290px; height:196px; border:2px solid #127481; font-size:9px; vertical-align:top; position:relative; overflow:hidden; padding:8px 14px;">
+            <img src="{{ $imgCarnet }}" style="position:absolute; z-index:-1; width:100%; height:100%; top:0; left:0; opacity:0.16;"/>
             <img src="{{ $imgIcono }}"  style="position:absolute; z-index:-1; width:1.6cm; height:1.1cm; top:2px; left:5px; opacity:0.45;"/>
-            <table style="text-align:center; width:100%; margin-top:8px;">
+            <table style="text-align:center; width:100%; margin-top:0;">
                 <!-- N° esquina superior derecha -->
                 <tr>
                     <th colspan="3" style="text-align:right; padding:4px 8px 0 0; white-space:nowrap; font-weight:normal;">
@@ -640,10 +661,10 @@
         <td style="width:14px;"></td>
 
         <!-- Carnet Reverso: EMISIÓN | QR | VENCIMIENTO -->
-        <td style="width:290px; height:182px; border:2px solid #127481; font-size:9px; vertical-align:top; position:relative; overflow:hidden;">
-            <img src="{{ $imgCarnet }}" style="position:absolute; z-index:-1; width:100%; height:100%; top:0; left:0; opacity:0.07;"/>
+        <td style="width:290px; height:196px; border:2px solid #127481; font-size:9px; vertical-align:top; position:relative; overflow:hidden; padding:8px 14px;">
+            <img src="{{ $imgCarnet }}" style="position:absolute; z-index:-1; width:100%; height:100%; top:0; left:0; opacity:0.16;"/>
             <img src="{{ $imgIcono }}"  style="position:absolute; z-index:-1; width:1.6cm; height:1.1cm; top:2px; left:5px; opacity:0.45;"/>
-            <table width="100%" cellspacing="0" cellpadding="0" style="margin-top:15px;">
+            <table width="100%" cellspacing="0" cellpadding="0" style="margin-top:6px;">
                 <!-- Providencia -->
                 <tr>
                     <td colspan="3" style="font-size:7px; padding:2px 8px 4px; line-height:1.35; text-align:center;">
