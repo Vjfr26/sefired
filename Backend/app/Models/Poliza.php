@@ -184,4 +184,56 @@ class Poliza extends Model
             $this->moneda_producto ?? $snap ?? $this->producto?->moneda ?? 'USD'
         );
     }
+
+    /** Saldo pendiente de las cuotas mensuales (0 si no es Mensual). */
+    public function saldoCuotas(): float
+    {
+        if ($this->frecuencia_pago !== 'Mensual') {
+            return 0.0;
+        }
+        return round($this->cuotas->sum(fn ($c) => max(0, (float) $c->monto - (float) $c->monto_pagado)), 2);
+    }
+
+    /**
+     * Días antes del vencimiento desde los que se permite renovar:
+     * 30 para pólizas anuales, 7 para mensuales (una VENCIDA siempre se puede).
+     */
+    public function ventanaRenovacionDias(): int
+    {
+        return $this->frecuencia_pago === 'Mensual' ? 7 : 30;
+    }
+
+    /** ¿Se puede renovar ahora? (ver motivoNoRenovable para la razón). */
+    public function esRenovable(): bool
+    {
+        return $this->motivoNoRenovable() === null;
+    }
+
+    /**
+     * Razón por la que NO se puede renovar, o null si sí se puede. Reglas:
+     *  - Solo ACTIVA (próxima a vencer) o VENCIDA.
+     *  - Mensual: no debe quedar saldo de cuotas (saldar el contrato primero).
+     *  - ACTIVA: debe estar dentro de la ventana (30 anual / 7 mensual).
+     */
+    public function motivoNoRenovable(): ?string
+    {
+        if (!in_array($this->status, ['ACTIVA', 'VENCIDA'], true)) {
+            return "No se puede renovar una póliza {$this->status}.";
+        }
+        if ($this->frecuencia_pago === 'Mensual' && $this->saldoCuotas() > 0.001) {
+            return 'Debe saldar las cuotas pendientes antes de renovar.';
+        }
+        if ($this->status === 'VENCIDA') {
+            return null; // vencida (sin saldo) siempre renovable
+        }
+        if (!$this->fecha_vencimiento) {
+            return null;
+        }
+        $ventana = $this->ventanaRenovacionDias();
+        $dias = now()->startOfDay()->diffInDays($this->fecha_vencimiento->copy()->startOfDay(), false);
+        if ($dias > $ventana) {
+            return "La póliza aún no está próxima a vencer (se puede renovar desde {$ventana} días antes).";
+        }
+        return null;
+    }
 }

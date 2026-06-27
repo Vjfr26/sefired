@@ -4038,7 +4038,7 @@ function ClienteHistorialModal({ c, onSaved }) {
                           }
                         </button>
                       )}
-                      {pol.status === 'ACTIVA' && pol.id && canRenew && (
+                      {pol.renovable && pol.id && canRenew && (
                         <button
                           onClick={() => {
                             const dias = pol.fecha_vencimiento_iso

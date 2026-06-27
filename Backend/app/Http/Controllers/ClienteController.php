@@ -334,6 +334,7 @@ class ClienteController extends Controller
         $persona = Persona::with([
             'solicitudes.polizas.producto',
             'solicitudes.polizas.vendedor',
+            'solicitudes.polizas.cuotas',
             'solicitudes.polizas' => fn ($q) => $q->withCount('bienes'),
             'solicitudes.producto',
             'solicitudes.bien',
@@ -361,6 +362,9 @@ class ClienteController extends Controller
                         'producto_recargo_mensual_pct'      => $poliza->producto?->recargo_mensual_pct,
                         'frecuencia_pago'                   => $poliza->frecuencia_pago,
                         'bienes_count'          => (int) ($poliza->bienes_count ?? 0),
+                        'renovable'             => $poliza->esRenovable(),
+                        'renovable_motivo'      => $poliza->motivoNoRenovable(),
+                        'cuota_saldo'           => $poliza->saldoCuotas(),
                         'vendedor_id'           => $poliza->vendedor_id,
                         'vendedor_nombre'       => $poliza->vendedor?->nombre ?? '—',
                         'fecha_emision'         => $poliza->fecha_emision->format('d/m/Y'),

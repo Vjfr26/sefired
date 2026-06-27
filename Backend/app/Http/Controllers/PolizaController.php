@@ -271,14 +271,19 @@ class PolizaController extends Controller
             ? round(($total / 12) * (1 + $recargoPct / 100), 2)
             : null;
 
-        // Solo se puede renovar en línea una póliza vigente o ya vencida —
-        // no una ANULADA ni una que ya fue RENOVADA (QR viejo reutilizado).
-        $renovable = in_array($poliza->status, ['ACTIVA', 'VENCIDA'], true);
+        // Operable en línea (pagar cuota / renovar): vigente o ya vencida —
+        // no ANULADA ni RENOVADA (QR viejo reutilizado).
+        $operable = in_array($poliza->status, ['ACTIVA', 'VENCIDA'], true);
+
+        // Renovar: solo "por vencer" (30 días anual / 7 mensual) o ya vencida;
+        // las mensuales además sin cuotas pendientes. Ver Poliza::motivoNoRenovable().
+        $renovableMotivo = $poliza->motivoNoRenovable();
+        $renovable       = $renovableMotivo === null;
 
         // Pago de cuota en línea: solo pólizas mensuales con saldo pendiente.
         $cuotaSaldo   = 0.0;
         $cuotaProxima = null;
-        if ($poliza->frecuencia_pago === 'Mensual' && $renovable) {
+        if ($poliza->frecuencia_pago === 'Mensual' && $operable) {
             $cuotas = $poliza->cuotas()->orderBy('numero')->get();
             $cuotaSaldo = round($cuotas->sum(fn($c) => max(0, (float) $c->monto - (float) $c->monto_pagado)), 2);
             $prox = $cuotas->first(fn($c) => $c->status !== 'PAGADA');
@@ -297,6 +302,7 @@ class PolizaController extends Controller
             'nro_contrato'      => $poliza->nro_contrato,
             'status'            => $poliza->status,
             'renovable'             => $renovable,
+            'renovable_motivo'      => $renovableMotivo,
             'permite_mensualidades' => $permiteMensual,
             'recargo_mensual_pct'   => $recargoPct,
             'cuota_mensual'         => $cuotaMensual,
@@ -606,8 +612,15 @@ class PolizaController extends Controller
      */
     public function renovar(Request $request, $id)
     {
-        $polizaAnterior = Poliza::with('solicitud')->findOrFail($id);
+        $polizaAnterior = Poliza::with('solicitud', 'producto', 'cuotas')->findOrFail($id);
         $this->assertAccesoVendedorId($polizaAnterior->solicitud?->vendedor_id, 'No tienes acceso a esta póliza.');
+
+        // Solo se renueva una póliza "por vencer" (30 días anual / 7 mensual) o
+        // ya vencida; las mensuales además sin cuotas pendientes. Evita renovar
+        // anticipadamente (perder la cobertura restante) o dejar cuotas impagas.
+        if ($motivoNoRenov = $polizaAnterior->motivoNoRenovable()) {
+            return response()->json(['error' => $motivoNoRenov], 422);
+        }
 
         $noInjection = new NoInjectionChars();
 

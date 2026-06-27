@@ -26,17 +26,16 @@ class SendCuotaReminders extends Command
     {
         $hoy = now()->toDateString();
 
-        // 1) Cuotas impagas ya vencidas → marcar VENCIDA y avisar una vez.
+        // 1) Cuotas impagas ya vencidas (solo de pólizas vigentes/vencidas, no
+        //    ANULADA/RENOVADA) → marcar VENCIDA y avisar una vez.
         $vencidas = Cuota::whereIn('status', ['PENDIENTE', 'PARCIAL'])
             ->whereDate('fecha_vencimiento', '<', $hoy)
+            ->whereHas('poliza', fn($q) => $q->whereIn('status', ['ACTIVA', 'VENCIDA']))
             ->with('poliza.solicitud.persona')
             ->get();
 
         foreach ($vencidas as $cuota) {
             $cuota->update(['status' => 'VENCIDA']);
-            if (!in_array($cuota->poliza?->status, ['ACTIVA', 'VENCIDA'], true)) {
-                continue;
-            }
             $correo = $cuota->poliza?->solicitud?->persona?->correo;
             if ($correo) {
                 $this->enviar($cuota, 0, 'cuota_vencida', $correo);
