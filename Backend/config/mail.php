@@ -112,7 +112,9 @@ return [
 
     'from' => [
         'address' => env('MAIL_FROM_ADDRESS', 'hello@example.com'),
-        'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel')),
+        // Nunca caer a APP_NAME ("J&M"): el remitente de cara al cliente es la
+        // aseguradora. Se puede sobreescribir con MAIL_FROM_NAME en el entorno.
+        'name' => env('MAIL_FROM_NAME', 'LA VENEZOLANA DE SEGUROS Y VIDA C.A.'),
     ],
 
     /*
