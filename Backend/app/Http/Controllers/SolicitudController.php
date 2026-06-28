@@ -484,11 +484,12 @@ class SolicitudController extends Controller
 
             $solicitud->update(['status' => 'emitida']);
 
-            // El cliente queda asociado al vendedor que emite, si aún no tenía
-            // uno (ej. un lead del portal sin asignar al que un vendedor le
-            // emite la póliza): así pasa a verlo en su lista de clientes.
-            if ($solicitud->persona && $solicitud->persona->vendedor_id === null) {
-                $solicitud->persona->update(['vendedor_id' => $solicitud->vendedor_id ?? auth()->id()]);
+            // El vendedor del cliente es el que lo registra/atiende —el de la
+            // cotización—, nunca el usuario que emite si es distinto. Solo se
+            // asigna cuando el cliente aún no tenía vendedor (ej. lead del
+            // portal sin asignar); si ya tiene, no se toca.
+            if ($solicitud->persona && $solicitud->persona->vendedor_id === null && $solicitud->vendedor_id !== null) {
+                $solicitud->persona->update(['vendedor_id' => $solicitud->vendedor_id]);
             }
 
             // Registro de venta — un renglón por póliza emitida, para reportes
