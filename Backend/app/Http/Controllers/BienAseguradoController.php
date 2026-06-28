@@ -35,7 +35,7 @@ class BienAseguradoController extends Controller
 
     public function index(Request $request)
     {
-        $query = BienAsegurado::with(['persona.vendedor', 'roles.persona', 'solicitudes.polizas'])
+        $query = BienAsegurado::with(['persona.vendedor', 'roles.persona', 'solicitudes.polizas', 'polizaBienes.poliza'])
             ->orderByDesc('created_at');
 
         // Un vendedor solo ve los bienes de SUS clientes — igual que en
@@ -67,7 +67,7 @@ class BienAseguradoController extends Controller
 
     public function show($id)
     {
-        $bien = BienAsegurado::with(['persona.vendedor', 'roles.persona', 'solicitudes.producto'])
+        $bien = BienAsegurado::with(['persona.vendedor', 'roles.persona', 'solicitudes.producto', 'solicitudes.polizas', 'polizaBienes.poliza'])
             ->findOrFail($id);
 
         if ($bien->persona) {
@@ -244,9 +244,17 @@ class BienAseguradoController extends Controller
             'created_at'      => $b->created_at?->toDateTimeString(),
         ];
 
-        // Incluir fechas de la póliza vigente (o última) asociada al bien
-        if ($b->solicitudes->isNotEmpty()) {
+        // Incluir fechas de la póliza vigente (o última) asociada al bien.
+        // La póliza que cubre el bien es la del pivot poliza_bienes — el mismo
+        // vínculo autoritativo que usa Clientes para su N° de póliza. Antes se
+        // derivaba de la solicitud del bien, que podía ser otra póliza (o
+        // ninguna) cuando el bien se agregó a una póliza ya emitida, mostrando
+        // un número distinto al de Clientes. La solicitud queda solo de respaldo.
+        $polizas = $b->polizaBienes->map->poliza->filter();
+        if ($polizas->isEmpty()) {
             $polizas = $b->solicitudes->flatMap->polizas;
+        }
+        if ($polizas->isNotEmpty()) {
             $activa  = $polizas->where('status', 'ACTIVA')->sortByDesc('fecha_emision')->first();
             $polVig  = $activa ?? $polizas->sortByDesc('fecha_emision')->first();
             if ($polVig) {
