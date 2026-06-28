@@ -470,7 +470,9 @@ function Step2({ sim, setSim, onNext, onBack, onClose }) {
         estado: nuevoForm.estado,
         ciudad: nuevoForm.ciudad,
       })
-      setSim(prev => ({ ...prev, cliente_id: res.id, cliente_nuevo: true, ...nuevoForm }))
+      // ci debe quedar con el prefijo (nuevoForm.ci es solo dígitos); sin esto
+      // el envío mandaba ci_tomador sin la letra y fallaba la validación.
+      setSim(prev => ({ ...prev, cliente_id: res.id, cliente_nuevo: true, ...nuevoForm, ci: cedulaCompleta }))
       setSelected(true); setModo('buscar')
     } catch (e) {
       setErr(e.message || 'Error al crear cliente')
