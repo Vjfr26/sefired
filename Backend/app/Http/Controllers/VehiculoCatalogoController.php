@@ -51,7 +51,7 @@ class VehiculoCatalogoController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'tipo'        => 'required|string|in:Automóvil,Camioneta,Motocicleta,Camión / Carga',
+            'tipo'        => 'required|string|max:50',
             'marca'       => 'required|string|max:100',
             'modelo'      => 'required|string|max:100',
             'anio_inicio' => 'required|integer|min:1900|max:2100',
@@ -97,7 +97,7 @@ class VehiculoCatalogoController extends Controller
     public function update(Request $request, $id)
     {
         $data = $request->validate([
-            'tipo'        => 'required|string|in:Automóvil,Camioneta,Motocicleta,Camión / Carga',
+            'tipo'        => 'required|string|max:50',
             'marca'       => 'required|string|max:100',
             'modelo'      => 'required|string|max:100',
             'anio_inicio' => 'required|integer|min:1900|max:2100',

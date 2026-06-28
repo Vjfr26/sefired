@@ -5,8 +5,12 @@ import DataTable from '../components/DataTable.jsx'
 import SearchBar from '../components/SearchBar.jsx'
 import { fetchVehiculosCatalogo, createVehiculoCatalogo, updateVehiculoCatalogo, deleteVehiculoCatalogo } from '../api/vehiculosCatalogo.js'
 
+// Tipos sugeridos por defecto. El campo es libre: se pueden agregar tipos
+// nuevos (el backend ya no los restringe a esta lista).
+const TIPOS_VEHICULO_BASE = ['Automóvil', 'Camioneta', 'Motocicleta', 'Camión / Carga']
+
 // Formulario Modal para Agregar / Editar
-function CatalogoModal({ item, onClose, onSaved }) {
+function CatalogoModal({ item, tipos = TIPOS_VEHICULO_BASE, onClose, onSaved }) {
   const { showToast } = useApp()
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
@@ -87,10 +91,7 @@ function CatalogoModal({ item, onClose, onSaved }) {
                 required
               />
               <datalist id="tipos-vehiculo">
-                <option value="Automóvil" />
-                <option value="Camioneta" />
-                <option value="Motocicleta" />
-                <option value="Camión / Carga" />
+                {tipos.map(t => <option key={t} value={t} />)}
               </datalist>
             </div>
 
@@ -199,6 +200,14 @@ export default function VehiculosCatalogo() {
     }
   }, [canView, load])
 
+  // Tipos disponibles para filtrar/sugerir: los base + los que ya existan en
+  // el catálogo (así los tipos nuevos aparecen sin tocar código).
+  const tiposUnicos = useMemo(() => {
+    const set = new Set(TIPOS_VEHICULO_BASE)
+    for (const it of catalogo) if (it.tipo) set.add(it.tipo)
+    return [...set].sort((a, b) => a.localeCompare(b, 'es'))
+  }, [catalogo])
+
   const filtered = useMemo(() => {
     return catalogo.filter(item => {
       if (selectedTipo && item.tipo !== selectedTipo) return false
@@ -295,10 +304,7 @@ export default function VehiculosCatalogo() {
               onChange={e => setSelectedTipo(e.target.value)}
             >
               <option value="">Todos los tipos</option>
-              <option value="Automóvil">Automóvil</option>
-              <option value="Camioneta">Camioneta</option>
-              <option value="Motocicleta">Motocicleta</option>
-              <option value="Camión / Carga">Camión / Carga</option>
+              {tiposUnicos.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
             <p className="text-xs text-slate-400 whitespace-nowrap">{filtered.length} modelo{filtered.length !== 1 ? 's' : ''}</p>
           </>
@@ -328,6 +334,7 @@ export default function VehiculosCatalogo() {
       {/* Modal para añadir */}
       {showAddModal && (
         <CatalogoModal
+          tipos={tiposUnicos}
           onClose={() => setShowAddModal(false)}
           onSaved={load}
         />
@@ -337,6 +344,7 @@ export default function VehiculosCatalogo() {
       {editItem && (
         <CatalogoModal
           item={editItem}
+          tipos={tiposUnicos}
           onClose={() => setEditItem(null)}
           onSaved={load}
         />
