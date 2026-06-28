@@ -14,6 +14,7 @@ import {
   Download, Trash2, Clock, XCircle, Search, UserCheck, Plus,
   DollarSign, Package, Users, FileText, Upload, AlertTriangle,
   Layers, ClipboardList, ChevronDown, Star, SlidersHorizontal,
+  Eye, FolderOpen,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { fmtMonto, convertirMoneda, fmtTasa, pdfPage, pdfHdr, pdfSec, pdfRow, pdfTotal, pdfFooterSimple, useModalLock, filtrarCedula, filtrarTelefono } from '../utils/helpers.jsx'
@@ -1612,6 +1613,31 @@ const UW_RESULTADO_META = {
   observado: { label: 'Observado', bg: 'bg-amber-100', text: 'text-amber-700' },
 }
 
+// Opciones de resultado como tarjetas seleccionables (mejor que un <select>)
+const UW_RESULTADO_OPTS = [
+  {
+    value: 'observado', label: 'Observado', desc: 'Requiere más info', icon: Clock,
+    base: 'border-amber-200 hover:border-amber-300', active: 'border-amber-400 bg-amber-50 ring-2 ring-amber-100', iconCls: 'text-amber-500',
+  },
+  {
+    value: 'aprobado', label: 'Aprobado', desc: 'Queda aprobada', icon: CheckCircle,
+    base: 'border-emerald-200 hover:border-emerald-300', active: 'border-emerald-400 bg-emerald-50 ring-2 ring-emerald-100', iconCls: 'text-emerald-500',
+  },
+  {
+    value: 'rechazado', label: 'Rechazado', desc: 'Queda rechazada', icon: XCircle,
+    base: 'border-rose-200 hover:border-rose-300', active: 'border-rose-400 bg-rose-50 ring-2 ring-rose-100', iconCls: 'text-rose-500',
+  },
+]
+
+// Etiqueta de nivel de riesgo según el score (0–100)
+function uwRiskLabel(score) {
+  if (score === '' || score == null || isNaN(score)) return null
+  const n = Number(score)
+  if (n <= 33) return { t: 'Riesgo bajo', c: 'text-emerald-600' }
+  if (n <= 66) return { t: 'Riesgo medio', c: 'text-amber-600' }
+  return { t: 'Riesgo alto', c: 'text-rose-600' }
+}
+
 function UwBadge({ resultado }) {
   const m = UW_RESULTADO_META[resultado] ?? UW_RESULTADO_META.pendiente
   return (
@@ -1625,11 +1651,13 @@ function freshUwForm() {
   return { resultado: 'pendiente', score: '', observaciones: '', motivo_rechazo: '', requiere_inspeccion: false }
 }
 
-function UnderwritingModal({ cot, onClose, onStatusChanged, showToast }) {
+function UnderwritingModal({ cot, productos = [], onClose, onStatusChanged, showToast }) {
   const panelRef = useRef(null)
   useModalLock(panelRef)
   const [evaluaciones, setEvaluaciones] = useState([])
   const [loading, setLoading] = useState(true)
+  const [docs, setDocs] = useState([])
+  const [loadingDocs, setLoadingDocs] = useState(true)
   const [form, setForm] = useState(freshUwForm())
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
@@ -1643,6 +1671,42 @@ function UnderwritingModal({ cot, onClose, onStatusChanged, showToast }) {
   }, [cot.id])
 
   useEffect(() => { load() }, [load])
+
+  // Documentos del cliente asociados a la cotización/emisión
+  useEffect(() => {
+    if (!cot.persona_id) { setDocs([]); setLoadingDocs(false); return }
+    let alive = true
+    setLoadingDocs(true)
+    fetchDocumentosCliente(cot.persona_id)
+      .then(d => { if (alive) setDocs(Array.isArray(d) ? d : []) })
+      .catch(() => { if (alive) setDocs([]) })
+      .finally(() => { if (alive) setLoadingDocs(false) })
+    return () => { alive = false }
+  }, [cot.persona_id])
+
+  // Requerimientos del producto: snapshot de la cotización o catálogo de productos
+  const required = useMemo(() => {
+    const fromSnap = cot.coberturas?.documentos_requeridos
+    const fromProd = productos.find(p => p.id === cot.producto_id)?.documentos_requeridos
+    return (fromSnap?.length ? fromSnap : fromProd) || []
+  }, [cot.coberturas, cot.producto_id, productos])
+
+  const uploadedByName = useMemo(
+    () => new Map(docs.map(d => [String(d.nombre).toLowerCase(), d])),
+    [docs]
+  )
+  const requiredNames = useMemo(
+    () => new Set(required.map(r => String(r.nombre).toLowerCase())),
+    [required]
+  )
+  const missingObligatory = required.filter(
+    r => r.obligatorio && !uploadedByName.has(String(r.nombre).toLowerCase())
+  )
+  const presentReqCount = required.filter(
+    r => uploadedByName.has(String(r.nombre).toLowerCase())
+  ).length
+  const extraDocs = docs.filter(d => !requiredNames.has(String(d.nombre).toLowerCase()))
+  const riesgo = uwRiskLabel(form.score)
 
   const handleSubmit = async () => {
     if (!form.resultado || form.resultado === 'pendiente') {
@@ -1672,7 +1736,7 @@ function UnderwritingModal({ cot, onClose, onStatusChanged, showToast }) {
 
   return (
     <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
-      <div ref={panelRef} tabIndex={-1} className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in duration-200 outline-none">
+      <div ref={panelRef} tabIndex={-1} className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in duration-200 outline-none">
 
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
@@ -1693,50 +1757,84 @@ function UnderwritingModal({ cot, onClose, onStatusChanged, showToast }) {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-[1fr_320px] divide-y md:divide-y-0 md:divide-x divide-slate-100">
+        <div className="flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-[1fr_340px] divide-y md:divide-y-0 md:divide-x divide-slate-100">
 
           {/* Izquierda: formulario nueva evaluación */}
-          <div className="p-6 space-y-4">
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nueva evaluación</p>
+          <div className="p-6 space-y-5">
+            <div className="flex items-center gap-2">
+              <span className="w-7 h-7 rounded-xl bg-jm-blue/10 text-jm-blue flex items-center justify-center shrink-0">
+                <ClipboardList className="w-3.5 h-3.5" />
+              </span>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nueva evaluación</p>
+            </div>
 
-            {err && <p className="text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2">{err}</p>}
+            {err && (
+              <p className="flex items-start gap-2 text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />{err}
+              </p>
+            )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="sm:col-span-2">
-                <label className="field-label">Resultado <span className="text-rose-500">*</span></label>
-                <select className="select-field" value={form.resultado} onChange={e => setF('resultado', e.target.value)}>
-                  <option value="pendiente">— Pendiente (sin resultado) —</option>
-                  <option value="observado">Observado — requiere más info</option>
-                  <option value="aprobado">Aprobado — cotización queda aprobada</option>
-                  <option value="rechazado">Rechazado — cotización queda rechazada</option>
-                </select>
+            {/* Resultado — tarjetas seleccionables */}
+            <div>
+              <label className="field-label">Resultado <span className="text-rose-500">*</span></label>
+              <div className="grid grid-cols-3 gap-2">
+                {UW_RESULTADO_OPTS.map(o => {
+                  const active = form.resultado === o.value
+                  const Icon = o.icon
+                  return (
+                    <button
+                      type="button" key={o.value} onClick={() => setF('resultado', o.value)}
+                      className={`flex flex-col items-center gap-1 px-2 py-3 rounded-2xl border-2 text-center transition ${active ? o.active : `bg-white ${o.base}`}`}
+                    >
+                      <Icon className={`w-5 h-5 ${active ? o.iconCls : 'text-slate-300'}`} />
+                      <span className="text-xs font-bold text-slate-700">{o.label}</span>
+                      <span className="text-[10px] text-slate-400 leading-tight">{o.desc}</span>
+                    </button>
+                  )
+                })}
               </div>
+            </div>
+
+            {/* Score + inspección */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="field-label">Score de riesgo (0–100)</label>
                 <input type="number" min="0" max="100" step="1" className="input-field"
                   placeholder="—" value={form.score}
                   onChange={e => setF('score', e.target.value)} />
+                {riesgo && <p className={`text-[10px] font-bold mt-1 ${riesgo.c}`}>{riesgo.t}</p>}
               </div>
-              <div className="flex items-center gap-2 self-end pb-1">
-                <input type="checkbox" id="uw_insp" checked={form.requiere_inspeccion}
-                  onChange={e => setF('requiere_inspeccion', e.target.checked)} className="w-4 h-4 accent-jm-blue" />
-                <label htmlFor="uw_insp" className="text-sm text-slate-700 cursor-pointer">Requiere inspección</label>
-              </div>
-              <div className="col-span-2">
-                <label className="field-label">Observaciones</label>
-                <textarea className="input-field resize-none text-sm" rows={3}
-                  placeholder="Notas del evaluador…"
-                  value={form.observaciones} onChange={e => setF('observaciones', e.target.value)} />
-              </div>
-              {form.resultado === 'rechazado' && (
-                <div className="col-span-2">
-                  <label className="field-label">Motivo de rechazo <span className="text-rose-500">*</span></label>
-                  <textarea className="input-field resize-none text-sm border-rose-200 focus:ring-rose-300" rows={2}
-                    placeholder="Motivo formal del rechazo…"
-                    value={form.motivo_rechazo} onChange={e => setF('motivo_rechazo', e.target.value)} />
-                </div>
-              )}
+              <button
+                type="button"
+                onClick={() => setF('requiere_inspeccion', !form.requiere_inspeccion)}
+                className={`flex items-center gap-2.5 p-3 rounded-2xl border-2 transition text-left self-start ${form.requiere_inspeccion ? 'border-orange-300 bg-orange-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+              >
+                <span className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${form.requiere_inspeccion ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-400'}`}>
+                  <Search className="w-4 h-4" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-xs font-bold text-slate-700">Requiere inspección</span>
+                  <span className="block text-[10px] text-slate-400">{form.requiere_inspeccion ? 'Sí, agendar inspección' : 'No es necesaria'}</span>
+                </span>
+              </button>
             </div>
+
+            {/* Observaciones */}
+            <div>
+              <label className="field-label">Observaciones</label>
+              <textarea className="input-field resize-none text-sm normal-case" rows={3}
+                placeholder="Notas del evaluador…"
+                value={form.observaciones} onChange={e => setF('observaciones', e.target.value)} />
+            </div>
+
+            {form.resultado === 'rechazado' && (
+              <div>
+                <label className="field-label">Motivo de rechazo <span className="text-rose-500">*</span></label>
+                <textarea className="input-field resize-none text-sm normal-case border-rose-200 focus:ring-rose-300" rows={2}
+                  placeholder="Motivo formal del rechazo…"
+                  value={form.motivo_rechazo} onChange={e => setF('motivo_rechazo', e.target.value)} />
+              </div>
+            )}
 
             {(form.resultado === 'aprobado' || form.resultado === 'rechazado') && (
               <div className={`flex items-start gap-2 p-3 rounded-xl text-xs border ${form.resultado === 'aprobado' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'}`}>
@@ -1747,13 +1845,123 @@ function UnderwritingModal({ cot, onClose, onStatusChanged, showToast }) {
               </div>
             )}
 
+            {/* Aviso de documentos obligatorios pendientes, junto a la acción */}
+            {!loadingDocs && missingObligatory.length > 0 && (
+              <div className="flex items-start gap-2 p-3 rounded-xl text-xs border bg-amber-50 border-amber-200 text-amber-700">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                <span>
+                  Faltan <strong>{missingObligatory.length}</strong> documento{missingObligatory.length !== 1 ? 's' : ''} obligatorio{missingObligatory.length !== 1 ? 's' : ''} del cliente
+                  {form.resultado === 'aprobado' ? ' — revísalos antes de aprobar.' : '.'}
+                </span>
+              </div>
+            )}
+
             <button onClick={handleSubmit} disabled={saving} className="btn-primary w-full justify-center disabled:opacity-50">
               {saving ? 'Guardando…' : <><ClipboardList className="w-4 h-4" /> Registrar evaluación</>}
             </button>
           </div>
 
-          {/* Derecha: historial */}
-          <div className="p-6">
+          {/* Derecha: documentos de la emisión + historial */}
+          <div className="p-6 space-y-6">
+
+            {/* Documentos asociados al cliente / emisión */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-1.5">
+                  <FolderOpen className="w-3.5 h-3.5 text-slate-400" />
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Documentos</p>
+                </div>
+                {required.length > 0 && (
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${missingObligatory.length ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-700'}`}>
+                    {presentReqCount}/{required.length}
+                  </span>
+                )}
+              </div>
+
+              {loadingDocs ? (
+                <div className="flex justify-center py-6">
+                  <div className="w-5 h-5 border-2 border-slate-300 border-t-jm-blue rounded-full animate-spin" />
+                </div>
+              ) : !cot.persona_id ? (
+                <div className="text-center py-6 text-slate-400">
+                  <FolderOpen className="w-7 h-7 mx-auto mb-2 opacity-30" />
+                  <p className="text-xs">Cliente no registrado — sin documentos asociados.</p>
+                </div>
+              ) : required.length === 0 && docs.length === 0 ? (
+                <div className="text-center py-6 text-slate-400">
+                  <FileText className="w-7 h-7 mx-auto mb-2 opacity-30" />
+                  <p className="text-xs">Este producto no exige documentos.</p>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {/* Resumen de faltantes */}
+                  {missingObligatory.length > 0 ? (
+                    <div className="flex items-start gap-2 p-2.5 rounded-xl bg-rose-50 border border-rose-200">
+                      <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0 mt-0.5" />
+                      <p className="text-[11px] font-semibold text-rose-700 leading-snug">
+                        {missingObligatory.length} obligatorio{missingObligatory.length !== 1 ? 's' : ''} pendiente{missingObligatory.length !== 1 ? 's' : ''}: {missingObligatory.map(d => d.nombre).join(' · ')}
+                      </p>
+                    </div>
+                  ) : required.length > 0 ? (
+                    <div className="flex items-center gap-2 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200">
+                      <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                      <p className="text-[11px] font-semibold text-emerald-700">Documentación obligatoria completa.</p>
+                    </div>
+                  ) : null}
+
+                  {/* Checklist de documentos requeridos */}
+                  {required.map(r => {
+                    const up = uploadedByName.get(String(r.nombre).toLowerCase())
+                    const present = !!up
+                    return (
+                      <div key={r.nombre} className={`flex items-center gap-2 px-2.5 py-2 rounded-xl border ${present ? 'bg-emerald-50/60 border-emerald-100' : r.obligatorio ? 'bg-rose-50/60 border-rose-100' : 'bg-slate-50 border-slate-100'}`}>
+                        {present
+                          ? <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                          : r.obligatorio
+                            ? <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                            : <Clock className="w-4 h-4 text-slate-300 shrink-0" />}
+                        <span className={`flex-1 min-w-0 text-[11px] font-medium truncate ${present ? 'text-emerald-700' : r.obligatorio ? 'text-rose-700' : 'text-slate-500'}`}>
+                          {r.nombre}
+                          {r.obligatorio && <span className="text-[8px] font-bold ml-1 align-middle opacity-60">OBL</span>}
+                        </span>
+                        {present ? (
+                          <a href={up.url} target="_blank" rel="noopener noreferrer" title="Ver documento"
+                            className="p-1.5 rounded-lg text-indigo-500 hover:bg-indigo-50 transition shrink-0">
+                            <Eye className="w-3.5 h-3.5" />
+                          </a>
+                        ) : (
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 whitespace-nowrap ${r.obligatorio ? 'bg-rose-100 text-rose-600' : 'bg-slate-100 text-slate-400'}`}>
+                            {r.obligatorio ? 'Falta' : 'Opcional'}
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })}
+
+                  {/* Otros documentos cargados (no exigidos por el producto) */}
+                  {extraDocs.length > 0 && (
+                    <div className="pt-1">
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Otros cargados</p>
+                      <div className="space-y-1.5">
+                        {extraDocs.map(d => (
+                          <div key={d.id} className="flex items-center gap-2 px-2.5 py-2 rounded-xl border border-slate-100 bg-slate-50">
+                            <FileText className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span className="flex-1 min-w-0 text-[11px] font-medium text-slate-600 truncate">{d.nombre}</span>
+                            <a href={d.url} target="_blank" rel="noopener noreferrer" title="Ver documento"
+                              className="p-1.5 rounded-lg text-indigo-500 hover:bg-indigo-50 transition shrink-0">
+                              <Eye className="w-3.5 h-3.5" />
+                            </a>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Historial de evaluaciones */}
+            <div className="pt-5 border-t border-slate-100">
             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">
               Historial ({evaluaciones.length})
             </p>
@@ -1796,6 +2004,7 @@ function UnderwritingModal({ cot, onClose, onStatusChanged, showToast }) {
                 ))}
               </div>
             )}
+            </div>
           </div>
         </div>
       </div>
@@ -2186,6 +2395,7 @@ export default function Simulador() {
       {uwModal && (
         <UnderwritingModal
           cot={uwModal}
+          productos={productos}
           onClose={() => setUwModal(null)}
           onStatusChanged={() => { loadData(); setUwModal(null) }}
           showToast={showToast}
