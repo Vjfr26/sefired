@@ -1553,7 +1553,9 @@ function TabUsuariosMetrics() {
         fecha_fin: fechaFin,
         search: search
       })
-      setRows(data || [])
+      // El backend devuelve un objeto de detalle (no una lista) cuando el
+      // usuario no tiene view_metrics_personal_todos; nunca debe entrar a rows.
+      setRows(Array.isArray(data) ? data : [])
     } catch (err) {
       showToast('Error al cargar métricas de personal', 'error')
     } finally {
@@ -1587,10 +1589,14 @@ function TabUsuariosMetrics() {
   useEffect(() => {
     if (selectedUser) {
       loadUserDetail(selectedUser)
-    } else {
+    } else if (canViewTodos) {
+      // Solo quien ve todos carga el listado. Sin ese permiso, el efecto de
+      // arriba fija selectedUser = su propio id y se carga el detalle — el
+      // backend devuelve el DETALLE (no una lista) y romper aquí causaba el
+      // crash de la sección al entrar como vendedor.
       loadData()
     }
-  }, [fechaInicio, fechaFin, selectedUser])
+  }, [fechaInicio, fechaFin, selectedUser, canViewTodos])
 
   const handleSearchSubmit = (e) => {
     e?.preventDefault()
