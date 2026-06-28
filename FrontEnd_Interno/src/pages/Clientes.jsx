@@ -26,7 +26,7 @@ import { rsbadge } from '../utils/helpers.jsx'
 import SearchBar from '../components/SearchBar.jsx'
 import DataTable from '../components/DataTable.jsx'
 import { SkeletonStatCards } from '../components/Skeleton.jsx'
-import { fetchClientes, createCliente, updateCliente, deleteCliente, toggleCliente } from '../api/clientes.js'
+import { fetchClientes, createCliente, updateCliente, deleteCliente, toggleCliente, reasignarVendedorCliente } from '../api/clientes.js'
 
 // Convierte el ID numérico del backend al formato visual "CLI-0001"
 const fmtId = id => 'CLI-' + String(id).padStart(4, '0')
@@ -147,7 +147,6 @@ export default function Clientes() {
   const canViewPolizas    = canAct('clientes', 'view_polizas')
   const canViewFacturas   = canAct('clientes', 'view_facturas')
   const canViewDocs       = canAct('clientes', 'view_docs')
-  const canReasignar      = canAct('clientes', 'reasignar')
   const canViewCards      = canAct('clientes', 'view_cards')
   const canViewList       = canAct('clientes', 'view_list')
 
@@ -228,14 +227,22 @@ export default function Clientes() {
           tienePoliza && canViewFacturas && { icon: Receipt, label: 'Ver recibos', color: 'amber', onClick: () => showModal('clienteFacturas', { c }) },
           canEditClientes && { icon: Pencil, label: 'Editar datos', color: 'blue', onClick: () => showModal('clienteForm', {
             cliente: c,
-            onSave: async (data) => { await updateCliente(c.id, data); await loadClientes() },
+            // Se actualizan los datos y, si el vendedor cambió (y hay permiso),
+            // se reasigna después — en ese orden, para no perder acceso al
+            // cliente antes de guardar cuando un vendedor lo reasigna a otro.
+            onSave: async (data, vendedorId) => {
+              await updateCliente(c.id, data)
+              if (vendedorId != null && vendedorId !== '' && Number(vendedorId) !== Number(c.vendedor_id)) {
+                await reasignarVendedorCliente(c.id, Number(vendedorId))
+              }
+              await loadClientes()
+            },
           }) },
           canBlockCliente && { icon: isBlocked ? LockOpen : Lock, label: isBlocked ? 'Activar cliente' : 'Desactivar cliente', color: isBlocked ? 'teal' : 'orange', onClick: () => showModal('blockCliente', {
             nom: c.nom,
             activo: c.activo,
             onConfirm: async (motivo) => { await toggleCliente(c.id, motivo); await loadClientes() },
           }) },
-          canReasignar && { icon: UserCheck, label: 'Reasignar vendedor', color: 'indigo', onClick: () => showModal('reasignarVendedor', { c, onSaved: loadClientes }) },
           canDeleteClientes && { icon: Trash2, label: 'Eliminar cliente', color: 'rose', onClick: () => showModal('confirmDelete', {
             name: c.nom,
             onConfirm: async () => { await deleteCliente(c.id); await loadClientes() },

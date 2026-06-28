@@ -41,7 +41,7 @@ import { fmtMonto, fmtTasa, convertirMoneda, PERMISOS_POR_ROL, getEffectivePerms
 import { TIPOS_PRODUCTO, TIPOS_CALCULO, tipoBadge } from '../utils/productos.jsx'
 import { storeUsuario, updateUsuario, verifyPassword, fetchVendedoresDisponibles } from '../api/usuarios.js'
 import { uploadDocumentoProducto, deleteDocumentoProducto } from '../api/productos.js'
-import { fetchPolizasCliente, fetchFacturasCliente, fetchSolicitudesCliente, reasignarVendedorCliente } from '../api/clientes.js'
+import { fetchPolizasCliente, fetchFacturasCliente, fetchSolicitudesCliente } from '../api/clientes.js'
 import { fetchDocumentosCliente, uploadDocumentoCliente, deleteDocumentoCliente } from '../api/clienteDocumentos.js'
 import { fetchProductos } from '../api/productos.js'
 import { updatePoliza, renovarPoliza, downloadPolizaPdf, fetchBeneficiarios, createBeneficiario, updateBeneficiario, deleteBeneficiario, fetchBienesPoliza, agregarBienPoliza, quitarBienPoliza, fetchCuotas, pagarCuota } from '../api/polizas.js'
@@ -3641,62 +3641,6 @@ function PolizaBienesModal({ poliza, personaId, onClose }) {
   )
 }
 
-// ── Reasignar vendedor de un cliente ─────────────────────────────────────────
-function ReasignarVendedorModal({ c, onSaved }) {
-  const { closeModal, showToast } = useApp()
-  const [vendedores, setVendedores] = useState([])
-  const [sel,     setSel]     = useState('')
-  const [loading, setLoading] = useState(true)
-  const [saving,  setSaving]  = useState(false)
-
-  useEffect(() => {
-    fetchVendedoresDisponibles()
-      .then(v => setVendedores(v))
-      .catch(e => showToast(e.message, 'error'))
-      .finally(() => setLoading(false))
-  }, [])
-
-  const handleSave = async () => {
-    if (!sel) { showToast('Selecciona un vendedor', 'warning'); return }
-    setSaving(true)
-    try {
-      await reasignarVendedorCliente(c.id, Number(sel))
-      showToast('Vendedor reasignado correctamente', 'success')
-      onSaved?.()
-      closeModal()
-    } catch (e) { showToast(e.message, 'error') }
-    finally { setSaving(false) }
-  }
-
-  return (
-    <ModalShell title={`Reasignar vendedor — ${c.nom || c.nombre}`} footer={
-      <>
-        <button onClick={closeModal} className="btn-secondary">Cancelar</button>
-        <button onClick={handleSave} disabled={saving || loading} className="btn-primary disabled:opacity-50">
-          {saving ? 'Guardando…' : 'Reasignar'}
-        </button>
-      </>
-    }>
-      {loading ? (
-        <div className="flex items-center gap-2 py-8 text-slate-400 text-sm justify-center">
-          <div className="w-4 h-4 border-2 border-slate-300 border-t-blue-500 rounded-full animate-spin" /> Cargando vendedores…
-        </div>
-      ) : (
-        <div className="space-y-3">
-          <p className="text-sm text-slate-500">El cliente y sus datos pasarán a estar a cargo del vendedor que elijas.</p>
-          <div>
-            <label className="field-label">Nuevo vendedor <span className="text-rose-500">*</span></label>
-            <select className="select-field" value={sel} onChange={e => setSel(e.target.value)}>
-              <option value="">— Seleccionar vendedor —</option>
-              {vendedores.map(v => <option key={v.id} value={v.id}>{v.nombre} ({v.tipo})</option>)}
-            </select>
-          </div>
-        </div>
-      )}
-    </ModalShell>
-  )
-}
-
 // ── Cuotas mensuales de una póliza ───────────────────────────────────────────
 /**
  * Muestra el plan de 12 cuotas de una póliza mensual y permite al asesor
@@ -4881,8 +4825,11 @@ const CL_NACIONALIDAD = ['Venezolano/a', 'Extranjero/a']
 
 // ── Formulario de cliente (crear / editar) ────────────────────────────────────
 function ClienteFormModal({ cliente, onSave }) {
-  const { closeModal, showToast } = useApp()
+  const { closeModal, showToast, canAct } = useApp()
   const isNew = !cliente?.id
+  const canReasignar = canAct('clientes', 'reasignar')
+  const [vendedores, setVendedores] = useState([])
+  const [vendedorId, setVendedorId] = useState(cliente?.vendedor_id ?? '')
   const [form, setForm] = useState({
     nombre:        cliente?.nombre || '',
     cedula:        cliente?.cedula || cliente?.ci || '',
@@ -4903,6 +4850,12 @@ function ClienteFormModal({ cliente, onSave }) {
   const [saving, setSaving] = useState(false)
   const f = (k, filtro) => e => setForm(p => ({ ...p, [k]: filtro ? filtro(e.target.value) : e.target.value }))
 
+  // Vendedor asignado: editable solo al editar y con permiso de reasignar.
+  useEffect(() => {
+    if (!canReasignar || isNew) return
+    fetchVendedoresDisponibles().then(setVendedores).catch(() => {})
+  }, [canReasignar, isNew])
+
   const handleSave = async () => {
     if (!form.nombre.trim())    { showToast('El nombre es obligatorio', 'error'); return }
     if (!form.cedula.trim())    { showToast('La cédula / RIF es obligatoria', 'error'); return }
@@ -4912,7 +4865,8 @@ function ClienteFormModal({ cliente, onSave }) {
     if (!form.direccion.trim()) { showToast('La dirección es obligatoria', 'error'); return }
     setSaving(true)
     try {
-      await onSave(form)
+      // El 2º argumento (vendedor) solo se usa al editar; en crear se ignora.
+      await onSave(form, canReasignar && !isNew ? vendedorId : undefined)
       closeModal()
       showToast(isNew ? 'Cliente creado correctamente' : 'Cliente actualizado', 'success')
     } catch (err) {
@@ -5040,6 +4994,24 @@ function ClienteFormModal({ cliente, onSave }) {
               </div>
             </div>
           </div>
+
+          {canReasignar && !isNew && (
+            <div>
+              <SecHdr Icon={UserCheck}>Vendedor asignado</SecHdr>
+              <select
+                className="select-field"
+                value={vendedorId}
+                onChange={e => setVendedorId(e.target.value ? Number(e.target.value) : '')}
+              >
+                <option value="">— Sin asignar —</option>
+                {cliente?.vendedor_id && !vendedores.some(v => v.id === cliente.vendedor_id) && (
+                  <option value={cliente.vendedor_id}>{cliente.vendedor_nombre || `Vendedor #${cliente.vendedor_id}`}</option>
+                )}
+                {vendedores.map(v => <option key={v.id} value={v.id}>{v.nombre} ({v.tipo})</option>)}
+              </select>
+              <p className="text-[11px] text-slate-400 mt-1">Al cambiarlo, el cliente y sus datos pasan a ese vendedor.</p>
+            </div>
+          )}
         </div>
       </div>
     </ModalShell>
@@ -5083,7 +5055,6 @@ export default function Modal() {
     case 'polizaBeneficiarios':  return <PolizaBeneficiariosModal {...props} />
     case 'polizaBienes':         return <PolizaBienesModal {...props} />
     case 'polizaCuotas':         return <PolizaCuotasModal {...props} />
-    case 'reasignarVendedor':    return <ReasignarVendedorModal {...props} />
     case 'clienteSolicitudes':  return <ClienteSolicitudesModal {...props} />
     case 'clienteHistorial':      return <ClienteHistorialModal {...props} />
     case 'clienteDocumentos':     return <ClienteDocumentosPanel {...props} />
