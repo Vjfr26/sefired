@@ -484,6 +484,13 @@ class SolicitudController extends Controller
 
             $solicitud->update(['status' => 'emitida']);
 
+            // El cliente queda asociado al vendedor que emite, si aún no tenía
+            // uno (ej. un lead del portal sin asignar al que un vendedor le
+            // emite la póliza): así pasa a verlo en su lista de clientes.
+            if ($solicitud->persona && $solicitud->persona->vendedor_id === null) {
+                $solicitud->persona->update(['vendedor_id' => $solicitud->vendedor_id ?? auth()->id()]);
+            }
+
             // Registro de venta — un renglón por póliza emitida, para reportes
             // de comisiones/desempeño por vendedor y producto.
             Venta::create([
