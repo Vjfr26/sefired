@@ -180,6 +180,7 @@ function ComboField({ value, onChange, suggestions, placeholder, className = '' 
 function ProductoModal({ producto, productos = [], onClose, onSaved }) {
   const panelRef = useRef(null)
   useModalLock(panelRef)
+  const { showToast } = useApp()
   const isEdit  = !!producto?.id
   const [form, setForm] = useState({
     es_nuevo:              true,
@@ -298,6 +299,12 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
       let savedProducto
       if (isEdit) savedProducto = await updateProducto(producto.id, payload)
       else        savedProducto = await createProducto(payload)
+
+      // Si al cambiar la moneda se actualizaron cotizaciones por emitir, avisar.
+      const nCot = savedProducto?.cotizaciones_actualizadas || 0
+      if (isEdit && nCot > 0) {
+        showToast(`Moneda actualizada en ${nCot} cotización${nCot !== 1 ? 'es' : ''} por emitir`, 'success')
+      }
 
       // Crear la primera tarifa automáticamente a partir de lo capturado
       // arriba, para que el producto quede listo para cotizar sin un

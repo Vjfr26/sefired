@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\IndicadorEconomico;
 use App\Models\Producto;
+use App\Models\Solicitud;
 use App\Rules\NoInjectionChars;
 use App\Support\EnvioDocumentosProducto;
+use App\Support\Moneda;
 use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -125,7 +128,18 @@ class ProductoController extends Controller
         ]);
 
         $publicadoAnterior = $producto->publicado;
+        $monedaAnterior    = $producto->moneda;
         $producto->update($data);
+
+        // Si cambió la moneda del producto, propagarla a las cotizaciones
+        // (pólizas por emitir) que aún no se han emitido — así no quedan con la
+        // moneda vieja al momento de emitir. Las emitidas/rechazadas son
+        // terminales (snapshot definitivo) y no se tocan.
+        $cotizacionesActualizadas = 0;
+        if (array_key_exists('moneda', $data)
+            && Moneda::normalizar($monedaAnterior) !== Moneda::normalizar($data['moneda'])) {
+            $cotizacionesActualizadas = $this->propagarMonedaACotizaciones($producto, $data['moneda']);
+        }
 
         if (array_key_exists('publicado', $data) && (bool) $publicadoAnterior !== (bool) $data['publicado']) {
             $this->logActivity(
@@ -135,11 +149,64 @@ class ProductoController extends Controller
                 auth()->id()
             );
         } else {
-            $this->logActivity('Producto Actualizado', "Producto \"{$producto->nombre}\" actualizado", 'producto', auth()->id());
+            $detalle = "Producto \"{$producto->nombre}\" actualizado";
+            if ($cotizacionesActualizadas > 0) {
+                $detalle .= " — moneda {$monedaAnterior}→{$data['moneda']} propagada a {$cotizacionesActualizadas} cotización(es) por emitir";
+            }
+            $this->logActivity('Producto Actualizado', $detalle, 'producto', auth()->id());
         }
 
         // fresh() recarga el modelo de la base de datos para obtener los valores actualizados
-        return response()->json($this->row($producto->fresh()));
+        $resp = $this->row($producto->fresh());
+        $resp['cotizaciones_actualizadas'] = $cotizacionesActualizadas;
+        return response()->json($resp);
+    }
+
+    /**
+     * Propaga la nueva moneda del producto a sus cotizaciones por emitir.
+     *
+     * Solo se actualizan las solicitudes NO emitidas y NO rechazadas
+     * (en_revision, aprobado, pendiente). El monto en moneda nativa (total) se
+     * conserva tal cual — solo se reetiqueta la moneda, igual que la prima del
+     * producto, que tampoco cambia de número al cambiar su moneda. El total en
+     * bolívares (total_bs) sí se recalcula con la tasa BCV del día para que el
+     * equivalente mostrado quede coherente con la nueva moneda.
+     *
+     * @return int  Cantidad de cotizaciones actualizadas.
+     */
+    private function propagarMonedaACotizaciones(Producto $producto, string $monedaNueva): int
+    {
+        $moneda = Moneda::normalizar($monedaNueva);
+
+        // Tasas BCV del día para recalcular el equivalente en Bs.
+        $usd = (float) (IndicadorEconomico::usd()->orderByDesc('fecha')->orderByDesc('fecha_registro')->value('valor') ?? 0);
+        $eur = (float) (IndicadorEconomico::eur()->orderByDesc('fecha')->orderByDesc('fecha_registro')->value('valor') ?? 0);
+
+        $actualizadas = 0;
+
+        Solicitud::where('producto_id', $producto->id)
+            ->whereNotIn('status', ['emitida', 'rechazado'])
+            ->each(function (Solicitud $s) use ($moneda, $usd, $eur, &$actualizadas) {
+                $total   = (float) $s->total;
+                $totalBs = Moneda::aBs($total, $moneda, $usd, $eur);
+
+                // Mantener el snapshot de coberturas coherente con la nueva moneda.
+                $cobs = is_array($s->coberturas) ? $s->coberturas : [];
+                if (array_key_exists('moneda', $cobs))  $cobs['moneda']   = $moneda;
+                if (array_key_exists('total_bs', $cobs)) $cobs['total_bs'] = $totalBs;
+                if (array_key_exists('tasaBCV', $cobs)) {
+                    $cobs['tasaBCV'] = $moneda === 'EUR' ? $eur : ($moneda === 'USD' ? $usd : 0);
+                }
+
+                $s->update([
+                    'moneda_producto' => $moneda,
+                    'total_bs'        => $totalBs,
+                    'coberturas'      => $cobs,
+                ]);
+                $actualizadas++;
+            });
+
+        return $actualizadas;
     }
 
     /**
