@@ -46,7 +46,7 @@
 
 <table width="100%" cellpadding="0" cellspacing="0">
   <tr><td align="center">
-    <a href="https://wa.me/584148299562?text=Hola%2C%20me%20comunico%20desde%20J%26M%20Seguros."
+    <a href="https://wa.me/584148299562?text=Hola%2C%20me%20comunico%20desde%20La%20Venezolana."
        style="display:inline-block;background:#25d366;color:#fff;font-size:14px;font-weight:700;
               padding:12px 32px;border-radius:8px;text-decoration:none;">
       Contactar por WhatsApp
