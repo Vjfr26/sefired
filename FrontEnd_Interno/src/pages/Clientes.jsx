@@ -91,6 +91,8 @@ export default function Clientes() {
   const { showModal, showToast, canAct } = useApp()
   const [search, setSearch]     = useState('')
   const [soloDocsPend, setSoloDocsPend] = useState(false) // filtrar solo con documentos obligatorios pendientes
+  const [cardFilter, setCardFilter] = useState(null) // null | 'activos' | 'conPoliza' | 'sinPoliza' — filtro al hacer clic en una tarjeta
+  const toggleCard = (f) => setCardFilter(prev => prev === f ? null : f)
   const [clients, setClients]   = useState([])
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState(null)
@@ -117,8 +119,12 @@ export default function Clientes() {
 
   // ── Filtrado local ────────────────────────────────────────────────────────
   // La búsqueda trabaja sobre los datos ya cargados en memoria, sin peticiones adicionales
+  const tienePoliza = (c) => c.prima && c.prima !== '—'
   const filtered = clients.filter(c => {
     if (soloDocsPend && !c.documentos_faltantes) return false
+    if (cardFilter === 'activos'   && c.est !== 'Activo') return false
+    if (cardFilter === 'conPoliza' && !tienePoliza(c)) return false
+    if (cardFilter === 'sinPoliza' &&  tienePoliza(c)) return false
     if (search) {
       const q = search.toLowerCase()
       return c.nom.toLowerCase().includes(q) || c.ci.toLowerCase().includes(q) || c.email.toLowerCase().includes(q)
@@ -128,7 +134,7 @@ export default function Clientes() {
 
   // ── Estadísticas para los cards ───────────────────────────────────────────
   const activos    = clients.filter(c => c.est === 'Activo').length
-  const conPoliza  = clients.filter(c => c.prima && c.prima !== '—').length
+  const conPoliza  = clients.filter(tienePoliza).length
   const docsPendientes = clients.filter(c => c.documentos_faltantes).length
 
   // ── Transformación de datos para la tabla ─────────────────────────────────
@@ -276,7 +282,12 @@ export default function Clientes() {
     <div className="animate-in fade-in duration-500">
       {/* ── Cards de resumen ── */}
       {canViewCards && (loading ? <SkeletonStatCards count={4} /> : <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div className="card p-4 flex items-start gap-3">
+        <button
+          type="button"
+          onClick={() => setCardFilter(null)}
+          title="Ver todos los clientes"
+          className={`card p-4 flex items-start gap-3 text-left w-full transition hover:shadow-md ${cardFilter === null ? 'ring-2 ring-slate-300' : ''}`}
+        >
           <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
             <Users className="w-4 h-4 text-slate-600" />
           </div>
@@ -285,8 +296,13 @@ export default function Clientes() {
             <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{clients.length}</p>
             <p className="text-xs text-slate-400 mt-1 truncate">Registrados en el sistema</p>
           </div>
-        </div>
-        <div className="card p-4 flex items-start gap-3">
+        </button>
+        <button
+          type="button"
+          onClick={() => toggleCard('activos')}
+          title="Filtrar solo clientes activos"
+          className={`card p-4 flex items-start gap-3 text-left w-full transition hover:shadow-md ${cardFilter === 'activos' ? 'ring-2 ring-emerald-400' : ''}`}
+        >
           <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
             <UserCheck className="w-4 h-4 text-emerald-600" />
           </div>
@@ -295,8 +311,13 @@ export default function Clientes() {
             <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{activos}</p>
             <p className="text-xs text-slate-400 mt-1">Con póliza vigente</p>
           </div>
-        </div>
-        <div className="card p-4 flex items-start gap-3">
+        </button>
+        <button
+          type="button"
+          onClick={() => toggleCard('conPoliza')}
+          title="Filtrar solo clientes con póliza"
+          className={`card p-4 flex items-start gap-3 text-left w-full transition hover:shadow-md ${cardFilter === 'conPoliza' ? 'ring-2 ring-indigo-400' : ''}`}
+        >
           <div className="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
             <ShieldCheck className="w-4 h-4 text-indigo-600" />
           </div>
@@ -305,8 +326,13 @@ export default function Clientes() {
             <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{conPoliza}</p>
             <p className="text-xs text-slate-400 mt-1">Seguros vigentes</p>
           </div>
-        </div>
-        <div className="card p-4 flex items-start gap-3">
+        </button>
+        <button
+          type="button"
+          onClick={() => toggleCard('sinPoliza')}
+          title="Filtrar solo clientes sin póliza"
+          className={`card p-4 flex items-start gap-3 text-left w-full transition hover:shadow-md ${cardFilter === 'sinPoliza' ? 'ring-2 ring-rose-400' : ''}`}
+        >
           <div className="w-9 h-9 rounded-xl bg-rose-100 flex items-center justify-center shrink-0">
             <UserX className="w-4 h-4 text-rose-600" />
           </div>
@@ -315,7 +341,7 @@ export default function Clientes() {
             <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{clients.length - conPoliza}</p>
             <p className="text-xs text-slate-400 mt-1">Sin cobertura</p>
           </div>
-        </div>
+        </button>
       </div>)}
 
       <SearchBar
