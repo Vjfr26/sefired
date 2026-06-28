@@ -3,6 +3,7 @@ import {
   Pencil, Plus, Trash2, Shield, ShieldCheck, TrendingUp, DollarSign, Eye,
   Euro, Banknote, ChevronDown, FileText, Settings, ListChecks, X, Check,
   Car, Package, Users, AlertCircle, Globe, EyeOff,
+  Sparkles, GitBranch, Lock, Percent, Calendar,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { usd, fmtMonto, fmtMontoAbrev, convertirMoneda, useModalLock } from '../utils/helpers.jsx'
@@ -129,6 +130,41 @@ const ProdSecHdr = ({ Icon, children }) => (
     )}
     <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest leading-none">{children}</span>
     <div className="flex-1 h-px bg-slate-100" />
+  </div>
+)
+
+// Interruptor on/off accesible — reemplaza los checkboxes del formulario de póliza.
+const Switch = ({ checked, onChange }) => (
+  <button
+    type="button" role="switch" aria-checked={checked}
+    onClick={() => onChange(!checked)}
+    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors outline-none focus-visible:ring-2 focus-visible:ring-jm-blue/40 ${checked ? 'bg-jm-blue' : 'bg-slate-300'}`}
+  >
+    <span className={`inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-[22px]' : 'translate-x-1'}`} />
+  </button>
+)
+
+// Tarjeta de opción con interruptor: icono + título + switch, descripción y un
+// contenido condicional que aparece con transición cuando la opción está activa.
+const ToggleCard = ({ Icon, title, desc, checked, onChange, children }) => (
+  <div className={`rounded-2xl border-2 p-3.5 transition-colors ${checked ? 'border-jm-blue/30 bg-blue-50/40' : 'border-slate-200 bg-white'}`}>
+    <div className="flex items-start gap-3">
+      <span className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${checked ? 'bg-jm-blue text-white' : 'bg-slate-100 text-slate-400'}`}>
+        <Icon className="w-4 h-4" />
+      </span>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs font-bold text-slate-700">{title}</p>
+          <Switch checked={checked} onChange={onChange} />
+        </div>
+        <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">{desc}</p>
+      </div>
+    </div>
+    {checked && children && (
+      <div className="mt-3 pl-12 animate-in fade-in slide-in-from-top-1 duration-200">
+        {children}
+      </div>
+    )}
   </div>
 )
 
@@ -363,23 +399,28 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
               <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-3">¿Qué tipo de póliza es?</p>
               <div className="flex gap-3">
                 {[
-                  { val: true,  label: '✦ Nuevo tipo de póliza', desc: 'Primera póliza de este ramo / categoría' },
-                  { val: false, label: '↳ Variante de tipo existente', desc: 'Versión diferente de un ramo ya registrado' },
-                ].map(opt => (
-                  <button
-                    key={String(opt.val)}
-                    type="button"
-                    onClick={() => set('es_nuevo', opt.val)}
-                    className={`flex-1 text-left p-3 rounded-xl border-2 transition-all ${
-                      form.es_nuevo === opt.val
-                        ? 'border-jm-blue bg-blue-50'
-                        : 'border-slate-200 hover:border-slate-300'
-                    }`}
-                  >
-                    <p className={`text-xs font-bold ${form.es_nuevo === opt.val ? 'text-jm-blue' : 'text-slate-700'}`}>{opt.label}</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">{opt.desc}</p>
-                  </button>
-                ))}
+                  { val: true,  Icon: Sparkles,  label: 'Nuevo tipo de póliza', desc: 'Primera póliza de este ramo / categoría' },
+                  { val: false, Icon: GitBranch, label: 'Variante de tipo existente', desc: 'Versión diferente de un ramo ya registrado' },
+                ].map(opt => {
+                  const on = form.es_nuevo === opt.val
+                  return (
+                    <button
+                      key={String(opt.val)}
+                      type="button"
+                      onClick={() => set('es_nuevo', opt.val)}
+                      className={`relative flex-1 text-left p-3 rounded-xl border-2 transition-all ${
+                        on ? 'border-jm-blue bg-blue-50' : 'border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      {on && <Check className="w-3.5 h-3.5 text-jm-blue absolute top-2.5 right-2.5" />}
+                      <span className={`w-7 h-7 rounded-lg flex items-center justify-center mb-1.5 transition-colors ${on ? 'bg-jm-blue text-white' : 'bg-slate-100 text-slate-400'}`}>
+                        <opt.Icon className="w-4 h-4" />
+                      </span>
+                      <p className={`text-xs font-bold ${on ? 'text-jm-blue' : 'text-slate-700'}`}>{opt.label}</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">{opt.desc}</p>
+                    </button>
+                  )
+                })}
               </div>
               {!form.es_nuevo && (
                 <div className="mt-3">
@@ -423,12 +464,17 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
                   <input className={inp('nombre')} value={form.nombre} onChange={e => set('nombre', e.target.value)} placeholder="Ej. RCV Particular Privado" />
                   {errors.nombre && <p className="text-[10px] text-rose-500 mt-0.5">{errors.nombre}</p>}
                 </div>
-                <div className="col-span-2 flex items-center gap-2 -mt-1">
-                  <input type="checkbox" id="prod_publicado" checked={form.publicado} onChange={e => set('publicado', e.target.checked)} className="w-4 h-4 accent-jm-blue" />
-                  <label htmlFor="prod_publicado" className="text-xs text-slate-600 cursor-pointer">
-                    Publicado en el cotizador público
-                    <span className="block text-[10px] text-slate-400">Si lo desactivas, este producto deja de mostrarse a los clientes pero sigue visible aquí.</span>
-                  </label>
+                <div className="col-span-2">
+                  <div className="flex items-center gap-3 p-2.5 rounded-xl border border-slate-200">
+                    <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${form.publicado ? 'bg-jm-blue text-white' : 'bg-slate-100 text-slate-400'}`}>
+                      <Globe className="w-4 h-4" />
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-slate-700">Publicado en el cotizador público</p>
+                      <p className="text-[10px] text-slate-400 leading-snug">Si lo desactivas, deja de mostrarse a los clientes pero sigue visible aquí.</p>
+                    </div>
+                    <Switch checked={form.publicado} onChange={v => set('publicado', v)} />
+                  </div>
                 </div>
                 <div>
                   <label className={lbl}>Código interno</label>
@@ -438,7 +484,7 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
                   <label className={lbl}>Ramo de seguro <span className="text-rose-500">*</span></label>
                   {!form.es_nuevo && !isEdit ? (
                     <div className="input-field text-sm bg-slate-50 text-slate-500 flex items-center gap-2 cursor-not-allowed">
-                      <span className="text-slate-400">🔒</span><span>{form.tipo || '—'}</span>
+                      <Lock className="w-3.5 h-3.5 text-slate-400 shrink-0" /><span>{form.tipo || '—'}</span>
                     </div>
                   ) : (
                     <>
@@ -454,7 +500,7 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
                   <label className={lbl}>Categoría <span className="text-rose-500">*</span></label>
                   {!form.es_nuevo && !isEdit ? (
                     <div className="input-field text-sm bg-slate-50 text-slate-500 flex items-center gap-2 cursor-not-allowed capitalize">
-                      <span className="text-slate-400">🔒</span><span>{form.categoria || '—'}</span>
+                      <Lock className="w-3.5 h-3.5 text-slate-400 shrink-0" /><span>{form.categoria || '—'}</span>
                     </div>
                   ) : (
                     <>
@@ -470,7 +516,7 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
                   <label className={lbl}>Tipo de bien <span className="text-rose-500">*</span></label>
                   {!form.es_nuevo && !isEdit ? (
                     <div className="input-field text-sm bg-slate-50 text-slate-500 flex items-center gap-2 cursor-not-allowed capitalize">
-                      <span className="text-slate-400">🔒</span><span>{form.tipo_bien || '—'}</span>
+                      <Lock className="w-3.5 h-3.5 text-slate-400 shrink-0" /><span>{form.tipo_bien || '—'}</span>
                     </div>
                   ) : (
                     <>
@@ -581,45 +627,41 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
           <section className="pt-4 border-t border-slate-100">
             <ProdSecHdr Icon={Package}>Bienes y beneficiarios de esta póliza</ProdSecHdr>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
-              <div className="p-3 rounded-xl border border-slate-200 space-y-2">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={form.permite_multiples_bienes} onChange={e => set('permite_multiples_bienes', e.target.checked)} className="w-4 h-4 accent-jm-blue" />
-                  <span className="text-xs font-semibold text-slate-700">¿Permite cubrir varios bienes?</span>
-                </label>
-                <p className="text-[10px] text-slate-400">Ej. una póliza de flota que cubre varios vehículos bajo el mismo contrato.</p>
-                {form.permite_multiples_bienes && (
+              <ToggleCard
+                Icon={Package}
+                title="¿Permite cubrir varios bienes?"
+                desc="Ej. una póliza de flota que cubre varios vehículos bajo el mismo contrato."
+                checked={form.permite_multiples_bienes}
+                onChange={v => set('permite_multiples_bienes', v)}
+              >
+                <label className={lbl}>Máximo de bienes (vacío = sin límite)</label>
+                <input type="number" min="1" className="input-field text-sm" value={form.max_bienes} onChange={e => set('max_bienes', e.target.value)} placeholder="Ej. 5" />
+              </ToggleCard>
+              <ToggleCard
+                Icon={Users}
+                title="¿Aplican beneficiarios?"
+                desc="Ej. vida o accidentes personales, donde se reparte una suma asegurada entre beneficiarios."
+                checked={form.aplica_beneficiarios}
+                onChange={v => set('aplica_beneficiarios', v)}
+              >
+                <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className={lbl}>Máximo de bienes (vacío = sin límite)</label>
-                    <input type="number" min="1" className="input-field text-sm" value={form.max_bienes} onChange={e => set('max_bienes', e.target.value)} placeholder="Ej. 5" />
+                    <label className={lbl}>Mínimo</label>
+                    <input type="number" min="0" className="input-field text-sm" value={form.min_beneficiarios} onChange={e => set('min_beneficiarios', e.target.value)} placeholder="—" />
                   </div>
-                )}
-              </div>
-              <div className="p-3 rounded-xl border border-slate-200 space-y-2">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={form.aplica_beneficiarios} onChange={e => set('aplica_beneficiarios', e.target.checked)} className="w-4 h-4 accent-jm-blue" />
-                  <span className="text-xs font-semibold text-slate-700">¿Aplican beneficiarios?</span>
-                </label>
-                <p className="text-[10px] text-slate-400">Ej. vida o accidentes personales, donde se reparte una suma asegurada entre beneficiarios.</p>
-                {form.aplica_beneficiarios && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className={lbl}>Mínimo</label>
-                      <input type="number" min="0" className="input-field text-sm" value={form.min_beneficiarios} onChange={e => set('min_beneficiarios', e.target.value)} placeholder="—" />
-                    </div>
-                    <div>
-                      <label className={lbl}>Máximo</label>
-                      <input type="number" min="0" className="input-field text-sm" value={form.max_beneficiarios} onChange={e => set('max_beneficiarios', e.target.value)} placeholder="—" />
-                    </div>
+                  <div>
+                    <label className={lbl}>Máximo</label>
+                    <input type="number" min="0" className="input-field text-sm" value={form.max_beneficiarios} onChange={e => set('max_beneficiarios', e.target.value)} placeholder="—" />
                   </div>
-                )}
-              </div>
-              <div className="p-3 rounded-xl border border-slate-200 space-y-2">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={form.lleva_certificado} onChange={e => set('lleva_certificado', e.target.checked)} className="w-4 h-4 accent-jm-blue" />
-                  <span className="text-xs font-semibold text-slate-700">¿Lleva certificado?</span>
-                </label>
-                <p className="text-[10px] text-slate-400">Pólizas colectivas (varios bienes o beneficiarios). Si no, el cuadro póliza muestra el número de recibo en vez del certificado.</p>
-              </div>
+                </div>
+              </ToggleCard>
+              <ToggleCard
+                Icon={FileText}
+                title="¿Lleva certificado?"
+                desc="Pólizas colectivas (varios bienes o beneficiarios). Si no, el cuadro póliza muestra el número de recibo en vez del certificado."
+                checked={form.lleva_certificado}
+                onChange={v => set('lleva_certificado', v)}
+              />
             </div>
           </section>
 
@@ -627,38 +669,32 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
           <section className="pt-4 border-t border-slate-100">
             <ProdSecHdr Icon={DollarSign}>Impuestos y forma de pago</ProdSecHdr>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
-              <div className="p-3 rounded-xl border border-slate-200 space-y-2">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={form.iva_aplica} onChange={e => set('iva_aplica', e.target.checked)} className="w-4 h-4 accent-jm-blue" />
-                  <span className="text-xs font-semibold text-slate-700">¿Aplica IVA?</span>
-                </label>
-                <p className="text-[10px] text-slate-400">Se calcula sobre la prima al cotizar y aparece desglosado en el documento de la póliza.</p>
-                {form.iva_aplica && (
-                  <div>
-                    <label className={lbl}>Porcentaje de IVA</label>
-                    <div className="relative">
-                      <input type="number" min="0" max="100" step="0.01" className="input-field text-sm pr-7" value={form.iva_porcentaje} onChange={e => set('iva_porcentaje', e.target.value)} placeholder="16.00" />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">%</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-              <div className="p-3 rounded-xl border border-slate-200 space-y-2">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={form.permite_mensualidades} onChange={e => set('permite_mensualidades', e.target.checked)} className="w-4 h-4 accent-jm-blue" />
-                  <span className="text-xs font-semibold text-slate-700">¿Admite pago mensual?</span>
-                </label>
-                <p className="text-[10px] text-slate-400">Si no indicas recargo, la mensualidad es la prima anual dividida en 12 partes iguales.</p>
-                {form.permite_mensualidades && (
-                  <div>
-                    <label className={lbl}>Recargo por financiamiento mensual (opcional)</label>
-                    <div className="relative">
-                      <input type="number" min="0" max="100" step="0.01" className="input-field text-sm pr-7" value={form.recargo_mensual_pct} onChange={e => set('recargo_mensual_pct', e.target.value)} placeholder="0.00" />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">%</span>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <ToggleCard
+                Icon={Percent}
+                title="¿Aplica IVA?"
+                desc="Se calcula sobre la prima al cotizar y aparece desglosado en el documento de la póliza."
+                checked={form.iva_aplica}
+                onChange={v => set('iva_aplica', v)}
+              >
+                <label className={lbl}>Porcentaje de IVA</label>
+                <div className="relative">
+                  <input type="number" min="0" max="100" step="0.01" className="input-field text-sm pr-7" value={form.iva_porcentaje} onChange={e => set('iva_porcentaje', e.target.value)} placeholder="16.00" />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">%</span>
+                </div>
+              </ToggleCard>
+              <ToggleCard
+                Icon={Calendar}
+                title="¿Admite pago mensual?"
+                desc="Si no indicas recargo, la mensualidad es la prima anual dividida en 12 partes iguales."
+                checked={form.permite_mensualidades}
+                onChange={v => set('permite_mensualidades', v)}
+              >
+                <label className={lbl}>Recargo por financiamiento mensual (opcional)</label>
+                <div className="relative">
+                  <input type="number" min="0" max="100" step="0.01" className="input-field text-sm pr-7" value={form.recargo_mensual_pct} onChange={e => set('recargo_mensual_pct', e.target.value)} placeholder="0.00" />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">%</span>
+                </div>
+              </ToggleCard>
             </div>
           </section>
 
