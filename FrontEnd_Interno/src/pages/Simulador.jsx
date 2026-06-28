@@ -28,6 +28,7 @@ import { fetchVehiculosCatalogo } from '../api/vehiculosCatalogo.js'
 import { fetchUnderwriting, createUnderwriting } from '../api/underwriting.js'
 import { fetchDocumentosCliente, uploadDocumentoCliente, deleteDocumentoCliente } from '../api/clienteDocumentos.js'
 import { BIEN_TIPO_PRESETS } from '../utils/bienPresets.js'
+import { ciudadesDe, TEL_VE_DEFAULT } from '../utils/venezuela.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const STATUS_BADGE = {
@@ -416,7 +417,7 @@ function Step2({ sim, setSim, onNext, onBack, onClose }) {
 
   const [nuevoForm, setNuevoForm] = useState({
     nombre: sim.nombre || '', ci: sim.ci?.replace(/^[VEJGP]-?/i, '') || '', ciPrefijo: sim.ci?.match(/^([VEJGP])-?/i)?.[1]?.toUpperCase() || 'V',
-    tel: sim.tel || '', email: sim.email || '',
+    tel: sim.tel || TEL_VE_DEFAULT, email: sim.email || '',
     direccion: sim.direccion || '', nacimiento: sim.nacimiento || '',
     sexo: sim.sexo || 'M',
     condicion: '', nacionalidad: 'Venezolano/a',
@@ -455,7 +456,10 @@ function Step2({ sim, setSim, onNext, onBack, onClose }) {
     if (!nuevoForm.ci.trim()) { setErr('La cédula / RIF es obligatoria.'); return }
     if (!nuevoForm.condicion) { setErr('La condición civil es obligatoria.'); return }
     if (!nuevoForm.email.trim()) { setErr('El correo electrónico es obligatorio.'); return }
+    if (!nuevoForm.tel.trim()) { setErr('El teléfono es obligatorio.'); return }
+    if (!nuevoForm.estado) { setErr('Selecciona el estado.'); return }
     if (!nuevoForm.ciudad.trim()) { setErr('La ciudad es obligatoria.'); return }
+    if (!nuevoForm.direccion.trim()) { setErr('La dirección es obligatoria.'); return }
     if (!nuevoForm.nacimiento) { setErr('La fecha de nacimiento es obligatoria.'); return }
     const cedulaCompleta = `${nuevoForm.ciPrefijo}-${nuevoForm.ci.replace(/\D/g, '')}`
     setSaving(true); setErr('')
@@ -621,8 +625,8 @@ function Step2({ sim, setSim, onNext, onBack, onClose }) {
               </select>
             </div>
             <div>
-              <label className={lbl}>Teléfono</label>
-              <input className={inp} value={nuevoForm.tel} onChange={e => setNf('tel', e.target.value)} placeholder="0414-1234567" />
+              <label className={lbl}>Teléfono <span className="text-rose-500">*</span></label>
+              <input className={inp} value={nuevoForm.tel} onChange={e => setNf('tel', filtrarTelefono(e.target.value))} placeholder="+58 414-1234567" />
             </div>
             <div className="col-span-2">
               <label className={lbl}>Correo <span className="text-rose-500">*</span></label>
@@ -636,10 +640,13 @@ function Step2({ sim, setSim, onNext, onBack, onClose }) {
             </div>
             <div>
               <label className={lbl}>Ciudad <span className="text-rose-500">*</span></label>
-              <input className={inp} value={nuevoForm.ciudad} onChange={e => setNf('ciudad', e.target.value)} placeholder="Caracas" />
+              <input className={inp} list="ciudades-sim" value={nuevoForm.ciudad} onChange={e => setNf('ciudad', e.target.value)} placeholder="Caracas" autoComplete="off" />
+              <datalist id="ciudades-sim">
+                {ciudadesDe(nuevoForm.estado).map(c => <option key={c} value={c} />)}
+              </datalist>
             </div>
             <div className="col-span-2 sm:col-span-3">
-              <label className={lbl}>Dirección</label>
+              <label className={lbl}>Dirección <span className="text-rose-500">*</span></label>
               <input className={inp} value={nuevoForm.direccion} onChange={e => setNf('direccion', e.target.value)} placeholder="Av. Libertador, Edif. Centro…" />
             </div>
           </div>
