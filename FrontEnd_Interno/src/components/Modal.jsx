@@ -3433,9 +3433,11 @@ function PolizaBienesModal({ poliza, personaId, onClose }) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-slate-800 truncate">{it.referencia}</p>
-                  <p className="text-[11px] text-slate-400 font-mono">
-                    Certificado {it.certificado}{it.es_original && <span className="text-slate-300"> (original)</span>}
-                  </p>
+                  {config.lleva_certificado && (
+                    <p className="text-[11px] text-slate-400 font-mono">
+                      Certificado {it.certificado}{it.es_original && <span className="text-slate-300"> (original)</span>}
+                    </p>
+                  )}
                 </div>
                 <button
                   onClick={() => handleQuitar(it)}

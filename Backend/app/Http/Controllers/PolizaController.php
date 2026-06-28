@@ -847,6 +847,7 @@ class PolizaController extends Controller
             'items'  => $bienes,
             'config' => [
                 'permite_multiples_bienes' => (bool) $producto?->permite_multiples_bienes,
+                'lleva_certificado'        => (bool) $producto?->lleva_certificado,
                 'max_bienes'               => $producto?->max_bienes,
                 'frecuencia_pago'          => $poliza->frecuencia_pago,
                 'moneda_nativa'            => $monedaNativa,
