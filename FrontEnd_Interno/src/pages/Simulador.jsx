@@ -415,7 +415,7 @@ function Step2({ sim, setSim, onNext, onBack, onClose }) {
   const [saving, setSaving] = useState(false)
 
   const [nuevoForm, setNuevoForm] = useState({
-    nombre: sim.nombre || '', ci: sim.ci?.replace(/^[VEJ]-?/i, '') || '', ciPrefijo: sim.ci?.match(/^([VEJ])-?/i)?.[1]?.toUpperCase() || 'V',
+    nombre: sim.nombre || '', ci: sim.ci?.replace(/^[VEJGP]-?/i, '') || '', ciPrefijo: sim.ci?.match(/^([VEJGP])-?/i)?.[1]?.toUpperCase() || 'V',
     tel: sim.tel || '', email: sim.email || '',
     direccion: sim.direccion || '', nacimiento: sim.nacimiento || '',
     sexo: sim.sexo || 'M',
@@ -587,10 +587,12 @@ function Step2({ sim, setSim, onNext, onBack, onClose }) {
                   <option value="V">V</option>
                   <option value="E">E</option>
                   <option value="J">J</option>
+                  <option value="G">G</option>
+                  <option value="P">P</option>
                 </select>
                 <input className={`${inp} font-mono flex-1`} value={nuevoForm.ci} onChange={e => setNf('ci', e.target.value.replace(/\D/g, ''))} placeholder="12345678" maxLength={10} />
               </div>
-              <p className="text-[10px] text-slate-400 mt-1">V=venezolano · E=extranjero · J=empresa</p>
+              <p className="text-[10px] text-slate-400 mt-1">V=venezolano · E=extranjero · J/G=empresa · P=pasaporte</p>
             </div>
             <div>
               <label className={lbl}>Sexo</label>

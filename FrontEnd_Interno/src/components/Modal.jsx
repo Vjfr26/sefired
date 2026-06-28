@@ -4850,6 +4850,13 @@ function ClienteFormModal({ cliente, onSave }) {
   const [saving, setSaving] = useState(false)
   const f = (k, filtro) => e => setForm(p => ({ ...p, [k]: filtro ? filtro(e.target.value) : e.target.value }))
 
+  // Cédula / RIF en dos partes: prefijo (V/E/J/G/P) + dígitos. Se combinan en
+  // form.cedula con formato 'V-12345678', evitando que el usuario teclee un
+  // formato inválido que el backend rechazaría (regla CedulaValida).
+  const ciPrefijo = (form.cedula.match(/^([VEJGP])/i)?.[1] || 'V').toUpperCase()
+  const ciNumero  = form.cedula.replace(/^[VEJGP]-?/i, '').replace(/\D/g, '')
+  const setCedula = (pref, num) => setForm(p => ({ ...p, cedula: `${pref}-${num}` }))
+
   // Vendedor asignado: editable solo al editar y con permiso de reasignar.
   useEffect(() => {
     if (!canReasignar || isNew) return
@@ -4859,6 +4866,7 @@ function ClienteFormModal({ cliente, onSave }) {
   const handleSave = async () => {
     if (!form.nombre.trim())    { showToast('El nombre es obligatorio', 'error'); return }
     if (!form.cedula.trim())    { showToast('La cédula / RIF es obligatoria', 'error'); return }
+    if (!/^[VEJGP]-?\d{6,9}(-?\d)?$/i.test(form.cedula.trim())) { showToast('Cédula / RIF inválida: debe tener 6 a 9 dígitos (ej. V-12345678).', 'error'); return }
     if (!form.correo.trim())    { showToast('El correo electrónico es obligatorio', 'error'); return }
     if (!form.estado)           { showToast('Selecciona el estado', 'error'); return }
     if (!form.ciudad.trim())    { showToast('La ciudad es obligatoria', 'error'); return }
@@ -4906,7 +4914,17 @@ function ClienteFormModal({ cliente, onSave }) {
             </div>
             <div>
               <Lbl req>CI / RIF</Lbl>
-              <input className="input-field" value={form.cedula} onChange={f('cedula', filtrarCedula)} placeholder="V-00000000" maxLength={12} />
+              <div className="flex gap-1">
+                <select className="select-field font-bold w-16 shrink-0" value={ciPrefijo} onChange={e => setCedula(e.target.value, ciNumero)}>
+                  <option value="V">V</option>
+                  <option value="E">E</option>
+                  <option value="J">J</option>
+                  <option value="G">G</option>
+                  <option value="P">P</option>
+                </select>
+                <input className="input-field font-mono flex-1" value={ciNumero} onChange={e => setCedula(ciPrefijo, e.target.value.replace(/\D/g, ''))} placeholder="12345678" maxLength={10} />
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1">V=venezolano · E=extranjero · J/G=empresa · P=pasaporte</p>
             </div>
             <div>
               <Lbl req>Condición civil</Lbl>
