@@ -146,8 +146,8 @@ const Switch = ({ checked, onChange }) => (
 
 // Tarjeta de opción con interruptor: icono + título + switch, descripción y un
 // contenido condicional que aparece con transición cuando la opción está activa.
-const ToggleCard = ({ Icon, title, desc, checked, onChange, children }) => (
-  <div className={`rounded-2xl border-2 p-3.5 transition-colors ${checked ? 'border-jm-blue/30 bg-blue-50/40' : 'border-slate-200 bg-white'}`}>
+const ToggleCard = ({ Icon, title, desc, checked, onChange, children, className = '' }) => (
+  <div className={`rounded-2xl border-2 p-3.5 transition-colors ${className} ${checked ? 'border-jm-blue/30 bg-blue-50/40' : 'border-slate-200 bg-white'}`}>
     <div className="flex items-start gap-3">
       <span className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${checked ? 'bg-jm-blue text-white' : 'bg-slate-100 text-slate-400'}`}>
         <Icon className="w-4 h-4" />
@@ -454,7 +454,7 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
+          <div className="space-y-5">
             {/* ── Identificación ── */}
             <section>
               <ProdSecHdr Icon={Shield}>Identificación</ProdSecHdr>
@@ -532,12 +532,12 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
             </section>
 
             {/* ── Cálculo ── */}
-            <section className="sm:pl-6 sm:border-l border-slate-100">
+            <section className="pt-5 border-t border-slate-100">
               <ProdSecHdr Icon={Settings}>Cálculo</ProdSecHdr>
               <div className="space-y-3">
                 <div>
                   <label className={lbl}>Tipo de cálculo <span className="text-rose-500">*</span></label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-1">
                     {TIPOS_CALCULO.map(t => {
                       const on = form.tipo_calculo === t.val
                       return (
@@ -656,6 +656,7 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
                 </div>
               </ToggleCard>
               <ToggleCard
+                className="sm:col-span-2"
                 Icon={FileText}
                 title="¿Lleva certificado?"
                 desc="Pólizas colectivas (varios bienes o beneficiarios). Si no, el cuadro póliza muestra el número de recibo en vez del certificado."
