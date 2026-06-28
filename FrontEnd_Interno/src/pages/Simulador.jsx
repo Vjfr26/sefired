@@ -2100,11 +2100,6 @@ export default function Simulador() {
   const simEnRevision = cotizaciones.filter(q => q.status === 'en_revision').length
   const simRechazadas = cotizaciones.filter(q => q.status === 'rechazado').length
 
-  const handleChangeStatus = async (id, status) => {
-    try { await updateCotizacion(id, { status }); showToast(`Estado → "${status}"`, 'success'); loadData() }
-    catch (e) { showToast(e.message, 'error') }
-  }
-
   const handleDelete = (id, nro) =>
     showModal('confirmDelete', {
       name: `Cotización ${nro}`,
@@ -2275,11 +2270,6 @@ export default function Simulador() {
                               {canUnderwrite && q.status === 'en_revision' && (
                                 <button onClick={() => setUwModal(q)} className="p-2.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition" title="Evaluación de Underwriting">
                                   <ClipboardList className="w-[18px] h-[18px]" />
-                                </button>
-                              )}
-                              {canEdit && q.status === 'en_revision' && (
-                                <button onClick={() => handleChangeStatus(q.id, 'rechazado')} className="p-2.5 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition" title="Rechazar directo">
-                                  <X className="w-[18px] h-[18px]" />
                                 </button>
                               )}
                               {canEmit && q.status === 'aprobado' && (
