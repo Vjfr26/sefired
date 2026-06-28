@@ -7,10 +7,10 @@ use App\Support\PermisosPorRol;
 
 /**
  * Un vendedor (Vendedor Sucursal/Calle) solo puede ver u operar sobre SUS
- * propios clientes (vendedor_id == su id, o sin asignar todavía).
- * Admin/Oficina no tienen restricción. Se usa tanto para filtrar listados
- * (whereVendedorPropio) como para cortar con 403 el acceso directo por ID
- * a un registro de otro vendedor (protección IDOR).
+ * propios clientes (vendedor_id == su id). Admin/Oficina no tienen
+ * restricción. Se usa tanto para filtrar listados (whereVendedorPropio)
+ * como para cortar con 403 el acceso directo por ID a un registro de otro
+ * vendedor (protección IDOR).
  *
  * Un vendedor con el permiso explícito `clientes.view_all` (asignable desde
  * Usuarios → Permisos) deja de estar restringido, igual que Admin/Oficina.
@@ -29,14 +29,17 @@ trait ScopesVendedor
         return !PermisosPorRol::tiene($user, 'clientes', 'view_all');
     }
 
-    /** Aplica el filtro de vendedor propio a un query sobre la tabla persona. */
+    /**
+     * Aplica el filtro de vendedor propio a un query sobre la tabla persona.
+     * El vendedor restringido ve SOLO sus clientes (vendedor_id == su id); los
+     * clientes sin asignar (leads del portal, datos viejos) ya no se le
+     * muestran — los asigna Admin/Oficina (o quien tenga view_all) antes de
+     * que un vendedor pueda trabajarlos.
+     */
     protected function whereVendedorPropio($query)
     {
         if ($this->esRolRestringido()) {
-            $user = auth()->user();
-            $query->where(function ($q) use ($user) {
-                $q->where('vendedor_id', $user->id)->orWhereNull('vendedor_id');
-            });
+            $query->where('vendedor_id', auth()->id());
         }
         return $query;
     }

@@ -70,9 +70,9 @@ class ClienteController extends Controller
     /**
      * Lista los clientes. Admin, Oficina y cualquier usuario con el permiso
      * `clientes.view_all` ven todos. Los demás roles (vendedores) solo ven
-     * los clientes con su propio vendedor_id — los que aún no tienen
-     * vendedor asignado (leads del portal, datos previos a este campo) se
-     * muestran a todos para no dejarlos huérfanos. Ver ScopesVendedor.
+     * los clientes con su propio vendedor_id; los clientes sin vendedor
+     * asignado (leads del portal, datos previos a este campo) NO se les
+     * muestran y deben ser asignados por Admin/Oficina. Ver ScopesVendedor.
      */
     public function index()
     {
