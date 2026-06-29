@@ -2277,8 +2277,8 @@ export default function Simulador() {
             </div>
 
             <div className="card overflow-hidden">
-              {/* Móvil: cada cotización como tarjeta */}
-              <div className="sm:hidden divide-y divide-slate-100">
+              {/* Móvil/tablet: cada cotización como tarjeta */}
+              <div className="lg:hidden divide-y divide-slate-100">
                 {loadingCot ? (
                   <div className="flex items-center justify-center gap-2 py-10 text-slate-400 text-sm">
                     <div className="w-4 h-4 border-2 border-slate-300 border-t-jm-blue rounded-full animate-spin" />
@@ -2311,8 +2311,8 @@ export default function Simulador() {
                   </div>
                 ))}
               </div>
-              {/* Tablet/desktop: tabla */}
-              <div className="hidden sm:block overflow-x-auto">
+              {/* Escritorio: tabla */}
+              <div className="hidden lg:block overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-slate-50 border-b border-slate-100">
                     <tr>

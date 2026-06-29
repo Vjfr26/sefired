@@ -77,6 +77,49 @@ const SKEL_WIDTHS = [48, 120, 90, 100, 80, 70, 60, 50]
 // Opciones del selector de "filas por página", disponible en todas las listas.
 const PAGE_SIZES = [10, 20, 50, 100, 200]
 
+// Tarjeta de una fila en móvil/tablet: título + campos clave; los campos
+// secundarios (los marcados `hide`) se ocultan tras un botón "Ver más".
+function MobileCard({ r, titleCol, alwaysCols, moreCols, accCols }) {
+  const [open, setOpen] = useState(false)
+  const Field = ({ c }) => (
+    <div className="min-w-0">
+      {c.l && <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{c.l}</dt>}
+      <dd className={`text-sm text-slate-700 break-words ${c.m ? 'font-mono text-xs' : ''}`}>{r[c.k] ?? '—'}</dd>
+    </div>
+  )
+  return (
+    <div className="p-4">
+      {titleCol && (
+        <div className={`text-sm font-bold text-slate-800 mb-2 break-words ${titleCol.m ? 'font-mono' : ''}`}>
+          {r[titleCol.k] ?? '—'}
+        </div>
+      )}
+      {alwaysCols.length > 0 && (
+        <dl className="grid grid-cols-2 gap-x-3 gap-y-2">
+          {alwaysCols.map(c => <Field key={c.k} c={c} />)}
+        </dl>
+      )}
+      {open && moreCols.length > 0 && (
+        <dl className="grid grid-cols-2 gap-x-3 gap-y-2 mt-2 animate-in fade-in slide-in-from-top-1 duration-200">
+          {moreCols.map(c => <Field key={c.k} c={c} />)}
+        </dl>
+      )}
+      {moreCols.length > 0 && (
+        <button type="button" onClick={() => setOpen(o => !o)}
+          className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-jm-blue">
+          {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          {open ? 'Ver menos' : `Ver más (${moreCols.length})`}
+        </button>
+      )}
+      {accCols.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-slate-100">
+          {accCols.map(c => <div key={c.k}>{r[c.k]}</div>)}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function DataTable({ cols, rows, footer = null, id, searchable = false, loading = false, skeletonRows = 6 }) {
   const [search,   setSearch]   = useState('')
   const [sortKey,  setSortKey]  = useState(null)   // clave de la columna activa para ordenar
@@ -118,8 +161,8 @@ export default function DataTable({ cols, rows, footer = null, id, searchable = 
   if (loading) {
     return (
       <div className="card overflow-hidden mx-2 sm:mx-0 px-3 sm:px-0" id={id} aria-busy="true">
-        {/* Móvil: skeleton de tarjetas */}
-        <div className="sm:hidden divide-y divide-slate-100">
+        {/* Móvil/tablet: skeleton de tarjetas */}
+        <div className="lg:hidden divide-y divide-slate-100">
           {Array.from({ length: skeletonRows }).map((_, ri) => (
             <div key={ri} className="p-4 space-y-2.5">
               <Skel className="h-4 w-32 rounded" />
@@ -129,8 +172,8 @@ export default function DataTable({ cols, rows, footer = null, id, searchable = 
             </div>
           ))}
         </div>
-        {/* Tablet/desktop: skeleton de tabla */}
-        <div className="hidden sm:block overflow-x-auto">
+        {/* Escritorio: skeleton de tabla */}
+        <div className="hidden lg:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-100 text-slate-600 text-xs font-semibold uppercase tracking-wider">
               <tr>
@@ -170,39 +213,24 @@ export default function DataTable({ cols, rows, footer = null, id, searchable = 
   const dataCols  = cols.filter(c => !c.acc)
   const titleCol  = dataCols.find(c => c.primary) ?? dataCols[0]
   const fieldCols = dataCols.filter(c => c !== titleCol)
+  // Campos clave (los que se ven hasta en pantalla chica) vs. secundarios
+  // (los marcados hide:md/lg/xl) que van tras "Ver más" en la tarjeta.
+  const alwaysCols = fieldCols.filter(c => !c.hide || c.hide === 'sm')
+  const moreCols   = fieldCols.filter(c => c.hide && c.hide !== 'sm')
 
   return (
     <div className="card overflow-hidden mx-2 sm:mx-0 px-3 sm:px-0" id={id}>
-      {/* ── Móvil: cada fila como tarjeta apilada ── */}
-      <div className="sm:hidden divide-y divide-slate-100">
+      {/* ── Móvil/tablet: cada fila como tarjeta compacta ── */}
+      <div className="lg:hidden divide-y divide-slate-100">
         {paged.length === 0 ? (
           <p className="text-center text-slate-400 text-sm py-6">Sin registros</p>
         ) : paged.map((r, i) => (
-          <div key={i} className="p-4">
-            {titleCol && (
-              <div className={`text-sm font-bold text-slate-800 mb-2 break-words ${titleCol.m ? 'font-mono' : ''}`}>
-                {r[titleCol.k] ?? '—'}
-              </div>
-            )}
-            <dl className="grid grid-cols-2 gap-x-3 gap-y-2">
-              {fieldCols.map(c => (
-                <div key={c.k} className="min-w-0">
-                  {c.l && <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{c.l}</dt>}
-                  <dd className={`text-sm text-slate-700 break-words ${c.m ? 'font-mono text-xs' : ''}`}>{r[c.k] ?? '—'}</dd>
-                </div>
-              ))}
-            </dl>
-            {accCols.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-slate-100">
-                {accCols.map(c => <div key={c.k}>{r[c.k]}</div>)}
-              </div>
-            )}
-          </div>
+          <MobileCard key={i} r={r} titleCol={titleCol} alwaysCols={alwaysCols} moreCols={moreCols} accCols={accCols} />
         ))}
       </div>
 
-      {/* ── Tablet/desktop: tabla ── */}
-      <div className="hidden sm:block overflow-x-auto">
+      {/* ── Escritorio: tabla ── */}
+      <div className="hidden lg:block overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-slate-100 text-slate-600 text-xs font-semibold uppercase tracking-wider">
             <tr>
