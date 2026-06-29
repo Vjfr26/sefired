@@ -1697,7 +1697,23 @@ function ProductoTasasModal({ p }) {
       <p className="text-xs text-slate-400 mb-3">
         {p.tasas.length} fila{p.tasas.length !== 1 ? 's' : ''} · {headers.length} columnas
       </p>
-      <div className="overflow-x-auto max-h-[65vh] overflow-y-auto rounded-xl border border-slate-100">
+      {/* Móvil/tablet: cada fila como tarjeta */}
+      <div className="lg:hidden space-y-2 max-h-[65vh] overflow-y-auto">
+        {p.tasas.map((row, i) => (
+          <div key={i} className="rounded-xl border border-slate-100 p-3">
+            <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+              {headers.map(h => (
+                <div key={h} className="min-w-0">
+                  <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 truncate">{h}</dt>
+                  <dd className="text-sm text-slate-700 break-words">{row[h] ?? '—'}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        ))}
+      </div>
+      {/* Escritorio: tabla */}
+      <div className="hidden lg:block overflow-x-auto max-h-[65vh] overflow-y-auto rounded-xl border border-slate-100">
         <table className="w-full text-xs border-collapse">
           <thead className="sticky top-0 z-10">
             <tr style={{ background: '#001463' }}>
@@ -3955,7 +3971,39 @@ function ClienteSolicitudesModal({ c }) {
       )}
 
       {!loading && !error && visible.length > 0 && (
-        <div className="overflow-x-auto rounded-xl border border-slate-100">
+        <>
+          {/* Móvil/tablet: cada cotización como tarjeta */}
+          <div className="lg:hidden divide-y divide-slate-100 rounded-xl border border-slate-100">
+            {visible.map(s => {
+              const st = SOL_STATUS_STYLE[s.status] ?? { bg: 'bg-slate-100', text: 'text-slate-600', dot: 'bg-slate-400' }
+              return (
+                <div key={s.id} className="p-3.5">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="min-w-0">
+                      <p className="font-mono font-bold text-xs text-slate-700">{s.nro}</p>
+                      <p className="text-[11px] text-slate-400">{s.fecha}</p>
+                    </div>
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold shrink-0 ${st.bg} ${st.text}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${st.dot}`} />
+                      {SOL_STATUS_LABEL[s.status] ?? s.status}
+                    </span>
+                  </div>
+                  <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                    <div className="min-w-0"><dt className="text-[10px] uppercase tracking-wide text-slate-400">Bien / Ref.</dt><dd className="text-xs font-mono text-slate-700 break-words">{s.bien_ref && s.bien_ref !== '—' ? s.bien_ref : (s.asegurado_nombre || '—')}</dd></div>
+                    <div className="min-w-0"><dt className="text-[10px] uppercase tracking-wide text-slate-400">Producto</dt><dd className="text-sm text-slate-700 break-words">{s.producto}</dd></div>
+                    <div className="min-w-0"><dt className="text-[10px] uppercase tracking-wide text-slate-400">Total</dt><dd className="text-sm font-semibold text-slate-700">{fmtMonto(s.total, s.moneda_producto)}</dd></div>
+                  </dl>
+                  <div className="mt-3 pt-3 border-t border-slate-100">
+                    <button onClick={() => generateCotPdf(s)} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition text-xs font-semibold" title="Ver documento">
+                      <FileText className="w-4 h-4" /> Ver documento
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          {/* Escritorio: tabla */}
+          <div className="hidden lg:block overflow-x-auto rounded-xl border border-slate-100">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100 text-left">
@@ -4002,7 +4050,8 @@ function ClienteSolicitudesModal({ c }) {
               })}
             </tbody>
           </table>
-        </div>
+          </div>
+        </>
       )}
     </ModalShell>
   )
