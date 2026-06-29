@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { KeyRound, Activity, Info, Check, CheckCircle, AlertTriangle, Lock } from 'lucide-react'
+import { KeyRound, Activity, Info, Check, CheckCircle, AlertTriangle, Lock, Circle, ShieldCheck } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { fetchLogs, fetchAuditLog, fetchEmailLogs, fetchIpsBloqueadas, desbloquearIp } from '../api/reports.js'
 import { changePassword } from '../api/usuarios.js'
@@ -17,15 +17,16 @@ function TabSeguridad() {
     new_password_confirmation: ''
   })
   const [loading, setLoading] = useState(false)
-  const tips = [
-    
-    ['Usa al menos 8 caracteres',                   
-    passwords.new_password.length >= 8],
-    ['Combina letras, números y símbolos',           
-    /[A-Za-z]/.test(passwords.new_password) && /[0-9]/.test(passwords.new_password)],
-    ['No uses la misma contraseña en otros sitios',  true],
-    ['Cambia tu contraseña cada 90 días',            false],
-    ['Activa el cierre de sesión automático',        false],
+  // Chequeos en vivo sobre la nueva contraseña (verde cuando se cumplen).
+  const checks = [
+    ['Al menos 8 caracteres', passwords.new_password.length >= 8],
+    ['Combina letras y números', /[A-Za-z]/.test(passwords.new_password) && /[0-9]/.test(passwords.new_password)],
+  ]
+  // Consejos generales (informativos, no son advertencias).
+  const consejos = [
+    'No reutilices la contraseña de otros sitios',
+    'Cámbiala periódicamente (cada ~90 días)',
+    'Cierra sesión en equipos compartidos',
   ]
 
   const handleChange = (e) => {
@@ -58,14 +59,23 @@ function TabSeguridad() {
       {/* Recommendations */}
       <div className="card p-6">
         <h4 className="font-semibold text-slate-700 text-sm mb-4">Recomendaciones de Seguridad</h4>
-        <div className="space-y-3">
-          {tips.map(([tip, ok]) => (
-            <div key={tip} className={`flex items-start gap-3 p-3 rounded-xl ${ok ? 'bg-emerald-50' : 'bg-amber-50'}`}>
-              {ok ? <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                  : <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />}
-              <p className={`text-sm ${ok ? 'text-emerald-800' : 'text-amber-800'}`}>{tip}</p>
+        <div className="space-y-2.5">
+          {checks.map(([txt, ok]) => (
+            <div key={txt} className="flex items-center gap-2.5 text-sm">
+              {ok
+                ? <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                : <Circle className="w-4 h-4 text-slate-300 shrink-0" />}
+              <span className={ok ? 'font-medium text-emerald-700' : 'text-slate-500'}>{txt}</span>
             </div>
           ))}
+          <div className="pt-2.5 mt-1 border-t border-slate-100 space-y-2">
+            {consejos.map(c => (
+              <div key={c} className="flex items-start gap-2.5 text-sm text-slate-500">
+                <ShieldCheck className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                <span>{c}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
