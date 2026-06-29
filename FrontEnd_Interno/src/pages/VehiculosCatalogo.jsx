@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Pencil, Trash2, Car, Plus, AlertTriangle, X, Check } from 'lucide-react'
+import { Pencil, Trash2, Car, Truck, Bike, Plus, AlertTriangle, X, Check } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import DataTable from '../components/DataTable.jsx'
 import SearchBar from '../components/SearchBar.jsx'
@@ -8,6 +8,14 @@ import { fetchVehiculosCatalogo, createVehiculoCatalogo, updateVehiculoCatalogo,
 // Tipos sugeridos por defecto. El campo es libre: se pueden agregar tipos
 // nuevos (el backend ya no los restringe a esta lista).
 const TIPOS_VEHICULO_BASE = ['Automóvil', 'Camioneta', 'Motocicleta', 'Camión / Carga']
+
+// Icono representativo según el tipo (cae a Car para tipos desconocidos).
+const tipoIcon = (t) => {
+  const s = (t || '').toLowerCase()
+  if (s.includes('moto')) return Bike
+  if (s.includes('camión') || s.includes('camion') || s.includes('carga') || s.includes('camioneta')) return Truck
+  return Car
+}
 
 // Formulario Modal para Agregar / Editar
 function CatalogoModal({ item, tipos = TIPOS_VEHICULO_BASE, onClose, onSaved }) {
@@ -20,11 +28,17 @@ function CatalogoModal({ item, tipos = TIPOS_VEHICULO_BASE, onClose, onSaved }) 
     anio_inicio: item?.anio_inicio ?? 2000,
     anio_fin: item?.anio_fin ?? new Date().getFullYear(),
   })
+  // "Otro": modo texto libre cuando el tipo no es uno de los conocidos.
+  const [customTipo, setCustomTipo] = useState(item?.tipo ? !tipos.includes(item.tipo) : false)
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
 
   const handleSave = async (e) => {
     e.preventDefault()
+    if (!form.tipo.trim()) {
+      showToast('Selecciona o escribe el tipo de vehículo', 'error')
+      return
+    }
     if (!form.marca.trim() || !form.modelo.trim()) {
       showToast('Por favor complete todos los campos', 'error')
       return
@@ -69,9 +83,14 @@ function CatalogoModal({ item, tipos = TIPOS_VEHICULO_BASE, onClose, onSaved }) 
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden animate-in zoom-in duration-200">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
-          <h3 className="text-base font-black text-slate-800">
-            {item?.id ? 'Editar Modelo' : 'Añadir Modelo al Catálogo'}
-          </h3>
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="w-9 h-9 rounded-xl bg-jm-blue/10 text-jm-blue flex items-center justify-center shrink-0">
+              <Car className="w-[18px] h-[18px]" />
+            </span>
+            <h3 className="text-base font-black text-slate-800 truncate">
+              {item?.id ? 'Editar Modelo' : 'Añadir Modelo al Catálogo'}
+            </h3>
+          </div>
           <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-xl transition">
             <X className="w-4 h-4 text-slate-500" />
           </button>
@@ -81,39 +100,73 @@ function CatalogoModal({ item, tipos = TIPOS_VEHICULO_BASE, onClose, onSaved }) 
         <form onSubmit={handleSave}>
           <div className="p-6 space-y-4">
             <div>
-              <label className={lbl}>Tipo de Vehículo</label>
-              <input
-                list="tipos-vehiculo"
-                className={inp}
-                placeholder="Ej. Automóvil"
-                value={form.tipo}
-                onChange={e => set('tipo', e.target.value)}
-                required
-              />
-              <datalist id="tipos-vehiculo">
-                {tipos.map(t => <option key={t} value={t} />)}
-              </datalist>
+              <label className={lbl}>Tipo de Vehículo <span className="text-rose-500">*</span></label>
+              <div className="flex flex-wrap gap-2">
+                {tipos.map(t => {
+                  const Icon = tipoIcon(t)
+                  const active = !customTipo && form.tipo === t
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => { setCustomTipo(false); set('tipo', t) }}
+                      className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold border transition ${
+                        active
+                          ? 'bg-jm-blue text-white border-jm-blue shadow-sm'
+                          : 'bg-white text-slate-600 border-slate-200 hover:border-jm-blue/40 hover:bg-slate-50'
+                      }`}
+                    >
+                      <Icon className="w-4 h-4" /> {t}
+                    </button>
+                  )
+                })}
+                <button
+                  type="button"
+                  onClick={() => { setCustomTipo(true); set('tipo', '') }}
+                  className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold border transition ${
+                    customTipo
+                      ? 'bg-jm-blue text-white border-jm-blue shadow-sm'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-jm-blue/40 hover:bg-slate-50'
+                  }`}
+                >
+                  <Plus className="w-4 h-4" /> Otro
+                </button>
+              </div>
+              {customTipo && (
+                <input
+                  type="text"
+                  className={`${inp} mt-2`}
+                  placeholder="Escribe el tipo (ej. Buseta, Remolque…)"
+                  value={form.tipo}
+                  maxLength={30}
+                  onChange={e => set('tipo', e.target.value)}
+                  autoFocus
+                  required
+                />
+              )}
             </div>
 
             <div>
-              <label className={lbl}>Marca</label>
+              <label className={lbl}>Marca <span className="text-rose-500">*</span></label>
               <input
                 type="text"
                 className={inp}
                 placeholder="Ej. Toyota"
                 value={form.marca}
+                maxLength={40}
                 onChange={e => set('marca', e.target.value)}
                 required
               />
             </div>
 
             <div>
-              <label className={lbl}>Modelo</label>
+              <label className={lbl}>Modelo <span className="text-rose-500">*</span></label>
               <input
                 type="text"
                 className={inp}
                 placeholder="Ej. Corolla"
                 value={form.modelo}
+                maxLength={40}
                 onChange={e => set('modelo', e.target.value)}
                 required
               />
@@ -121,7 +174,7 @@ function CatalogoModal({ item, tipos = TIPOS_VEHICULO_BASE, onClose, onSaved }) 
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={lbl}>Año Desde</label>
+                <label className={lbl}>Año Desde <span className="text-rose-500">*</span></label>
                 <input
                   type="number"
                   className={inp}
@@ -133,7 +186,7 @@ function CatalogoModal({ item, tipos = TIPOS_VEHICULO_BASE, onClose, onSaved }) 
                 />
               </div>
               <div>
-                <label className={lbl}>Año Hasta</label>
+                <label className={lbl}>Año Hasta <span className="text-rose-500">*</span></label>
                 <input
                   type="number"
                   className={inp}
