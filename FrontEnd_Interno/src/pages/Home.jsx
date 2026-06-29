@@ -60,18 +60,18 @@ export default function Home() {
           <UserAvatar rol={currentUser?.tipo} genero={currentUser?.genero} className="w-20 h-20 rounded-3xl mb-5 shadow-xl shadow-blue-900/20" />
           <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.28em] mb-2">Bienvenido de vuelta</p>
           <h2 className="text-2xl sm:text-3xl font-black text-slate-800 mb-2 tracking-tight">{currentUser?.nombre ?? '—'}</h2>
-          <p className="text-sm font-semibold text-slate-500">{currentUser?.cargo ?? '—'} · J&M C.A</p>
-          <p className="text-xs text-slate-400 font-mono mt-1.5">RIF: J-30012345-6 · Caracas Principal</p>
+          <p className="text-sm font-semibold text-slate-500">{currentUser?.cargo ?? '—'} · INVERSIONES J&M, C.A.</p>
+          <p className="text-xs text-slate-400 mt-1.5">Con el respaldo de LA VENEZOLANA DE SEGUROS Y VIDA C.A.</p>
         </div>
 
         {/* Quick access — solo muestra secciones a las que el usuario tiene acceso */}
         {quickItems.length > 0 && (
-          <div className="flex divide-x divide-slate-100">
+          <div className="grid grid-cols-2 gap-2.5 p-4 sm:flex sm:gap-0 sm:p-0 sm:divide-x divide-slate-100">
             {quickItems.map(({ perm, view, Icon, label, sub, iconBg, iconColor, hoverBg }) => (
               <button
                 key={perm}
                 onClick={() => navigateTo(view)}
-                className={`flex-1 flex flex-col items-center gap-2.5 py-8 px-3 ${hoverBg} transition-colors duration-200 group`}
+                className={`flex-1 flex flex-col items-center gap-2.5 py-6 px-3 sm:py-8 rounded-2xl border border-slate-100 sm:rounded-none sm:border-0 ${hoverBg} transition-colors duration-200 group`}
               >
                 <div className={`w-11 h-11 rounded-2xl ${iconBg} flex items-center justify-center group-hover:scale-110 transition-transform duration-200`}>
                   <Icon className={`w-5 h-5 ${iconColor}`} />
@@ -88,7 +88,7 @@ export default function Home() {
 
       {/* Resumen general del sistema */}
       {verResumen && stats && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 max-w-4xl mx-auto mt-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 max-w-4xl mx-auto mt-6">
           {[
             { label: 'Pólizas Activas', val: stats.polizas_activas, Icon: ShieldCheck, cls: 'border-t-emerald-500', vcls: 'text-emerald-700' },
             { label: 'Cotiz. en Revisión', val: stats.cotizaciones_en_revision, Icon: ClipboardList, cls: 'border-t-amber-500', vcls: 'text-amber-700' },
