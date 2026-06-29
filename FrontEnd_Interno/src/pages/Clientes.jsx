@@ -77,7 +77,7 @@ const clienteFields = (c = {}) => [
 // Columnas de la tabla. Las columnas menos importantes se ocultan en pantallas pequeñas.
 const COLS = [
   { k: 'displayId', l: 'ID',              m: true, bold: true, hide: 'xl' },
-  { k: 'nom',       l: 'Nombre Completo', tr: true },
+  { k: 'nom',       l: 'Nombre Completo', tr: true, primary: true },
   { k: 'ci',        l: 'CI / RIF',        m: true, bold: true, hide: 'sm' },
   { k: 'vendCell',  l: 'Vendedor',        hide: 'xl', nw: true },
   { k: 'polNum',    l: 'N° Póliza',       hide: 'md' },

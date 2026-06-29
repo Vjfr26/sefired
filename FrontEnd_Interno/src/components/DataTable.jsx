@@ -165,8 +165,11 @@ export default function DataTable({ cols, rows, footer = null, id, searchable = 
   }
 
   // Columnas de datos vs. de acciones — para el render en tarjetas (móvil).
-  const accCols  = cols.filter(c => c.acc)
-  const dataCols = cols.filter(c => !c.acc)
+  // El título de la tarjeta es la columna marcada `primary` (o la primera).
+  const accCols   = cols.filter(c => c.acc)
+  const dataCols  = cols.filter(c => !c.acc)
+  const titleCol  = dataCols.find(c => c.primary) ?? dataCols[0]
+  const fieldCols = dataCols.filter(c => c !== titleCol)
 
   return (
     <div className="card overflow-hidden mx-2 sm:mx-0 px-3 sm:px-0" id={id}>
@@ -176,13 +179,13 @@ export default function DataTable({ cols, rows, footer = null, id, searchable = 
           <p className="text-center text-slate-400 text-sm py-6">Sin registros</p>
         ) : paged.map((r, i) => (
           <div key={i} className="p-4">
-            {dataCols[0] && (
-              <div className={`text-sm font-bold text-slate-800 mb-2 break-words ${dataCols[0].m ? 'font-mono' : ''}`}>
-                {r[dataCols[0].k] ?? '—'}
+            {titleCol && (
+              <div className={`text-sm font-bold text-slate-800 mb-2 break-words ${titleCol.m ? 'font-mono' : ''}`}>
+                {r[titleCol.k] ?? '—'}
               </div>
             )}
             <dl className="grid grid-cols-2 gap-x-3 gap-y-2">
-              {dataCols.slice(1).map(c => (
+              {fieldCols.map(c => (
                 <div key={c.k} className="min-w-0">
                   {c.l && <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{c.l}</dt>}
                   <dd className={`text-sm text-slate-700 break-words ${c.m ? 'font-mono text-xs' : ''}`}>{r[c.k] ?? '—'}</dd>

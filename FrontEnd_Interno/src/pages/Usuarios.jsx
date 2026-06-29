@@ -14,7 +14,7 @@ const fmtId = id => 'USR-' + String(id).padStart(4, '0')
 
 const COLS_BASE = [
   { k: 'displayId', l: 'ID',              m: true, bold: true, hide: 'xl' },
-  { k: 'usr',       l: 'Usuario' },
+  { k: 'usr',       l: 'Usuario', primary: true },
   { k: 'rolb',      l: 'Rol',             hide: 'sm' },
   { k: 'oficina',   l: 'Oficina',         hide: 'lg', tr: true },
   { k: 'conexion',  l: 'Última Conexión', hide: 'lg', nw: true },
