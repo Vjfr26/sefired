@@ -20,10 +20,30 @@ class VehiculoCatalogoController extends Controller
     private function getItems()
     {
         $path = $this->getJsonPath();
-        if (!file_exists($path)) {
+        $existing = file_exists($path) ? (json_decode(file_get_contents($path), true) ?: []) : [];
+
+        // Catálogo vacío (instalación nueva o aún sin datos) → se siembra con
+        // la lista base de vehículos comunes incluida en el repo, y se guarda
+        // en storage para que los IDs queden estables.
+        if (empty($existing)) {
+            $seed = $this->seedData();
+            if (!empty($seed)) {
+                $this->saveItems($seed);
+                return $seed;
+            }
+        }
+
+        return $existing;
+    }
+
+    /** Lista base de modelos comunes incluida en el repo (database/data). */
+    private function seedData(): array
+    {
+        $bundle = base_path('database/data/modelos_vehiculos.json');
+        if (!file_exists($bundle)) {
             return [];
         }
-        return json_decode(file_get_contents($path), true) ?: [];
+        return json_decode(file_get_contents($bundle), true) ?: [];
     }
 
     private function saveItems(array $items)
