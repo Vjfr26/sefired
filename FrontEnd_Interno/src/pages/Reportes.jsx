@@ -39,26 +39,6 @@ import { usd, bs, fmtMonto, badge, rsbadge, sbadge } from '../utils/helpers.jsx'
 import DataTable from '../components/DataTable.jsx'
 import { Paperclip, FileText, UserSearch, MessageCircle } from 'lucide-react'
 
-// ── Shared report filter bar ─────────────────────────────────
-function ReportBar({ children, onExport }) {
-  const { showToast, canAct } = useApp()
-  const canExport = canAct('reportes', 'export')
-  return (
-    <div className="card p-3.5 mb-4 flex flex-wrap items-center gap-3">
-      <div className="relative flex-1 min-w-44">
-        <input type="text" placeholder="Buscar…" className="w-full pl-9 pr-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition" />
-        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-      </div>
-      {children}
-      {canExport && (
-        <button onClick={() => showToast('Exportando reporte…', 'info')} className="btn-secondary ml-auto shrink-0">
-          <Download className="w-4 h-4" />Exportar
-        </button>
-      )}
-    </div>
-  )
-}
-
 // Helper to get start of current month and today's date dynamically
 const getInitialDates = () => {
   const today = new Date()
@@ -291,7 +271,7 @@ function TabVentas() {
               ...(canManageComisiones ? [{ k: 'sel', l: 'Sel.', acc: true }] : []),
               { k: 'fecha', l: 'Fecha',      hide: 'sm' },
               { k: 'pol',   l: 'Póliza',     m: true, hide: 'md' },
-              { k: 'agente',l: 'Agente',     tr: true },
+              { k: 'agente',l: 'Agente',     tr: true, primary: true },
               { k: 'tipo',  l: 'Tipo',       hide: 'lg', tr: true },
               { k: 'prima', l: 'Prima Neta', r: true },
               { k: 'est',   l: 'Estado' },
@@ -1150,7 +1130,7 @@ function TabLeads() {
         loading={loading}
         cols={[
           { k: 'fecha',   l: 'Fecha/Hora', nw: true },
-          { k: 'email',   l: 'Correo',     tr: true },
+          { k: 'email',   l: 'Correo',     tr: true, primary: true },
           { k: 'motivo',  l: 'Motivo' },
           { k: 'destino', l: 'Se dirige a', hide: 'sm' },
           { k: 'status',  l: 'Estado' },
@@ -1352,7 +1332,7 @@ function TabExternos() {
   const cols = [
     { k: 'chk',          l: 'Incluir', nw: true },
     { k: 'nro_contrato', l: 'Póliza', m: true, nw: true },
-    { k: 'tomador',      l: 'Tomador' },
+    { k: 'tomador',      l: 'Tomador', primary: true },
     { k: 'ci_tomador',   l: 'Cédula Tomador', m: true, nw: true },
     { k: 'bien',         l: 'Bienes' },
     { k: 'placa',        l: 'Placa', m: true, nw: true },
@@ -1792,7 +1772,7 @@ function TabUsuariosMetrics() {
                 ...(canManageComisiones ? [{ k: 'sel', l: 'Sel.', acc: true }] : []),
                 { k: 'fecha_emision', l: 'Fecha Emisión' },
                 { k: 'nro_contrato', l: 'Nro. Contrato', m: true },
-                { k: 'cliente_nombre', l: 'Asegurado/Cliente', tr: true },
+                { k: 'cliente_nombre', l: 'Asegurado/Cliente', tr: true, primary: true },
                 { k: 'producto_nombre', l: 'Producto' },
                 { k: 'total', l: 'Prima', r: true },
                 { k: 'status', l: 'Estado' },
