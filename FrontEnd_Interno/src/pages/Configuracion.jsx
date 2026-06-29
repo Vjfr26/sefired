@@ -5,6 +5,7 @@ import { fetchLogs, fetchAuditLog, fetchEmailLogs, fetchIpsBloqueadas, desbloque
 import { changePassword } from '../api/usuarios.js'
 import { badge } from '../utils/helpers.jsx'
 import DataTable from '../components/DataTable.jsx'
+import { PasswordInput } from '../components/FormControls.jsx'
 
 // ── Tab: Seguridad ───────────────────────────────────────────
 function TabSeguridad() {
@@ -73,15 +74,15 @@ function TabSeguridad() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
           <div className="sm:col-span-2">
             <label className="field-label">Contraseña actual <span className="text-rose-500">*</span></label>
-            <input type="password" name="current_password" value={passwords.current_password} onChange={handleChange} placeholder="••••••••" className="input-field" disabled={loading} />
+            <PasswordInput name="current_password" value={passwords.current_password} onChange={handleChange} placeholder="••••••••" autoComplete="current-password" disabled={loading} />
           </div>
           <div>
             <label className="field-label">Nueva contraseña <span className="text-rose-500">*</span></label>
-            <input type="password" name="new_password" value={passwords.new_password} onChange={handleChange} placeholder="••••••••" className="input-field" disabled={loading} />
+            <PasswordInput name="new_password" value={passwords.new_password} onChange={handleChange} placeholder="••••••••" autoComplete="new-password" disabled={loading} />
           </div>
           <div>
             <label className="field-label">Confirmar contraseña <span className="text-rose-500">*</span></label>
-            <input type="password" name="new_password_confirmation" value={passwords.new_password_confirmation} onChange={handleChange} placeholder="••••••••" className="input-field" disabled={loading} />
+            <PasswordInput name="new_password_confirmation" value={passwords.new_password_confirmation} onChange={handleChange} placeholder="••••••••" autoComplete="new-password" disabled={loading} />
           </div>
         </div>
         {canChangePassword ? (

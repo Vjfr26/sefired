@@ -44,12 +44,15 @@ export function Segmented({ value, onChange, options }) {
 }
 
 /** Input de contraseña con botón mostrar/ocultar. */
-export function PasswordInput({ value, onChange, placeholder, className = '' }) {
+export function PasswordInput({ value, onChange, placeholder, className = '', name, disabled, autoComplete }) {
   const [show, setShow] = useState(false)
   return (
     <div className="relative">
       <input
         type={show ? 'text' : 'password'}
+        name={name}
+        disabled={disabled}
+        autoComplete={autoComplete}
         className={`input-field pr-10 ${className}`}
         value={value}
         onChange={onChange}
@@ -59,8 +62,9 @@ export function PasswordInput({ value, onChange, placeholder, className = '' }) 
         type="button"
         onClick={() => setShow(s => !s)}
         tabIndex={-1}
+        disabled={disabled}
         title={show ? 'Ocultar' : 'Mostrar'}
-        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition disabled:opacity-50"
       >
         {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
       </button>
