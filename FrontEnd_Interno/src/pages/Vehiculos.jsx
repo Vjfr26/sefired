@@ -7,6 +7,7 @@ import DataTable from '../components/DataTable.jsx'
 import { fetchBienes, updateBien, deleteBien } from '../api/bienes.js'
 import { downloadPolizaPdf } from '../api/polizas.js'
 import { useModalLock } from '../utils/helpers.jsx'
+import { useInputLimits } from '../utils/inputLimits.js'
 import { BIEN_TIPO_PRESETS } from '../utils/bienPresets.js'
 
 const TIPO_ICON  = { vehiculo: Car, inmueble: Home, bien: Package, vida: Users, bicicleta: Bike, mascota: PawPrint, embarcacion: Anchor, equipo_electronico: Laptop, joya: Gem }
@@ -26,6 +27,7 @@ function BienModal({ bien, onClose, onSaved }) {
   const { showToast } = useApp()
   const panelRef = useRef(null)
   useModalLock(panelRef)
+  useInputLimits(panelRef)
   const [saving, setSaving] = useState(false)
   const [form, setForm]     = useState(() => {
     const a = bien.atributos || {}
@@ -266,7 +268,7 @@ function BienModal({ bien, onClose, onSaved }) {
 // ── Página Bienes Asegurados ──────────────────────────────────────────────────
 const COLS = [
   { k: 'tipo_label',   l: 'Tipo',          nw: true },
-  { k: 'ref_cell',     l: 'Identificación', bold: true, tr: true },
+  { k: 'ref_cell',     l: 'Identificación', bold: true, tr: true, primary: true },
   { k: 'detalles',     l: 'Detalles',       tr: true,  hide: 'md' },
   { k: 'titular_cell', l: 'Titular',        tr: true,  hide: 'sm' },
   { k: 'vendedor_cell',l: 'Vendedor',       nw: true,  hide: 'lg' },
@@ -339,7 +341,8 @@ export default function Vehiculos() {
   const tipos = [...new Set(bienes.map(b => b.tipo).filter(Boolean))]
 
   const filt = bienes.filter(b => {
-    if (tipo && b.tipo !== tipo) return false
+    if (tipo === 'otros') { if (['vehiculo', 'inmueble'].includes(b.tipo)) return false }
+    else if (tipo && b.tipo !== tipo) return false
     if (!search) return true
     const q = search.toLowerCase()
     const a = b.atributos || {}
@@ -484,21 +487,30 @@ export default function Vehiculos() {
           </div>
         </div>
         {canViewCards && (
-          <div className="grid grid-cols-4 border-t border-white/10">
+          <div className="grid grid-cols-2 sm:grid-cols-4 border-t border-white/10">
             {[
-              [`${bienes.length}`,                                         'Total bienes',   ShieldCheck],
-              [`${bienes.filter(b => b.tipo === 'vehiculo').length}`,      'Vehículos',      Car       ],
-              [`${bienes.filter(b => b.tipo === 'inmueble').length}`,      'Inmuebles',      Home      ],
-              [`${bienes.filter(b => !['vehiculo','inmueble'].includes(b.tipo)).length}`, 'Otros tipos', Package],
-            ].map(([val, label, Icon]) => (
-              <div key={label} className="flex flex-col sm:flex-row items-center sm:gap-2 gap-1 px-4 py-3 text-center sm:text-left">
-                <Icon className="w-3.5 h-3.5 text-white/35 shrink-0" />
-                <div>
-                  <p className="text-sm font-black text-white/80">{val}</p>
-                  <p className="text-[10px] text-white/30">{label}</p>
-                </div>
-              </div>
-            ))}
+              ['',         `${bienes.length}`,                                         'Total bienes',   ShieldCheck],
+              ['vehiculo', `${bienes.filter(b => b.tipo === 'vehiculo').length}`,      'Vehículos',      Car       ],
+              ['inmueble', `${bienes.filter(b => b.tipo === 'inmueble').length}`,      'Inmuebles',      Home      ],
+              ['otros',    `${bienes.filter(b => !['vehiculo','inmueble'].includes(b.tipo)).length}`, 'Otros tipos', Package],
+            ].map(([key, val, label, Icon]) => {
+              const on = tipo === key
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => setTipo(on ? '' : key)}
+                  title={key ? `Filtrar: ${label}` : 'Ver todos los bienes'}
+                  className={`flex flex-col sm:flex-row items-center sm:gap-2 gap-1 px-4 py-3 text-center sm:text-left transition border-b-2 ${on ? 'bg-white/10 border-emerald-400' : 'border-transparent hover:bg-white/5'}`}
+                >
+                  <Icon className={`w-3.5 h-3.5 shrink-0 ${on ? 'text-emerald-400' : 'text-white/35'}`} />
+                  <div>
+                    <p className="text-sm font-black text-white/80">{val}</p>
+                    <p className="text-[10px] text-white/30">{label}</p>
+                  </div>
+                </button>
+              )
+            })}
           </div>
         )}
       </div>
@@ -512,6 +524,7 @@ export default function Vehiculos() {
             <select className="select-field text-sm w-auto" value={tipo} onChange={e => setTipo(e.target.value)}>
               <option value="">Todos los tipos</option>
               {tipos.map(t => <option key={t} value={t}>{TIPO_LABEL[t] ?? t}</option>)}
+              <option value="otros">Otros tipos</option>
             </select>
             <p className="text-xs text-slate-400 whitespace-nowrap">{filt.length} resultado{filt.length !== 1 ? 's' : ''}</p>
           </>
