@@ -444,7 +444,7 @@ function RenovarModal({ client, diasVencimiento, onSaved, onCancel }) {
   const { closeModal, showToast } = useApp()
   const handleCancel = () => { if (onCancel) onCancel(); else closeModal() }
   const [tasas, setTasas]         = useState({ usd: null, eur: null })
-  const [pagos, setPagos]         = useState([pagoVacio()])
+  const [pagos, setPagos]         = useState(() => [{ ...pagoVacio(), moneda: client.moneda_producto || 'USD' }])
   const [frecuencia, setFrecuencia] = useState('Anual')
   const [saving, setSaving]       = useState(false)
   const [formErr, setFormErr]     = useState({})
@@ -465,7 +465,7 @@ function RenovarModal({ client, diasVencimiento, onSaved, onCancel }) {
 
   const setPago    = (i, field, val) =>
     setPagos(prev => prev.map((p, idx) => idx === i ? { ...p, [field]: val, ...(field === 'forma' ? { referencia: '' } : {}) } : p))
-  const addPago    = () => setPagos(p => [...p, pagoVacio()])
+  const addPago    = () => setPagos(p => [...p, { ...pagoVacio(), moneda: monedaNativa }])
   const removePago = i  => setPagos(p => p.filter((_, idx) => idx !== i))
 
   // La prima de client.prima ya viene en la moneda nativa del producto (no
@@ -704,7 +704,7 @@ const pagoVacio = () => ({ forma: 'Transferencia', moneda: 'USD', monto: '', ref
 function EmitirCotizacionModal({ cot, onSaved }) {
   const { closeModal, showToast } = useApp()
   const [tasas, setTasas]         = useState({ usd: null, eur: null })
-  const [pagos, setPagos]         = useState([pagoVacio()])
+  const [pagos, setPagos]         = useState(() => [{ ...pagoVacio(), moneda: cot.moneda_producto || 'USD' }])
   const [frecuencia, setFrecuencia] = useState('Anual')
   const [saving, setSaving]       = useState(false)
   const [formErr, setFormErr]     = useState({})
@@ -720,7 +720,7 @@ function EmitirCotizacionModal({ cot, onSaved }) {
   const setPago = (i, field, val) =>
     setPagos(prev => prev.map((p, idx) => idx === i ? { ...p, [field]: val, ...(field === 'forma' ? { referencia: '' } : {}) } : p))
 
-  const addPago    = () => setPagos(p => [...p, pagoVacio()])
+  const addPago    = () => setPagos(p => [...p, { ...pagoVacio(), moneda: monedaNativa }])
   const removePago = i  => setPagos(p => p.filter((_, idx) => idx !== i))
 
   const monedaNativa = cot.moneda_producto || 'USD'
@@ -3665,7 +3665,7 @@ function PolizaCuotasModal({ poliza, onClose }) {
   const [data,    setData]    = useState(null)   // { cuotas, total, pagado, saldo, moneda, moneda_simbolo }
   const [tasas,   setTasas]   = useState({ usd: null, eur: null })
   const [loading, setLoading] = useState(true)
-  const [pagos,   setPagos]   = useState([pagoVacio()])
+  const [pagos,   setPagos]   = useState(() => [{ ...pagoVacio(), moneda: poliza.moneda_producto || 'USD' }])
   const [saving,  setSaving]  = useState(false)
   const [formErr, setFormErr] = useState({})
   const [cobrar,  setCobrar]  = useState(false)
@@ -3684,7 +3684,7 @@ function PolizaCuotasModal({ poliza, onClose }) {
 
   const monedaNativa = data?.moneda || poliza.moneda_producto || 'USD'
   const setPago    = (i, f, v) => setPagos(prev => prev.map((p, idx) => idx === i ? { ...p, [f]: v, ...(f === 'forma' ? { referencia: '' } : {}) } : p))
-  const addPago    = () => setPagos(p => [...p, pagoVacio()])
+  const addPago    = () => setPagos(p => [...p, { ...pagoVacio(), moneda: monedaNativa }])
   const removePago = i  => setPagos(p => p.filter((_, idx) => idx !== i))
 
   const pagoEnNativo    = (p) => convertirMoneda(parseFloat(p.monto) || 0, p.moneda, monedaNativa, tasas.usd || 0, tasas.eur || 0)

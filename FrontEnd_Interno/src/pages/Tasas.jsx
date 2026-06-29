@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Check, Pencil, Trash2 } from 'lucide-react'
+import { Check, Pencil, Trash2, Banknote } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { badge, fmtTasa } from '../utils/helpers.jsx'
 import DataTable from '../components/DataTable.jsx'
@@ -166,7 +166,7 @@ export default function Tasas() {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
         <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center">
-          <span className="text-2xl">💵</span>
+          <Banknote className="w-6 h-6 text-slate-400" />
         </div>
         <p className="font-semibold text-slate-600">Sin acceso</p>
         <p className="text-xs text-slate-400">No tienes permiso para acceder a este módulo.</p>
@@ -197,7 +197,12 @@ export default function Tasas() {
 
         {/* ── Formulario de registro ── */}
         <div className="card p-6">
-          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Registrar Tasas del Día</p>
+          <div className="flex items-center gap-2 mb-4">
+            <span className="w-7 h-7 rounded-xl bg-jm-blue/10 text-jm-blue flex items-center justify-center shrink-0">
+              <Banknote className="w-3.5 h-3.5" />
+            </span>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Registrar Tasas del Día</p>
+          </div>
           {!canCreate ? (
             <p className="text-xs text-slate-400 text-center py-6">Sin permiso para registrar tasas.</p>
           ) : (

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import { User, KeyRound } from 'lucide-react'
+import { User, KeyRound, Eye, EyeOff } from 'lucide-react'
 
 export default function Login({ onLogin }) {
   const [nick, setNick] = useState('')
   const [password, setPassword] = useState('')
+  const [showPw, setShowPw] = useState(false)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -196,18 +197,27 @@ export default function Login({ onLogin }) {
                 <label className="input-label">Contraseña</label>
                 <div className="relative">
                   <input
-                    type="password"
+                    type={showPw ? 'text' : 'password'}
                     required
                     value={password}
                     maxLength={255}
                     autoComplete="current-password"
                     onChange={(e) => { setPassword(e.target.value); setLoginError('') }}
-                    className="input-control h-10 sm:h-12 pl-10 bg-slate-50/50 border-slate-100 hover:border-jm-blue/30 transition-all"
+                    className="input-control h-10 sm:h-12 pl-10 pr-10 bg-slate-50/50 border-slate-100 hover:border-jm-blue/30 transition-all"
                     placeholder="••••••••"
                   />
                   <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
                     <KeyRound className="w-4 h-4" />
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowPw(s => !s)}
+                    tabIndex={-1}
+                    title={showPw ? 'Ocultar' : 'Mostrar'}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+                  >
+                    {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
 
