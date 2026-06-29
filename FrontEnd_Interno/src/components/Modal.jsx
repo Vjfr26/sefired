@@ -54,7 +54,7 @@ import { emitirCotizacion } from '../api/solicitudes.js'
 import { fetchTasas } from '../api/tasas.js'
 
 // ── Estructura base de todos los modales ────────────────────────────────────
-function ModalShell({ title, children, footer, wide = false, maxW }) {
+function ModalShell({ title, children, footer, wide = false, maxW, Icon, eyebrow }) {
   const { closeModal } = useApp()
   const sizeClass = maxW || (wide ? 'max-w-2xl' : 'max-w-xl')
   const panelRef = useRef(null)
@@ -72,8 +72,18 @@ function ModalShell({ title, children, footer, wide = false, maxW }) {
     >
       <div ref={panelRef} tabIndex={-1} className={`bg-white rounded-3xl shadow-2xl w-full ${sizeClass} max-h-[90vh] overflow-y-auto animate-in zoom-in duration-200 outline-none`}>
         <div className="p-6 sm:p-8">
-          <div className="flex items-center justify-between mb-5">
-            <h3 className="text-lg font-bold text-slate-800">{title}</h3>
+          <div className="flex items-start justify-between gap-3 mb-5">
+            <div className="flex items-center gap-3 min-w-0">
+              {Icon && (
+                <div className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0" style={{ background: 'linear-gradient(135deg,#001463,#000c3b)' }}>
+                  <Icon className="w-5 h-5 text-white" />
+                </div>
+              )}
+              <div className="min-w-0">
+                {eyebrow && <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{eyebrow}</p>}
+                <h3 className="text-base sm:text-lg font-bold text-slate-800 truncate">{title}</h3>
+              </div>
+            </div>
             <button onClick={closeModal} className="p-1.5 hover:bg-slate-100 rounded-xl transition shrink-0">
               <X className="w-5 h-5 text-slate-500" />
             </button>
@@ -925,12 +935,20 @@ const USER_SEDES = ['Caracas Principal', 'Valencia', 'Maracaibo']
 const SecHdr = ({ Icon, children }) => (
   <div className="flex items-center gap-2 mb-4">
     {Icon && (
-      <div className="w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
-        <Icon className="w-3.5 h-3.5 text-slate-500" />
+      <div className="w-6 h-6 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0">
+        <Icon className="w-3.5 h-3.5 text-jm-blue" />
       </div>
     )}
     <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest leading-none">{children}</span>
-    <div className="flex-1 h-px bg-slate-100" />
+    <div className="flex-1 h-px bg-slate-200/70" />
+  </div>
+)
+
+// Sección agrupada en un panel sutil — da estructura visual a los formularios.
+const SecPanel = ({ Icon, title, children, className = '' }) => (
+  <div className={`rounded-2xl border border-slate-200 bg-slate-50/60 p-4 ${className}`}>
+    <SecHdr Icon={Icon}>{title}</SecHdr>
+    {children}
   </div>
 )
 
@@ -965,7 +983,7 @@ function NewUserModal({ onSave }) {
   }
 
   return (
-    <ModalShell title="Nuevo Usuario" wide footer={
+    <ModalShell title="Nuevo Usuario" eyebrow="Usuario" Icon={User} wide footer={
       <>
         <button onClick={closeModal} disabled={saving} className="btn-secondary">Cancelar</button>
         <button onClick={handleSave} disabled={saving} className="btn-primary disabled:opacity-60">
@@ -973,10 +991,8 @@ function NewUserModal({ onSave }) {
         </button>
       </>
     }>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
-        {/* ── Izquierda: identidad ── */}
-        <div>
-          <SecHdr Icon={User}>Datos del usuario</SecHdr>
+      <div className="space-y-4">
+        <SecPanel Icon={User} title="Datos del usuario">
           <div className="space-y-3">
             <div>
               <label className="field-label">Nombre completo <span className="text-rose-500">*</span></label>
@@ -993,58 +1009,52 @@ function NewUserModal({ onSave }) {
               </div>
             </div>
           </div>
-        </div>
+        </SecPanel>
 
-        {/* ── Derecha: rol + contraseña ── */}
-        <div className="space-y-5 sm:pl-6 sm:border-l border-slate-100">
-          <div>
-            <SecHdr Icon={Shield}>Rol y acceso</SecHdr>
-            <div className="space-y-3">
-              <div>
-                <label className="field-label">Rol <span className="text-rose-500">*</span></label>
-                <select className="select-field" value={form.tipo} onChange={f('tipo')}>
-                  {USER_ROLES.map(r => <option key={r}>{r}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="field-label">Oficina / Sede <span className="text-rose-500">*</span></label>
-                <select className="select-field" value={form.sede} onChange={f('sede')}>
-                  {USER_SEDES.map(s => <option key={s}>{s}</option>)}
-                </select>
-              </div>
+        <SecPanel Icon={Shield} title="Rol y acceso">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="field-label">Rol <span className="text-rose-500">*</span></label>
+              <select className="select-field" value={form.tipo} onChange={f('tipo')}>
+                {USER_ROLES.map(r => <option key={r}>{r}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="field-label">Oficina / Sede <span className="text-rose-500">*</span></label>
+              <select className="select-field" value={form.sede} onChange={f('sede')}>
+                {USER_SEDES.map(s => <option key={s}>{s}</option>)}
+              </select>
             </div>
           </div>
+        </SecPanel>
 
-          <div>
-            <SecHdr Icon={Lock}>Contraseña de acceso</SecHdr>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="field-label">Contraseña <span className="text-rose-500">*</span></label>
-                <PasswordInput value={form.password} onChange={f('password')} placeholder="••••••••" />
-              </div>
-              <div>
-                <label className="field-label">Confirmar <span className="text-rose-500">*</span></label>
-                <PasswordInput value={form.password_confirmation} onChange={f('password_confirmation')} placeholder="••••••••" />
-              </div>
+        <SecPanel Icon={Lock} title="Contraseña de acceso">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="field-label">Contraseña <span className="text-rose-500">*</span></label>
+              <PasswordInput value={form.password} onChange={f('password')} placeholder="••••••••" />
             </div>
-            <p className="text-[10px] text-slate-400 mt-2">Mínimo 8 caracteres · mayúscula, minúscula y número.</p>
+            <div>
+              <label className="field-label">Confirmar <span className="text-rose-500">*</span></label>
+              <PasswordInput value={form.password_confirmation} onChange={f('password_confirmation')} placeholder="••••••••" />
+            </div>
           </div>
+          <p className="text-[10px] text-slate-400 mt-2">Mínimo 8 caracteres · mayúscula, minúscula y número.</p>
+        </SecPanel>
 
-          <div>
-            <SecHdr Icon={Clock}>Acceso temporal</SecHdr>
-            <div className="flex items-center justify-between gap-3 mb-2">
-              <span className="text-sm text-slate-600">Esta cuenta es temporal (ej. contratista, auditor externo)</span>
-              <Switch checked={form.temp} onChange={v => setForm(p => ({ ...p, temp: v }))} />
-            </div>
-            {form.temp && (
-              <div>
-                <label className="field-label">Vence el <span className="text-rose-500">*</span></label>
-                <input type="date" className="input-field" value={form.temp_expira_en} onChange={f('temp_expira_en')} min={new Date().toISOString().slice(0,10)} />
-                <p className="text-[10px] text-slate-400 mt-1">Al llegar esta fecha la cuenta se desactiva automáticamente.</p>
-              </div>
-            )}
+        <SecPanel Icon={Clock} title="Acceso temporal">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm text-slate-600">Esta cuenta es temporal (ej. contratista, auditor externo)</span>
+            <Switch checked={form.temp} onChange={v => setForm(p => ({ ...p, temp: v }))} />
           </div>
-        </div>
+          {form.temp && (
+            <div className="mt-3">
+              <label className="field-label">Vence el <span className="text-rose-500">*</span></label>
+              <input type="date" className="input-field" value={form.temp_expira_en} onChange={f('temp_expira_en')} min={new Date().toISOString().slice(0,10)} />
+              <p className="text-[10px] text-slate-400 mt-1">Al llegar esta fecha la cuenta se desactiva automáticamente.</p>
+            </div>
+          )}
+        </SecPanel>
       </div>
     </ModalShell>
   )
@@ -1084,7 +1094,7 @@ function EditUserModal({ user, onSave }) {
   }
 
   return (
-    <ModalShell title={`Editar Usuario — ${user.nombre}`} wide footer={
+    <ModalShell title={`Editar — ${user.nombre}`} eyebrow="Usuario" Icon={UserCog} wide footer={
       <>
         <button onClick={closeModal} disabled={saving} className="btn-secondary">Cancelar</button>
         <button onClick={handleSave} disabled={saving} className="btn-primary disabled:opacity-60">
@@ -1092,10 +1102,8 @@ function EditUserModal({ user, onSave }) {
         </button>
       </>
     }>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
-        {/* ── Izquierda: identidad ── */}
-        <div>
-          <SecHdr Icon={User}>Datos del usuario</SecHdr>
+      <div className="space-y-4">
+        <SecPanel Icon={User} title="Datos del usuario">
           <div className="space-y-3">
             <div>
               <label className="field-label">Nombre completo <span className="text-rose-500">*</span></label>
@@ -1112,52 +1120,44 @@ function EditUserModal({ user, onSave }) {
               </div>
             </div>
           </div>
-        </div>
+        </SecPanel>
 
-        {/* ── Derecha: rol + contraseña ── */}
-        <div className="space-y-5 sm:pl-6 sm:border-l border-slate-100">
-          <div>
-            <SecHdr Icon={Shield}>Rol y acceso</SecHdr>
-            <div className="space-y-3">
-              <div>
-                <label className="field-label">Rol</label>
-                <select className="select-field" value={form.tipo} onChange={f('tipo')}>
-                  {USER_ROLES.map(r => <option key={r}>{r}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="field-label">Oficina / Sede</label>
-                <select className="select-field" value={form.sede} onChange={f('sede')}>
-                  {USER_SEDES.map(s => <option key={s}>{s}</option>)}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <SecHdr Icon={Lock}>Contraseña <span className="normal-case font-normal text-slate-400 ml-1">(opcional)</span></SecHdr>
+        <SecPanel Icon={Shield} title="Rol y acceso">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="field-label">Nueva contraseña</label>
-              <PasswordInput value={form.password} onChange={f('password')} placeholder="Dejar vacío para no cambiar" />
+              <label className="field-label">Rol</label>
+              <select className="select-field" value={form.tipo} onChange={f('tipo')}>
+                {USER_ROLES.map(r => <option key={r}>{r}</option>)}
+              </select>
             </div>
-            <p className="text-[10px] text-slate-400 mt-2">Mínimo 8 caracteres · mayúscula, minúscula y número.</p>
+            <div>
+              <label className="field-label">Oficina / Sede</label>
+              <select className="select-field" value={form.sede} onChange={f('sede')}>
+                {USER_SEDES.map(s => <option key={s}>{s}</option>)}
+              </select>
+            </div>
           </div>
+        </SecPanel>
 
-          <div>
-            <SecHdr Icon={Clock}>Acceso temporal</SecHdr>
-            <div className="flex items-center justify-between gap-3 mb-2">
-              <span className="text-sm text-slate-600">Esta cuenta es temporal (ej. contratista, auditor externo)</span>
-              <Switch checked={form.temp} onChange={v => setForm(p => ({ ...p, temp: v }))} />
-            </div>
-            {form.temp && (
-              <div>
-                <label className="field-label">Vence el <span className="text-rose-500">*</span></label>
-                <input type="date" className="input-field" value={form.temp_expira_en} onChange={f('temp_expira_en')} min={new Date().toISOString().slice(0,10)} />
-                <p className="text-[10px] text-slate-400 mt-1">Al llegar esta fecha la cuenta se desactiva automáticamente.</p>
-              </div>
-            )}
+        <SecPanel Icon={Lock} title="Contraseña (opcional)">
+          <label className="field-label">Nueva contraseña</label>
+          <PasswordInput value={form.password} onChange={f('password')} placeholder="Dejar vacío para no cambiar" />
+          <p className="text-[10px] text-slate-400 mt-2">Mínimo 8 caracteres · mayúscula, minúscula y número.</p>
+        </SecPanel>
+
+        <SecPanel Icon={Clock} title="Acceso temporal">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm text-slate-600">Esta cuenta es temporal (ej. contratista, auditor externo)</span>
+            <Switch checked={form.temp} onChange={v => setForm(p => ({ ...p, temp: v }))} />
           </div>
-        </div>
+          {form.temp && (
+            <div className="mt-3">
+              <label className="field-label">Vence el <span className="text-rose-500">*</span></label>
+              <input type="date" className="input-field" value={form.temp_expira_en} onChange={f('temp_expira_en')} min={new Date().toISOString().slice(0,10)} />
+              <p className="text-[10px] text-slate-400 mt-1">Al llegar esta fecha la cuenta se desactiva automáticamente.</p>
+            </div>
+          )}
+        </SecPanel>
       </div>
     </ModalShell>
   )
@@ -4941,6 +4941,8 @@ function ClienteFormModal({ cliente, onSave }) {
   return (
     <ModalShell
       title={isNew ? 'Nuevo Cliente' : `Editar — ${cliente.nombre || cliente.nom}`}
+      eyebrow="Cliente"
+      Icon={UserCheck}
       maxW="max-w-3xl"
       footer={
         <>
@@ -4953,10 +4955,8 @@ function ClienteFormModal({ cliente, onSave }) {
         </>
       }
     >
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
-        {/* ── Columna izquierda: Datos Personales ── */}
-        <div>
-          <SecHdr Icon={UserCheck}>Datos Personales</SecHdr>
+      <div className="space-y-4">
+        <SecPanel Icon={UserCheck} title="Datos Personales">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="sm:col-span-2">
               <Lbl req>Nombre completo</Lbl>
@@ -4999,88 +4999,81 @@ function ClienteFormModal({ cliente, onSave }) {
               </select>
             </div>
           </div>
-        </div>
+        </SecPanel>
 
-        {/* ── Columna derecha: Contacto + Dirección + Actividad ── */}
-        <div className="space-y-5 mt-5 sm:mt-0 sm:pl-6 sm:border-l border-slate-100">
-          <div>
-            <SecHdr Icon={Phone}>Contacto</SecHdr>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <Lbl>Teléfono fijo</Lbl>
-                <input className="input-field" value={form.telefono} onChange={f('telefono', filtrarTelefono)} placeholder="0212-000-0000" maxLength={20} />
-              </div>
-              <div>
-                <Lbl req>Celular</Lbl>
-                <input className="input-field" value={form.celular} onChange={f('celular', filtrarTelefono)} placeholder="+58 414-000-0000" maxLength={20} />
-              </div>
-              <div className="sm:col-span-2">
-                <Lbl req>Correo electrónico</Lbl>
-                <input type="email" className="input-field" value={form.correo} onChange={f('correo')} placeholder="correo@ejemplo.com" />
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <SecHdr Icon={MapPin}>Dirección</SecHdr>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <Lbl req>Estado</Lbl>
-                <select className="select-field" value={form.estado} onChange={f('estado')}>
-                  <option value="">— Seleccionar —</option>
-                  {ESTADOS_VE_OPT.map(o => <option key={o}>{o}</option>)}
-                </select>
-              </div>
-              <div>
-                <Lbl req>Ciudad</Lbl>
-                <input className="input-field" list="ciudades-cliente" value={form.ciudad} onChange={f('ciudad')} placeholder="Ciudad o municipio" autoComplete="off" />
-                <datalist id="ciudades-cliente">
-                  {ciudadesDe(form.estado).map(c => <option key={c} value={c} />)}
-                </datalist>
-              </div>
-              <div>
-                <Lbl>Código postal</Lbl>
-                <input className="input-field" value={form.codigo_postal} onChange={f('codigo_postal', filtrarSoloDigitos)} placeholder="1010" maxLength={10} />
-              </div>
-              <div className="sm:col-span-2">
-                <Lbl req>Dirección</Lbl>
-                <textarea rows={2} className="input-field resize-none" value={form.direccion} onChange={f('direccion')} placeholder="Av. Principal, Edif. …" />
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <SecHdr Icon={Briefcase}>Actividad Económica</SecHdr>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <Lbl>Profesión</Lbl>
-                <input className="input-field" value={form.profesion} onChange={f('profesion')} placeholder="Ej. Ingeniero, Médico…" />
-              </div>
-              <div>
-                <Lbl>Actividad económica</Lbl>
-                <input className="input-field" value={form.actividad} onChange={f('actividad')} placeholder="Ej. Comercio, Servicios…" />
-              </div>
-            </div>
-          </div>
-
-          {canReasignar && !isNew && (
+        <SecPanel Icon={Phone} title="Contacto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <SecHdr Icon={UserCheck}>Vendedor asignado</SecHdr>
-              <select
-                className="select-field"
-                value={vendedorId}
-                onChange={e => setVendedorId(e.target.value ? Number(e.target.value) : '')}
-              >
-                <option value="">— Sin asignar —</option>
-                {cliente?.vendedor_id && !vendedores.some(v => v.id === cliente.vendedor_id) && (
-                  <option value={cliente.vendedor_id}>{cliente.vendedor_nombre || `Vendedor #${cliente.vendedor_id}`}</option>
-                )}
-                {vendedores.map(v => <option key={v.id} value={v.id}>{v.nombre} ({v.tipo})</option>)}
-              </select>
-              <p className="text-[11px] text-slate-400 mt-1">Al cambiarlo, el cliente y sus datos pasan a ese vendedor.</p>
+              <Lbl>Teléfono fijo</Lbl>
+              <input className="input-field" value={form.telefono} onChange={f('telefono', filtrarTelefono)} placeholder="0212-000-0000" maxLength={20} />
             </div>
-          )}
-        </div>
+            <div>
+              <Lbl req>Celular</Lbl>
+              <input className="input-field" value={form.celular} onChange={f('celular', filtrarTelefono)} placeholder="+58 414-000-0000" maxLength={20} />
+            </div>
+            <div className="sm:col-span-2">
+              <Lbl req>Correo electrónico</Lbl>
+              <input type="email" className="input-field" value={form.correo} onChange={f('correo')} placeholder="correo@ejemplo.com" />
+            </div>
+          </div>
+        </SecPanel>
+
+        <SecPanel Icon={MapPin} title="Dirección">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Lbl req>Estado</Lbl>
+              <select className="select-field" value={form.estado} onChange={f('estado')}>
+                <option value="">— Seleccionar —</option>
+                {ESTADOS_VE_OPT.map(o => <option key={o}>{o}</option>)}
+              </select>
+            </div>
+            <div>
+              <Lbl req>Ciudad</Lbl>
+              <input className="input-field" list="ciudades-cliente" value={form.ciudad} onChange={f('ciudad')} placeholder="Ciudad o municipio" autoComplete="off" />
+              <datalist id="ciudades-cliente">
+                {ciudadesDe(form.estado).map(c => <option key={c} value={c} />)}
+              </datalist>
+            </div>
+            <div>
+              <Lbl>Código postal</Lbl>
+              <input className="input-field" value={form.codigo_postal} onChange={f('codigo_postal', filtrarSoloDigitos)} placeholder="1010" maxLength={10} />
+            </div>
+            <div className="sm:col-span-2">
+              <Lbl req>Dirección</Lbl>
+              <textarea rows={2} className="input-field resize-none" value={form.direccion} onChange={f('direccion')} placeholder="Av. Principal, Edif. …" />
+            </div>
+          </div>
+        </SecPanel>
+
+        <SecPanel Icon={Briefcase} title="Actividad Económica">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Lbl>Profesión</Lbl>
+              <input className="input-field" value={form.profesion} onChange={f('profesion')} placeholder="Ej. Ingeniero, Médico…" />
+            </div>
+            <div>
+              <Lbl>Actividad económica</Lbl>
+              <input className="input-field" value={form.actividad} onChange={f('actividad')} placeholder="Ej. Comercio, Servicios…" />
+            </div>
+          </div>
+        </SecPanel>
+
+        {canReasignar && !isNew && (
+          <SecPanel Icon={UserCheck} title="Vendedor asignado">
+            <select
+              className="select-field"
+              value={vendedorId}
+              onChange={e => setVendedorId(e.target.value ? Number(e.target.value) : '')}
+            >
+              <option value="">— Sin asignar —</option>
+              {cliente?.vendedor_id && !vendedores.some(v => v.id === cliente.vendedor_id) && (
+                <option value={cliente.vendedor_id}>{cliente.vendedor_nombre || `Vendedor #${cliente.vendedor_id}`}</option>
+              )}
+              {vendedores.map(v => <option key={v.id} value={v.id}>{v.nombre} ({v.tipo})</option>)}
+            </select>
+            <p className="text-[11px] text-slate-400 mt-1">Al cambiarlo, el cliente y sus datos pasan a ese vendedor.</p>
+          </SecPanel>
+        )}
       </div>
     </ModalShell>
   )
