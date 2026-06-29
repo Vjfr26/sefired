@@ -86,6 +86,7 @@ export default function Usuarios() {
   const canViewCards  = canAct('usuarios', 'view_cards')
   const canViewList   = canAct('usuarios', 'view_list')
   const [chipActive, setChipActive] = useState(0)
+  const [cardFilter, setCardFilter] = useState(null) // null | 'admin' | 'vendedores' | 'blocked' — filtro al hacer clic en una tarjeta
   const [search,     setSearch]     = useState('')
   const [usuarios,   setUsuarios]   = useState([])
   const [loading,    setLoading]    = useState(true)
@@ -124,14 +125,27 @@ export default function Usuarios() {
   const blocked = usuarios.filter(u => !u.activo).length
 
   // ── Filtrado ──
+  // El filtro por tarjeta (estado/grupo) y el chip de rol son excluyentes:
+  // clic en una tarjeta limpia el chip y viceversa.
   const activeFilter = chipActive === 0 ? null : ROLES[chipActive - 1]
+  const matchCard = (u) => {
+    if (cardFilter === 'admin')      return u.tipo === 'Admin'
+    if (cardFilter === 'vendedores') return u.tipo === 'Vendedor Sucursal' || u.tipo === 'Vendedor Calle'
+    if (cardFilter === 'blocked')    return !u.activo
+    return !activeFilter || u.tipo === activeFilter
+  }
   const filtered = usuarios.filter(u => {
-    const matchRole   = !activeFilter || u.tipo === activeFilter
     const q = search.toLowerCase()
     const matchSearch = !q || u.nombre.toLowerCase().includes(q) ||
       u.nick.toLowerCase().includes(q) || u.tipo.toLowerCase().includes(q)
-    return matchRole && matchSearch
+    return matchSearch && matchCard(u)
   })
+
+  const onCardClick = (key) => {
+    if (key === null) { setCardFilter(null); setChipActive(0); return }
+    setCardFilter(prev => prev === key ? null : key); setChipActive(0)
+  }
+  const cardActive = (key) => key === null ? (cardFilter === null && chipActive === 0) : cardFilter === key
 
   // ── Filas de la tabla ──
   const dataRows = filtered.map(u => {
@@ -197,12 +211,13 @@ export default function Usuarios() {
       {/* ── Cards ── */}
       {canViewCards && (loading ? <SkeletonStatCards count={4} /> : <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {[
-          { l: 'Total Usuarios',    v: usuarios.length, sub: `${usuarios.length - blocked} activos`,      Icon: Users,      bg: 'bg-slate-100',  ic: 'text-slate-600'  },
-          { l: 'Administradores',   v: byRole['Admin'], sub: 'Acceso total',                               Icon: ShieldCheck, bg: 'bg-indigo-100', ic: 'text-indigo-600' },
-          { l: 'Vendedores',        v: (byRole['Vendedor Sucursal'] || 0) + (byRole['Vendedor Calle'] || 0), sub: 'Sucursal + Calle', Icon: UserCheck, bg: 'bg-emerald-100', ic: 'text-emerald-600' },
-          { l: 'Bloqueados',        v: blocked,          sub: 'Sin acceso',                                Icon: UserX,      bg: 'bg-rose-100',   ic: 'text-rose-600'   },
-        ].map(({ l, v, sub, Icon, bg, ic }) => (
-          <div key={l} className="card p-4 flex items-start gap-3">
+          { key: null,         l: 'Total Usuarios',  v: usuarios.length, sub: `${usuarios.length - blocked} activos`,      Icon: Users,      bg: 'bg-slate-100',  ic: 'text-slate-600',  ring: 'ring-slate-300'  },
+          { key: 'admin',      l: 'Administradores', v: byRole['Admin'], sub: 'Acceso total',                               Icon: ShieldCheck, bg: 'bg-indigo-100', ic: 'text-indigo-600', ring: 'ring-indigo-400' },
+          { key: 'vendedores', l: 'Vendedores',      v: (byRole['Vendedor Sucursal'] || 0) + (byRole['Vendedor Calle'] || 0), sub: 'Sucursal + Calle', Icon: UserCheck, bg: 'bg-emerald-100', ic: 'text-emerald-600', ring: 'ring-emerald-400' },
+          { key: 'blocked',    l: 'Bloqueados',      v: blocked,          sub: 'Sin acceso',                                Icon: UserX,      bg: 'bg-rose-100',   ic: 'text-rose-600',   ring: 'ring-rose-400'   },
+        ].map(({ key, l, v, sub, Icon, bg, ic, ring }) => (
+          <button key={l} type="button" onClick={() => onCardClick(key)} title={key === null ? 'Ver todos los usuarios' : `Filtrar: ${l}`}
+            className={`card p-4 flex items-start gap-3 text-left w-full transition hover:shadow-md ${cardActive(key) ? 'ring-2 ' + ring : ''}`}>
             <div className={`w-9 h-9 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
               <Icon className={`w-4 h-4 ${ic}`} />
             </div>
@@ -211,7 +226,7 @@ export default function Usuarios() {
               <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{v ?? 0}</p>
               <p className="text-xs text-slate-400 mt-1">{sub}</p>
             </div>
-          </div>
+          </button>
         ))}
       </div>)}
 
@@ -220,7 +235,7 @@ export default function Usuarios() {
         {['Todos', ...ROLES].map((r, i) => (
           <button
             key={r}
-            onClick={() => setChipActive(i)}
+            onClick={() => { setChipActive(i); setCardFilter(null) }}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
               i === chipActive
                 ? 'bg-jm-blue text-white border-jm-blue'
