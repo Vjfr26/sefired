@@ -2121,6 +2121,48 @@ export default function Simulador() {
       },
     })
 
+  // Botones de acción de una cotización — reutilizados en la tabla (desktop) y
+  // en las tarjetas (móvil).
+  const accionesCot = (q) => (
+    <>
+      {canUnderwrite && q.status === 'en_revision' && (
+        <button onClick={() => setUwModal(q)} className="p-2.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition" title="Evaluación de Underwriting">
+          <ClipboardList className="w-[18px] h-[18px]" />
+        </button>
+      )}
+      {canEmit && q.status === 'aprobado' && (
+        <button onClick={() => {
+          const prod = productos.find(p => p.id === q.producto_id)
+          showModal('emitirCotizacion', {
+            cot: { ...q, producto_permite_mensualidades: !!prod?.permite_mensualidades, producto_recargo_mensual_pct: prod?.recargo_mensual_pct },
+            onSaved: loadData,
+          })
+        }} className="p-2.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition" title="Emitir póliza">
+          <FileCheck className="w-[18px] h-[18px]" />
+        </button>
+      )}
+      {canEdit && q.status !== 'emitida' && (
+        <button onClick={() => openEditSim(q)} className="p-2.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition" title="Editar">
+          <Pencil className="w-[18px] h-[18px]" />
+        </button>
+      )}
+      {canAdjust && q.status === 'emitida' && q.poliza_id && (
+        <button onClick={() => showModal('ajustarPoliza', {
+          c: { id: q.persona_id, nombre: q.nombre },
+          polizaId: q.poliza_id,
+          onSave: loadData,
+        })} className="p-2.5 rounded-lg bg-violet-50 text-violet-600 hover:bg-violet-100 transition" title="Editar póliza emitida">
+          <SlidersHorizontal className="w-[18px] h-[18px]" />
+        </button>
+      )}
+      {canDelete && (
+        <button onClick={() => handleDelete(q.id, q.nro)} className="p-2.5 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition" title="Eliminar">
+          <Trash2 className="w-[18px] h-[18px]" />
+        </button>
+      )}
+    </>
+  )
+
   if (!canAct('cotizaciones', 'view')) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
@@ -2235,7 +2277,42 @@ export default function Simulador() {
             </div>
 
             <div className="card overflow-hidden">
-              <div className="overflow-x-auto">
+              {/* Móvil: cada cotización como tarjeta */}
+              <div className="sm:hidden divide-y divide-slate-100">
+                {loadingCot ? (
+                  <div className="flex items-center justify-center gap-2 py-10 text-slate-400 text-sm">
+                    <div className="w-4 h-4 border-2 border-slate-300 border-t-jm-blue rounded-full animate-spin" />
+                    Cargando cotizaciones…
+                  </div>
+                ) : visibleCots.length === 0 ? (
+                  <p className="text-center text-slate-400 text-sm py-10">
+                    {search ? `Sin resultados para "${search}"` : 'No hay cotizaciones registradas.'}
+                  </p>
+                ) : pagedCots.map(q => (
+                  <div key={q.id} className="p-4">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-slate-800 break-words">{q.nombre}</p>
+                        <p className="text-xs text-slate-400 font-mono">{q.ci} · {q.nro}</p>
+                      </div>
+                      <StatusBadge status={q.status} />
+                    </div>
+                    <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                      <div className="min-w-0"><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Vendedor</dt><dd className="text-sm text-slate-700 truncate">{q.vendedor_nombre || '—'}</dd></div>
+                      <div className="min-w-0"><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Producto</dt><dd className="text-sm text-slate-700 truncate">{q.producto || '—'}</dd></div>
+                      <div className="min-w-0"><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Total</dt><dd className="text-sm font-bold text-slate-800">{fmtMonto(q.total, q.moneda_producto)}</dd></div>
+                      <div className="min-w-0"><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Fecha</dt><dd className="text-sm text-slate-700">{q.fecha}</dd></div>
+                    </dl>
+                    {hasAnyAction && (
+                      <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap gap-1.5">
+                        {accionesCot(q)}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {/* Tablet/desktop: tabla */}
+              <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-slate-50 border-b border-slate-100">
                     <tr>
@@ -2279,45 +2356,7 @@ export default function Simulador() {
                         {hasAnyAction && (
                           <td className="px-2 sm:px-3 py-2">
                             <div className="flex flex-wrap gap-1.5 justify-center">
-                              {canUnderwrite && q.status === 'en_revision' && (
-                                <button onClick={() => setUwModal(q)} className="p-2.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition" title="Evaluación de Underwriting">
-                                  <ClipboardList className="w-[18px] h-[18px]" />
-                                </button>
-                              )}
-                              {canEmit && q.status === 'aprobado' && (
-                                <button onClick={() => {
-                                  const prod = productos.find(p => p.id === q.producto_id)
-                                  showModal('emitirCotizacion', {
-                                    cot: { ...q, producto_permite_mensualidades: !!prod?.permite_mensualidades, producto_recargo_mensual_pct: prod?.recargo_mensual_pct },
-                                    onSaved: loadData,
-                                  })
-                                }} className="p-2.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition" title="Emitir póliza">
-                                  <FileCheck className="w-[18px] h-[18px]" />
-                                </button>
-                              )}
-                              {canEdit && q.status !== 'emitida' && (
-                                <button onClick={() => openEditSim(q)} className="p-2.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition" title="Editar">
-                                  <Pencil className="w-[18px] h-[18px]" />
-                                </button>
-                              )}
-                              {canAdjust && q.status === 'emitida' && q.poliza_id && (
-                                <button
-                                  onClick={() => showModal('ajustarPoliza', {
-                                    c: { id: q.persona_id, nombre: q.nombre },
-                                    polizaId: q.poliza_id,
-                                    onSave: loadData,
-                                  })}
-                                  className="p-2.5 rounded-lg bg-violet-50 text-violet-600 hover:bg-violet-100 transition"
-                                  title="Editar póliza emitida"
-                                >
-                                  <SlidersHorizontal className="w-[18px] h-[18px]" />
-                                </button>
-                              )}
-                              {canDelete && (
-                                <button onClick={() => handleDelete(q.id, q.nro)} className="p-2.5 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition" title="Eliminar">
-                                  <Trash2 className="w-[18px] h-[18px]" />
-                                </button>
-                              )}
+                              {accionesCot(q)}
                             </div>
                           </td>
                         )}
