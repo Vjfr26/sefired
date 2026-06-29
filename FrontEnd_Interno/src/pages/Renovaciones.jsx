@@ -207,7 +207,7 @@ export default function Renovaciones() {
           cols={[
             { k: 'f',     l: 'Fecha',        nw: true, hide: 'md' },
             { k: 'pol',   l: 'Póliza',        nw: true, bold: true },
-            { k: 'cli',   l: 'Solicitante',   tr: true },
+            { k: 'cli',   l: 'Solicitante',   tr: true, primary: true },
             { k: 'tel',   l: 'Teléfono',      hide: 'sm' },
             { k: 'met',   l: 'Método',        hide: 'lg' },
             { k: 'ref',   l: 'Referencia',    hide: 'md' },

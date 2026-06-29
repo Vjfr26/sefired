@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { fmtMonto, convertirMoneda, fmtTasa, pdfPage, pdfHdr, pdfSec, pdfRow, pdfTotal, pdfFooterSimple, useModalLock, filtrarCedula, filtrarTelefono } from '../utils/helpers.jsx'
+import { useInputLimits } from '../utils/inputLimits.js'
 import { buscarClientes, createCliente } from '../api/clientes.js'
 import { fetchTasas } from '../api/tasas.js'
 import { fetchProductos } from '../api/productos.js'
@@ -166,6 +167,7 @@ function SimShell({ step, size = 'md', onClose, footer, children }) {
   const maxW = { sm: 'max-w-xl', md: 'max-w-2xl', lg: 'max-w-3xl', xl: 'max-w-4xl', xxl: 'max-w-5xl' }[size] || 'max-w-2xl'
   const panelRef = useRef(null)
   useModalLock(panelRef)
+  useInputLimits(panelRef)
   return (
     <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-2 sm:p-4 backdrop-blur-sm">
       <div ref={panelRef} tabIndex={-1} className={`bg-white rounded-3xl shadow-2xl w-full ${maxW} max-h-[95vh] flex flex-col overflow-hidden animate-in zoom-in duration-200 outline-none`}>
@@ -1665,6 +1667,7 @@ function freshUwForm() {
 function UnderwritingModal({ cot, productos = [], onClose, onStatusChanged, showToast }) {
   const panelRef = useRef(null)
   useModalLock(panelRef)
+  useInputLimits(panelRef)
   const [evaluaciones, setEvaluaciones] = useState([])
   const [loading, setLoading] = useState(true)
   const [docs, setDocs] = useState([])

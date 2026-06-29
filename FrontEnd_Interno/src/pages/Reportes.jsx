@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { useInputLimits } from '../utils/inputLimits.js'
 
 const fmtDT = (s) => {
   if (!s) return '—'
@@ -340,6 +341,8 @@ function TabVentas() {
 // Modal de notas/documento de entrega para un retiro de efectivo
 function RetiroEfectivoModal({ row, fechaInicio, fechaFin, onClose, onSaved }) {
   const { showToast } = useApp()
+  const panelRef = useRef(null)
+  useInputLimits(panelRef)
   const [notas, setNotas] = useState(row.notas || '')
   const [documento, setDocumento] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -368,7 +371,7 @@ function RetiroEfectivoModal({ row, fechaInicio, fechaFin, onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 bg-black/50 z-[80] flex items-center justify-center p-4 backdrop-blur-sm">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in duration-200">
+      <div ref={panelRef} className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in duration-200">
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
           <div>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{row.ofi}</p>

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { usd, fmtMonto, fmtMontoAbrev, convertirMoneda, useModalLock } from '../utils/helpers.jsx'
+import { useInputLimits } from '../utils/inputLimits.js'
 import SearchBar from '../components/SearchBar.jsx'
 import DataTable from '../components/DataTable.jsx'
 import { fetchProductos, createProducto, updateProducto, deleteProducto, createBeneficio, updateBeneficio, deleteBeneficio } from '../api/productos.js'
@@ -216,6 +217,7 @@ function ComboField({ value, onChange, suggestions, placeholder, className = '' 
 function ProductoModal({ producto, productos = [], onClose, onSaved }) {
   const panelRef = useRef(null)
   useModalLock(panelRef)
+  useInputLimits(panelRef)
   const { showToast } = useApp()
   const isEdit  = !!producto?.id
   const [form, setForm] = useState({
@@ -1064,6 +1066,7 @@ function TarifarioModal({ producto, onClose }) {
   const { showToast, showModal, canAct } = useApp()
   const panelRef = useRef(null)
   useModalLock(panelRef)
+  useInputLimits(panelRef)
   const canEdit = canAct('productos', 'edit')
   const [tarifas,       setTarifas]       = useState([])
   const [loading,       setLoading]       = useState(true)
@@ -1267,6 +1270,7 @@ function BeneficiosModal({ producto, onClose, onSaved }) {
   const { showToast, canAct } = useApp()
   const panelRef = useRef(null)
   useModalLock(panelRef)
+  useInputLimits(panelRef)
   const canEdit = canAct('productos', 'manage_beneficios')
   const [items,   setItems]   = useState(producto.beneficios || [])
   const [saving,  setSaving]  = useState(false)
@@ -1391,7 +1395,7 @@ function BeneficiosModal({ producto, onClose, onSaved }) {
 const COLS = [
   { k: 'displayId', l: 'ID',          m: true },
   { k: 'tipob',     l: 'Tipo',        nw: true },
-  { k: 'nombre',    l: 'Tipo de Póliza', tr: true },
+  { k: 'nombre',    l: 'Tipo de Póliza', tr: true, primary: true },
   { k: 'calc',      l: 'Cálculo',     nw: true, hide: 'md' },
   { k: 'primab',    l: 'Prima base',  r: true, nw: true },
   { k: 'cob',       l: 'Cobertura',   r: true, nw: true },

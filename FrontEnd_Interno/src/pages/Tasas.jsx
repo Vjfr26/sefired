@@ -208,7 +208,7 @@ export default function Tasas() {
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-500 font-extrabold">$</span>
                   <input
-                    type="number" step="any" placeholder="0.00000"
+                    type="number" step="any" min="0" placeholder="0.00000"
                     className="input-field pl-8"
                     value={form.usd}
                     onChange={e => setForm(f => ({ ...f, usd: e.target.value }))}
@@ -221,7 +221,7 @@ export default function Tasas() {
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-500 font-extrabold">€</span>
                   <input
-                    type="number" step="any" placeholder="0.00000"
+                    type="number" step="any" min="0" placeholder="0.00000"
                     className="input-field pl-8"
                     value={form.eur}
                     onChange={e => setForm(f => ({ ...f, eur: e.target.value }))}
