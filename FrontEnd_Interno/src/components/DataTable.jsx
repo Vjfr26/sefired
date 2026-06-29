@@ -118,7 +118,19 @@ export default function DataTable({ cols, rows, footer = null, id, searchable = 
   if (loading) {
     return (
       <div className="card overflow-hidden mx-2 sm:mx-0 px-3 sm:px-0" id={id} aria-busy="true">
-        <div className="overflow-x-auto">
+        {/* Móvil: skeleton de tarjetas */}
+        <div className="sm:hidden divide-y divide-slate-100">
+          {Array.from({ length: skeletonRows }).map((_, ri) => (
+            <div key={ri} className="p-4 space-y-2.5">
+              <Skel className="h-4 w-32 rounded" />
+              <div className="grid grid-cols-2 gap-2">
+                {Array.from({ length: 4 }).map((_, ci) => <Skel key={ci} className="h-3 w-20 rounded" />)}
+              </div>
+            </div>
+          ))}
+        </div>
+        {/* Tablet/desktop: skeleton de tabla */}
+        <div className="hidden sm:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-100 text-slate-600 text-xs font-semibold uppercase tracking-wider">
               <tr>
@@ -152,9 +164,42 @@ export default function DataTable({ cols, rows, footer = null, id, searchable = 
     )
   }
 
+  // Columnas de datos vs. de acciones — para el render en tarjetas (móvil).
+  const accCols  = cols.filter(c => c.acc)
+  const dataCols = cols.filter(c => !c.acc)
+
   return (
     <div className="card overflow-hidden mx-2 sm:mx-0 px-3 sm:px-0" id={id}>
-      <div className="overflow-x-auto">
+      {/* ── Móvil: cada fila como tarjeta apilada ── */}
+      <div className="sm:hidden divide-y divide-slate-100">
+        {paged.length === 0 ? (
+          <p className="text-center text-slate-400 text-sm py-6">Sin registros</p>
+        ) : paged.map((r, i) => (
+          <div key={i} className="p-4">
+            {dataCols[0] && (
+              <div className={`text-sm font-bold text-slate-800 mb-2 break-words ${dataCols[0].m ? 'font-mono' : ''}`}>
+                {r[dataCols[0].k] ?? '—'}
+              </div>
+            )}
+            <dl className="grid grid-cols-2 gap-x-3 gap-y-2">
+              {dataCols.slice(1).map(c => (
+                <div key={c.k} className="min-w-0">
+                  {c.l && <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{c.l}</dt>}
+                  <dd className={`text-sm text-slate-700 break-words ${c.m ? 'font-mono text-xs' : ''}`}>{r[c.k] ?? '—'}</dd>
+                </div>
+              ))}
+            </dl>
+            {accCols.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-slate-100">
+                {accCols.map(c => <div key={c.k}>{r[c.k]}</div>)}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* ── Tablet/desktop: tabla ── */}
+      <div className="hidden sm:block overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-slate-100 text-slate-600 text-xs font-semibold uppercase tracking-wider">
             <tr>
