@@ -37,6 +37,7 @@ import { X, Trash2, Pencil, Check, Lock, LockOpen, ShieldCheck, Building, UserCh
 import { useApp } from '../context/AppContext.jsx'
 import FormGrid from './FormGrid.jsx'
 import { useInputLimits } from '../utils/inputLimits.js'
+import { Switch, Segmented, PasswordInput } from './FormControls.jsx'
 import { fmtMonto, fmtTasa, convertirMoneda, PERMISOS_POR_ROL, getEffectivePerms, getEffectivePermsObj, PERMS_CATALOG, PERMS_ORDER, LOCKED_PERMS, pdfPage, pdfHdr, pdfSec, pdfRow, pdfTotal, pdfFooterSimple, useModalLock, filtrarCedula, filtrarTelefono, filtrarSoloDigitos } from '../utils/helpers.jsx'
 import { TIPOS_PRODUCTO, TIPOS_CALCULO, tipoBadge } from '../utils/productos.jsx'
 import { storeUsuario, updateUsuario, verifyPassword, fetchVendedoresDisponibles } from '../api/usuarios.js'
@@ -988,10 +989,7 @@ function NewUserModal({ onSave }) {
               </div>
               <div>
                 <label className="field-label">Género <span className="text-rose-500">*</span></label>
-                <select className="select-field" value={form.genero} onChange={f('genero')}>
-                  <option value="M">Masculino</option>
-                  <option value="F">Femenino</option>
-                </select>
+                <Segmented value={form.genero} onChange={v => setForm(p => ({ ...p, genero: v }))} options={[{ value: 'M', label: 'Masculino' }, { value: 'F', label: 'Femenino' }]} />
               </div>
             </div>
           </div>
@@ -1022,11 +1020,11 @@ function NewUserModal({ onSave }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="field-label">Contraseña <span className="text-rose-500">*</span></label>
-                <input type="password" className="input-field" value={form.password} onChange={f('password')} placeholder="••••••••" />
+                <PasswordInput value={form.password} onChange={f('password')} placeholder="••••••••" />
               </div>
               <div>
                 <label className="field-label">Confirmar <span className="text-rose-500">*</span></label>
-                <input type="password" className="input-field" value={form.password_confirmation} onChange={f('password_confirmation')} placeholder="••••••••" />
+                <PasswordInput value={form.password_confirmation} onChange={f('password_confirmation')} placeholder="••••••••" />
               </div>
             </div>
             <p className="text-[10px] text-slate-400 mt-2">Mínimo 8 caracteres · mayúscula, minúscula y número.</p>
@@ -1034,10 +1032,10 @@ function NewUserModal({ onSave }) {
 
           <div>
             <SecHdr Icon={Clock}>Acceso temporal</SecHdr>
-            <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer mb-2">
-              <input type="checkbox" checked={form.temp} onChange={e => setForm(p => ({ ...p, temp: e.target.checked }))} className="w-4 h-4 accent-jm-blue" />
-              Esta cuenta es temporal (ej. contratista, auditor externo)
-            </label>
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <span className="text-sm text-slate-600">Esta cuenta es temporal (ej. contratista, auditor externo)</span>
+              <Switch checked={form.temp} onChange={v => setForm(p => ({ ...p, temp: v }))} />
+            </div>
             {form.temp && (
               <div>
                 <label className="field-label">Vence el <span className="text-rose-500">*</span></label>
@@ -1110,10 +1108,7 @@ function EditUserModal({ user, onSave }) {
               </div>
               <div>
                 <label className="field-label">Género</label>
-                <select className="select-field" value={form.genero} onChange={f('genero')}>
-                  <option value="M">Masculino</option>
-                  <option value="F">Femenino</option>
-                </select>
+                <Segmented value={form.genero} onChange={v => setForm(p => ({ ...p, genero: v }))} options={[{ value: 'M', label: 'Masculino' }, { value: 'F', label: 'Femenino' }]} />
               </div>
             </div>
           </div>
@@ -1143,17 +1138,17 @@ function EditUserModal({ user, onSave }) {
             <SecHdr Icon={Lock}>Contraseña <span className="normal-case font-normal text-slate-400 ml-1">(opcional)</span></SecHdr>
             <div>
               <label className="field-label">Nueva contraseña</label>
-              <input type="password" className="input-field" value={form.password} onChange={f('password')} placeholder="Dejar vacío para no cambiar" />
+              <PasswordInput value={form.password} onChange={f('password')} placeholder="Dejar vacío para no cambiar" />
             </div>
             <p className="text-[10px] text-slate-400 mt-2">Mínimo 8 caracteres · mayúscula, minúscula y número.</p>
           </div>
 
           <div>
             <SecHdr Icon={Clock}>Acceso temporal</SecHdr>
-            <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer mb-2">
-              <input type="checkbox" checked={form.temp} onChange={e => setForm(p => ({ ...p, temp: e.target.checked }))} className="w-4 h-4 accent-jm-blue" />
-              Esta cuenta es temporal (ej. contratista, auditor externo)
-            </label>
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <span className="text-sm text-slate-600">Esta cuenta es temporal (ej. contratista, auditor externo)</span>
+              <Switch checked={form.temp} onChange={v => setForm(p => ({ ...p, temp: v }))} />
+            </div>
             {form.temp && (
               <div>
                 <label className="field-label">Vence el <span className="text-rose-500">*</span></label>
@@ -4941,10 +4936,7 @@ function ClienteFormModal({ cliente, onSave }) {
             </div>
             <div>
               <Lbl req>Sexo</Lbl>
-              <select className="select-field" value={form.sexo} onChange={f('sexo')}>
-                <option value="">— Seleccionar —</option>
-                {CL_SEXO.map(o => <option key={o}>{o}</option>)}
-              </select>
+              <Segmented value={form.sexo} onChange={v => setForm(p => ({ ...p, sexo: v }))} options={CL_SEXO} />
             </div>
             <div>
               <Lbl req>Fecha de nacimiento</Lbl>

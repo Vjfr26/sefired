@@ -8,6 +8,7 @@ import {
 import { useApp } from '../context/AppContext.jsx'
 import { usd, fmtMonto, fmtMontoAbrev, convertirMoneda, useModalLock } from '../utils/helpers.jsx'
 import { useInputLimits } from '../utils/inputLimits.js'
+import { Switch } from '../components/FormControls.jsx'
 import SearchBar from '../components/SearchBar.jsx'
 import DataTable from '../components/DataTable.jsx'
 import { fetchProductos, createProducto, updateProducto, deleteProducto, createBeneficio, updateBeneficio, deleteBeneficio } from '../api/productos.js'
@@ -132,17 +133,6 @@ const ProdSecHdr = ({ Icon, children }) => (
     <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest leading-none">{children}</span>
     <div className="flex-1 h-px bg-slate-100" />
   </div>
-)
-
-// Interruptor on/off accesible — reemplaza los checkboxes del formulario de póliza.
-const Switch = ({ checked, onChange }) => (
-  <button
-    type="button" role="switch" aria-checked={checked}
-    onClick={() => onChange(!checked)}
-    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors outline-none focus-visible:ring-2 focus-visible:ring-jm-blue/40 ${checked ? 'bg-jm-blue' : 'bg-slate-300'}`}
-  >
-    <span className={`inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-[22px]' : 'translate-x-1'}`} />
-  </button>
 )
 
 // Tarjeta de opción con interruptor: icono + título + switch, descripción y un
