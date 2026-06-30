@@ -7,6 +7,7 @@ use App\Models\ClienteDocumento;
 use App\Models\EmailLog;
 use App\Models\Persona;
 use App\Rules\NoInjectionChars;
+use App\Support\PermisosPorRol;
 use App\Traits\LogsActivity;
 use App\Traits\ScopesVendedor;
 use Illuminate\Http\Request;
@@ -17,10 +18,26 @@ class ClienteDocumentoController extends Controller
 {
     use LogsActivity, ScopesVendedor;
 
+    /**
+     * Un usuario con capacidad de vender (cotizaciones.create/emit) puede
+     * ver/subir/asociar documentos del cliente al que le emite, sea suyo o de
+     * otro vendedor — parte del flujo de emisión de una nueva póliza. Los
+     * roles de pura gestión (sin permiso de cotizar) siguen restringidos a sus
+     * propios clientes.
+     */
+    private function puedeVender(): bool
+    {
+        $user = auth()->user();
+        return $user && (
+            PermisosPorRol::tiene($user, 'cotizaciones', 'create')
+            || PermisosPorRol::tiene($user, 'cotizaciones', 'emit')
+        );
+    }
+
     public function index($personaId)
     {
         $persona = Persona::findOrFail($personaId);
-        $this->assertAccesoCliente($persona);
+        $this->assertAccesoCliente($persona, $this->puedeVender());
 
         $docs = $persona->documentos()
             ->orderBy('created_at', 'desc')
@@ -33,7 +50,7 @@ class ClienteDocumentoController extends Controller
     public function store(Request $request, $personaId)
     {
         $persona = Persona::findOrFail($personaId);
-        $this->assertAccesoCliente($persona);
+        $this->assertAccesoCliente($persona, $this->puedeVender());
 
         $noInjection = new NoInjectionChars();
 
@@ -75,7 +92,7 @@ class ClienteDocumentoController extends Controller
     {
         $doc     = ClienteDocumento::where('persona_id', $personaId)->findOrFail($docId);
         $persona = Persona::findOrFail($personaId);
-        $this->assertAccesoCliente($persona);
+        $this->assertAccesoCliente($persona, $this->puedeVender());
 
         Storage::disk(config('filesystems.docs_disk'))->delete($doc->path);
         $docNombre = $doc->nombre;

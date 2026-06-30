@@ -71,7 +71,7 @@ Route::middleware([\App\Http\Middleware\ApiTokenMiddleware::class, 'throttle:120
     Route::get('/clientes/{id}/polizas',             [ClienteController::class,      'polizas'])->middleware('perm:clientes,view_polizas');
     Route::get('/clientes/{id}/solicitudes',         [ClienteController::class,      'solicitudes'])->middleware('perm:clientes,view');
     Route::get('/clientes/{id}/facturas',            [ClienteController::class,      'facturas'])->middleware('perm:clientes,view_facturas');
-    Route::get('/clientes/{id}/documentos',          [ClienteDocumentoController::class, 'index'])->middleware('perm:clientes,view_docs');
+    Route::get('/clientes/{id}/documentos',          [ClienteDocumentoController::class, 'index'])->middleware('perm_any:clientes.view_docs,cotizaciones.create,cotizaciones.edit');
     Route::get('/bienes',                            [BienAseguradoController::class,'index'])->middleware('perm:vehiculos,view');
     Route::get('/bienes/{id}',                       [BienAseguradoController::class,'show'])->middleware('perm:vehiculos,view');
     Route::get('/productos',                         [ProductoController::class,     'index'])->middleware('perm:productos,view');
