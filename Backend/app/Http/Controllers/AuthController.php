@@ -26,20 +26,22 @@ class AuthController extends Controller
 
     public function login(Request $request)
     {
-        // ── 0. Detección proactiva de patrones de ataque ─────────────────────────
+        // ── 0. Detección proactiva de patrones de ataque (solo en el nick) ───────
+        // No se revisa el password: una contraseña legítima puede contener
+        // palabras como "or"/"and"/"delete" y produciría falsos positivos. El
+        // nick, además, ya está restringido a [a-zA-Z0-9._-] por la validación.
         $rawNick = $request->input('nick', '');
-        $rawPass = $request->input('password', '');
 
         foreach (self::ATTACK_PATTERNS as $pattern) {
-            if (preg_match($pattern, $rawNick) || preg_match($pattern, $rawPass)) {
-                // Bloquear IP inmediatamente y registrar el incidente
-                IpBloqueada::firstOrCreate(
-                    ['ip' => $request->ip()],
-                    ['usuario_id' => null, 'motivo' => 'Patrón de ataque detectado en formulario de login']
-                );
+            if (preg_match($pattern, $rawNick)) {
+                // Lockout TEMPORAL + registro para auditoría. No se hace ban
+                // permanente automático: un falso positivo no debe dejar fuera a
+                // una oficina entera tras NAT. El admin puede bloquear la IP
+                // manualmente si confirma que es un ataque real.
+                Cache::put('login_lockout:' . $request->ip(), true, now()->addMinutes(30));
                 $this->logActivity(
                     'posible_hackeo',
-                    "⚠️ ATAQUE DETECTADO — IP: {$request->ip()} — Patrón malicioso en campos de login (nick o password)",
+                    "⚠️ ATAQUE DETECTADO — IP: {$request->ip()} — Patrón malicioso en el campo 'nick' del login",
                     'usuarios'
                 );
                 return response()->json(['message' => 'Solicitud rechazada.'], 403);
@@ -107,49 +109,31 @@ class AuthController extends Controller
             Cache::put($attemptsKey, $attempts, now()->addMinutes($lockoutMinutes));
 
             if ($attempts >= $maxAttempts) {
-                // Bloqueo por tiempo (cache) — se autodestruye solo a los 30 min,
-                // sirve mientras tanto para frenar más intentos seguidos.
+                // Lockout TEMPORAL por IP — se auto-libera en `lockoutMinutes`.
+                // Ya NO se hace ban permanente de IP ni se desactiva la cuenta:
+                //  - el ban permanente automático dejaba fuera a oficinas tras
+                //    NAT por los errores de un solo usuario;
+                //  - desactivar la cuenta habilitaba un DoS dirigido: fallar 3
+                //    veces el login de un nick conocido lo dejaba inservible
+                //    hasta intervención manual de un admin.
+                // Si es un ataque real queda registrado para que el admin
+                // bloquee la IP manualmente desde el panel.
                 Cache::put($lockoutKey, true, now()->addMinutes($lockoutMinutes));
                 Cache::forget($attemptsKey);
 
-                // Bloquear la cuenta del usuario si fue identificado
-                if ($usuario) {
-                    $usuario->update([
-                        'activo'         => false,
-                        'motivo_bloqueo' => "Bloqueado automáticamente: {$maxAttempts} intentos fallidos desde IP {$request->ip()}",
-                    ]);
-                }
-
-                // Registrar IP en lista negra permanente — se mantiene así a
-                // propósito (medida seria, no se autodestruye sola). Lo que
-                // SÍ debe funcionar bien es el desbloqueo manual del admin
-                // (UsuarioController::toggleStatus), que limpia esta fila por
-                // IP además de por usuario_id, y también el lockout de cache
-                // — para que al reactivar la cuenta se pueda reintentar en
-                // segundos, no en 30 minutos.
-                IpBloqueada::firstOrCreate(
-                    ['ip' => $request->ip()],
-                    [
-                        'usuario_id' => $usuario?->id,
-                        'motivo'     => "Bloqueada automáticamente tras {$maxAttempts} intentos fallidos de login",
-                    ]
-                );
-
-                // Alerta de seguridad en el log de auditoría
                 $this->logActivity(
-                    'posible_hackeo',
-                    "⚠️ POSIBLE INTENTO DE HACKEO — IP: {$request->ip()} bloqueada definitivamente tras {$maxAttempts} intentos fallidos" .
-                    ($usuario ? " — Cuenta objetivo: {$usuario->nick} (bloqueada)" : " — Nick inexistente: {$request->nick}"),
+                    'login_blocked',
+                    "Lockout temporal de {$lockoutMinutes} min — IP: {$request->ip()} tras {$maxAttempts} intentos fallidos" .
+                    ($usuario ? " — Cuenta objetivo: {$usuario->nick}" : " — Nick inexistente: {$request->nick}"),
                     'usuarios',
                     $usuario?->id
                 );
 
                 return response()->json([
-                    'message' => 'Acceso bloqueado. Contacte al administrador.',
+                    'message' => 'Demasiados intentos fallidos. Espera unos minutos e inténtalo de nuevo.',
                 ], 429);
             }
 
-            $restantes = $maxAttempts - $attempts;
             $this->logActivity(
                 'login_failed',
                 "Credenciales inválidas desde IP: {$request->ip()} — Intento {$attempts}/{$maxAttempts}",
@@ -200,7 +184,7 @@ class AuthController extends Controller
         $tokenHash = hash('sha256', $token);
         $usuario->update([
             'api_token'        => $tokenHash,
-            'token_expira_en'  => now()->addHours(8),
+            'token_expira_en'  => now()->addMinutes((int) config('auth.token.idle_minutes', 30)),
             'token_created_at' => now(),
         ]);
 

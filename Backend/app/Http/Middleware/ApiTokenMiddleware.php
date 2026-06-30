@@ -47,21 +47,31 @@ class ApiTokenMiddleware
         // impidiendo iniciar sesión nueva desde ahí; solo no interrumpe
         // sesiones que ya estaban autenticadas.
 
-        // Límite absoluto: 12 horas desde creación del token
-        if ($usuario->token_created_at && now()->isAfter($usuario->token_created_at->addHours(12))) {
+        $idleMinutes   = (int) config('auth.token.idle_minutes', 30);
+        $absoluteHours = (int) config('auth.token.absolute_hours', 12);
+        $renewThrottle = (int) config('auth.token.renew_throttle_seconds', 60);
+
+        // Límite absoluto desde la creación del token.
+        if ($usuario->token_created_at && now()->isAfter($usuario->token_created_at->copy()->addHours($absoluteHours))) {
             $usuario->update(['api_token' => null, 'token_expira_en' => null, 'token_created_at' => null]);
             return response()->json(['message' => 'Sesión expirada. Inicia sesión nuevamente.'], 401);
         }
 
-        // Expiración por inactividad: 8 horas sin actividad
+        // Expiración por inactividad (minutos).
         if ($usuario->token_expira_en && now()->isAfter($usuario->token_expira_en)) {
             $usuario->update(['api_token' => null, 'token_expira_en' => null, 'token_created_at' => null]);
             return response()->json(['message' => 'Sesión expirada por inactividad. Inicia sesión nuevamente.'], 401);
         }
 
-        // Renovar ventana de inactividad con cada request activo, y registrar
-        // este momento como "última conexión" real (no solo el último login).
-        $usuario->update(['token_expira_en' => now()->addHours(8), 'ultimo_visto' => now()]);
+        // Renueva la ventana de inactividad y "último visto", pero NO en cada
+        // request: solo si pasaron al menos `renewThrottle` segundos desde la
+        // última escritura. Así una sesión activa no produce un UPDATE en la
+        // tabla `usuarios` por cada llamada a la API — clave con muchos
+        // usuarios concurrentes. La ventana de inactividad (minutos) es muy
+        // superior a este intervalo, así que la sesión no expira antes de tiempo.
+        if (!$usuario->ultimo_visto || $usuario->ultimo_visto->diffInSeconds(now()) >= $renewThrottle) {
+            $usuario->update(['token_expira_en' => now()->addMinutes($idleMinutes), 'ultimo_visto' => now()]);
+        }
 
         auth()->login($usuario);
 

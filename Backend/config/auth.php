@@ -114,4 +114,24 @@ return [
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Sesión por token de API
+    |--------------------------------------------------------------------------
+    |
+    | idle_minutes:    minutos de INACTIVIDAD tras los cuales la sesión expira
+    |                  (la ventana se renueva con cada request activo).
+    | absolute_hours:  tope máximo de vida de una sesión desde el login, sin
+    |                  importar la actividad.
+    | renew_throttle_seconds: cada cuántos segundos, como mucho, se persiste la
+    |                  renovación de la ventana / "último visto" — evita escribir
+    |                  en la tabla usuarios en CADA request (clave a escala).
+    |
+    */
+    'token' => [
+        'idle_minutes'           => (int) env('SESSION_IDLE_MINUTES', 30),
+        'absolute_hours'         => (int) env('SESSION_ABSOLUTE_HOURS', 12),
+        'renew_throttle_seconds' => (int) env('SESSION_RENEW_THROTTLE_SECONDS', 60),
+    ],
+
 ];
