@@ -1308,6 +1308,7 @@ function Step5({ sim, tasaBcv, tasaEur, editId, onBack, onClose, onSaved, showTo
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadNombre, setUploadNombre] = useState('')
+  const [customDoc, setCustomDoc] = useState(false)   // "Otro…": nombre libre
   const [uploadFile, setUploadFile] = useState(null)
   const [showUpload, setShowUpload] = useState(false)
   const fileRef = useRef(null)
@@ -1327,7 +1328,7 @@ function Step5({ sim, tasaBcv, tasaEur, editId, onBack, onClose, onSaved, showTo
     setUploading(true)
     try {
       await uploadDocumentoCliente(sim.cliente_id, uploadNombre.trim(), uploadFile)
-      setUploadFile(null); setUploadNombre(''); setShowUpload(false)
+      setUploadFile(null); setUploadNombre(''); setCustomDoc(false); setShowUpload(false)
       fileRef.current && (fileRef.current.value = '')
       await loadDocs()
     } catch (e) {
@@ -1542,19 +1543,23 @@ function Step5({ sim, tasaBcv, tasaEur, editId, onBack, onClose, onSaved, showTo
               <div className="px-3 py-3 bg-slate-50 border-b border-slate-100 space-y-2">
                 <select
                   className="select-field text-sm"
-                  value={uploadNombre}
-                  onChange={e => setUploadNombre(e.target.value)}
+                  value={customDoc ? '__custom__' : uploadNombre}
+                  onChange={e => {
+                    if (e.target.value === '__custom__') { setCustomDoc(true); setUploadNombre('') }
+                    else { setCustomDoc(false); setUploadNombre(e.target.value) }
+                  }}
                 >
                   <option value="">— Tipo de documento —</option>
                   {docsRequeridos.map(d => <option key={d.nombre} value={d.nombre}>{d.nombre}</option>)}
                   <option value="__custom__">Otro…</option>
                 </select>
-                {uploadNombre === '__custom__' && (
-                  <input className="input-field text-sm" placeholder="Nombre del documento" onChange={e => setUploadNombre(e.target.value)} />
+                {customDoc && (
+                  <input className="input-field text-sm" placeholder="Nombre del documento"
+                    value={uploadNombre} onChange={e => setUploadNombre(e.target.value)} autoFocus maxLength={100} />
                 )}
                 <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" className="text-xs text-slate-600"
                   onChange={e => setUploadFile(e.target.files[0] || null)} />
-                <button onClick={handleUpload} disabled={uploading || !uploadFile || !uploadNombre || uploadNombre === '__custom__'} className="btn-primary w-full justify-center text-xs disabled:opacity-50">
+                <button onClick={handleUpload} disabled={uploading || !uploadFile || !uploadNombre.trim()} className="btn-primary w-full justify-center text-xs disabled:opacity-50">
                   {uploading ? 'Subiendo…' : <><Upload className="w-3.5 h-3.5" /> Subir documento</>}
                 </button>
               </div>
