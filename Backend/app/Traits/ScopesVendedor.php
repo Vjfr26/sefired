@@ -44,9 +44,21 @@ trait ScopesVendedor
         return $query;
     }
 
-    /** Corta la petición con 403 si el cliente indicado no pertenece al vendedor actual. */
-    protected function assertAccesoCliente(Persona $persona): void
+    /**
+     * Corta la petición con 403 si el cliente indicado no pertenece al vendedor
+     * actual.
+     *
+     * `$permitirVenta`: en el flujo de emisión de una NUEVA póliza se permite
+     * registrar la solicitud/bien para el cliente de otro vendedor (vender a
+     * clientes ajenos). Es la única excepción; el resto del proyecto sigue
+     * restringido a "solo mis clientes". La acreditación no cambia: la venta
+     * queda con el vendedor que registra la solicitud (ver SolicitudController::store).
+     */
+    protected function assertAccesoCliente(Persona $persona, bool $permitirVenta = false): void
     {
+        if ($permitirVenta) {
+            return;
+        }
         $this->assertAccesoVendedorId($persona->vendedor_id, 'No tienes acceso a este cliente.');
     }
 

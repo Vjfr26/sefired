@@ -91,7 +91,10 @@ class BienAseguradoController extends Controller
         ]);
 
         if (!empty($data['persona_id'])) {
-            $this->assertAccesoCliente(Persona::findOrFail($data['persona_id']));
+            // Crear el bien a asegurar es parte de la emisión de una nueva
+            // póliza: se permite para el cliente de otro vendedor (vender a
+            // clientes ajenos). El resto de acciones sobre bienes sigue scoped.
+            $this->assertAccesoCliente(Persona::findOrFail($data['persona_id']), permitirVenta: true);
         }
 
         $bien = BienAsegurado::create([

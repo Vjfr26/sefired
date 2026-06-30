@@ -102,7 +102,10 @@ class SolicitudController extends Controller
             'asegurado_direccion' => ['nullable', 'string', 'max:255', $noInjection],
         ]);
 
-        $this->assertAccesoReferencias($data);
+        // Emisión de nueva póliza: se permite registrar la solicitud para el
+        // cliente de otro vendedor (vender a clientes ajenos). La venta se
+        // acredita igual a quien la registra (vendedor_id = auth()->id()).
+        $this->assertAccesoReferencias($data, permitirVenta: true);
 
         $data['vendedor_id'] = auth()->id();
         $data['status']      = 'en_revision';
@@ -592,15 +595,15 @@ class SolicitudController extends Controller
      * un vendedor podía apuntar su propia cotización al cliente de otro
      * vendedor solo cambiando el ID en la petición.
      */
-    private function assertAccesoReferencias(array $data): void
+    private function assertAccesoReferencias(array $data, bool $permitirVenta = false): void
     {
         if (!empty($data['persona_id'])) {
-            $this->assertAccesoCliente(Persona::findOrFail($data['persona_id']));
+            $this->assertAccesoCliente(Persona::findOrFail($data['persona_id']), $permitirVenta);
         }
         if (!empty($data['bien_asegurado_id'])) {
             $bien = BienAsegurado::with('persona')->findOrFail($data['bien_asegurado_id']);
             if ($bien->persona) {
-                $this->assertAccesoCliente($bien->persona);
+                $this->assertAccesoCliente($bien->persona, $permitirVenta);
             }
         }
     }
