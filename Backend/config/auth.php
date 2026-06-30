@@ -132,6 +132,10 @@ return [
         'idle_minutes'           => (int) env('SESSION_IDLE_MINUTES', 30),
         'absolute_hours'         => (int) env('SESSION_ABSOLUTE_HOURS', 12),
         'renew_throttle_seconds' => (int) env('SESSION_RENEW_THROTTLE_SECONDS', 60),
+        // Máximo de sesiones concurrentes por usuario. Al iniciar sesión de más
+        // se cierra automáticamente la más antigua (takeover) — nunca se rechaza
+        // ni se deja al usuario bloqueado. 1 = una sola sesión por usuario.
+        'max_sessions'           => (int) env('SESSION_MAX_PER_USER', 1),
     ],
 
 ];

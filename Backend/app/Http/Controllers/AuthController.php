@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\IpBloqueada;
+use App\Models\Sesion;
 use App\Models\Usuario;
 use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
@@ -153,40 +154,39 @@ class AuthController extends Controller
             return response()->json(['message' => 'El acceso temporal de esta cuenta ha vencido. Contacte al administrador.'], 403);
         }
 
-        // ── 5. Si ya hay una sesión activa con este usuario, se rechaza el
-        // nuevo intento — antes dejaba entrar y le cerraba la sesión al que
-        // ya estaba adentro, lo cual no corresponde (alguien podría estar
-        // tipeando una cotización y quedarse afuera sin aviso). La sesión
-        // existente queda intacta; quien intenta entrar de nuevo tiene que
-        // esperar a que esa sesión se cierre (logout) o expire.
-        $sesionActiva = $usuario->api_token
-            && $usuario->token_expira_en
-            && now()->isBefore($usuario->token_expira_en);
-
-        if ($sesionActiva) {
-            $this->logActivity(
-                'sesion_duplicada_rechazada',
-                "Intento de doble sesión rechazado para {$usuario->nick} — IP: {$request->ip()}",
-                'usuarios',
-                $usuario->id
-            );
-
-            return response()->json([
-                'message' => 'Ya existe una sesión activa con este usuario. Cierra esa sesión o espera unos minutos e inténtalo de nuevo.',
-            ], 409);
-        }
-
-        // ── 6. Login exitoso ──────────────────────────────────────────────────────
+        // ── 5. Login exitoso ──────────────────────────────────────────────────────
+        // Ya no se rechaza por "sesión duplicada": la política de concurrencia
+        // (auth.token.max_sessions) se aplica más abajo creando la nueva sesión
+        // y cerrando la más antigua (takeover). Así nadie queda bloqueado afuera
+        // por una sesión previa que no se cerró bien.
         Cache::forget($attemptsKey);
         Cache::forget($lockoutKey);
 
-        $token     = bin2hex(random_bytes(40));
-        $tokenHash = hash('sha256', $token);
-        $usuario->update([
-            'api_token'        => $tokenHash,
-            'token_expira_en'  => now()->addMinutes((int) config('auth.token.idle_minutes', 30)),
-            'token_created_at' => now(),
+        $token = bin2hex(random_bytes(40));
+
+        // Una fila de sesión por dispositivo (ver tabla `sesiones`).
+        $sesion = Sesion::create([
+            'usuario_id'         => $usuario->id,
+            'token_hash'         => hash('sha256', $token),
+            'device_fingerprint' => $this->fingerprint($request),
+            'user_agent'         => mb_substr((string) $request->userAgent(), 0, 255),
+            'ip_inicial'         => $request->ip(),
+            'ip'                 => $request->ip(),
+            'created_at'         => now(),
+            'ultimo_visto'       => now(),
+            'expira_en'          => now()->addMinutes((int) config('auth.token.idle_minutes', 30)),
         ]);
+
+        // Política de concurrencia: se conservan las `max_sessions` más recientes
+        // (incluida la que se acaba de crear) y se cierran las demás (takeover).
+        $max  = max(1, (int) config('auth.token.max_sessions', 1));
+        $keep = Sesion::where('usuario_id', $usuario->id)
+            ->orderByDesc('created_at')
+            ->take($max)
+            ->pluck('id');
+        Sesion::where('usuario_id', $usuario->id)
+            ->whereNotIn('id', $keep)
+            ->delete();
 
         $this->logActivity('login', "Inicio de sesión exitoso — ID: {$usuario->id}", 'usuarios', $usuario->id);
 
@@ -230,12 +230,12 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
-        $token   = str_replace('Bearer ', '', $request->header('Authorization'));
-        $usuario = Usuario::where('api_token', hash('sha256', $token))->first();
+        $token  = str_replace('Bearer ', '', (string) $request->header('Authorization'));
+        $sesion = Sesion::where('token_hash', hash('sha256', $token))->first();
 
-        if ($usuario) {
-            $this->logActivity('logout', "Usuario {$usuario->nick} ha cerrado sesión", 'usuarios', $usuario->id);
-            $usuario->update(['api_token' => null, 'token_expira_en' => null, 'token_created_at' => null]);
+        if ($sesion) {
+            $this->logActivity('logout', "Usuario {$sesion->usuario?->nick} ha cerrado sesión", 'usuarios', $sesion->usuario_id);
+            $sesion->delete();
         }
 
         return response()->json(['message' => 'Sesión cerrada correctamente.']);
@@ -246,13 +246,23 @@ class AuthController extends Controller
     {
         $request->validate(['password' => 'required|string|max:128']);
 
-        $token   = str_replace('Bearer ', '', $request->header('Authorization'));
-        $usuario = Usuario::where('api_token', hash('sha256', $token))->first();
+        $usuario = auth()->user();
 
         if (!$usuario || !Hash::check($request->input('password'), $usuario->password)) {
             return response()->json(['error' => 'Contraseña incorrecta'], 401);
         }
 
         return response()->json(['ok' => true]);
+    }
+
+    /** Parsea el header X-Device-Fingerprint a array (o null si no es válido). */
+    private function fingerprint(Request $request): ?array
+    {
+        $raw = $request->header('X-Device-Fingerprint');
+        if (!$raw) {
+            return null;
+        }
+        $decoded = json_decode($raw, true);
+        return is_array($decoded) ? $decoded : null;
     }
 }

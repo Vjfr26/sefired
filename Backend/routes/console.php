@@ -20,3 +20,7 @@ Schedule::command('correos:cumpleanios') ->dailyAt('08:00')->timezone('America/C
 Schedule::command('correos:reporte-interno')->weeklyOn(1, '08:00')->timezone('America/Caracas');
 Schedule::command('reportes:enviar-programados')->everyFifteenMinutes()->timezone('America/Caracas')->withoutOverlapping();
 Schedule::command('queue:work --stop-when-empty')->everyMinute()->withoutOverlapping();
+
+// ── Sesiones expiradas ───────────────────────────────────────────────────────
+// Limpia la tabla `sesiones` (inactividad / tope absoluto) cada hora.
+Schedule::command('sesiones:purgar')->hourly()->withoutOverlapping();

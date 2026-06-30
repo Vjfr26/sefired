@@ -19,6 +19,7 @@ use App\Http\Controllers\PortalController;
 use App\Http\Controllers\SolicitudContactoController;
 use App\Http\Controllers\SolicitudRenovacionQrController;
 use App\Http\Controllers\VehiculoCatalogoController;
+use App\Http\Controllers\SesionController;
 
 // ── Portal público (sin autenticación) — cotizador para clientes ──────────────
 Route::prefix('portal')->middleware('throttle:60,1')->group(function () {
@@ -46,6 +47,11 @@ Route::middleware([\App\Http\Middleware\ApiTokenMiddleware::class, 'throttle:120
     // pagar comisiones...); con 10/min un admin haciendo varias acciones
     // seguidas chocaba con "Demasiados intentos" en pleno uso normal.
     Route::post('/user/verify-password', [AuthController::class, 'verifyPassword'])->middleware('throttle:30,1');
+
+    // Sesiones activas del usuario en sesión (gestión de dispositivos).
+    Route::get('/user/sesiones',                [SesionController::class, 'index']);
+    Route::delete('/user/sesiones/{id}',        [SesionController::class, 'destroy'])->whereNumber('id');
+    Route::post('/user/sesiones/cerrar-otras',  [SesionController::class, 'cerrarOtras']);
 
     // Perfil del usuario en sesión — solo campos necesarios, nunca el modelo completo
     Route::get('/user', fn(Request $r) => response()->json([
@@ -159,6 +165,7 @@ Route::middleware([\App\Http\Middleware\ApiTokenMiddleware::class, 'throttle:120
         Route::put('/usuarios/{id}',                   [UsuarioController::class, 'update'])->middleware('perm:usuarios,edit');
         Route::delete('/usuarios/{id}',                [UsuarioController::class, 'destroy'])->middleware('perm:usuarios,delete');
         Route::post('/usuarios/{id}/toggle-status',    [UsuarioController::class, 'toggleStatus'])->middleware('perm:usuarios,block');
+        Route::post('/usuarios/{id}/forzar-logout',    [SesionController::class, 'forzarLogout'])->middleware('perm:usuarios,block');
 
         // Logs del sistema (auditoría)
         Route::get('/reports/logs', [ReportController::class, 'getLogs'])->middleware('perm:config,view_audit');

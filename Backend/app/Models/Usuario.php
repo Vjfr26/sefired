@@ -58,4 +58,9 @@ class Usuario extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    public function sesiones()
+    {
+        return $this->hasMany(\App\Models\Sesion::class, 'usuario_id');
+    }
 }

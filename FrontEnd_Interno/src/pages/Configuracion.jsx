@@ -1,13 +1,117 @@
 import { useState, useEffect } from 'react'
-import { KeyRound, Activity, Info, Check, CheckCircle, AlertTriangle, Lock, Circle, ShieldCheck } from 'lucide-react'
+import { KeyRound, Activity, Info, Check, CheckCircle, AlertTriangle, Lock, Circle, ShieldCheck, Monitor, Smartphone, LogOut } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { fetchLogs, fetchAuditLog, fetchEmailLogs, fetchIpsBloqueadas, desbloquearIp } from '../api/reports.js'
 import { changePassword } from '../api/usuarios.js'
+import { fetchSesiones, cerrarSesion, cerrarOtrasSesiones } from '../api/sesiones.js'
 import { badge } from '../utils/helpers.jsx'
 import DataTable from '../components/DataTable.jsx'
 import { PasswordInput } from '../components/FormControls.jsx'
 
 // ── Tab: Seguridad ───────────────────────────────────────────
+// Etiqueta legible del navegador/SO a partir del user-agent.
+function labelUA(ua = '') {
+  if (!ua) return 'Dispositivo desconocido'
+  const browser = /Edg/i.test(ua) ? 'Edge'
+    : /OPR|Opera/i.test(ua) ? 'Opera'
+    : /Chrome/i.test(ua) ? 'Chrome'
+    : /Firefox/i.test(ua) ? 'Firefox'
+    : /Safari/i.test(ua) ? 'Safari'
+    : 'Navegador'
+  const os = /Windows/i.test(ua) ? 'Windows'
+    : /Android/i.test(ua) ? 'Android'
+    : /iPhone|iPad|iOS/i.test(ua) ? 'iOS'
+    : /Mac OS|Macintosh/i.test(ua) ? 'macOS'
+    : /Linux/i.test(ua) ? 'Linux'
+    : ''
+  return os ? `${browser} · ${os}` : browser
+}
+
+const fmtVisto = (x) => {
+  if (!x) return '—'
+  try { return new Date(x).toLocaleString('es-VE', { dateStyle: 'medium', timeStyle: 'short' }) }
+  catch { return '—' }
+}
+
+// Sesiones activas del usuario (gestión de dispositivos).
+function SesionesActivas() {
+  const { showToast } = useApp()
+  const [sesiones, setSesiones] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  const load = async () => {
+    setLoading(true)
+    try { setSesiones(await fetchSesiones()) }
+    catch (e) { showToast(e.message, 'error') }
+    finally { setLoading(false) }
+  }
+  useEffect(() => { load() }, [])
+
+  const cerrar = async (id) => {
+    try { await cerrarSesion(id); showToast('Sesión cerrada', 'success'); load() }
+    catch (e) { showToast(e.message, 'error') }
+  }
+  const cerrarOtras = async () => {
+    try { const r = await cerrarOtrasSesiones(); showToast(r.message || 'Sesiones cerradas', 'success'); load() }
+    catch (e) { showToast(e.message, 'error') }
+  }
+
+  const otras = sesiones.filter(s => !s.es_actual).length
+
+  return (
+    <div className="card p-6">
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+        <div className="flex items-center gap-2">
+          <Monitor className="w-4 h-4 text-jm-blue" />
+          <h4 className="font-semibold text-slate-700 text-sm">Sesiones activas</h4>
+        </div>
+        {otras > 0 && (
+          <button onClick={cerrarOtras} className="btn-secondary text-xs">
+            <LogOut className="w-3.5 h-3.5" /> Cerrar las demás
+          </button>
+        )}
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-slate-400 py-4">Cargando…</p>
+      ) : sesiones.length === 0 ? (
+        <p className="text-sm text-slate-400 py-4">No hay sesiones activas.</p>
+      ) : (
+        <div className="space-y-2.5">
+          {sesiones.map(s => {
+            const movil = /Mobile|Android|iPhone|iPad/i.test(s.user_agent || '')
+            return (
+              <div key={s.id} className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 bg-slate-50/60">
+                <span className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0 text-slate-500">
+                  {movil ? <Smartphone className="w-4 h-4" /> : <Monitor className="w-4 h-4" />}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-slate-700 truncate">
+                    {labelUA(s.user_agent)}
+                    {s.es_actual && (
+                      <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">Esta sesión</span>
+                    )}
+                  </p>
+                  <p className="text-xs text-slate-400 truncate">{s.ip || '—'} · {fmtVisto(s.ultimo_visto)}</p>
+                </div>
+                {!s.es_actual && (
+                  <button
+                    onClick={() => cerrar(s.id)}
+                    className="p-2 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition shrink-0"
+                    title="Cerrar esta sesión"
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function TabSeguridad() {
   const { showToast, canAct } = useApp()
   const canChangePassword = canAct('config', 'change_password')
@@ -104,6 +208,10 @@ function TabSeguridad() {
             <Lock className="w-3.5 h-3.5" />Sin permiso para cambiar contraseña
           </div>
         )}
+      </div>
+
+      <div className="lg:col-span-2">
+        <SesionesActivas />
       </div>
 
       {canAct('config', 'view_audit') && (
