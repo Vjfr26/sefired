@@ -75,15 +75,18 @@ const clienteFields = (c = {}) => [
 ]
 
 // Columnas de la tabla. Las columnas menos importantes se ocultan en pantallas pequeñas.
+// `s` apunta al campo crudo por el que ordenar, porque la celda visible de
+// estas columnas es JSX (badges, montos y fechas con estilo) y no se puede
+// comparar directamente. Ver DataTable.
 const COLS = [
-  { k: 'displayId', l: 'ID',              m: true, bold: true, hide: 'xl' },
-  { k: 'nom',       l: 'Nombre Completo', tr: true, primary: true },
+  { k: 'displayId', l: 'ID',              m: true, bold: true, hide: 'xl', s: 'id' },
+  { k: 'nom',       l: 'Nombre Completo', tr: true, primary: true, s: 'nomSort' },
   { k: 'ci',        l: 'CI / RIF',        m: true, bold: true, hide: 'sm' },
-  { k: 'vendCell',  l: 'Vendedor',        hide: 'xl', nw: true },
-  { k: 'polNum',    l: 'N° Póliza',       hide: 'md' },
-  { k: 'primaCell', l: 'Prima',           hide: 'md', nw: true },
-  { k: 'vigCell',   l: 'Vigencia',        hide: 'xl', nw: true },
-  { k: 'est',       l: 'Estado',          nw: true },
+  { k: 'vendCell',  l: 'Vendedor',        hide: 'xl', nw: true, s: 'vendedor_nombre' },
+  { k: 'polNum',    l: 'N° Póliza',       hide: 'md', s: 'pol' },
+  { k: 'primaCell', l: 'Prima',           hide: 'md', nw: true, s: 'prima' },
+  { k: 'vigCell',   l: 'Vigencia',        hide: 'xl', nw: true, s: 'vig' },
+  { k: 'est',       l: 'Estado',          nw: true, s: 'estSort' },
   { k: 'acc',       l: '',                acc: true },
 ]
 
@@ -214,11 +217,13 @@ export default function Clientes() {
       ...c,
       displayId: fmtId(c.id),
       nom: nomCell,
+      nomSort: c.nom,   // valor crudo para ordenar (la celda `nom` es JSX)
       polNum,
       primaCell,
       vigCell,
       vendCell,
       est: rsbadge(c.est),
+      estSort: c.est,   // valor crudo para ordenar (la celda `est` es JSX)
       acc: (() => {
         const actions = [
           { icon: Eye, label: 'Ver detalles', color: 'slate', onClick: () => showModal('clienteDetail', { c }) },

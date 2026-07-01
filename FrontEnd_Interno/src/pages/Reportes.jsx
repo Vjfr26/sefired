@@ -37,7 +37,7 @@ import { fetchSolicitudesContacto, actualizarSolicitudContacto } from '../api/so
 import { useApp } from '../context/AppContext.jsx'
 import { usd, bs, fmtMonto, badge, rsbadge, sbadge } from '../utils/helpers.jsx'
 import DataTable from '../components/DataTable.jsx'
-import { Paperclip, FileText, UserSearch, MessageCircle } from 'lucide-react'
+import { Paperclip, FileText, UserSearch, MessageCircle, RotateCcw, MessageSquareText } from 'lucide-react'
 
 // Helper to get start of current month and today's date dynamically
 const getInitialDates = () => {
@@ -133,8 +133,10 @@ function TabVentas() {
       confirmLabel: 'Marcar pagada',
       color: 'emerald',
       icon: CheckCircle2,
-      onConfirm: async () => {
-        await marcarComision(venta.comision_id, 'PAGADA')
+      withNote: true,
+      notePlaceholder: 'Referencia del pago, motivo, etc. (opcional)',
+      onConfirm: async (observacion) => {
+        await marcarComision(venta.comision_id, 'PAGADA', observacion || null)
         showToast('Comisión marcada como pagada', 'success')
         loadData()
       },
@@ -298,17 +300,30 @@ function TabVentas() {
               accion: v.comision_id && v.comision_status === 'PENDIENTE' && canManageComisiones ? (
                 <button
                   onClick={() => handleMarcarPagada(v)}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-xs font-semibold text-emerald-600 hover:bg-emerald-100 transition whitespace-nowrap"
+                  title="Marcar pagada"
+                  className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition"
                 >
-                  Marcar pagada
+                  <CheckCircle2 className="w-4 h-4" />
                 </button>
-              ) : v.comision_id && v.comision_status === 'PAGADA' && canRevertirComisiones ? (
-                <button
-                  onClick={() => handleRevertirComision(v)}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 text-xs font-semibold text-amber-600 hover:bg-amber-100 transition whitespace-nowrap"
-                >
-                  Revertir
-                </button>
+              ) : v.comision_id && v.comision_status === 'PAGADA' ? (
+                <div className="inline-flex items-center gap-1.5">
+                  <button
+                    onClick={() => showModal('noteView', { title: `Observación · ${v.pol}`, note: v.comision_observacion })}
+                    title={v.comision_observacion ? 'Ver observación' : 'Sin observación'}
+                    className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-50 text-slate-500 hover:bg-slate-100 transition"
+                  >
+                    <MessageSquareText className="w-4 h-4" />
+                  </button>
+                  {canRevertirComisiones && (
+                    <button
+                      onClick={() => handleRevertirComision(v)}
+                      title="Revertir"
+                      className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 transition"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
               ) : null,
             }))}
           />
@@ -1611,8 +1626,10 @@ function TabUsuariosMetrics() {
       confirmLabel: 'Marcar pagada',
       color: 'emerald',
       icon: CheckCircle2,
-      onConfirm: async () => {
-        await marcarComision(poliza.comision_id, 'PAGADA')
+      withNote: true,
+      notePlaceholder: 'Referencia del pago, motivo, etc. (opcional)',
+      onConfirm: async (observacion) => {
+        await marcarComision(poliza.comision_id, 'PAGADA', observacion || null)
         showToast('Comisión marcada como pagada', 'success')
         loadUserDetail(selectedUser)
       },
@@ -1799,17 +1816,30 @@ function TabUsuariosMetrics() {
                 accion: p.comision_id && p.comision_status === 'PENDIENTE' && canManageComisiones ? (
                   <button
                     onClick={() => handleMarcarPagada(p)}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-xs font-semibold text-emerald-600 hover:bg-emerald-100 transition whitespace-nowrap"
+                    title="Marcar pagada"
+                    className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition"
                   >
-                    Marcar pagada
+                    <CheckCircle2 className="w-4 h-4" />
                   </button>
-                ) : p.comision_id && p.comision_status === 'PAGADA' && canRevertirComisiones ? (
-                  <button
-                    onClick={() => handleRevertirComision(p)}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 text-xs font-semibold text-amber-600 hover:bg-amber-100 transition whitespace-nowrap"
-                  >
-                    Revertir
-                  </button>
+                ) : p.comision_id && p.comision_status === 'PAGADA' ? (
+                  <div className="inline-flex items-center gap-1.5">
+                    <button
+                      onClick={() => showModal('noteView', { title: `Observación · ${p.nro_contrato}`, note: p.comision_observacion })}
+                      title={p.comision_observacion ? 'Ver observación' : 'Sin observación'}
+                      className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-50 text-slate-500 hover:bg-slate-100 transition"
+                    >
+                      <MessageSquareText className="w-4 h-4" />
+                    </button>
+                    {canRevertirComisiones && (
+                      <button
+                        onClick={() => handleRevertirComision(p)}
+                        title="Revertir"
+                        className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 transition"
+                      >
+                        <RotateCcw className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
                 ) : null,
               }))}
             />

@@ -478,7 +478,7 @@ export default function Vehiculos() {
           <div className="flex-1 min-w-0">
             <div className="inline-flex items-center gap-2 bg-white/10 border border-white/15 rounded-full px-3 py-1.5 mb-3">
               <Package className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="text-xs font-bold text-white/70 uppercase tracking-wider">J&M · Bienes Asegurados</span>
+              <span className="text-xs font-bold text-white/70 uppercase tracking-wider">Bienes Asegurados</span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-black text-white leading-snug mb-1.5">
               Bienes <span className="text-emerald-400">asegurados</span>

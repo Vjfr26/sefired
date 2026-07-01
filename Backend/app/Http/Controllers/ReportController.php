@@ -539,6 +539,7 @@ class ReportController extends Controller
                 'comision_tasa_pct'   => $p->comision ? (float) $p->comision->tasa_pct : null,
                 'comision_status'     => $p->comision?->status,
                 'comision_fecha_pago' => $p->comision?->fecha_pago?->format('d/m/Y'),
+                'comision_observacion'=> $p->comision?->observacion,
             ];
         })->values();
 
@@ -826,6 +827,7 @@ class ReportController extends Controller
                         'comision_monto'       => $p->comision ? (float) $p->comision->monto : null,
                         'comision_status'      => $p->comision?->status,
                         'comision_fecha_pago'  => $p->comision?->fecha_pago?->format('d/m/Y'),
+                        'comision_observacion' => $p->comision?->observacion,
                     ];
                 }),
             ]);
@@ -919,7 +921,8 @@ class ReportController extends Controller
     public function marcarComision(Request $request, $id)
     {
         $data = $request->validate([
-            'status' => 'required|string|in:PAGADA,PENDIENTE',
+            'status'      => 'required|string|in:PAGADA,PENDIENTE',
+            'observacion' => ['nullable', 'string', 'max:500', new NoInjectionChars()],
         ]);
 
         $comision = Comision::findOrFail($id);
@@ -931,9 +934,11 @@ class ReportController extends Controller
         }
 
         $comision->update([
-            'status'     => $data['status'],
-            'fecha_pago' => $data['status'] === 'PAGADA' ? now()->toDateString() : null,
-            'pagado_por' => $data['status'] === 'PAGADA' ? auth()->id() : null,
+            'status'      => $data['status'],
+            'fecha_pago'  => $data['status'] === 'PAGADA' ? now()->toDateString() : null,
+            'pagado_por'  => $data['status'] === 'PAGADA' ? auth()->id() : null,
+            // La observación es la nota del pago; al revertir a pendiente se limpia.
+            'observacion' => $data['status'] === 'PAGADA' ? ($data['observacion'] ?? null) : null,
         ]);
 
         $this->logActivity(
@@ -944,9 +949,10 @@ class ReportController extends Controller
         );
 
         return response()->json([
-            'id'         => $comision->id,
-            'status'     => $comision->status,
-            'fecha_pago' => $comision->fecha_pago?->format('d/m/Y'),
+            'id'          => $comision->id,
+            'status'      => $comision->status,
+            'fecha_pago'  => $comision->fecha_pago?->format('d/m/Y'),
+            'observacion' => $comision->observacion,
         ]);
     }
 

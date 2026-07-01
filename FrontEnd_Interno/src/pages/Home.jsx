@@ -60,8 +60,8 @@ export default function Home() {
           <UserAvatar rol={currentUser?.tipo} genero={currentUser?.genero} className="w-20 h-20 rounded-3xl mb-5 shadow-xl shadow-blue-900/20" />
           <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.28em] mb-2">Bienvenido de vuelta</p>
           <h2 className="text-2xl sm:text-3xl font-black text-slate-800 mb-2 tracking-tight">{currentUser?.nombre ?? '—'}</h2>
-          <p className="text-sm font-semibold text-slate-500">{currentUser?.cargo ?? '—'} · INVERSIONES J&M, C.A.</p>
-          <p className="text-xs text-slate-400 mt-1.5">Con el respaldo de LA VENEZOLANA DE SEGUROS Y VIDA C.A.</p>
+          <p className="text-sm font-semibold text-slate-500">{currentUser?.cargo ?? '—'}{currentUser?.sede ? ` · ${currentUser.sede}` : ''}</p>
+          <p className="text-xs text-slate-400 mt-1.5">LA VENEZOLANA DE SEGUROS Y VIDA C.A.</p>
         </div>
 
         {/* Quick access — solo muestra secciones a las que el usuario tiene acceso */}
@@ -85,25 +85,6 @@ export default function Home() {
           </div>
         )}
       </div>
-
-      {/* Resumen general del sistema */}
-      {verResumen && stats && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 max-w-4xl mx-auto mt-6">
-          {[
-            { label: 'Pólizas Activas', val: stats.polizas_activas, Icon: ShieldCheck, cls: 'border-t-emerald-500', vcls: 'text-emerald-700' },
-            { label: 'Cotiz. en Revisión', val: stats.cotizaciones_en_revision, Icon: ClipboardList, cls: 'border-t-amber-500', vcls: 'text-amber-700' },
-            { label: 'Cotiz. Emitidas', val: stats.cotizaciones_emitidas, Icon: FileCheck, cls: 'border-t-blue-500', vcls: 'text-blue-700' },
-            { label: 'Ventas este Mes', val: stats.ventas_este_mes, Icon: TrendingUp, cls: 'border-t-indigo-500', vcls: 'text-indigo-700' },
-            { label: 'Clientes', val: stats.total_clientes, Icon: Users, cls: 'border-t-slate-400', vcls: 'text-slate-700' },
-          ].map(c => (
-            <div key={c.label} className={`card p-4 text-center border-t-4 ${c.cls}`}>
-              <c.Icon className={`w-4 h-4 mx-auto mb-1 ${c.vcls}`} />
-              <p className={`text-xl font-black ${c.vcls}`}>{c.val ?? 0}</p>
-              <p className="text-[11px] text-slate-500 mt-0.5">{c.label}</p>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   )
 }

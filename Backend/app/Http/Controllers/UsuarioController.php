@@ -78,6 +78,7 @@ class UsuarioController extends Controller
                 'nombre'   => $u->nombre,
                 'nick'     => $u->nick,
                 'cargo'    => $u->cargo,
+                'sede'     => $u->sede,
                 'genero'   => $u->genero,
                 'tipo'     => $u->tipo,
                 'permisos' => $u->permisos,

@@ -536,7 +536,7 @@
 
     @endif
 
-    <p class="footer">Servicio operado por INVERSIONES J&amp;M, C.A., con el respaldo de LA VENEZOLANA DE SEGUROS Y VIDA C.A. &copy; {{ date('Y') }} — Todos los derechos reservados.</p>
+    <p class="footer">Servicio operado por INVERSIONES J&amp;M, C.A., LA VENEZOLANA DE SEGUROS Y VIDA C.A. &copy; {{ date('Y') }} — Todos los derechos reservados.</p>
 
 </div>
 

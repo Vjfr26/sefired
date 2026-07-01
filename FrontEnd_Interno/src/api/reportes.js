@@ -191,13 +191,17 @@ export async function exportUsuariosReport(params = {}) {
   return res.blob()
 }
 
-/** Marca una comisión como pagada o la revierte a pendiente. */
-export async function marcarComision(id, status) {
+/**
+ * Marca una comisión como pagada o la revierte a pendiente.
+ * Al marcar pagada se puede adjuntar una observación (nota del pago); al
+ * revertir se ignora (el backend la limpia).
+ */
+export async function marcarComision(id, status, observacion = null) {
   const token = localStorage.getItem('auth_token')
   const res = await fetch(`${API_BASE_URL}/api/reports/comisiones/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': `Bearer ${token}` },
-    body: JSON.stringify({ status })
+    body: JSON.stringify({ status, observacion })
   })
   const json = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(json.message || 'Error al actualizar la comisión')

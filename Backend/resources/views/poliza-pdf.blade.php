@@ -234,7 +234,7 @@
 
 <style>
     @page { margin: 0cm 0cm; font-family: Arial, sans-serif; font-size: 10px; }
-    body  { margin-top: 0.3cm; margin-bottom: 0cm; margin-left: 1cm; margin-right: 1.2cm; }
+    body  { margin-top: 1cm; margin-bottom: 0cm; margin-left: 1cm; margin-right: 1.2cm; }
 
     /* Cabeceras de sección */
     .linea {
@@ -325,28 +325,28 @@
     </tr>
     <tr class="titu2">
         <th style="width:70%;">{{ $tomadorNombre }}</th>
-        <th style="width:30%; text-align:center;">{{ $tomadorCi }}</th>
+        <th style="width:30%; text-align:left;">{{ $tomadorCi }}</th>
     </tr>
     <tr class="titu">
         <td>Dirección Tomador:</td><td>Teléfonos</td>
     </tr>
     <tr class="titu2">
         <th style="width:70%;">{{ $tomadorDireccion }}</th>
-        <th style="width:30%; text-align:center;">{{ $tomadorTel }}</th>
+        <th style="width:30%; text-align:left;">{{ $tomadorTel }}</th>
     </tr>
     <tr class="titu">
         <td>Asegurado:</td><td>C.I. / RIF</td>
     </tr>
     <tr class="titu2">
         <th style="width:70%;">{{ $asegNombre }}</th>
-        <th style="width:30%; text-align:center;">{{ $asegCi }}</th>
+        <th style="width:30%; text-align:left;">{{ $asegCi }}</th>
     </tr>
     <tr class="titu">
         <td>Dirección Asegurado:</td><td>Teléfonos</td>
     </tr>
     <tr class="titu2">
         <th style="width:70%;">{{ $asegDireccion }}</th>
-        <th style="width:30%; text-align:center;">{{ $asegTel }}</th>
+        <th style="width:30%; text-align:left;">{{ $asegTel }}</th>
     </tr>
 </table>
 
@@ -372,7 +372,7 @@
         <th>{{ $canalVenta }}</th>
         <th>{{ $frecuenciaPago }}</th>
     </tr>
-    <tr class="titu"><td colspan="2">Código del Intermediario</td><td>Participación</td></tr>
+    <tr class="titu"><td>Código del Intermediario</td><td>Intermediario</td><td>Participación</td></tr>
     <tr class="titu2">
         <th>{{ $vendedorCodigo }}</th>
         <th style="text-transform:uppercase;">{{ $vendedorNombre }}</th>
@@ -433,35 +433,35 @@
     @if($D['tipo'] === 'vehiculo')
     <tr><th colspan="6" class="linea">Datos del Vehículo{{ $multi ? ' — '.$tipoPolizaLabel.' N° '.$D['cert'] : '' }}</th></tr>
     <tr>
-        <td style="width:13%; text-align:right; border-left:1px solid #888; padding:1.5px 3px; color:#555; font-size:9px;">Marca:</td>
+        <td style="width:13%; text-align:left; border-left:1px solid #888; padding:1.5px 3px; color:#555; font-size:9px;">Marca:</td>
         <td style="padding:1.5px 4px;"><strong>{{ $D['marca'] }}</strong></td>
-        <td style="width:13%; text-align:right; padding:1.5px 3px; color:#555; font-size:9px;">Modelo:</td>
+        <td style="width:13%; text-align:left; padding:1.5px 3px; color:#555; font-size:9px;">Modelo:</td>
         <td style="padding:1.5px 4px;"><strong>{{ $D['modelo'] }}</strong></td>
-        <td style="width:14%; text-align:right; padding:1.5px 3px; color:#555; font-size:9px;">Núm. Pasajeros:</td>
+        <td style="width:14%; text-align:left; padding:1.5px 3px; color:#555; font-size:9px;">Núm. Pasajeros:</td>
         <td style="border-right:1px solid #888; padding:1.5px 4px;"><strong>{{ $D['puestos'] }}</strong></td>
     </tr>
     <tr>
-        <td style="width:13%; text-align:right; border-left:1px solid #888; padding:1.5px 3px; color:#555; font-size:9px;">Versión:</td>
+        <td style="width:13%; text-align:left; border-left:1px solid #888; padding:1.5px 3px; color:#555; font-size:9px;">Versión:</td>
         <td style="padding:1.5px 4px;"><strong>{{ $D['version'] }}</strong></td>
-        <td style="width:13%; text-align:right; padding:1.5px 3px; color:#555; font-size:9px;">Año:</td>
+        <td style="width:13%; text-align:left; padding:1.5px 3px; color:#555; font-size:9px;">Año:</td>
         <td style="padding:1.5px 4px;"><strong>{{ $D['anio'] }}</strong></td>
-        <td style="width:14%; text-align:right; padding:1.5px 3px; color:#555; font-size:9px;">Tipo de Vehículo:</td>
+        <td style="width:14%; text-align:left; padding:1.5px 3px; color:#555; font-size:9px;">Tipo de Vehículo:</td>
         <td style="border-right:1px solid #888; padding:1.5px 4px;"><strong>{{ $D['clase'] }}</strong></td>
     </tr>
     <tr>
-        <td style="width:13%; text-align:right; border-left:1px solid #888; padding:1.5px 3px; color:#555; font-size:9px;">Placa:</td>
+        <td style="width:13%; text-align:left; border-left:1px solid #888; padding:1.5px 3px; color:#555; font-size:9px;">Placa:</td>
         <td style="padding:1.5px 4px;"><strong>{{ $D['placa'] }}</strong></td>
-        <td style="width:13%; text-align:right; padding:1.5px 3px; color:#555; font-size:9px;">Serial Motor:</td>
+        <td style="width:13%; text-align:left; padding:1.5px 3px; color:#555; font-size:9px;">Serial Motor:</td>
         <td style="padding:1.5px 4px;"><strong>{{ $D['serMot'] }}</strong></td>
-        <td style="width:14%; text-align:right; padding:1.5px 3px; color:#555; font-size:9px;">Uso:</td>
+        <td style="width:14%; text-align:left; padding:1.5px 3px; color:#555; font-size:9px;">Uso:</td>
         <td style="border-right:1px solid #888; padding:1.5px 4px;"><strong>{{ $D['uso'] }}</strong></td>
     </tr>
     <tr>
-        <td style="width:13%; text-align:right; border-left:1px solid #888; border-bottom:1px solid #888; padding:1.5px 3px; color:#555; font-size:9px;">Color:</td>
+        <td style="width:13%; text-align:left; border-left:1px solid #888; border-bottom:1px solid #888; padding:1.5px 3px; color:#555; font-size:9px;">Color:</td>
         <td style="padding:3px 5px; border-bottom:1px solid #888;"><strong>{{ $D['color'] }}</strong></td>
-        <td style="width:13%; text-align:right; padding:1.5px 3px; color:#555; font-size:9px; border-bottom:1px solid #888;">Serial Carrocería:</td>
+        <td style="width:13%; text-align:left; padding:1.5px 3px; color:#555; font-size:9px; border-bottom:1px solid #888;">Serial Carrocería:</td>
         <td style="padding:3px 5px; border-bottom:1px solid #888;"><strong>{{ $D['serCar'] }}</strong></td>
-        <td style="width:14%; text-align:right; padding:1.5px 3px; color:#555; font-size:9px; border-bottom:1px solid #888;">Otros:</td>
+        <td style="width:14%; text-align:left; padding:1.5px 3px; color:#555; font-size:9px; border-bottom:1px solid #888;">Otros:</td>
         <td style="border-right:1px solid #888; padding:3px 5px; border-bottom:1px solid #888;"><strong>{{ $D['obs'] ?: '—' }}</strong></td>
     </tr>
     @elseif(!empty($D['tipo']))
@@ -471,7 +471,7 @@
         @foreach(array_chunk(array_keys($attrsPares), 3) as $grupo)
         <tr>
             @foreach($grupo as $k)
-            <td style="width:13%; text-align:right; border-left:1px solid #888; padding:1.5px 3px; color:#555; font-size:9px;">{{ ucfirst(str_replace('_', ' ', $k)) }}:</td>
+            <td style="width:13%; text-align:left; border-left:1px solid #888; padding:1.5px 3px; color:#555; font-size:9px;">{{ ucfirst(str_replace('_', ' ', $k)) }}:</td>
             <td style="{{ $loop->last ? 'border-right:1px solid #888;' : '' }} padding:1.5px 4px;"><strong>{{ strtoupper((string) $attrsPares[$k]) }}</strong></td>
             @endforeach
             @if(count($grupo) < 3)
@@ -491,7 +491,7 @@
         <tr>
             @for($i = 0; $i < 6; $i += 2)
                 @if($fila[$i] !== null)
-                <td style="width:13%; text-align:right; border-left:{{ $i === 0 ? '1px solid #888' : 'none' }}; padding:1.5px 3px; color:#555; font-size:9px;">{{ $fila[$i] }}:</td>
+                <td style="width:13%; text-align:left; border-left:{{ $i === 0 ? '1px solid #888' : 'none' }}; padding:1.5px 3px; color:#555; font-size:9px;">{{ $fila[$i] }}:</td>
                 <td style="{{ $i === 4 ? 'border-right:1px solid #888;' : '' }} padding:1.5px 4px;"><strong>{{ $monedaSimbolo }}{{ $fila[$i + 1] }}</strong></td>
                 @else
                 <td style="width:13%; border-left:{{ $i === 0 ? '1px solid #888' : 'none' }};"></td>
@@ -503,7 +503,7 @@
     @else
         @foreach($cobertura_items as $item)
         <tr>
-            <td style="text-align:right; border-left:1px solid #888; padding:1.5px 4px; color:#555; font-size:9px;" colspan="2">{{ $item[0] }}:</td>
+            <td style="text-align:left; border-left:1px solid #888; padding:1.5px 4px; color:#555; font-size:9px;" colspan="2">{{ $item[0] }}:</td>
             <td colspan="4" style="border-right:1px solid #888; padding:3px 6px;">
                 <strong>{{ $monedaSimbolo }}{{ $item[1] }}</strong>
             </td>
@@ -512,10 +512,8 @@
     @endif
 
     <tr>
-        <td style="text-align:right; border-left:1px solid #888; border-bottom:1px solid #888; padding:1.5px 4px; color:#555; font-size:9px;" colspan="2">Prima Neta:</td>
-        <td style="border-bottom:1px solid #888; padding:1.5px 4px;" align="center"><strong>{{ $monedaSimbolo }}{{ number_format((float)($cobs["subtotal"] ?? $poliza->total), 2) }}</strong></td>
         @if(($cobs['iva'] ?? 0) > 0)
-        <td style="border-bottom:1px solid #888; text-align:right; padding:3px 5px; color:#555; font-size:9px;">IVA:</td>
+        <td style="border-bottom:1px solid #888; text-align:left; padding:3px 5px; color:#555; font-size:9px;">IVA:</td>
         <td style="border-bottom:1px solid #888; border-right:1px solid #888; padding:3px 5px;" colspan="2" align="center"><strong>{{ $monedaSimbolo }}{{ number_format((float)$cobs["iva"], 2) }}</strong></td>
         @else
         <td colspan="3" style="border-bottom:1px solid #888; border-right:1px solid #888;"></td>
@@ -559,7 +557,7 @@
 <table style="margin-top:4px; border:1px solid #127481;" width="100%" border="0" align="center" cellspacing="0">
     <tr>
         <td style="padding:3px 5px; font-size:8px; color:#444; background:#f9fdfe;">
-            Inscrita en el Registro Mercantil Segundo de la Circunscripción Judicial del Distrito Federal y Estado Miranda, en fecha 21/04/1955, bajo el Nro. 70, Tomo 4-A-SGDO. Inscrita en la Superintendencia de la Actividad Aseguradora bajo el N° 40. Miembro de la Cámara de Aseguradores de Venezuela. Dirección: Av. Madrid con Av. Jalisco, Edf. La Venezolana de Seguros, Las Mercedes-Baruta, Caracas-Venezuela. Telf. (0212) 909-4848 &nbsp; Fax (0212) 909-4898
+            Inscrita en el Registro Mercantil Segundo de la Circunscripción Judicial del Distrito Federal y Estado Miranda, en fecha 21/04/1955, bajo el Nro. 70, Tomo 4-A-SGDO. Inscrita en la Superintendencia de la Actividad Aseguradora bajo el N° 40. Miembro de la Cámara de Aseguradores de Venezuela. Dirección: Av. Madrid con Av. Jalisco, Edf. La Venezolana de Seguros, Las Mercedes-Baruta, Caracas-Venezuela. Telf. (0414) 3169371 &nbsp; / (0422) 2320897
         </td>
     </tr>
 </table>
@@ -661,23 +659,23 @@
         <td style="width:14px;"></td>
 
         <!-- Carnet Reverso: EMISIÓN | QR | VENCIMIENTO -->
-        <td style="width:290px; height:196px; border:2px solid #127481; font-size:9px; vertical-align:top; position:relative; overflow:hidden; padding:8px 14px;">
+        <td style="width:290px; height:196px; border:2px solid #127481; font-size:9px; vertical-align:middle; position:relative; overflow:hidden; padding:12px 20px;">
             <img src="{{ $imgCarnet }}" style="position:absolute; z-index:-1; width:100%; height:100%; top:0; left:0; opacity:0.16;"/>
             <img src="{{ $imgIcono }}"  style="position:absolute; z-index:-1; width:1.6cm; height:1.1cm; top:2px; left:5px; opacity:0.45;"/>
-            <table width="100%" cellspacing="0" cellpadding="0" style="margin-top:6px;">
+            <table width="100%" cellspacing="0" cellpadding="0" style="margin-top:0;">
                 <!-- Providencia -->
                 <tr>
-                    <td colspan="3" style="font-size:7px; padding:2px 8px 4px; line-height:1.35; text-align:center;">
+                    <td colspan="3" style="font-size:7px; padding:4px 6px 8px; line-height:1.35; text-align:center;">
                         <strong>Aprobado por la Superintendencia de la Actividad Aseguradora mediante PROVIDENCIA ADMINISTRATIVA N° SAA-09-0138-2025 de fecha 21/02/2025.</strong>
                     </td>
                 </tr>
                 <!-- EMISIÓN | QR | VENCIMIENTO -->
                 <tr>
-                    <td style="width:80px; text-align:center; vertical-align:middle; padding:4px 3px;">
+                    <td style="width:80px; text-align:center; vertical-align:middle; padding:6px 6px;">
                         <div style="font-size:8.5px; font-weight:bold;">EMISIÓN</div>
                         <div style="font-size:9px; font-weight:600; white-space:nowrap;">{{ $poliza->fecha_emision?->format('d-m-Y') }}</div>
                     </td>
-                    <td style="width:130px; text-align:center; vertical-align:middle; padding:2px 4px;">
+                    <td style="width:130px; text-align:center; vertical-align:middle; padding:6px 12px;">
                         @if($qrCode)
                         <img src="{{ $qrCode }}" style="width:78px; height:78px; display:block; margin:0 auto;" alt="QR"/>
                         @else
@@ -686,14 +684,14 @@
                         </div>
                         @endif
                     </td>
-                    <td style="width:80px; text-align:center; vertical-align:middle; padding:4px 3px;">
+                    <td style="width:80px; text-align:center; vertical-align:middle; padding:6px 6px;">
                         <div style="font-size:8.5px; font-weight:bold;">VENCIMIENTO</div>
                         <div style="font-size:9px; font-weight:600; white-space:nowrap;">{{ $poliza->fecha_vencimiento?->format('d-m-Y') }}</div>
                     </td>
                 </tr>
                 <!-- Contacto siniestros -->
                 <tr>
-                    <td colspan="3" style="text-align:center; padding:4px 4px 2px;">
+                    <td colspan="3" style="text-align:center; padding:8px 4px 4px;">
                         <div style="font-weight:bold; font-size:8.5px;">Reportes y/o Siniestros</div>
                         <div style="font-weight:bold; font-size:8.5px;">0414-8299562 / 0414-3169371</div>
                     </td>

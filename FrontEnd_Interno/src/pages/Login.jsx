@@ -261,7 +261,7 @@ export default function Login({ onLogin }) {
             © 2026 - Servicio operado por INVERSIONES J&M, C.A. — Todos los derechos reservados
           </p>
           <p className="text-[9px] text-slate-400 uppercase tracking-[0.15em] leading-snug">
-            con el respaldo de LA VENEZOLANA DE SEGUROS Y VIDA C.A. <br />
+            LA VENEZOLANA DE SEGUROS Y VIDA C.A. <br />
             V 2.7.0 — Internal System · Made with <span className="text-red-400">❤</span> by Victecnology lda.
           </p>
         </div>

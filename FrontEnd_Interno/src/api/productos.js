@@ -20,7 +20,7 @@ function getAuthHeaders(extra = {}) {
   return { Accept: 'application/json', Authorization: `Bearer ${token}`, ...extra }
 }
 
-/** Obtiene todos los productos ordenados alfabéticamente por nombre. */
+/** Obtiene todos los productos ordenados por "más vendido" (pólizas emitidas). */
 export async function fetchProductos() {
   const res = await fetch(API, { cache: 'no-store', headers: getAuthHeaders() })
   if (!res.ok) throw new Error('Error al cargar productos')

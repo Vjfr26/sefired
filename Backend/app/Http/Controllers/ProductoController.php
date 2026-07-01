@@ -33,13 +33,20 @@ class ProductoController extends Controller
     use LogsActivity;
 
     /**
-     * Lista todos los productos ordenados por nombre.
-     * El orden alfabético facilita encontrar coberturas en el simulador.
+     * Lista todos los productos ordenados por "más vendido".
+     * El ranking se basa en pólizas emitidas y no anuladas, para que en el
+     * simulador/emisión las coberturas más contratadas aparezcan primero.
+     * Empates y productos sin ventas caen al orden alfabético por nombre.
      */
     public function index()
     {
         return response()->json(
-            Producto::with('beneficios')->orderBy('nombre')->get()->map(fn($p) => $this->row($p))
+            Producto::with('beneficios')
+                ->withCount(['polizas as ventas_count' => fn($q) => $q->where('status', '!=', 'ANULADA')])
+                ->orderByDesc('ventas_count')
+                ->orderBy('nombre')
+                ->get()
+                ->map(fn($p) => $this->row($p))
         );
     }
 

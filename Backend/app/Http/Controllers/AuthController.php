@@ -197,6 +197,7 @@ class AuthController extends Controller
                 'nombre'   => $usuario->nombre,
                 'nick'     => $usuario->nick,
                 'cargo'    => $usuario->cargo,
+                'sede'     => $usuario->sede,
                 'genero'   => $usuario->genero,
                 'tipo'     => $usuario->tipo,
                 'permisos' => $usuario->permisos,

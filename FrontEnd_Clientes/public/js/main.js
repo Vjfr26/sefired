@@ -174,7 +174,7 @@ const T = {
     'carousel.next': 'Siguiente',
     'footer.rights': 'Todos los derechos reservados.',
     'footer.operated': 'Servicio operado por INVERSIONES J&M, C.A. - Todos los derechos reservados.',
-    'footer.backed':   'con el respaldo de LA VENEZOLANA DE SEGUROS Y VIDA C.A.',
+    'footer.backed':   'LA VENEZOLANA DE SEGUROS Y VIDA C.A.',
     'footer.by1':    'Desarrollado con',
     'footer.by2':    'por',
     'soc.facebook':  'Facebook', 'soc.instagram': 'Instagram',

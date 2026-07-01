@@ -24,6 +24,7 @@ class Comision extends Model
         'fecha_generada',
         'fecha_pago',
         'pagado_por',
+        'observacion',
     ];
 
     protected function casts(): array

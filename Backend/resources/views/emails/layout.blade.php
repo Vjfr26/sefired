@@ -51,7 +51,7 @@
             </p>
             <p style="margin:0 0 6px;font-size:12px;color:#94a3b8;">
               Servicio operado por <strong style="color:#64748b;">INVERSIONES J&amp;M, C.A.</strong>,
-              con el respaldo de <strong style="color:#64748b;">LA VENEZOLANA DE SEGUROS Y VIDA C.A.</strong> (RIF J-00021447-6).
+              <strong style="color:#64748b;">LA VENEZOLANA DE SEGUROS Y VIDA C.A.</strong> (RIF J-00021447-6).
             </p>
             <p style="margin:0;font-size:12px;color:#94a3b8;">
               <a href="mailto:tuseguro@jmlavenezolana.com" style="color:#64748b;text-decoration:none;">tuseguro@jmlavenezolana.com</a>

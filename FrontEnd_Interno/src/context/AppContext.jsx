@@ -129,6 +129,7 @@ export function AppProvider({ children, onLogout }) {
           nombre:   json.data.nombre,
           nick:     json.data.nick,
           cargo:    json.data.cargo,
+          sede:     json.data.sede,
           genero:   json.data.genero,
           tipo:     json.data.tipo,
           permisos: json.data.permisos ?? null,

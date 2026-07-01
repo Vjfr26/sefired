@@ -83,7 +83,7 @@
         <div class="footer">
             <p style="margin:0 0 6px;font-size:12px;color:#94a3b8;">
               Servicio operado por <strong style="color:#64748b;">INVERSIONES J&amp;M, C.A. &copy;</strong>,
-              con el respaldo de <strong style="color:#64748b;">LA VENEZOLANA DE SEGUROS Y VIDA C.A.</strong> {{ date('Y') }}.
+              <strong style="color:#64748b;">LA VENEZOLANA DE SEGUROS Y VIDA C.A.</strong> {{ date('Y') }}.
             </p>
         </div>
     </div>

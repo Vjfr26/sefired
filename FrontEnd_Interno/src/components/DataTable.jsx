@@ -15,6 +15,8 @@
  *   hide  — Ocultar en pantallas pequeñas: 'sm', 'md' o 'lg'
  *   tr    — Columna con texto largo que puede romperse (usa break-words)
  *   acc   — Columna de acciones (botones). No es ordenable.
+ *   s     — Campo crudo alterno por el que ordenar cuando la celda `k` es JSX
+ *           (badges, montos con estilo). Si se omite, se ordena por `k`.
  *
  * ── Ordenamiento ─────────────────────────────────────────────────────────────
  * Al hacer clic en el encabezado de cualquier columna que no sea `acc` se activa
@@ -141,9 +143,13 @@ export default function DataTable({ cols, rows, footer = null, id, searchable = 
 
   // 2. Ordenar el resultado del filtro (no el original)
   if (sortKey) {
+    // La celda visible puede ser JSX (badges, montos con estilo), que no se
+    // puede comparar. La columna puede declarar `s` para apuntar al campo
+    // crudo (string/número) por el que se debe ordenar en su lugar.
+    const accessor = cols.find(c => c.k === sortKey)?.s ?? sortKey
     visible = [...visible].sort((a, b) => {
-      const va = sortVal(a[sortKey])
-      const vb = sortVal(b[sortKey])
+      const va = sortVal(a[accessor])
+      const vb = sortVal(b[accessor])
       if (va < vb) return sortDir === 'asc' ? -1 : 1
       if (va > vb) return sortDir === 'asc' ?  1 : -1
       return 0

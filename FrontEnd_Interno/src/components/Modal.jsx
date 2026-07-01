@@ -33,7 +33,7 @@
  */
 import { useRef, useState, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Trash2, Pencil, Check, Lock, LockOpen, ShieldCheck, Building, UserCheck, Truck, UserCog, Car, Shield, DollarSign, RotateCcw, FileText, SlidersHorizontal, Receipt, FileCheck, Eye, Upload, ClipboardList, Search, AlertTriangle, AlertCircle, CheckCircle, Clock, User, Phone, MapPin, Briefcase, Download, RefreshCw, Users, Plus, ChevronRight, Package } from 'lucide-react'
+import { X, Trash2, Pencil, Check, Lock, LockOpen, ShieldCheck, Building, UserCheck, Truck, UserCog, Car, Shield, DollarSign, RotateCcw, FileText, SlidersHorizontal, Receipt, FileCheck, Eye, Upload, ClipboardList, Search, AlertTriangle, AlertCircle, CheckCircle, Clock, User, Phone, MapPin, Briefcase, Download, RefreshCw, Users, Plus, ChevronRight, Package, MessageSquareText } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import FormGrid from './FormGrid.jsx'
 import { useInputLimits } from '../utils/inputLimits.js'
@@ -258,10 +258,13 @@ function ConfirmTasaModal({ fecha, usd, eur, isUpdate, onConfirm }) {
  * @param {string}   confirmLabel texto del botón de confirmar
  * @param {Function} onConfirm
  */
-function ConfirmActionModal({ title, message, icon: Icon = CheckCircle, color = 'blue', confirmLabel = 'Confirmar', onConfirm }) {
+function ConfirmActionModal({ title, message, icon: Icon = CheckCircle, color = 'blue', confirmLabel = 'Confirmar', onConfirm,
+  withNote = false, noteLabel = 'Observación', notePlaceholder = '', noteRequired = false, noteMax = 500 }) {
   const { closeModal, showToast } = useApp()
   const [password, setPassword] = useState('')
   const [passErr,  setPassErr]  = useState('')
+  const [note,     setNote]     = useState('')
+  const [noteErr,  setNoteErr]  = useState('')
   const [saving,   setSaving]   = useState(false)
   // Tailwind no resuelve clases armadas con template strings en build time:
   // hay que listar las combinaciones completas para que el JIT las incluya.
@@ -275,6 +278,7 @@ function ConfirmActionModal({ title, message, icon: Icon = CheckCircle, color = 
   const [bgCls, textCls] = (COLOR[color] ?? COLOR.blue).split(' ')
 
   const handleConfirm = async () => {
+    if (withNote && noteRequired && !note.trim()) { setNoteErr(`${noteLabel} requerida.`); return }
     if (!password.trim()) { setPassErr('Ingresa tu contraseña para confirmar.'); return }
     setSaving(true); setPassErr('')
     try {
@@ -285,7 +289,7 @@ function ConfirmActionModal({ title, message, icon: Icon = CheckCircle, color = 
       return
     }
     try {
-      await onConfirm()
+      await onConfirm(withNote ? note.trim() : undefined)
       closeModal()
     } catch (err) {
       showToast(err.message || 'Error al confirmar la acción', 'error')
@@ -310,6 +314,20 @@ function ConfirmActionModal({ title, message, icon: Icon = CheckCircle, color = 
           <Icon className={`w-7 h-7 ${textCls}`} />
         </div>
         <p className="text-sm text-slate-600">{message}</p>
+        {withNote && (
+          <div className="w-full text-left">
+            <label className="field-label">{noteLabel} {noteRequired && <span className="text-rose-500">*</span>}</label>
+            <textarea
+              rows={2}
+              maxLength={noteMax}
+              className={`input-field resize-none ${noteErr ? 'border-rose-400' : ''}`}
+              placeholder={notePlaceholder}
+              value={note}
+              onChange={e => { setNote(e.target.value); setNoteErr('') }}
+            />
+            {noteErr && <p className="text-xs text-rose-600 mt-1">{noteErr}</p>}
+          </div>
+        )}
         <div className="w-full text-left">
           <label className="field-label">Contraseña <span className="text-rose-500">*</span></label>
           <input
@@ -323,6 +341,28 @@ function ConfirmActionModal({ title, message, icon: Icon = CheckCircle, color = 
           />
           {passErr && <p className="text-xs text-rose-600 mt-1">{passErr}</p>}
         </div>
+      </div>
+    </ModalShell>
+  )
+}
+
+/**
+ * Modal de solo lectura para mostrar una nota/observación (ej. la observación
+ * registrada al pagar una comisión). Sin contraseña ni acciones — solo cierra.
+ */
+function NoteViewModal({ title = 'Observación', note, empty = 'Sin observación.' }) {
+  const { closeModal } = useApp()
+  return (
+    <ModalShell title={title} footer={
+      <button onClick={closeModal} className="btn-primary">Cerrar</button>
+    }>
+      <div className="flex gap-3 py-2">
+        <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center shrink-0">
+          <MessageSquareText className="w-5 h-5" />
+        </div>
+        <p className={`text-sm whitespace-pre-wrap break-words ${note ? 'text-slate-700' : 'text-slate-400 italic'}`}>
+          {note || empty}
+        </p>
       </div>
     </ModalShell>
   )
@@ -751,6 +791,13 @@ function EmitirCotizacionModal({ cot, onSaved }) {
   const excedente  = Math.max(0, pagCents - maxCents) / 100
   const adelanto   = Math.max(0, Math.min(pagCents, maxCents) - minCents) / 100
   const totalOk    = pagCents >= minCents - 10 && pagCents <= maxCents + 10
+  // El faltante se calcula en la moneda nativa del producto, pero el usuario
+  // puede estar pagando en Bs./€: lo mostramos en cada moneda que se está
+  // usando para pagar, para que sepa cuánto falta en esas monedas, no solo en $.
+  const monedasPago = [...new Set(pagos.map(p => p.moneda).filter(Boolean))]
+  const faltanteTxt = (monedasPago.length ? monedasPago : [monedaNativa])
+    .map(m => fmtMonto(convertirMoneda(faltante, monedaNativa, m, tasas.usd || 0, tasas.eur || 0), m))
+    .join(' · ')
 
   const handleEmitir = async () => {
     const errs = {}
@@ -909,7 +956,7 @@ function EmitirCotizacionModal({ cot, onSaved }) {
             totalOk ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'
           }`}>
             <span>
-              {!totalOk && faltante  > 0 && `⚠ Falta ${fmtMonto(faltante, monedaNativa)} para cubrir ${frecuencia === 'Mensual' && permiteMensualidades ? 'la cuota del mes' : 'la póliza'}`}
+              {!totalOk && faltante  > 0 && `⚠ Falta ${faltanteTxt} para cubrir ${frecuencia === 'Mensual' && permiteMensualidades ? 'la cuota del mes' : 'la póliza'}`}
               {!totalOk && excedente > 0 && `⚠ Excede el ${esMensual ? 'total financiado' : 'total anual'} por ${fmtMonto(excedente, monedaNativa)}`}
               {totalOk && (adelanto > 0 ? `✓ Cuota cubierta · adelanto de ${fmtMonto(adelanto, monedaNativa)}` : '✓ Total cuadra')}
             </span>
@@ -5093,6 +5140,7 @@ export default function Modal() {
     case 'confirmDelete':   return <ConfirmDeleteModal {...props} />
     case 'confirmTasa':     return <ConfirmTasaModal {...props} />
     case 'confirmAction':   return <ConfirmActionModal {...props} />
+    case 'noteView':        return <NoteViewModal {...props} />
     case 'actionMenu':      return <ActionMenuModal {...props} />
     case 'editForm':        return <EditFormModal {...props} />
     case 'renovar':              return <RenovarModal {...props} />
