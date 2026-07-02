@@ -141,7 +141,11 @@ class ClienteController extends Controller
             'cedula'        => ['required', 'string', 'max:20', 'unique:persona,cedula', new CedulaValida()],
             'condicion'     => ['required', 'string', 'max:40', $noInjection],
             'sexo'          => ['required', 'string', 'max:15', $noInjection],
-            'nacimiento'    => 'required|date',
+            'nacimiento'    => ['required', 'date', function ($a, $v, $fail) {
+                $d = \Carbon\Carbon::parse($v);
+                if ($d->isFuture())   $fail('La fecha de nacimiento no puede ser futura.');
+                elseif ($d->age < 18) $fail('El cliente debe ser mayor de edad (al menos 18 años).');
+            }],
             'nacionalidad'  => ['required', 'string', 'max:30', $noInjection],
             'telefono'      => ['nullable', 'string', 'max:20', new TelefonoValido()],
             'celular'       => ['nullable', 'string', 'max:20', new TelefonoValido()],
@@ -193,7 +197,11 @@ class ClienteController extends Controller
             'cedula'        => ['sometimes', 'required', 'string', 'max:20', 'unique:persona,cedula,' . $persona->id, new CedulaValida()],
             'condicion'     => ['sometimes', 'required', 'string', 'max:40', $noInjection],
             'sexo'          => ['sometimes', 'required', 'string', 'max:15', $noInjection],
-            'nacimiento'    => 'sometimes|required|date',
+            'nacimiento'    => ['sometimes', 'required', 'date', function ($a, $v, $fail) {
+                $d = \Carbon\Carbon::parse($v);
+                if ($d->isFuture())   $fail('La fecha de nacimiento no puede ser futura.');
+                elseif ($d->age < 18) $fail('El cliente debe ser mayor de edad (al menos 18 años).');
+            }],
             'nacionalidad'  => ['sometimes', 'required', 'string', 'max:30', $noInjection],
             'telefono'      => ['nullable', 'string', 'max:20', new TelefonoValido()],
             'celular'       => ['nullable', 'string', 'max:20', new TelefonoValido()],
@@ -384,6 +392,23 @@ class ClienteController extends Controller
                         'sede'                  => $poliza->sede_poliza ?? '—',
                         'nro_venezolana'        => $poliza->nro_venezolana,
                         'papeleria'             => $poliza->papeleria,
+                        'tipo'                  => $poliza->tipo,
+                        'fecha_emision_iso'     => $poliza->fecha_emision->format('Y-m-d'),
+                        'asegurado_nombre'      => data_get($poliza->snapshot_datos, 'asegurado.nombre') ?? $poliza->asegurado_nombre ?? '',
+                        'asegurado_ci'          => data_get($poliza->snapshot_datos, 'asegurado.ci') ?? $poliza->asegurado_ci ?? '',
+                        'asegurado_direccion'   => data_get($poliza->snapshot_datos, 'asegurado.direccion') ?? '',
+                        'asegurado_telefono'    => data_get($poliza->snapshot_datos, 'asegurado.telefono') ?? '',
+                        'tomador_nombre'        => data_get($poliza->snapshot_datos, 'tomador.nombre') ?? '',
+                        'tomador_ci'            => data_get($poliza->snapshot_datos, 'tomador.ci') ?? '',
+                        'tomador_direccion'     => data_get($poliza->snapshot_datos, 'tomador.direccion') ?? '',
+                        'tomador_telefono'      => data_get($poliza->snapshot_datos, 'tomador.telefono') ?? '',
+                        'bien_marca'            => data_get($poliza->snapshot_datos, 'bien.atributos.marca') ?? $attr['marca'] ?? '',
+                        'bien_modelo'           => data_get($poliza->snapshot_datos, 'bien.atributos.modelo') ?? $attr['modelo'] ?? '',
+                        'bien_anio'             => (string) (data_get($poliza->snapshot_datos, 'bien.atributos.anio') ?? $attr['anio'] ?? ''),
+                        'bien_placa'            => data_get($poliza->snapshot_datos, 'bien.atributos.placa') ?? $attr['placa'] ?? '',
+                        'bien_color'            => data_get($poliza->snapshot_datos, 'bien.atributos.color') ?? $attr['color'] ?? '',
+                        'bien_version'          => data_get($poliza->snapshot_datos, 'bien.atributos.version') ?? $attr['version'] ?? '',
+                        'bien_puestos'          => (string) (data_get($poliza->snapshot_datos, 'bien.atributos.puestos') ?? $attr['puestos'] ?? ''),
                         'bien_atributos'        => $attr,
                         'producto_documentos'   => array_map(
                             fn($d) => [

@@ -17,11 +17,70 @@ class ExternalReportExport extends BaseExport
 {
     protected Collection $policies;
     protected ?string $templatePath;
+    protected ?array $columns;   // claves seleccionadas (en orden); null = todas
 
-    public function __construct(Collection $policies)
+    public function __construct(Collection $policies, ?array $columns = null)
     {
         $this->policies = $policies;
         $this->templatePath = $this->findTemplatePath();
+
+        // Solo claves válidas, en el orden canónico. Si están TODAS, se deja
+        // null para usar la plantilla oficial (formato de la Superintendencia).
+        $todas = array_keys($this->columnDefs());
+        if (is_array($columns) && count($columns) > 0) {
+            $sel = array_values(array_filter($todas, fn ($k) => in_array($k, $columns, true)));
+            $this->columns = (count($sel) === count($todas)) ? null : $sel;
+        } else {
+            $this->columns = null;
+        }
+    }
+
+    /** Definición canónica de las 35 columnas (clave => encabezado), en orden. */
+    public function columnDefs(): array
+    {
+        return [
+            'nacionalidad_tomador' => 'Nacionalida Tomador',
+            'cedula_tomador'       => 'Cedula/Rif Tomador',
+            'primer_nombre'        => 'Primer Nombre Tomador',
+            'segundo_nombre'       => 'Segundo Nombre Tomador',
+            'primer_apellido'      => 'Primer Apellido Tomador',
+            'segundo_apellido'     => 'Segundo Apellido Tomador',
+            'fecha_nacimiento'     => 'Fecha Nacimiento',
+            'sexo'                 => 'Sexo',
+            'direccion'            => 'Direccion',
+            'ciudad'               => 'Ciudad',
+            'estado'               => 'Estado',
+            'telefono'             => 'Telefono',
+            'correo'               => 'Correo',
+            'marca'                => 'Marca',
+            'modelo'               => 'Modelo',
+            'anio'                 => 'Año',
+            'placa'                => 'Placa',
+            'color'                => 'Color',
+            'traccion'             => 'TRACCION',
+            'serial_carroceria'    => 'Serial Carroceria',
+            'serial_motor'         => 'Serial Motor',
+            'tipo_vehiculo'        => 'Tipo de Vehiculo',
+            'uso'                  => 'Uso',
+            'puestos'              => 'Cantidad de Puestos',
+            'numero_poliza'        => 'Numero de Poliza',
+            'inicio_vigencia'      => 'Inicio Vigencia',
+            'fin_vigencia'         => 'Fin de Vigencia',
+            'suma_cosas'           => 'Suma Asegurada Daños a Cosas',
+            'suma_personas'        => 'Suma Asegurada daños a personas',
+            'prima_anual'          => 'Prima Anual',
+            'moneda'               => 'MONEDA',
+            'nac_referidor'        => 'NAC REFERIDOR',
+            'rif_referidor'        => 'RIF REFERIDOR',
+            'codigo_intermediario' => 'CODIGO INTERMEDIARIO',
+            'recibo'               => 'RECIBO',
+        ];
+    }
+
+    /** Claves a exportar, en orden (todas si no se personalizó). */
+    private function columnKeys(): array
+    {
+        return $this->columns ?? array_keys($this->columnDefs());
     }
 
     public function title(): string
@@ -31,16 +90,8 @@ class ExternalReportExport extends BaseExport
 
     public function headings(): array
     {
-        return [
-            'Nacionalida Tomador', 'Cedula/Rif Tomador', 'Primer Nombre Tomador', 'Segundo Nombre Tomador',
-            'Primer Apellido Tomador', 'Segundo Apellido Tomador', 'Fecha Nacimiento', 'Sexo',
-            'Direccion', 'Ciudad', 'Estado', 'Telefono', 'Correo',
-            'Marca', 'Modelo', 'Año', 'Placa', 'Color', 'TRACCION',
-            'Serial Carroceria', 'Serial Motor', 'Tipo de Vehiculo', 'Uso', 'Cantidad de Puestos',
-            'Numero de Poliza', 'Inicio Vigencia', 'Fin de Vigencia', 'Suma Asegurada Daños a Cosas',
-            'Suma Asegurada daños a personas', 'Prima Anual', 'MONEDA', 'NAC REFERIDOR',
-            'RIF REFERIDOR', 'CODIGO INTERMEDIARIO', 'RECIBO'
-        ];
+        $defs = $this->columnDefs();
+        return array_map(fn ($k) => $defs[$k], $this->columnKeys());
     }
 
     public function collection(): Collection
@@ -49,6 +100,13 @@ class ExternalReportExport extends BaseExport
     }
 
     public function map($p): array
+    {
+        $vals = $this->mapAssoc($p);
+        return array_map(fn ($k) => $vals[$k] ?? '', $this->columnKeys());
+    }
+
+    /** Todos los valores por clave (mismas claves y orden que columnDefs). */
+    private function mapAssoc($p): array
     {
         $sol = $p->solicitud;
         $pers = $sol?->persona;
@@ -99,41 +157,43 @@ class ExternalReportExport extends BaseExport
         $codIntermediario = $p->vendedor_id ?? 1;
 
         return [
-            $parsedCi['nacionalidad'],
-            $parsedCi['numero'],
-            $splitName['primer_nombre'],
-            $splitName['segundo_nombre'],
-            $splitName['primer_apellido'],
-            $splitName['segundo_apellido'],
-            $tomadorNacimiento,
-            $tomadorSexo,
-            $tomadorDireccion,
-            $tomadorCiudad,
-            $tomadorEstado,
-            $tomadorTelefono,
-            $tomadorCorreo,
-            $marca,
-            $modelo,
-            $anio,
-            $placa,
-            $color,
-            $traccion,
-            $serialCarroceria,
-            $serialMotor,
-            $tipoVehiculo,
-            $uso,
-            $puestos,
-            $nroPoliza,
-            $inicioVigencia,
-            $finVigencia,
-            $sumaCosas,
-            $sumaPersonas,
-            $primaAnual,
-            $moneda,
-            $nacReferidor,
-            $rifReferidor,
-            $codIntermediario,
-            '' // RECIBO — se configura como fórmula en afterSheet
+            'nacionalidad_tomador' => $parsedCi['nacionalidad'],
+            'cedula_tomador'       => $parsedCi['numero'],
+            'primer_nombre'        => $splitName['primer_nombre'],
+            'segundo_nombre'       => $splitName['segundo_nombre'],
+            'primer_apellido'      => $splitName['primer_apellido'],
+            'segundo_apellido'     => $splitName['segundo_apellido'],
+            'fecha_nacimiento'     => $tomadorNacimiento,
+            'sexo'                 => $tomadorSexo,
+            'direccion'            => $tomadorDireccion,
+            'ciudad'               => $tomadorCiudad,
+            'estado'               => $tomadorEstado,
+            'telefono'             => $tomadorTelefono,
+            'correo'               => $tomadorCorreo,
+            'marca'                => $marca,
+            'modelo'               => $modelo,
+            'anio'                 => $anio,
+            'placa'                => $placa,
+            'color'                => $color,
+            'traccion'             => $traccion,
+            'serial_carroceria'    => $serialCarroceria,
+            'serial_motor'         => $serialMotor,
+            'tipo_vehiculo'        => $tipoVehiculo,
+            'uso'                  => $uso,
+            'puestos'              => $puestos,
+            'numero_poliza'        => $nroPoliza,
+            'inicio_vigencia'      => $inicioVigencia,
+            'fin_vigencia'         => $finVigencia,
+            'suma_cosas'           => $sumaCosas,
+            'suma_personas'        => $sumaPersonas,
+            'prima_anual'          => $primaAnual,
+            'moneda'               => $moneda,
+            'nac_referidor'        => $nacReferidor,
+            'rif_referidor'        => $rifReferidor,
+            'codigo_intermediario' => $codIntermediario,
+            // Con la plantilla, RECIBO se pone como fórmula (=Y). Sin plantilla
+            // (formato personalizado), lleva el N° de póliza directamente.
+            'recibo'               => $nroPoliza,
         ];
     }
 
@@ -142,7 +202,9 @@ class ExternalReportExport extends BaseExport
      */
     protected function build(): Spreadsheet
     {
-        if ($this->templatePath) {
+        // La plantilla oficial es de 35 columnas fijas: solo se usa cuando NO se
+        // personalizó. Si el usuario quitó columnas, se genera un Excel propio.
+        if ($this->templatePath && $this->columns === null) {
             return $this->buildFromTemplate();
         }
 
@@ -202,6 +264,11 @@ class ExternalReportExport extends BaseExport
      */
     protected function afterSheet($sheet, $spreadsheet): void
     {
+        // Solo en formato completo la columna RECIBO es la fórmula =Y (col 35).
+        // En formato personalizado el valor de RECIBO ya viene en los datos.
+        if ($this->columns !== null) {
+            return;
+        }
         $highestRow = $sheet->getHighestRow();
         for ($r = 2; $r <= $highestRow; $r++) {
             $sheet->getCell('AI' . $r)->setValue('=Y' . $r);

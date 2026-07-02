@@ -68,7 +68,60 @@ class PolizaController extends Controller
             'nro_venezolana'    => ['nullable', 'string', 'max:20', $noInjection],
             'papeleria'         => ['nullable', 'string', 'max:80', $noInjection],
             'vendedor_id'       => 'sometimes|nullable|integer|exists:usuarios,id',
+            // Columnas adicionales del PDF
+            'tipo'              => ['sometimes', 'nullable', 'string', 'max:40', $noInjection],
+            'sede_poliza'       => ['sometimes', 'nullable', 'string', 'max:60', $noInjection],
+            'frecuencia_pago'   => ['sometimes', 'nullable', 'string', 'max:20', $noInjection],
+            'asegurado_nombre'  => ['sometimes', 'nullable', 'string', 'max:120', $noInjection],
+            'asegurado_ci'      => ['sometimes', 'nullable', 'string', 'max:20', $noInjection],
+            // Datos del PDF que viven en snapshot_datos (no son columnas)
+            'asegurado_direccion' => ['sometimes', 'nullable', 'string', 'max:255', $noInjection],
+            'asegurado_telefono'  => ['sometimes', 'nullable', 'string', 'max:30', $noInjection],
+            'tomador_nombre'    => ['sometimes', 'nullable', 'string', 'max:120', $noInjection],
+            'tomador_ci'        => ['sometimes', 'nullable', 'string', 'max:20', $noInjection],
+            'tomador_direccion' => ['sometimes', 'nullable', 'string', 'max:255', $noInjection],
+            'tomador_telefono'  => ['sometimes', 'nullable', 'string', 'max:30', $noInjection],
+            'bien_marca'        => ['sometimes', 'nullable', 'string', 'max:40', $noInjection],
+            'bien_modelo'       => ['sometimes', 'nullable', 'string', 'max:40', $noInjection],
+            'bien_anio'         => ['sometimes', 'nullable', 'string', 'max:8', $noInjection],
+            'bien_placa'        => ['sometimes', 'nullable', 'string', 'max:15', $noInjection],
+            'bien_color'        => ['sometimes', 'nullable', 'string', 'max:30', $noInjection],
+            'bien_version'      => ['sometimes', 'nullable', 'string', 'max:40', $noInjection],
+            'bien_puestos'      => ['sometimes', 'nullable', 'string', 'max:5', $noInjection],
         ]);
+
+        // Coherencia de fechas: el vencimiento debe ser posterior a la emisión.
+        $emisionFinal = $data['fecha_emision']     ?? $poliza->fecha_emision?->toDateString();
+        $vencFinal    = $data['fecha_vencimiento'] ?? $poliza->fecha_vencimiento?->toDateString();
+        if ($emisionFinal && $vencFinal && $vencFinal <= $emisionFinal) {
+            return response()->json(['error' => 'La fecha de vencimiento debe ser posterior a la de emisión.'], 422);
+        }
+
+        // ── Campos del PDF que viven en snapshot_datos (datos personales / bien)
+        // Se extraen del payload, se mergean al snapshot y se quitan de $data
+        // para que $poliza->update() solo reciba columnas reales.
+        $snap = $poliza->snapshot_datos ?? [];
+        $snapAntes = $snap;
+        if (array_key_exists('asegurado_nombre', $data)) $snap['asegurado']['nombre'] = $data['asegurado_nombre'];
+        if (array_key_exists('asegurado_ci', $data))     $snap['asegurado']['ci']     = $data['asegurado_ci'];
+        $snapMap = [
+            'asegurado_direccion' => ['asegurado', 'direccion'],
+            'asegurado_telefono'  => ['asegurado', 'telefono'],
+            'tomador_nombre'      => ['tomador', 'nombre'],
+            'tomador_ci'          => ['tomador', 'ci'],
+            'tomador_direccion'   => ['tomador', 'direccion'],
+            'tomador_telefono'    => ['tomador', 'telefono'],
+        ];
+        foreach ($snapMap as $field => [$grp, $key]) {
+            if (array_key_exists($field, $data)) { $snap[$grp][$key] = $data[$field]; unset($data[$field]); }
+        }
+        $bienMap = ['bien_marca'=>'marca','bien_modelo'=>'modelo','bien_anio'=>'anio','bien_placa'=>'placa','bien_color'=>'color','bien_version'=>'version','bien_puestos'=>'puestos'];
+        foreach ($bienMap as $field => $key) {
+            if (array_key_exists($field, $data)) { $snap['bien']['atributos'][$key] = $data[$field]; unset($data[$field]); }
+        }
+        if ($snap !== $snapAntes) {
+            $poliza->snapshot_datos = $snap;
+        }
 
         // Validar transición de estado
         if (isset($data['status']) && $data['status'] !== $poliza->status) {
@@ -106,8 +159,16 @@ class PolizaController extends Controller
             'cobertura_bs'      => 'Cobertura (Bs.)',
             'nro_venezolana'    => 'N° Póliza (La Venezolana)',
             'papeleria'         => 'Papelería',
+            'tipo'              => 'Tipo de póliza',
+            'sede_poliza'       => 'Oficina / Sede',
+            'frecuencia_pago'   => 'Frecuencia de pago',
+            'asegurado_nombre'  => 'Asegurado (nombre)',
+            'asegurado_ci'      => 'Asegurado (cédula)',
         ];
         $cambios = [];
+        if (isset($poliza->snapshot_datos) && $poliza->isDirty('snapshot_datos')) {
+            $cambios['Datos del asegurado/tomador/bien'] = ['anterior' => '(varios)', 'nuevo' => 'actualizados'];
+        }
         foreach ($data as $campo => $nuevo) {
             if ($campo === 'vendedor_id') continue;
             $anterior = $poliza->getAttribute($campo);

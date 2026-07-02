@@ -303,6 +303,7 @@ export default function Vehiculos() {
   const [error,          setError]          = useState(null)
   const [search,         setSearch]         = useState('')
   const [tipo,           setTipo]           = useState('')
+  const [claseVeh,       setClaseVeh]       = useState('')   // tipo de vehículo (Automóvil, Camioneta, Moto…)
   const [editBien,       setEditBien]       = useState(null)
   const [pdfLoading,     setPdfLoading]     = useState(null)
   const [pdfVisor,       setPdfVisor]       = useState(null) // { url, title, nro }
@@ -339,10 +340,19 @@ export default function Vehiculos() {
   }
 
   const tipos = [...new Set(bienes.map(b => b.tipo).filter(Boolean))]
+  // Clases de vehículo presentes (Automóvil, Camioneta, Moto…) — para el 2º filtro.
+  const clasesVeh = [...new Set(
+    bienes.filter(b => b.tipo === 'vehiculo')
+          .map(b => String(b.atributos?.clase || b.atributos?.tipo || '').trim())
+          .filter(Boolean)
+  )].sort((a, b) => a.localeCompare(b, 'es'))
 
   const filt = bienes.filter(b => {
     if (tipo === 'otros') { if (['vehiculo', 'inmueble'].includes(b.tipo)) return false }
     else if (tipo && b.tipo !== tipo) return false
+    if (claseVeh) {
+      if (b.tipo !== 'vehiculo' || String(b.atributos?.clase || b.atributos?.tipo || '').trim() !== claseVeh) return false
+    }
     if (!search) return true
     const q = search.toLowerCase()
     const a = b.atributos || {}
@@ -526,6 +536,12 @@ export default function Vehiculos() {
               {tipos.map(t => <option key={t} value={t}>{TIPO_LABEL[t] ?? t}</option>)}
               <option value="otros">Otros tipos</option>
             </select>
+            {clasesVeh.length > 0 && (
+              <select className="select-field text-sm w-auto" value={claseVeh} onChange={e => setClaseVeh(e.target.value)} title="Filtrar por tipo de vehículo">
+                <option value="">Todo tipo de vehículo</option>
+                {clasesVeh.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            )}
             <p className="text-xs text-slate-400 whitespace-nowrap">{filt.length} resultado{filt.length !== 1 ? 's' : ''}</p>
           </>
         }

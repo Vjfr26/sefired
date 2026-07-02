@@ -88,6 +88,7 @@ Route::middleware([\App\Http\Middleware\ApiTokenMiddleware::class, 'throttle:120
     Route::get('/reportes/externos/descargar/{id}',  [ReportController::class, 'downloadExternalReport'])->middleware('perm:reportes,export');
     Route::get('/reports/ventas-comisiones',         [ReportController::class, 'getVentasComisiones'])->middleware('perm:reportes,view_ventas');
     Route::get('/reports/oficinas',                  [ReportController::class, 'getOficinas'])->middleware('perm:reportes,view_oficinas');
+    Route::get('/reports/oficinas/usuarios',         [ReportController::class, 'getOficinaUsuarios'])->middleware('perm:reportes,view_oficinas');
     Route::get('/reports/oficinas/pagos',             [ReportController::class, 'getOficinasPagos'])->middleware('perm:reportes,view_oficinas');
     Route::get('/reports/usuarios',                  [ReportController::class, 'getUsuariosReport'])->middleware('perm:reportes,view_metrics_personal');
     Route::get('/reports/clientes',                  [ReportController::class, 'getClientesReport'])->middleware('perm:reportes,view_metrics_clientes');

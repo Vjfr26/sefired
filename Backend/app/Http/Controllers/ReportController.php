@@ -292,8 +292,9 @@ class ReportController extends Controller
         }
 
         $policies = $query->get();
+        $columnas = $request->input('columnas');
         $filename = 'reporte_externo_' . now()->format('Ymd_His') . '.xlsx';
-        return (new ExternalReportExport($policies))->download($filename);
+        return (new ExternalReportExport($policies, is_array($columnas) && count($columnas) ? $columnas : null))->download($filename);
     }
 
     public function getExternalReportSchedules()
@@ -623,6 +624,28 @@ class ReportController extends Controller
         }
 
         return response()->json($rows);
+    }
+
+    /** Usuarios afiliados a una oficina/sede — para el modal del reporte de oficinas. */
+    public function getOficinaUsuarios(Request $request)
+    {
+        $sede = $request->query('sede');
+        $q = \App\Models\Usuario::query();
+        if ($sede === null || $sede === '' || $sede === 'Sede Central') {
+            $q->whereNull('sede');
+        } else {
+            $q->where('sede', $sede);
+        }
+        $usuarios = $q->orderBy('nombre')->get(['id', 'nombre', 'nick', 'cargo', 'tipo', 'activo']);
+
+        return response()->json($usuarios->map(fn ($u) => [
+            'id'     => $u->id,
+            'nombre' => $u->nombre,
+            'nick'   => $u->nick,
+            'cargo'  => $u->cargo,
+            'tipo'   => $u->tipo,
+            'activo' => (bool) $u->activo,
+        ]));
     }
 
     public function exportOficinas(Request $request)
@@ -972,6 +995,7 @@ class ReportController extends Controller
         $data = $request->validate([
             'comision_ids'   => 'required|array|min:1',
             'comision_ids.*' => 'integer',
+            'observacion'    => 'nullable|string|max:500',
         ]);
 
         $user = auth()->user();
@@ -986,9 +1010,10 @@ class ReportController extends Controller
 
         foreach ($comisiones as $c) {
             $c->update([
-                'status'     => 'PAGADA',
-                'fecha_pago' => now()->toDateString(),
-                'pagado_por' => $user->id,
+                'status'      => 'PAGADA',
+                'fecha_pago'  => now()->toDateString(),
+                'pagado_por'  => $user->id,
+                'observacion' => $data['observacion'] ?? null,
             ]);
         }
 

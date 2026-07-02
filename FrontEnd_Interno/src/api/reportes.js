@@ -108,6 +108,13 @@ export async function fetchOficinas(params = {}) {
   return res.json()
 }
 
+export async function fetchOficinaUsuarios(sede) {
+  const qs = new URLSearchParams({ sede: sede ?? '' })
+  const res = await fetch(`${API_BASE_URL}/api/reports/oficinas/usuarios?${qs}`, { headers: getAuthHeaders() })
+  if (!res.ok) throw new Error('Error al cargar los usuarios de la oficina')
+  return res.json()
+}
+
 export async function fetchOficinasPagos(params = {}) {
   const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v != null && v !== '')))
   const res = await fetch(`${API_BASE_URL}/api/reports/oficinas/pagos?${qs}`, { headers: getAuthHeaders() })
@@ -214,12 +221,12 @@ export async function marcarComision(id, status, observacion = null) {
  * esto (ver verifyPassword en api/usuarios.js), igual que el resto de las
  * acciones sensibles de la app.
  */
-export async function pagarLoteComisiones(comisionIds) {
+export async function pagarLoteComisiones(comisionIds, observacion = null) {
   const token = localStorage.getItem('auth_token')
   const res = await fetch(`${API_BASE_URL}/api/reports/comisiones/pagar-lote`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': `Bearer ${token}` },
-    body: JSON.stringify({ comision_ids: comisionIds })
+    body: JSON.stringify({ comision_ids: comisionIds, observacion })
   })
   const json = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(json.message || 'Error al pagar las comisiones por lote')

@@ -18,6 +18,7 @@ import {
   downloadExternalReportFile,
   fetchVentasComisiones,
   fetchOficinas,
+  fetchOficinaUsuarios,
   fetchOficinasPagos,
   exportVentas,
   exportOficinas,
@@ -46,7 +47,9 @@ const getInitialDates = () => {
   const m = String(today.getMonth() + 1).padStart(2, '0')
   const d = String(today.getDate()).padStart(2, '0')
   return {
-    start: `${y}-${m}-01`,
+    // Año en curso (1° de enero → hoy): evita que el reporte quede vacío al
+    // cambiar de mes cuando la actividad está en meses anteriores.
+    start: `${y}-01-01`,
     today: `${y}-${m}-${d}`
   }
 }
@@ -177,8 +180,10 @@ function TabVentas() {
       confirmLabel: 'Pagar lote',
       color: 'emerald',
       icon: CheckCircle2,
-      onConfirm: async () => {
-        const res = await pagarLoteComisiones(ids)
+      withNote: true,
+      notePlaceholder: 'Referencia del pago, motivo, etc. (opcional)',
+      onConfirm: async (observacion) => {
+        const res = await pagarLoteComisiones(ids, observacion || null)
         showToast(`${res.pagadas} comisiones marcadas como pagadas`, 'success')
         loadData()
       },
@@ -430,6 +435,7 @@ function TabOficinas() {
   const [pagosLoading, setPagosLoading] = useState(false)
   const [pagosExporting, setPagosExporting] = useState(false)
   const [retiroEdit, setRetiroEdit] = useState(null)
+  const [oficinaSel, setOficinaSel] = useState(null)   // oficina cuyo modal de usuarios está abierto
 
   const canExport = canAct('reportes', 'export')
   const canManageOficinas = canAct('reportes', 'manage_oficinas')
@@ -554,11 +560,22 @@ function TabOficinas() {
             { k: 'prima', l: 'Prima Neta',  r: true },
             { k: 'pct',   l: '% del Total', r: true, hide: 'md' },
             { k: 'est',   l: 'Estado',      hide: 'md' },
+            { k: 'acc',   l: '',            acc: true },
           ]}
+          emptyMsg="No hay reportes en este rango de fechas."
           rows={rows.map(r => ({
             ...r,
             prima: usd(r.prima),
-            est: r.est ? rsbadge(r.est) : ''
+            est: r.est ? rsbadge(r.est) : '',
+            acc: r.ofi !== 'TOTAL' ? (
+              <button
+                onClick={() => setOficinaSel(r.ofi)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition text-xs font-semibold whitespace-nowrap"
+                title="Ver usuarios asociados"
+              >
+                <Users className="w-3.5 h-3.5" /> Usuarios
+              </button>
+            ) : '',
           }))}
         />
       )}
@@ -630,6 +647,73 @@ function TabOficinas() {
           onSaved={loadPagosData}
         />
       )}
+
+      {oficinaSel && (
+        <OficinaUsuariosModal sede={oficinaSel} onClose={() => setOficinaSel(null)} />
+      )}
+    </div>
+  )
+}
+
+// Modal: usuarios afiliados a una oficina/sede.
+function OficinaUsuariosModal({ sede, onClose }) {
+  const { showToast } = useApp()
+  const [usuarios, setUsuarios] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let vivo = true
+    setLoading(true)
+    fetchOficinaUsuarios(sede)
+      .then(d => vivo && setUsuarios(d || []))
+      .catch(() => showToast('Error al cargar los usuarios de la oficina', 'error'))
+      .finally(() => vivo && setLoading(false))
+    return () => { vivo = false }
+  }, [sede])
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-[80] flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden animate-in zoom-in duration-200 max-h-[85vh]" onClick={e => e.stopPropagation()}>
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="w-9 h-9 rounded-xl bg-jm-blue/10 text-jm-blue flex items-center justify-center shrink-0">
+              <Building2 className="w-[18px] h-[18px]" />
+            </span>
+            <div className="min-w-0">
+              <h3 className="text-base font-black text-slate-800 truncate">{sede}</h3>
+              <p className="text-[11px] text-slate-400">Usuarios asociados</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-xl transition">
+            <X className="w-4 h-4 text-slate-500" />
+          </button>
+        </div>
+
+        <div className="p-4 overflow-y-auto">
+          {loading ? (
+            <div className="flex justify-center py-10"><Loader2 className="w-7 h-7 text-blue-600 animate-spin" /></div>
+          ) : usuarios.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-8">No hay usuarios asociados a esta oficina.</p>
+          ) : (
+            <div className="space-y-2">
+              {usuarios.map(u => (
+                <div key={u.id} className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 bg-slate-50/60">
+                  <span className="w-9 h-9 rounded-full bg-jm-blue/10 text-jm-blue flex items-center justify-center shrink-0 text-xs font-bold">
+                    {(u.nombre || '?').slice(0, 2).toUpperCase()}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-slate-700 truncate">{u.nombre}</p>
+                    <p className="text-xs text-slate-400 truncate">{[u.cargo, u.tipo].filter(Boolean).join(' · ') || '—'}</p>
+                  </div>
+                  {!u.activo && (
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded shrink-0">Inactivo</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -1158,6 +1242,23 @@ function TabLeads() {
 }
 
 // ── Tab: Reportes Externos (Carga Masiva) ───────────────────
+// Columnas del reporte externo (mismas claves que el backend ExternalReportExport).
+// Todas marcadas = formato oficial completo; desmarcar = versión personalizada.
+const EXT_COLS = [
+  ['nacionalidad_tomador', 'Nacionalidad Tomador'], ['cedula_tomador', 'Cédula/RIF Tomador'],
+  ['primer_nombre', 'Primer Nombre'], ['segundo_nombre', 'Segundo Nombre'],
+  ['primer_apellido', 'Primer Apellido'], ['segundo_apellido', 'Segundo Apellido'],
+  ['fecha_nacimiento', 'Fecha Nacimiento'], ['sexo', 'Sexo'], ['direccion', 'Dirección'],
+  ['ciudad', 'Ciudad'], ['estado', 'Estado'], ['telefono', 'Teléfono'], ['correo', 'Correo'],
+  ['marca', 'Marca'], ['modelo', 'Modelo'], ['anio', 'Año'], ['placa', 'Placa'], ['color', 'Color'],
+  ['traccion', 'Tracción'], ['serial_carroceria', 'Serial Carrocería'], ['serial_motor', 'Serial Motor'],
+  ['tipo_vehiculo', 'Tipo de Vehículo'], ['uso', 'Uso'], ['puestos', 'Puestos'],
+  ['numero_poliza', 'N° Póliza'], ['inicio_vigencia', 'Inicio Vigencia'], ['fin_vigencia', 'Fin Vigencia'],
+  ['suma_cosas', 'Suma Aseg. Cosas'], ['suma_personas', 'Suma Aseg. Personas'], ['prima_anual', 'Prima Anual'],
+  ['moneda', 'Moneda'], ['nac_referidor', 'Nac. Referidor'], ['rif_referidor', 'RIF Referidor'],
+  ['codigo_intermediario', 'Cód. Intermediario'], ['recibo', 'Recibo'],
+]
+
 function TabExternos() {
   const { showToast, API_BASE_URL, canAct } = useApp()
   const canManage = canAct('reportes', 'manage_schedules')
@@ -1177,6 +1278,8 @@ function TabExternos() {
   
   const [ignoredIds, setIgnoredIds] = useState(new Set())
   const [exporting, setExporting] = useState(false)
+  const [colSel, setColSel] = useState(() => new Set(EXT_COLS.map(([k]) => k)))  // columnas incluidas
+  const [showCols, setShowCols] = useState(false)
   const [runningSchedId, setRunningSchedId] = useState(null)
 
   const loadPolicies = async () => {
@@ -1256,7 +1359,9 @@ function TabExternos() {
       const blob = await exportExternalReport({
         fecha_inicio: fechaInicio,
         fecha_fin: fechaFin,
-        ignored_ids: Array.from(ignoredIds)
+        ignored_ids: Array.from(ignoredIds),
+        // En orden canónico; si están todas, el backend usa el formato oficial.
+        columnas: EXT_COLS.map(([k]) => k).filter(k => colSel.has(k)),
       })
       
       const url = window.URL.createObjectURL(blob)
@@ -1393,8 +1498,15 @@ function TabExternos() {
           </div>
           <div className="flex gap-2">
             <button
+              onClick={() => setShowCols(v => !v)}
+              className="btn-secondary py-2 flex items-center justify-center gap-1.5"
+              title="Elegir qué columnas incluir en el Excel"
+            >
+              <Filter className="w-4 h-4" /> Columnas ({colSel.size}/{EXT_COLS.length})
+            </button>
+            <button
               onClick={handleExport}
-              disabled={exporting || policies.length === 0}
+              disabled={exporting || policies.length === 0 || colSel.size === 0}
               className="btn-primary py-2 flex items-center justify-center gap-1.5"
             >
               {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
@@ -1402,6 +1514,36 @@ function TabExternos() {
             </button>
           </div>
         </div>
+
+        {showCols && (
+          <div className="mb-5 p-4 rounded-2xl border border-slate-200 bg-slate-50/60">
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Columnas del Excel</p>
+              <div className="flex items-center gap-3">
+                <button onClick={() => setColSel(new Set(EXT_COLS.map(([k]) => k)))} className="text-xs font-semibold text-jm-blue hover:underline">Todas</button>
+                <button onClick={() => setColSel(new Set())} className="text-xs font-semibold text-slate-400 hover:underline">Ninguna</button>
+              </div>
+            </div>
+            {colSel.size === EXT_COLS.length ? (
+              <p className="text-[11px] text-emerald-600 mb-2">Formato oficial completo (carga a la Superintendencia).</p>
+            ) : (
+              <p className="text-[11px] text-amber-600 mb-2">Formato personalizado — puede no ser válido para la carga oficial.</p>
+            )}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-1.5">
+              {EXT_COLS.map(([k, label]) => (
+                <label key={k} className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={colSel.has(k)}
+                    onChange={() => setColSel(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n })}
+                    className="rounded border-slate-300 text-jm-blue focus:ring-jm-blue/30"
+                  />
+                  <span className="truncate">{label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
         
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-5 items-end">
           <div className="md:col-span-2">
@@ -1670,8 +1812,10 @@ function TabUsuariosMetrics() {
       confirmLabel: 'Pagar lote',
       color: 'emerald',
       icon: CheckCircle2,
-      onConfirm: async () => {
-        const res = await pagarLoteComisiones(ids)
+      withNote: true,
+      notePlaceholder: 'Referencia del pago, motivo, etc. (opcional)',
+      onConfirm: async (observacion) => {
+        const res = await pagarLoteComisiones(ids, observacion || null)
         showToast(`${res.pagadas} comisiones marcadas como pagadas`, 'success')
         loadUserDetail(selectedUser)
       },
@@ -1689,8 +1833,10 @@ function TabUsuariosMetrics() {
       confirmLabel: 'Pagar pendientes',
       color: 'emerald',
       icon: CheckCircle2,
-      onConfirm: async () => {
-        const res = await pagarLoteComisiones(ids)
+      withNote: true,
+      notePlaceholder: 'Referencia del pago, motivo, etc. (opcional)',
+      onConfirm: async (observacion) => {
+        const res = await pagarLoteComisiones(ids, observacion || null)
         showToast(`${res.pagadas} comisiones de ${row.nom} marcadas como pagadas`, 'success')
         loadData()
       },

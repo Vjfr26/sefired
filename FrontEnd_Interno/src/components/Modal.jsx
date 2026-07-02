@@ -2832,11 +2832,33 @@ function AjustarPolizaModal({ c, onSave, polizaId, onCancel }) {
     setForm({
       status:            pol.status,
       fecha_vencimiento: pol.fecha_vencimiento_iso,
+      fecha_emision:     pol.fecha_emision_iso,
       pago:              pol.pago,
       total:             pol.total,
+      total_bs:          pol.total_bs,
+      cobertura_dolares: pol.cobertura_dolares,
+      cobertura_bs:      pol.cobertura_bs,
+      frecuencia_pago:   pol.frecuencia_pago || '',
+      tipo:              pol.tipo || '',
+      sede_poliza:       pol.sede && pol.sede !== '—' ? pol.sede : '',
       nro_venezolana:    pol.nro_venezolana || '',
       papeleria:         pol.papeleria || '',
       vendedor_id:       pol.vendedor_id ?? '',
+      asegurado_nombre:    pol.asegurado_nombre || '',
+      asegurado_ci:        pol.asegurado_ci || '',
+      asegurado_direccion: pol.asegurado_direccion || '',
+      asegurado_telefono:  pol.asegurado_telefono || '',
+      tomador_nombre:    pol.tomador_nombre || '',
+      tomador_ci:        pol.tomador_ci || '',
+      tomador_direccion: pol.tomador_direccion || '',
+      tomador_telefono:  pol.tomador_telefono || '',
+      bien_marca:        pol.bien_marca || '',
+      bien_modelo:       pol.bien_modelo || '',
+      bien_anio:         pol.bien_anio || '',
+      bien_placa:        pol.bien_placa || '',
+      bien_color:        pol.bien_color || '',
+      bien_version:      pol.bien_version || '',
+      bien_puestos:      pol.bien_puestos || '',
     })
   }
 
@@ -2980,6 +3002,7 @@ function AjustarPolizaModal({ c, onSave, polizaId, onCancel }) {
                 type="date"
                 className="input-field"
                 value={form.fecha_vencimiento ?? ''}
+                min={form.fecha_emision || undefined}
                 onChange={e => setForm(f => ({ ...f, fecha_vencimiento: e.target.value }))}
               />
             </div>
@@ -3047,6 +3070,105 @@ function AjustarPolizaModal({ c, onSave, polizaId, onCancel }) {
                 ))}
               </select>
             </div>
+
+            {/* ── Clasificación / fechas ── */}
+            <div className="input-group">
+              <label className="input-label">Fecha de emisión</label>
+              <input type="date" className="input-field" value={form.fecha_emision ?? ''} onChange={e => setForm(f => ({ ...f, fecha_emision: e.target.value }))} />
+            </div>
+            <div className="input-group">
+              <label className="input-label">Tipo de póliza</label>
+              <input type="text" className="input-field" value={form.tipo ?? ''} placeholder="Individual / Colectiva" onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))} />
+            </div>
+            <div className="input-group">
+              <label className="input-label">Oficina / Sede</label>
+              <input type="text" className="input-field" value={form.sede_poliza ?? ''} onChange={e => setForm(f => ({ ...f, sede_poliza: e.target.value }))} />
+            </div>
+            <div className="input-group">
+              <label className="input-label">Frecuencia de pago</label>
+              <input type="text" className="input-field" value={form.frecuencia_pago ?? ''} placeholder="Anual / Mensual…" onChange={e => setForm(f => ({ ...f, frecuencia_pago: e.target.value }))} />
+            </div>
+            <div className="input-group">
+              <label className="input-label">Cobertura (USD)</label>
+              <input type="number" step="0.01" min="0" className="input-field" value={form.cobertura_dolares ?? ''} onChange={e => setForm(f => ({ ...f, cobertura_dolares: e.target.value }))} />
+            </div>
+            <div className="input-group">
+              <label className="input-label">Cobertura (Bs.)</label>
+              <input type="number" step="0.01" min="0" className="input-field" value={form.cobertura_bs ?? ''} onChange={e => setForm(f => ({ ...f, cobertura_bs: e.target.value }))} />
+            </div>
+
+            {/* ── Asegurado ── */}
+            <div className="sm:col-span-2 mt-1 pt-3 border-t border-slate-100"><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Datos del asegurado</p></div>
+            <div className="input-group">
+              <label className="input-label">Asegurado — Nombre</label>
+              <input type="text" className="input-field" value={form.asegurado_nombre ?? ''} onChange={e => setForm(f => ({ ...f, asegurado_nombre: e.target.value }))} />
+            </div>
+            <div className="input-group">
+              <label className="input-label">Asegurado — Cédula</label>
+              <input type="text" className="input-field" value={form.asegurado_ci ?? ''} onChange={e => setForm(f => ({ ...f, asegurado_ci: e.target.value }))} />
+            </div>
+            <div className="input-group">
+              <label className="input-label">Asegurado — Teléfono</label>
+              <input type="text" className="input-field" value={form.asegurado_telefono ?? ''} onChange={e => setForm(f => ({ ...f, asegurado_telefono: e.target.value }))} />
+            </div>
+            <div className="input-group">
+              <label className="input-label">Asegurado — Dirección</label>
+              <input type="text" className="input-field" value={form.asegurado_direccion ?? ''} onChange={e => setForm(f => ({ ...f, asegurado_direccion: e.target.value }))} />
+            </div>
+
+            {/* ── Tomador ── */}
+            <div className="sm:col-span-2 mt-1 pt-3 border-t border-slate-100"><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Datos del tomador</p></div>
+            <div className="input-group">
+              <label className="input-label">Tomador — Nombre</label>
+              <input type="text" className="input-field" value={form.tomador_nombre ?? ''} onChange={e => setForm(f => ({ ...f, tomador_nombre: e.target.value }))} />
+            </div>
+            <div className="input-group">
+              <label className="input-label">Tomador — Cédula</label>
+              <input type="text" className="input-field" value={form.tomador_ci ?? ''} onChange={e => setForm(f => ({ ...f, tomador_ci: e.target.value }))} />
+            </div>
+            <div className="input-group">
+              <label className="input-label">Tomador — Teléfono</label>
+              <input type="text" className="input-field" value={form.tomador_telefono ?? ''} onChange={e => setForm(f => ({ ...f, tomador_telefono: e.target.value }))} />
+            </div>
+            <div className="input-group">
+              <label className="input-label">Tomador — Dirección</label>
+              <input type="text" className="input-field" value={form.tomador_direccion ?? ''} onChange={e => setForm(f => ({ ...f, tomador_direccion: e.target.value }))} />
+            </div>
+
+            {/* ── Bien / vehículo (solo si aplica) ── */}
+            {selected.bien_ref && selected.bien_ref !== '—' && (
+              <>
+                <div className="sm:col-span-2 mt-1 pt-3 border-t border-slate-100"><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Datos del bien</p></div>
+                <div className="input-group">
+                  <label className="input-label">Marca</label>
+                  <input type="text" className="input-field" value={form.bien_marca ?? ''} onChange={e => setForm(f => ({ ...f, bien_marca: e.target.value }))} />
+                </div>
+                <div className="input-group">
+                  <label className="input-label">Modelo</label>
+                  <input type="text" className="input-field" value={form.bien_modelo ?? ''} onChange={e => setForm(f => ({ ...f, bien_modelo: e.target.value }))} />
+                </div>
+                <div className="input-group">
+                  <label className="input-label">Año</label>
+                  <input type="text" className="input-field" value={form.bien_anio ?? ''} onChange={e => setForm(f => ({ ...f, bien_anio: e.target.value }))} />
+                </div>
+                <div className="input-group">
+                  <label className="input-label">Placa</label>
+                  <input type="text" className="input-field" value={form.bien_placa ?? ''} onChange={e => setForm(f => ({ ...f, bien_placa: e.target.value.toUpperCase() }))} />
+                </div>
+                <div className="input-group">
+                  <label className="input-label">Color</label>
+                  <input type="text" className="input-field" value={form.bien_color ?? ''} onChange={e => setForm(f => ({ ...f, bien_color: e.target.value }))} />
+                </div>
+                <div className="input-group">
+                  <label className="input-label">Versión</label>
+                  <input type="text" className="input-field" value={form.bien_version ?? ''} onChange={e => setForm(f => ({ ...f, bien_version: e.target.value }))} />
+                </div>
+                <div className="input-group">
+                  <label className="input-label">Puestos</label>
+                  <input type="text" className="input-field" value={form.bien_puestos ?? ''} onChange={e => setForm(f => ({ ...f, bien_puestos: e.target.value }))} />
+                </div>
+              </>
+            )}
 
           </div>
 
@@ -5036,7 +5158,9 @@ function ClienteFormModal({ cliente, onSave }) {
             </div>
             <div>
               <Lbl req>Fecha de nacimiento</Lbl>
-              <input type="date" className="input-field" value={form.nacimiento} onChange={f('nacimiento')} />
+              <input type="date" className="input-field" value={form.nacimiento} onChange={f('nacimiento')}
+                max={new Date(Date.now() - 18 * 365.25 * 864e5).toISOString().slice(0, 10)} />
+              <p className="text-[10px] text-slate-400 mt-1">El cliente debe ser mayor de edad (18+).</p>
             </div>
             <div className="sm:col-span-2">
               <Lbl req>Nacionalidad</Lbl>

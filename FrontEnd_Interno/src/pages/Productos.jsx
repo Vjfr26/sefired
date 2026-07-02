@@ -1501,10 +1501,6 @@ export default function Productos() {
               <Settings className="w-[18px] h-[18px]" />
             </button>
           )}
-          {/* Beneficios / coberturas */}
-          <button onClick={() => setModalBenef(p)} className="p-2.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition inline-flex items-center justify-center" title="Beneficios / coberturas">
-            <ListChecks className="w-[18px] h-[18px]" />
-          </button>
           {canEdit && (
             <button onClick={() => setModalProd(p)} className="p-2.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition inline-flex items-center justify-center" title="Editar">
               <Pencil className="w-[18px] h-[18px]" />
