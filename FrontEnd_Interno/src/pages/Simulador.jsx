@@ -1817,10 +1817,14 @@ function UnderwritingModal({ cot, productos = [], onClose, onStatusChanged, show
             {/* Score + inspección */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="field-label">Score de riesgo (0–100)</label>
-                <input type="number" min="0" max="100" step="1" className="input-field"
-                  placeholder="—" value={form.score}
-                  onChange={e => setF('score', e.target.value)} />
+                <label className="field-label">Nivel de riesgo</label>
+                <select className="select-field" value={form.score}
+                  onChange={e => setF('score', e.target.value)}>
+                  <option value="">— Seleccionar —</option>
+                  <option value="20">Riesgo bajo</option>
+                  <option value="50">Riesgo medio</option>
+                  <option value="80">Riesgo alto</option>
+                </select>
                 {riesgo && <p className={`text-[10px] font-bold mt-1 ${riesgo.c}`}>{riesgo.t}</p>}
               </div>
               <button

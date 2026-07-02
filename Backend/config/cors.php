@@ -20,7 +20,7 @@ return [
 
     'allowed_headers' => ['Accept', 'Content-Type', 'Authorization', 'X-Device-Fingerprint'],
 
-    'exposed_headers' => [],
+    'exposed_headers' => ['X-Session-Expired'],
 
     'max_age' => 600,
 

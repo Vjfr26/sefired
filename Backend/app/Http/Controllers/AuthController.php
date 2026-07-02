@@ -179,14 +179,26 @@ class AuthController extends Controller
 
         // Política de concurrencia: se conservan las `max_sessions` más recientes
         // (incluida la que se acaba de crear) y se cierran las demás (takeover).
+        // Se ordena por `id` (autoincremental, estrictamente creciente) y no por
+        // `created_at` (precisión de segundos): dos logins en el mismo segundo
+        // empatarían y podría conservarse la sesión vieja borrando la recién
+        // creada, dejando fuera al que acaba de entrar.
         $max  = max(1, (int) config('auth.token.max_sessions', 1));
         $keep = Sesion::where('usuario_id', $usuario->id)
-            ->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->take($max)
             ->pluck('id');
-        Sesion::where('usuario_id', $usuario->id)
+        $superseded = Sesion::where('usuario_id', $usuario->id)
             ->whereNotIn('id', $keep)
-            ->delete();
+            ->get();
+        foreach ($superseded as $s) {
+            // Marca (por token_hash) para que el dispositivo anterior sepa, en su
+            // próximo request, que su sesión fue tomada por un nuevo login — así
+            // el frontend avisa "se inició sesión en otro dispositivo". Lo lee y
+            // consume ApiTokenMiddleware. Vive lo mismo que el tope absoluto.
+            Cache::put('sesion_tomada:' . $s->token_hash, true, now()->addHours((int) config('auth.token.absolute_hours', 12)));
+            $s->delete();
+        }
 
         $this->logActivity('login', "Inicio de sesión exitoso — ID: {$usuario->id}", 'usuarios', $usuario->id);
 

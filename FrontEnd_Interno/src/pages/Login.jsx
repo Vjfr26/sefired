@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { User, KeyRound, Eye, EyeOff } from 'lucide-react'
+import { User, KeyRound, Eye, EyeOff, Info } from 'lucide-react'
 
-export default function Login({ onLogin }) {
+export default function Login({ onLogin, msg }) {
   const [nick, setNick] = useState('')
   const [password, setPassword] = useState('')
   const [showPw, setShowPw] = useState(false)
@@ -165,6 +165,13 @@ export default function Login({ onLogin }) {
                 Ingresa tus credenciales para acceder al panel interno
               </p>
             </div>
+
+            {msg && (
+              <div className="mb-4 flex items-start gap-2 text-xs font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                <Info className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
+                <span>{msg}</span>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-5">
               {/* Nick/Usuario */}

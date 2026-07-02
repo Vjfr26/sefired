@@ -18,7 +18,7 @@ const tipoIcon = (t) => {
 }
 
 // Formulario Modal para Agregar / Editar
-function CatalogoModal({ item, tipos = TIPOS_VEHICULO_BASE, onClose, onSaved }) {
+function CatalogoModal({ item, tipos = TIPOS_VEHICULO_BASE, marcas = [], modelosPorMarca = {}, onClose, onSaved }) {
   const { showToast } = useApp()
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
@@ -152,11 +152,16 @@ function CatalogoModal({ item, tipos = TIPOS_VEHICULO_BASE, onClose, onSaved }) 
                 type="text"
                 className={inp}
                 placeholder="Ej. Toyota"
+                list="cat-marcas"
                 value={form.marca}
                 maxLength={40}
                 onChange={e => set('marca', e.target.value)}
                 required
               />
+              <datalist id="cat-marcas">
+                {marcas.map(m => <option key={m} value={m} />)}
+              </datalist>
+              <p className="text-[10px] text-slate-400 mt-1">Elige de la lista si ya existe, para no duplicar (ej. "Toyota").</p>
             </div>
 
             <div>
@@ -165,11 +170,15 @@ function CatalogoModal({ item, tipos = TIPOS_VEHICULO_BASE, onClose, onSaved }) 
                 type="text"
                 className={inp}
                 placeholder="Ej. Corolla"
+                list="cat-modelos"
                 value={form.modelo}
                 maxLength={40}
                 onChange={e => set('modelo', e.target.value)}
                 required
               />
+              <datalist id="cat-modelos">
+                {(modelosPorMarca[form.marca] || []).map(m => <option key={m} value={m} />)}
+              </datalist>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -259,6 +268,23 @@ export default function VehiculosCatalogo() {
     const set = new Set(TIPOS_VEHICULO_BASE)
     for (const it of catalogo) if (it.tipo) set.add(it.tipo)
     return [...set].sort((a, b) => a.localeCompare(b, 'es'))
+  }, [catalogo])
+
+  // Marcas existentes (para autocompletar y evitar duplicados mal escritos) y
+  // los modelos por marca (para sugerir el modelo según la marca elegida).
+  const marcasUnicas = useMemo(
+    () => [...new Set(catalogo.map(i => i.marca).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es')),
+    [catalogo]
+  )
+  const modelosPorMarca = useMemo(() => {
+    const map = {}
+    for (const it of catalogo) {
+      if (!it.marca || !it.modelo) continue
+      ;(map[it.marca] ??= new Set()).add(it.modelo)
+    }
+    return Object.fromEntries(
+      Object.entries(map).map(([k, v]) => [k, [...v].sort((a, b) => a.localeCompare(b, 'es'))])
+    )
   }, [catalogo])
 
   const filtered = useMemo(() => {
@@ -388,6 +414,8 @@ export default function VehiculosCatalogo() {
       {showAddModal && (
         <CatalogoModal
           tipos={tiposUnicos}
+          marcas={marcasUnicas}
+          modelosPorMarca={modelosPorMarca}
           onClose={() => setShowAddModal(false)}
           onSaved={load}
         />
@@ -398,6 +426,8 @@ export default function VehiculosCatalogo() {
         <CatalogoModal
           item={editItem}
           tipos={tiposUnicos}
+          marcas={marcasUnicas}
+          modelosPorMarca={modelosPorMarca}
           onClose={() => setEditItem(null)}
           onSaved={load}
         />
