@@ -60,7 +60,7 @@ class PolizaController extends Controller
             'status'            => 'sometimes|in:ACTIVA,VENCIDA,ANULADA,SUSPENDIDA,RENOVADA',
             'fecha_vencimiento' => 'sometimes|date',
             'fecha_emision'     => 'sometimes|date',
-            'pago'              => ['sometimes', 'string', 'max:30', $noInjection],
+            'pago'              => ['sometimes', 'string', 'max:255', $noInjection],
             'total'             => 'sometimes|numeric|min:0',
             'total_bs'          => 'sometimes|numeric|min:0',
             'cobertura_dolares' => 'sometimes|numeric|min:0',

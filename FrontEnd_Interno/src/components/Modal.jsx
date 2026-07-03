@@ -3060,7 +3060,21 @@ function AjustarPolizaModal({ c, onSave, polizaId, onCancel }) {
                 min="0"
                 className="input-field"
                 value={form.total ?? ''}
-                onChange={e => setForm(f => ({ ...f, total: e.target.value }))}
+                onChange={e => {
+                  const nuevoTotal = e.target.value
+                  // Al cambiar la prima se recalcula total_bs manteniendo la tasa
+                  // implícita de la póliza (total_bs/total). Antes total_bs quedaba
+                  // con el valor viejo y la póliza quedaba desincronizada.
+                  setForm(f => {
+                    const t = parseFloat(nuevoTotal)
+                    const oT = parseFloat(selected.total)
+                    const oBs = parseFloat(selected.total_bs)
+                    const total_bs = (t > 0 && oT > 0 && oBs > 0)
+                      ? Math.round(t * (oBs / oT) * 100) / 100
+                      : f.total_bs
+                    return { ...f, total: nuevoTotal, total_bs }
+                  })
+                }}
               />
             </div>
 
