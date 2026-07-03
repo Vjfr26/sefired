@@ -17,6 +17,7 @@ class Usuario extends Authenticatable
         'nombre',
         'genero',
         'cargo',
+        'comision_pct',
         'nick',
         'password',
         'api_token',
@@ -48,6 +49,7 @@ class Usuario extends Authenticatable
     {
         return [
             'activo' => 'boolean',
+            'comision_pct' => 'decimal:2',
             'permisos' => 'array',
             'temp' => 'boolean',
             'temp_expira_en'   => 'datetime',

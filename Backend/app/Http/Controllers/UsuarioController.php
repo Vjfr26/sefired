@@ -160,6 +160,7 @@ class UsuarioController extends Controller
         $validator = Validator::make($request->all(), [
             'nombre'   => 'required|string|max:255',
             'cargo'    => 'required|string|max:255',
+            'comision_pct' => 'nullable|numeric|min:0|max:100',
             'genero'   => 'required|in:M,F',
             'nick'     => 'required|string|max:50|unique:usuarios|regex:/^[a-zA-Z0-9._-]+$/',
             'password' => ['required', 'string', 'min:8', 'max:128', 'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/'],
@@ -185,6 +186,7 @@ class UsuarioController extends Controller
             'nombre'   => strip_tags(trim($request->nombre)),
             'genero'   => $request->genero,
             'cargo'    => strip_tags(trim($request->cargo)),
+            'comision_pct' => $request->filled('comision_pct') ? $request->comision_pct : null,
             'nick'     => $request->nick,
             'password' => Hash::make($request->password),
             'sede'     => strip_tags(trim($request->sede)),
@@ -222,6 +224,7 @@ class UsuarioController extends Controller
             'nombre'   => 'sometimes|string|max:255',
             'genero'   => 'sometimes|in:M,F',
             'cargo'    => 'sometimes|string|max:255',
+            'comision_pct' => 'nullable|numeric|min:0|max:100',
             'nick'     => 'sometimes|string|max:50|unique:usuarios,nick,' . $id . '|regex:/^[a-zA-Z0-9._-]+$/',
             'password' => ['nullable', 'string', 'min:8', 'max:128', 'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/'],
             'sede'     => 'sometimes|string|max:255',
@@ -243,7 +246,7 @@ class UsuarioController extends Controller
             return response()->json(['status' => 'error', 'errors' => $validator->errors()], 400);
         }
 
-        $data = $request->only(['nombre', 'genero', 'cargo', 'nick', 'sede', 'nro_sede', 'tipo', 'permisos', 'activo', 'temp', 'temp_expira_en']);
+        $data = $request->only(['nombre', 'genero', 'cargo', 'comision_pct', 'nick', 'sede', 'nro_sede', 'tipo', 'permisos', 'activo', 'temp', 'temp_expira_en']);
         if (isset($data['temp']) && !$data['temp']) {
             $data['temp_expira_en'] = null;
         }

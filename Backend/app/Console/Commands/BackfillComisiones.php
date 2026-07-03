@@ -42,7 +42,7 @@ class BackfillComisiones extends Command
             $tasaUsd      = (float) ($poliza->tasa_emision ?? 0);
             $tasaEur      = (float) ($poliza->tasa_emision_eur ?? 0);
             $baseUsd      = Moneda::aUsd((float) $poliza->total, $monedaNativa, $tasaUsd, $tasaEur);
-            $tasaPct      = Comision::tasaParaCargo($poliza->vendedor?->cargo) * 100;
+            $tasaPct      = Comision::tasaParaUsuario($poliza->vendedor) * 100;
 
             Comision::create([
                 'poliza_id'      => $poliza->id,

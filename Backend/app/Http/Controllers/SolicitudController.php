@@ -434,7 +434,7 @@ class SolicitudController extends Controller
             // Comisión del vendedor por esta póliza — sin vendedor no hay a quién pagarle.
             if ($poliza->vendedor_id) {
                 $baseUsd = Moneda::aUsd($totalUsd, $monedaNativa, $tasaBcv, $tasaEur);
-                $tasaPct = Comision::tasaParaCargo($poliza->vendedor?->cargo) * 100;
+                $tasaPct = Comision::tasaParaUsuario($poliza->vendedor) * 100;
                 Comision::create([
                     'poliza_id'      => $poliza->id,
                     'vendedor_id'    => $poliza->vendedor_id,

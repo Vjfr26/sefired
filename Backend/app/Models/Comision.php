@@ -61,4 +61,17 @@ class Comision extends Model
     {
         return strtolower((string) $cargo) === 'agente' ? 0.10 : 0.05;
     }
+
+    /**
+     * Tasa de comisión de un usuario (como fracción, p.ej. 0.10). Usa el
+     * `comision_pct` propio del usuario si está definido; si es NULL, cae al
+     * default por cargo — así los usuarios sin % configurado no se rompen.
+     */
+    public static function tasaParaUsuario(?Usuario $usuario): float
+    {
+        if ($usuario && $usuario->comision_pct !== null) {
+            return (float) $usuario->comision_pct / 100;
+        }
+        return self::tasaParaCargo($usuario?->cargo);
+    }
 }

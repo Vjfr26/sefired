@@ -79,7 +79,7 @@ class VentasExport extends BaseExport
             if (!$vendedor) continue;
 
             $base       = (float) $pols->sum('total');
-            $tasa       = \App\Models\Comision::tasaParaCargo($vendedor->cargo);
+            $tasa       = \App\Models\Comision::tasaParaUsuario($vendedor);
             $sumEstado  = fn (?string $status) => round((float) $pols->sum(
                 fn ($p) => ($p->comision && (!$status || $p->comision->status === $status)) ? (float) $p->comision->monto : 0
             ), 2);

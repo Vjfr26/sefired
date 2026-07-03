@@ -158,7 +158,7 @@ class SolicitudRenovacionQrController extends Controller
 
             if ($nueva->vendedor_id) {
                 $baseUsd = Moneda::aUsd((float) $polizaAnterior->total, $monedaNativa, $tasaBcv, $tasaEur);
-                $tasaPct = Comision::tasaParaCargo($nueva->vendedor?->cargo) * 100;
+                $tasaPct = Comision::tasaParaUsuario($nueva->vendedor) * 100;
                 Comision::create([
                     'poliza_id'      => $nueva->id,
                     'vendedor_id'    => $nueva->vendedor_id,

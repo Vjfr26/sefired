@@ -1037,6 +1037,7 @@ function NewUserModal({ onSave }) {
   const [form, setForm] = useState({
     nombre: '', nick: '', genero: 'M',
     tipo: 'Vendedor Sucursal', sede: 'Valencia',
+    comision_pct: '',
     password: '', password_confirmation: '',
     temp: false, temp_expira_en: '',
   })
@@ -1105,6 +1106,11 @@ function NewUserModal({ onSave }) {
                 {USER_SEDES.map(s => <option key={s}>{s}</option>)}
               </select>
             </div>
+            <div>
+              <label className="field-label">Comisión (%)</label>
+              <input type="number" min="0" max="100" step="0.5" className="input-field" value={form.comision_pct} onChange={f('comision_pct')} placeholder="Ej. 5" />
+              <p className="text-[10px] text-slate-400 mt-1">Vacío = usa el % por defecto del cargo.</p>
+            </div>
           </div>
         </SecPanel>
 
@@ -1146,7 +1152,7 @@ function EditUserModal({ user, onSave }) {
   const [form, setForm] = useState({
     nombre: user.nombre || '', nick: user.nick || '',
     genero: user.genero || 'M', tipo: user.tipo || '',
-    sede: user.sede || '', password: '',
+    sede: user.sede || '', comision_pct: user.comision_pct ?? '', password: '',
     temp: !!user.temp, temp_expira_en: user.temp_expira_en?.slice(0,10) || '',
   })
   const [saving, setSaving] = useState(false)
@@ -1215,6 +1221,11 @@ function EditUserModal({ user, onSave }) {
               <select className="select-field" value={form.sede} onChange={f('sede')}>
                 {USER_SEDES.map(s => <option key={s}>{s}</option>)}
               </select>
+            </div>
+            <div>
+              <label className="field-label">Comisión (%)</label>
+              <input type="number" min="0" max="100" step="0.5" className="input-field" value={form.comision_pct} onChange={f('comision_pct')} placeholder="Ej. 5" />
+              <p className="text-[10px] text-slate-400 mt-1">Vacío = usa el % por defecto del cargo.</p>
             </div>
           </div>
         </SecPanel>
