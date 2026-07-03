@@ -636,6 +636,9 @@ function RenovarModal({ client, diasVencimiento, onSaved, onCancel }) {
   const excedente         = Math.max(0, pagCents - maxCents) / 100
   const adelanto          = Math.max(0, Math.min(pagCents, maxCents) - minCents) / 100
   const totalOk           = pagCents >= minCents && pagCents <= maxCents + 10
+  const cuotasCubiertas   = esMensual && montoEsperadoUsd > 0
+    ? Math.min(12, Math.floor((pagCents / 100) / (montoMaximo / 12) + 1e-9))
+    : 0
 
   const handleRenovar = async () => {
     if (!client.poliza_id) { showToast('Este cliente no tiene póliza para renovar', 'error'); return }
@@ -810,7 +813,12 @@ function RenovarModal({ client, diasVencimiento, onSaved, onCancel }) {
                 <span>
                   {!totalOk && faltante  > 0 && `⚠ Falta ${fmtMonto(faltante, monedaNativa)} para cubrir ${frecuencia === 'Mensual' ? 'la cuota del mes' : 'la prima'}`}
                   {!totalOk && excedente > 0 && `⚠ Excede el ${esMensual ? 'total financiado' : 'total anual'} por ${fmtMonto(excedente, monedaNativa)}`}
-                  {totalOk && (adelanto > 0 ? `✓ Cuota cubierta · adelanto de ${fmtMonto(adelanto, monedaNativa)}` : '✓ Total cuadra')}
+                  {totalOk && (
+                    esMensual && adelanto > 0
+                      ? `✓ Cubre ${cuotasCubiertas} de 12 cuota${cuotasCubiertas !== 1 ? 's' : ''} · adelanto de ${fmtMonto(adelanto, monedaNativa)}${cuotasCubiertas < 12 ? ' (el resto abona a la siguiente)' : ''}`
+                      : adelanto > 0
+                        ? `✓ Cuota cubierta · adelanto de ${fmtMonto(adelanto, monedaNativa)}`
+                        : '✓ Total cuadra')}
                 </span>
                 <span className="font-bold font-mono ml-auto">{fmtMonto(pagCents / 100, monedaNativa)} / {fmtMonto(montoMaximo, monedaNativa)}</span>
               </div>
@@ -887,6 +895,11 @@ function EmitirCotizacionModal({ cot, onSaved }) {
   const excedente  = Math.max(0, pagCents - maxCents) / 100
   const adelanto   = Math.max(0, Math.min(pagCents, maxCents) - minCents) / 100
   const totalOk    = pagCents >= minCents && pagCents <= maxCents + 10
+  // En mensual: cuántas cuotas de 12 cubre el monto pagado (la cuota del mes
+  // más las que alcance el excedente). El resto abona a la siguiente cuota.
+  const cuotasCubiertas = esMensual && montoEsperadoUsd > 0
+    ? Math.min(12, Math.floor((pagCents / 100) / (montoMaximo / 12) + 1e-9))
+    : 0
   // Brecha REAL (no en centavos redondeados): lo que falta exactamente para
   // llegar a la cuota. Se usa para mostrar el faltante en cada moneda como el
   // MÍNIMO exacto — pagar menos que eso (aunque sea por 0.01 Bs) no cuadra.
@@ -1061,7 +1074,12 @@ function EmitirCotizacionModal({ cot, onSaved }) {
             <span>
               {!totalOk && faltante  > 0 && `⚠ Falta ${faltanteTxt} para cubrir ${frecuencia === 'Mensual' && permiteMensualidades ? 'la cuota del mes' : 'la póliza'}`}
               {!totalOk && excedente > 0 && `⚠ Excede el ${esMensual ? 'total financiado' : 'total anual'} por ${fmtMonto(excedente, monedaNativa)}`}
-              {totalOk && (adelanto > 0 ? `✓ Cuota cubierta · adelanto de ${fmtMonto(adelanto, monedaNativa)}` : '✓ Total cuadra')}
+              {totalOk && (
+                esMensual && adelanto > 0
+                  ? `✓ Cubre ${cuotasCubiertas} de 12 cuota${cuotasCubiertas !== 1 ? 's' : ''} · adelanto de ${fmtMonto(adelanto, monedaNativa)}${cuotasCubiertas < 12 ? ' (el resto abona a la siguiente)' : ''}`
+                  : adelanto > 0
+                    ? `✓ Cuota cubierta · adelanto de ${fmtMonto(adelanto, monedaNativa)}`
+                    : '✓ Total cuadra')}
             </span>
             <span className="font-bold font-mono ml-auto">
               {fmtMonto(pagCents / 100, monedaNativa)} / {fmtMonto(montoMaximo, monedaNativa)}
