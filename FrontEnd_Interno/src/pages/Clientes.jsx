@@ -203,11 +203,19 @@ export default function Clientes() {
     })()
 
     const nomCell = (
-      <span className="inline-flex items-center gap-1.5 min-w-0">
+      <span className="inline-flex items-center gap-1.5 min-w-0 flex-wrap">
         <span className="break-words">{c.nom}</span>
         {sinDocumentos && (
           <span title="Faltan documentos obligatorios por subir" className="inline-flex shrink-0">
             <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+          </span>
+        )}
+        {c.cuota_atrasada && (
+          <span
+            title={`${c.cuotas_atrasadas} cuota${c.cuotas_atrasadas !== 1 ? 's' : ''} mensual${c.cuotas_atrasadas !== 1 ? 'es' : ''} atrasada${c.cuotas_atrasadas !== 1 ? 's' : ''}`}
+            className="inline-flex shrink-0 items-center gap-0.5 text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-full px-1.5 py-0.5"
+          >
+            <Receipt className="w-3 h-3" /> Cuota atrasada{c.cuotas_atrasadas > 1 ? ` (${c.cuotas_atrasadas})` : ''}
           </span>
         )}
       </span>

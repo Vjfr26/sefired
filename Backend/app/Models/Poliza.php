@@ -195,6 +195,38 @@ class Poliza extends Model
     }
 
     /**
+     * ¿La póliza (mensual, vigente/vencida) tiene alguna cuota atrasada? Es
+     * decir, una cuota cuyo vencimiento ya pasó y que aún tiene saldo pendiente.
+     * Se usa para avisar en la tabla de clientes quién debe una cuota.
+     */
+    public function tieneCuotaAtrasada(): bool
+    {
+        if ($this->frecuencia_pago !== 'Mensual' || !in_array($this->status, ['ACTIVA', 'VENCIDA'], true)) {
+            return false;
+        }
+        $hoy = now()->startOfDay();
+        return $this->cuotas->contains(fn ($c) =>
+            $c->fecha_vencimiento
+            && $c->fecha_vencimiento->lt($hoy)
+            && ((float) $c->monto - (float) $c->monto_pagado) > 0.001
+        );
+    }
+
+    /** Cantidad de cuotas atrasadas (vencidas y con saldo). */
+    public function cuotasAtrasadas(): int
+    {
+        if ($this->frecuencia_pago !== 'Mensual' || !in_array($this->status, ['ACTIVA', 'VENCIDA'], true)) {
+            return 0;
+        }
+        $hoy = now()->startOfDay();
+        return $this->cuotas->filter(fn ($c) =>
+            $c->fecha_vencimiento
+            && $c->fecha_vencimiento->lt($hoy)
+            && ((float) $c->monto - (float) $c->monto_pagado) > 0.001
+        )->count();
+    }
+
+    /**
      * Días antes del vencimiento desde los que se permite renovar:
      * 30 para pólizas anuales, 7 para mensuales (una VENCIDA siempre se puede).
      */

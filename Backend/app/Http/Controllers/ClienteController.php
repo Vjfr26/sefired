@@ -76,7 +76,7 @@ class ClienteController extends Controller
      */
     public function index()
     {
-        $query = Persona::with(['solicitudes.polizas', 'solicitudes.producto', 'bienes', 'vendedor', 'documentos'])->withCount('documentos');
+        $query = Persona::with(['solicitudes.polizas.cuotas', 'solicitudes.producto', 'bienes', 'vendedor', 'documentos'])->withCount('documentos');
         $this->whereVendedorPropio($query);
 
         $personas = $query->get()
@@ -125,6 +125,10 @@ class ClienteController extends Controller
                     : null;
                 $row['poliza_status']         = $ultima?->status;
                 $row['documentos_faltantes']  = $this->tieneDocumentosFaltantes($p);
+                // Aviso de cuota(s) atrasada(s): cualquier póliza mensual del
+                // cliente con una cuota vencida y con saldo pendiente.
+                $row['cuotas_atrasadas']      = $polizas->sum(fn ($pol) => $pol->cuotasAtrasadas());
+                $row['cuota_atrasada']        = $row['cuotas_atrasadas'] > 0;
                 return $row;
             });
 
