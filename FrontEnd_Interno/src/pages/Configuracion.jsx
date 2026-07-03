@@ -431,41 +431,11 @@ function TabCambiosDetallados() {
 }
 
 // ── Tab: Acerca de ───────────────────────────────────────────
-// Apartado puramente informativo: créditos del software y titularidad. El
-// sistema es propiedad de INVERSIONES J&M, C.A., que mantiene un convenio con
-// LA VENEZOLANA DE SEGUROS Y VIDA C.A. Fue desarrollado y vendido por
-// Victecnology, Lda como una venta única (sin soporte ni actualizaciones).
+// Apartado puramente informativo: créditos del software desarrollado y vendido
+// por Victecnology, Lda como una venta única (sin soporte ni actualizaciones).
 function TabAbout() {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {/* Titularidad y convenio */}
-      <div className="card p-6">
-        <h4 className="font-semibold text-slate-800 mb-5">Titularidad y convenio</h4>
-
-        <div className="flex items-center gap-4 pb-4 border-b border-slate-100">
-          <img src="/logo-sinfondo.png" alt="Inversiones J&M, C.A." className="h-12 w-auto object-contain shrink-0" />
-          <div className="min-w-0">
-            <h3 className="font-bold text-slate-800">INVERSIONES J&M, C.A.</h3>
-            <p className="text-xs text-slate-500">Propietario legal del sistema</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4 py-4 border-b border-slate-100">
-          <img src="/logotipovenezolanaseguros.png" alt="La Venezolana de Seguros y Vida, C.A." className="h-12 w-auto object-contain shrink-0" />
-          <div className="min-w-0">
-            <h3 className="font-bold text-slate-800">LA VENEZOLANA DE SEGUROS Y VIDA C.A.</h3>
-            <p className="text-xs text-slate-500">Convenio con Inversiones J&M, C.A.</p>
-          </div>
-        </div>
-
-        <p className="text-sm text-slate-600 leading-relaxed mt-4">
-          El sistema pertenece a <strong className="text-slate-800">INVERSIONES J&amp;M, C.A.</strong>, quien
-          mantiene un convenio con <strong className="text-slate-800">LA VENEZOLANA DE SEGUROS Y VIDA C.A.</strong>
-          La responsabilidad por el uso del sistema recae en ambas empresas; el propietario legal del software es
-          Inversiones J&amp;M, C.A.
-        </p>
-      </div>
-
+    <div className="max-w-xl">
       {/* Créditos del software */}
       <div className="card p-6">
         <h4 className="font-semibold text-slate-800 mb-5">Créditos del software</h4>
@@ -488,13 +458,6 @@ function TabAbout() {
           <p className="text-xs text-amber-700">
             Este software se entregó como una venta única. No incluye soporte técnico ni la integración de nuevas
             actualizaciones.
-          </p>
-        </div>
-
-        <div className="mt-3 p-4 bg-blue-50 rounded-xl">
-          <p className="text-xs font-semibold text-blue-800 mb-1">Licencia de uso</p>
-          <p className="text-xs text-blue-600">
-            Este sistema es propiedad de INVERSIONES J&amp;M, C.A. Su uso no autorizado está prohibido.
           </p>
         </div>
       </div>

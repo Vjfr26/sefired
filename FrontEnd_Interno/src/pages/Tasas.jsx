@@ -265,9 +265,12 @@ export default function Tasas() {
             <DataTable
               cols={[
                 { k: 'f',   l: 'Fecha',     nw: true },
-                { k: 'mon', l: 'Moneda',    nw: true },
-                { k: 't',   l: 'Tasa Bs',   r: true, nw: true },
-                { k: 'v',   l: 'Variación', hide: 'sm', nw: true },
+                // mon/t/v muestran JSX (badge, montos con estilo). Para poder
+                // ordenar al hacer clic en el encabezado hay que apuntar al
+                // campo crudo con `s`; sin él, DataTable no puede comparar JSX.
+                { k: 'mon', l: 'Moneda',    nw: true, s: 'moneda' },
+                { k: 't',   l: 'Tasa Bs',   r: true, nw: true, s: 'valor' },
+                { k: 'v',   l: 'Variación', hide: 'sm', nw: true, s: 'variacion' },
                 { k: 'acc', l: '',          acc: true },
               ]}
               rows={dataRows}
