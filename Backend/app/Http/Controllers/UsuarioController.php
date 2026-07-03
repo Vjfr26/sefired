@@ -94,7 +94,7 @@ class UsuarioController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Usuario no encontrado'], 404);
         }
 
-        $usuario->activo = !$usuario->activo;
+        $estabaActivo = $usuario->activo;
 
         // Última IP conocida del usuario según los logs — se usa tanto para
         // bloquear como para desbloquear.
@@ -103,10 +103,9 @@ class UsuarioController extends Controller
             ->latest('created_at')
             ->first();
 
-        if (!$usuario->activo) {
-            // Si se está bloqueando, guardamos el motivo y bloqueamos la IP
-            // de forma permanente (igual que el lockout automático de
-            // AuthController) — queda así a propósito, es una medida seria.
+        if ($estabaActivo) {
+            // ── BLOQUEAR: siempre bloquea la cuenta y su IP ──────────────────
+            $usuario->activo = false;
             if ($request->has('motivo')) {
                 $usuario->motivo_bloqueo = strip_tags(trim(substr($request->motivo, 0, 200)));
             }
@@ -118,32 +117,40 @@ class UsuarioController extends Controller
                 );
             }
         } else {
-            // Al desbloquear: limpiar el motivo y TODO bloqueo de IP que
-            // pueda estar frenando a este usuario — por usuario_id (lo
-            // normal) y también por su última IP conocida directamente,
-            // porque si esa IP es compartida (oficina) y quedó "apuntando" a
-            // otro usuario_id por un bloqueo posterior, borrar solo por
-            // usuario_id no la suelta y el usuario (o el propio admin, si
-            // comparte la IP) se queda sin poder volver a entrar. También se
-            // limpia el lockout temporal de cache de esa IP, para que se
-            // pueda reintentar en segundos en vez de esperar el resto de los
-            // 30 minutos — y sin que esto afecte la capacidad de seguir
-            // bloqueando/desbloqueando a otros usuarios después.
-            $usuario->motivo_bloqueo = null;
-            IpBloqueada::where('usuario_id', $usuario->id)->delete();
-            if ($ultimoLog && $ultimoLog->ip) {
-                IpBloqueada::where('ip', $ultimoLog->ip)->delete();
-                Cache::forget('login_lockout:' . $ultimoLog->ip);
-                Cache::forget('login_attempts:' . $ultimoLog->ip);
+            // ── DESBLOQUEAR según `scope` ────────────────────────────────────
+            // 'usuario' = reactivar la cuenta (deja el bloqueo de IP);
+            // 'ip'      = soltar solo la IP (la cuenta sigue bloqueada);
+            // 'ambos'   = reactivar la cuenta y soltar la IP (por defecto).
+            $scope     = in_array($request->input('scope'), ['usuario', 'ip', 'ambos'], true)
+                ? $request->input('scope') : 'ambos';
+            $reactivar = in_array($scope, ['usuario', 'ambos'], true);
+            $soltarIp  = in_array($scope, ['ip', 'ambos'], true);
+
+            if ($reactivar) {
+                $usuario->activo = true;
+                $usuario->motivo_bloqueo = null;
+            }
+
+            if ($soltarIp) {
+                // Se suelta el bloqueo de IP por usuario_id y también por la
+                // última IP conocida (si es compartida y quedó apuntando a otro
+                // usuario tras un bloqueo posterior). Además se limpia el lockout
+                // temporal de cache para poder reintentar en segundos.
+                IpBloqueada::where('usuario_id', $usuario->id)->delete();
+                if ($ultimoLog && $ultimoLog->ip) {
+                    IpBloqueada::where('ip', $ultimoLog->ip)->delete();
+                    Cache::forget('login_lockout:' . $ultimoLog->ip);
+                    Cache::forget('login_attempts:' . $ultimoLog->ip);
+                }
             }
         }
 
         $usuario->save();
 
-        $status = $usuario->activo ? 'activó' : 'desactivó';
+        $accion = $estabaActivo ? 'bloqueó' : 'desbloqueó';
         $this->logActivity(
             'Cambio de Estado de Usuario',
-            "Se {$status} al usuario {$usuario->nick}",
+            "Se {$accion} al usuario {$usuario->nick}" . (!$estabaActivo ? " (alcance: {$request->input('scope', 'ambos')})" : ''),
             'usuarios',
             auth()->id()
         );

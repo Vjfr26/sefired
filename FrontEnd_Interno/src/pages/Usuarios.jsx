@@ -13,14 +13,16 @@ const ROLE_COLOR = { 'Admin': 'indigo', 'Oficina': 'blue', 'Vendedor Sucursal': 
 
 const fmtId = id => 'USR-' + String(id).padStart(4, '0')
 
+// Varias celdas son JSX (avatar, badges) y no se pueden ordenar directo; `s`
+// apunta al campo crudo por el que ordena el DataTable al clic en el encabezado.
 const COLS_BASE = [
   { k: 'displayId', l: 'ID',              m: true, bold: true, hide: 'xl' },
-  { k: 'usr',       l: 'Usuario', primary: true },
-  { k: 'rolb',      l: 'Rol',             hide: 'sm' },
+  { k: 'usr',       l: 'Usuario', primary: true, s: 'usr_sort' },
+  { k: 'rolb',      l: 'Rol',             hide: 'sm', s: 'rolb_sort' },
   { k: 'oficina',   l: 'Oficina',         hide: 'lg', tr: true },
-  { k: 'conexion',  l: 'Última Conexión', hide: 'lg', nw: true },
-  { k: 'motivo',    l: 'Motivo Bloqueo',  hide: 'xl', nw: true },
-  { k: 'estb',      l: 'Estado',          nw: true },
+  { k: 'conexion',  l: 'Última Conexión', hide: 'lg', nw: true, s: 'conexion_sort' },
+  { k: 'motivo',    l: 'Motivo Bloqueo',  hide: 'xl', nw: true, s: 'motivo_sort' },
+  { k: 'estb',      l: 'Estado',          nw: true, s: 'estb_sort' },
   { k: 'acc',       l: '',                acc: true },
 ]
 
@@ -61,11 +63,16 @@ function UserActions({ u, onReload }) {
       {canBlock && (
         <button
           title={estado === 'Activo' ? 'Bloquear' : 'Desbloquear'}
-          onClick={() => showModal('blockUser', {
-            nom: u.nombre,
-            est: estado,
-            onConfirm: async (motivo) => { await toggleUserStatus(u.id, { motivo }); onReload() },
-          })}
+          onClick={() => estado === 'Activo'
+            ? showModal('blockUser', {
+                nom: u.nombre,
+                est: estado,
+                onConfirm: async (motivo) => { await toggleUserStatus(u.id, { motivo }); onReload() },
+              })
+            : showModal('desbloquearUsuario', {
+                nom: u.nombre,
+                onConfirm: async (scope) => { await toggleUserStatus(u.id, { scope }); onReload() },
+              })}
           className="p-2.5 rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 transition inline-flex items-center justify-center"
         >
           {estado === 'Activo'
@@ -137,6 +144,11 @@ export default function Usuarios() {
     return () => clearInterval(id)
   }, [canViewIps])
 
+  // Tras bloquear/desbloquear/editar un usuario se recargan usuarios E IPs, para
+  // que el panel de IPs refleje al instante (sin esperar el poll) la IP que se
+  // acaba de bloquear/soltar.
+  const reloadTablas = useCallback(() => { loadUsuarios(); loadIps() }, [loadUsuarios, loadIps])
+
   const handleUnblockIp = (ip) => {
     showModal('confirmAction', {
       title: 'Desbloquear IP',
@@ -183,6 +195,12 @@ export default function Usuarios() {
   const dataRows = filtered.map(u => {
     const estado = u.activo ? 'Activo' : 'Bloqueado'
     return {
+      // Campos crudos para ordenar las columnas que muestran JSX.
+      usr_sort:      u.nombre || '',
+      rolb_sort:     u.tipo || '',
+      conexion_sort: u.activo_ahora ? '9999' : (u.ultima_conexion || ''),
+      motivo_sort:   !u.activo ? (u.motivo_bloqueo || '') : '',
+      estb_sort:     estado,
       displayId: fmtId(u.id),
       usr: (
         <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
@@ -222,7 +240,7 @@ export default function Usuarios() {
         ? <span className="text-xs sm:text-sm text-rose-500 max-w-[150px] block truncate" title={u.motivo_bloqueo}>{u.motivo_bloqueo}</span>
         : <span className="text-slate-300 text-xs sm:text-sm">—</span>,
       estb: rsbadge(estado),
-      acc:  <UserActions u={u} onReload={loadUsuarios} />,
+      acc:  <UserActions u={u} onReload={reloadTablas} />,
     }
   })
 

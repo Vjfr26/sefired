@@ -401,6 +401,45 @@ function AuditoriaDetailModal({ title = 'Detalle del registro', eyebrow = 'Audit
   )
 }
 
+// ── Desbloquear usuario: elegir alcance (usuario / IP / ambos) ──────────────
+function DesbloquearUsuarioModal({ nom, onConfirm }) {
+  const { closeModal } = useApp()
+  const [saving, setSaving] = useState('')
+  const run = async (scope) => {
+    setSaving(scope)
+    try { await onConfirm(scope); closeModal() }
+    catch { setSaving('') }
+  }
+  const opt = (scope, titulo, desc) => (
+    <button
+      type="button"
+      disabled={!!saving}
+      onClick={() => run(scope)}
+      className="w-full text-left p-3 rounded-2xl border border-slate-200 hover:border-jm-blue/40 hover:bg-slate-50 transition disabled:opacity-50 flex items-center gap-3"
+    >
+      <span className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+        {saving === scope ? <div className="w-4 h-4 border-2 border-emerald-300 border-t-emerald-600 rounded-full animate-spin" /> : <LockOpen className="w-4 h-4" />}
+      </span>
+      <span className="min-w-0">
+        <span className="block text-sm font-bold text-slate-800">{titulo}</span>
+        <span className="block text-xs text-slate-500">{desc}</span>
+      </span>
+    </button>
+  )
+  return (
+    <ModalShell title="Desbloquear" eyebrow={nom} Icon={LockOpen} footer={
+      <button onClick={closeModal} className="btn-secondary">Cancelar</button>
+    }>
+      <p className="text-sm text-slate-600 mb-3">¿Qué deseas desbloquear de <strong>{nom}</strong>?</p>
+      <div className="space-y-2">
+        {opt('usuario', 'Solo el usuario', 'Reactiva la cuenta; la IP sigue bloqueada')}
+        {opt('ip',      'Solo la IP',      'Suelta la IP; la cuenta sigue bloqueada')}
+        {opt('ambos',   'Ambos',           'Reactiva la cuenta y suelta la IP')}
+      </div>
+    </ModalShell>
+  )
+}
+
 // ── Menú de acciones (uso en filas de tabla en pantallas chicas) ────────────
 /**
  * En móvil no caben todos los botones de acción de una fila sin desbordar
@@ -5351,6 +5390,7 @@ export default function Modal() {
     case 'confirmAction':   return <ConfirmActionModal {...props} />
     case 'noteView':        return <NoteViewModal {...props} />
     case 'auditoriaDetail': return <AuditoriaDetailModal {...props} />
+    case 'desbloquearUsuario': return <DesbloquearUsuarioModal {...props} />
     case 'actionMenu':      return <ActionMenuModal {...props} />
     case 'editForm':        return <EditFormModal {...props} />
     case 'renovar':              return <RenovarModal {...props} />
