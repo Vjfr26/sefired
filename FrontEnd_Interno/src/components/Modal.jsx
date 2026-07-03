@@ -605,7 +605,7 @@ function RenovarModal({ client, diasVencimiento, onSaved, onCancel }) {
   // El pago puede ir desde la primera cuota (montoEsperadoUsd) hasta el total
   // financiado: se permite adelantar pagos, pero no menos del mes ni más del tope.
   const totalIngresadoUsd = pagos.reduce((sum, p) => sum + pagoEnUsd(p), 0)
-  const pagCents          = Math.round(totalIngresadoUsd * 100)
+  const pagCents          = Math.floor(totalIngresadoUsd * 100 + 1e-6)
   const minCents          = Math.round(montoEsperadoUsd * 100)
   const maxCents          = Math.round(montoMaximo * 100)
   const faltante          = Math.max(0, minCents - pagCents) / 100
@@ -856,7 +856,7 @@ function EmitirCotizacionModal({ cot, onSaved }) {
   const totalIngresadoUsd = pagos.reduce((sum, p) => sum + pagoEnUsd(p), 0)
   // El pago puede ir desde la primera cuota (montoEsperadoUsd) hasta el total
   // financiado: se permite adelantar, pero no menos del mes ni más del tope.
-  const pagCents   = Math.round(totalIngresadoUsd * 100)
+  const pagCents   = Math.floor(totalIngresadoUsd * 100 + 1e-6)
   const minCents   = Math.round(montoEsperadoUsd * 100)
   const maxCents   = Math.round(montoMaximo * 100)
   const faltante   = Math.max(0, minCents - pagCents) / 100
@@ -1147,7 +1147,7 @@ function NewUserModal({ onSave }) {
             </div>
             <div>
               <label className="field-label">Comisión (%)</label>
-              <input type="number" min="0" max="100" step="0.5" className="input-field" value={form.comision_pct} onChange={f('comision_pct')} placeholder="Ej. 5" />
+              <input type="number" min="0" max="100" step="0.01" className="input-field" value={form.comision_pct} onChange={f('comision_pct')} placeholder="Ej. 5" />
               <p className="text-[10px] text-slate-400 mt-1">Vacío = usa el % por defecto del cargo.</p>
             </div>
           </div>
@@ -1263,7 +1263,7 @@ function EditUserModal({ user, onSave }) {
             </div>
             <div>
               <label className="field-label">Comisión (%)</label>
-              <input type="number" min="0" max="100" step="0.5" className="input-field" value={form.comision_pct} onChange={f('comision_pct')} placeholder="Ej. 5" />
+              <input type="number" min="0" max="100" step="0.01" className="input-field" value={form.comision_pct} onChange={f('comision_pct')} placeholder="Ej. 5" />
               <p className="text-[10px] text-slate-400 mt-1">Vacío = usa el % por defecto del cargo.</p>
             </div>
           </div>

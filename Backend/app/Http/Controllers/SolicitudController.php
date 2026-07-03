@@ -108,7 +108,11 @@ class SolicitudController extends Controller
         $this->assertAccesoReferencias($data, permitirVenta: true);
 
         $data['vendedor_id'] = auth()->id();
-        $data['status']      = 'en_revision';
+        // Toda cotización nace en 'pendiente' (nadie la ha evaluado ni emitido).
+        // El botón de underwriting está disponible desde este estado y su
+        // evaluación es la que la mueve (observación → en_revision; aprobada sin
+        // observación → aprobado; rechazada → rechazado).
+        $data['status']      = 'pendiente';
         $data['fuente']      = 'interno';
         // Moneda nativa derivada del producto, no confiada al cliente — así
         // total/total_bs se interpretan correctamente en todo el flujo posterior.
@@ -187,15 +191,6 @@ class SolicitudController extends Controller
             $data['moneda_producto'] = Moneda::normalizar(
                 \App\Models\Producto::find($data['producto_id'])?->moneda ?? 'USD'
             );
-        }
-
-        // Un lead del portal entra como 'pendiente' y solo tiene editar/eliminar,
-        // por lo que antes se quedaba en 'pendiente' para siempre sin entrar al
-        // flujo. Al editarlo internamente (sin un cambio de estado explícito) se
-        // promueve a 'en_revision' para que siga el ciclo normal
-        // (en_revision → aprobado → emitida).
-        if ($solicitud->status === 'pendiente' && !isset($data['status'])) {
-            $data['status'] = 'en_revision';
         }
 
         // Validar transición de estado antes de persistir
@@ -302,7 +297,7 @@ class SolicitudController extends Controller
         $montoMaximo    = $esMensual ? Mensualidades::totalFinanciado($totalPoliza, $recargoPct) : $totalPoliza;
 
         // Comparación en centavos con tolerancia ±0.10 para absorber redondeos de conversión.
-        $pagCents = (int) round($totalPagado * 100);
+        $pagCents = (int) floor($totalPagado * 100 + 1e-6);
         $minCents = (int) round($montoMinimo * 100);
         $maxCents = (int) round($montoMaximo * 100);
         if ($pagCents < $minCents) {

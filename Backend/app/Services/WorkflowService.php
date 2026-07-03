@@ -26,11 +26,13 @@ use Illuminate\Validation\ValidationException;
 class WorkflowService
 {
     private const SOLICITUD_TRANSITIONS = [
+        // 'pendiente' es el estado inicial: la evaluación de underwriting la mueve
+        // a en_revision (con observación), aprobado (sin observación) o rechazado.
+        'pendiente'   => ['en_revision', 'aprobado', 'rechazado'],
         'en_revision' => ['aprobado', 'rechazado'],
-        'aprobado'    => ['emitida',  'rechazado'],
+        'aprobado'    => ['emitida', 'rechazado', 'en_revision'],
         'rechazado'   => [],
         'emitida'     => [],
-        'pendiente'   => ['en_revision', 'rechazado'],
     ];
 
     private const POLIZA_TRANSITIONS = [

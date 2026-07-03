@@ -719,7 +719,7 @@ class PolizaController extends Controller
         $montoMinimo    = $esMensual ? Mensualidades::montoCuota($totalPoliza, $recargoPct) : $totalPoliza;
         $montoMaximo    = $esMensual ? Mensualidades::totalFinanciado($totalPoliza, $recargoPct) : $totalPoliza;
 
-        $pagCents = (int) round($totalPagado * 100);
+        $pagCents = (int) floor($totalPagado * 100 + 1e-6);
         $minCents = (int) round($montoMinimo * 100);
         $maxCents = (int) round($montoMaximo * 100);
         if ($pagCents < $minCents || $pagCents > $maxCents + 10) {

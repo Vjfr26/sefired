@@ -220,7 +220,7 @@ function CatalogoModal({ item, tipos = TIPOS_VEHICULO_BASE, marcas = [], modelos
                   type="number"
                   className={`${inp} pl-7`}
                   min="0"
-                  step="100"
+                  step="0.01"
                   placeholder="15000"
                   value={form.valor_referencia}
                   onChange={e => set('valor_referencia', e.target.value)}

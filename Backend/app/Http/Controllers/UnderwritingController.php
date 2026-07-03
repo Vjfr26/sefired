@@ -74,14 +74,22 @@ class UnderwritingController extends Controller
         $evaluacion = DB::transaction(function () use ($data, $solicitud) {
             $ev = UnderwritingEvaluacion::create($data);
 
-            // Sincronizar estado de la solicitud con el resultado
-            $mapEstado = [
-                'aprobado'  => 'aprobado',
-                'rechazado' => 'rechazado',
-            ];
+            // Sincronizar el estado de la solicitud con la evaluación:
+            //  - rechazado           → rechazado (una negativa es una negativa);
+            //  - observado / con una  observación anotada → en_revision (queda
+            //    para revisar);
+            //  - aprobado sin observación → aprobado (listo para emitir).
+            $tieneObservacion = trim((string) ($data['observaciones'] ?? '')) !== '';
+            $nuevoStatus = null;
+            if ($data['resultado'] === 'rechazado') {
+                $nuevoStatus = 'rechazado';
+            } elseif ($data['resultado'] === 'observado' || $tieneObservacion) {
+                $nuevoStatus = 'en_revision';
+            } elseif ($data['resultado'] === 'aprobado') {
+                $nuevoStatus = 'aprobado';
+            }
 
-            if (isset($mapEstado[$data['resultado']])) {
-                $nuevoStatus = $mapEstado[$data['resultado']];
+            if ($nuevoStatus && $nuevoStatus !== $solicitud->status) {
                 WorkflowService::assertSolicitud($solicitud->status, $nuevoStatus);
                 $solicitud->update(['status' => $nuevoStatus]);
             }

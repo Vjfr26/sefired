@@ -810,7 +810,7 @@ function Step3({ sim, setSim, onNext, onBack, onClose, vehiculosCatalogo }) {
             <label className="field-label">Valor de mercado (USD) <span className="text-rose-500">*</span></label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm pointer-events-none">$</span>
-              <input type="number" min="500" step="500" className="input-field pl-7" placeholder="15000"
+              <input type="number" min="500" step="0.01" className="input-field pl-7" placeholder="15000"
                 value={sim.valor || ''} onChange={e => setSim(p => ({ ...p, valor: e.target.value === '' ? '' : (parseFloat(e.target.value) || 0) }))} />
             </div>
             <p className="text-[10px] text-slate-400 mt-1">Se precarga con el valor de referencia del catálogo para este modelo. Puedes ajustarlo si el vehículo lo amerita.</p>
@@ -968,7 +968,7 @@ function Step3({ sim, setSim, onNext, onBack, onClose, vehiculosCatalogo }) {
                       </div>
                       <div>
                         <label className="field-label">Valor de mercado <span className="text-rose-500">*</span></label>
-                        <input type="number" min="500" step="500" className="input-field" placeholder="15000"
+                        <input type="number" min="500" step="0.01" className="input-field" placeholder="15000"
                           value={v.valor || ''} onChange={e => {
                             const arr = [...sim.vehiculos_adicionales];
                             arr[i].valor = e.target.value === '' ? '' : (parseFloat(e.target.value) || 0);
@@ -1233,7 +1233,7 @@ function Step4({ sim, setSim, tasaBcv, tasaEur, onNext, onBack, onClose }) {
                 <SecLabel icon={DollarSign} label="Valor declarado del bien" />
                 <div className="relative max-w-xs">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold pointer-events-none">$</span>
-                  <input type="number" min="1" step="100" className="input-field pl-7"
+                  <input type="number" min="1" step="0.01" className="input-field pl-7"
                     placeholder="0.00"
                     value={sim.valor_declarado || ''} onChange={e => setSim(p => ({ ...p, valor_declarado: e.target.value === '' ? '' : (parseFloat(e.target.value) || 0) }))} />
                 </div>
@@ -1750,7 +1750,9 @@ function UnderwritingModal({ cot, productos = [], onClose, onStatusChanged, show
       showToast('Evaluación registrada correctamente', 'success')
       setForm(freshUwForm())
       await load()
-      if (form.resultado === 'aprobado' || form.resultado === 'rechazado') onStatusChanged()
+      // Cualquier resultado puede cambiar el estado de la cotización (observado o
+      // con observación → En revisión; aprobado → Aprobado; rechazado → Rechazado).
+      onStatusChanged()
     } catch (e) {
       setErr(e.message)
     } finally {
@@ -1864,14 +1866,25 @@ function UnderwritingModal({ cot, productos = [], onClose, onStatusChanged, show
               </div>
             )}
 
-            {(form.resultado === 'aprobado' || form.resultado === 'rechazado') && (
-              <div className={`flex items-start gap-2 p-3 rounded-xl text-xs border ${form.resultado === 'aprobado' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'}`}>
-                <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                {form.resultado === 'aprobado'
-                  ? 'La cotización pasará automáticamente a estado "Aprobado".'
-                  : 'La cotización pasará automáticamente a estado "Rechazado".'}
-              </div>
-            )}
+            {form.resultado && form.resultado !== 'pendiente' && (() => {
+              // Estado resultante según la regla: rechazado → Rechazado;
+              // observado o con observación → En revisión; aprobado limpio → Aprobado.
+              const conObs = form.observaciones.trim() !== ''
+              const destino = form.resultado === 'rechazado' ? 'Rechazado'
+                : (form.resultado === 'observado' || conObs) ? 'En revisión'
+                : 'Aprobado'
+              const cls = destino === 'Aprobado' ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                : destino === 'Rechazado' ? 'bg-rose-50 border-rose-200 text-rose-700'
+                : 'bg-amber-50 border-amber-200 text-amber-700'
+              return (
+                <div className={`flex items-start gap-2 p-3 rounded-xl text-xs border ${cls}`}>
+                  <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  La cotización pasará a estado <strong className="mx-1">"{destino}"</strong>
+                  {destino === 'En revisión' && ' (por la observación).'}
+                  {destino === 'Aprobado' && ' (lista para emitir con las formas de pago).'}
+                </div>
+              )
+            })()}
 
             {/* Aviso de documentos obligatorios pendientes, junto a la acción */}
             {!loadingDocs && missingObligatory.length > 0 && (
@@ -2107,8 +2120,8 @@ export default function Simulador() {
 
   const closeStep = () => { setStep(0); setEditId(null) }
 
-  const statuses = ['Todos', 'en_revision', 'aprobado', 'emitida', 'rechazado']
-  const statusLabels = ['Todos', 'En Revisión', 'Aprobado', 'Emitida', 'Rechazado']
+  const statuses = ['Todos', 'pendiente', 'en_revision', 'aprobado', 'emitida', 'rechazado']
+  const statusLabels = ['Todos', 'Pendiente', 'En Revisión', 'Aprobado', 'Emitida', 'Rechazado']
 
   // Convierte "dd/mm/yyyy" → "yyyy-mm-dd" para comparar contra los <input type=date>.
   // Se usa solo como respaldo cuando el backend no envía fecha_iso.
@@ -2168,7 +2181,7 @@ export default function Simulador() {
   // en las tarjetas (móvil).
   const accionesCot = (q) => (
     <>
-      {canUnderwrite && q.status === 'en_revision' && (
+      {canUnderwrite && (q.status === 'pendiente' || q.status === 'en_revision') && (
         <button onClick={() => setUwModal(q)} className="p-2.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition" title="Evaluación de Underwriting">
           <ClipboardList className="w-[18px] h-[18px]" />
         </button>
