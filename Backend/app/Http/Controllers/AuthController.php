@@ -106,40 +106,55 @@ class AuthController extends Controller
         $usuario = Usuario::where('nick', $request->nick)->first();
 
         if (!$usuario || !Hash::check($request->password, $usuario->password)) {
-            $attempts = Cache::increment($attemptsKey);
-            Cache::put($attemptsKey, $attempts, now()->addMinutes($lockoutMinutes));
+            // El lockout de IP SOLO cuenta cuando el intento es contra un
+            // usuario interno EXISTENTE. Los intentos con nicks inexistentes
+            // (escaneos, tipeos de un nick que no existe) se registran pero NO
+            // incrementan el contador ni bloquean la IP — así una oficina tras
+            // NAT no queda fuera por intentos a usuarios que ni siquiera existen.
+            if ($usuario) {
+                $attempts = Cache::increment($attemptsKey);
+                Cache::put($attemptsKey, $attempts, now()->addMinutes($lockoutMinutes));
 
-            if ($attempts >= $maxAttempts) {
-                // Lockout TEMPORAL por IP — se auto-libera en `lockoutMinutes`.
-                // Ya NO se hace ban permanente de IP ni se desactiva la cuenta:
-                //  - el ban permanente automático dejaba fuera a oficinas tras
-                //    NAT por los errores de un solo usuario;
-                //  - desactivar la cuenta habilitaba un DoS dirigido: fallar 3
-                //    veces el login de un nick conocido lo dejaba inservible
-                //    hasta intervención manual de un admin.
-                // Si es un ataque real queda registrado para que el admin
-                // bloquee la IP manualmente desde el panel.
-                Cache::put($lockoutKey, true, now()->addMinutes($lockoutMinutes));
-                Cache::forget($attemptsKey);
+                if ($attempts >= $maxAttempts) {
+                    // Lockout TEMPORAL por IP — se auto-libera en `lockoutMinutes`.
+                    // Ya NO se hace ban permanente de IP ni se desactiva la cuenta:
+                    //  - el ban permanente automático dejaba fuera a oficinas tras
+                    //    NAT por los errores de un solo usuario;
+                    //  - desactivar la cuenta habilitaba un DoS dirigido: fallar 3
+                    //    veces el login de un nick conocido lo dejaba inservible
+                    //    hasta intervención manual de un admin.
+                    // Si es un ataque real queda registrado para que el admin
+                    // bloquee la IP manualmente desde el panel.
+                    Cache::put($lockoutKey, true, now()->addMinutes($lockoutMinutes));
+                    Cache::forget($attemptsKey);
+
+                    $this->logActivity(
+                        'login_blocked',
+                        "Lockout temporal de {$lockoutMinutes} min — IP: {$request->ip()} tras {$maxAttempts} intentos fallidos — Cuenta objetivo: {$usuario->nick}",
+                        'usuarios',
+                        $usuario->id
+                    );
+
+                    return response()->json([
+                        'message' => 'Demasiados intentos fallidos. Espera unos minutos e inténtalo de nuevo.',
+                    ], 429);
+                }
 
                 $this->logActivity(
-                    'login_blocked',
-                    "Lockout temporal de {$lockoutMinutes} min — IP: {$request->ip()} tras {$maxAttempts} intentos fallidos" .
-                    ($usuario ? " — Cuenta objetivo: {$usuario->nick}" : " — Nick inexistente: {$request->nick}"),
+                    'login_failed',
+                    "Credenciales inválidas para {$usuario->nick} desde IP: {$request->ip()} — Intento {$attempts}/{$maxAttempts}",
                     'usuarios',
-                    $usuario?->id
+                    $usuario->id
                 );
-
-                return response()->json([
-                    'message' => 'Demasiados intentos fallidos. Espera unos minutos e inténtalo de nuevo.',
-                ], 429);
+            } else {
+                // Nick inexistente: se deja rastro para auditoría, sin afectar el lockout.
+                $this->logActivity(
+                    'login_failed',
+                    "Intento de acceso con usuario inexistente '{$request->nick}' desde IP: {$request->ip()}",
+                    'usuarios'
+                );
             }
 
-            $this->logActivity(
-                'login_failed',
-                "Credenciales inválidas desde IP: {$request->ip()} — Intento {$attempts}/{$maxAttempts}",
-                'usuarios'
-            );
             return response()->json([
                 'message' => 'Usuario o contraseña incorrectos.',
             ], 401);

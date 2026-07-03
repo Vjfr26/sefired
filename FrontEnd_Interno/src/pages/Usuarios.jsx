@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Users, ShieldCheck, UserCheck, UserX, Pencil, Shield, UserCog, Lock, LockOpen, Trash2, UserPlus } from 'lucide-react'
+import { Users, ShieldCheck, UserCheck, UserX, Pencil, Shield, UserCog, Lock, LockOpen, Trash2, UserPlus, Ban } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { badge, rsbadge, UserAvatar } from '../utils/helpers.jsx'
 import SearchBar from '../components/SearchBar.jsx'
 import DataTable from '../components/DataTable.jsx'
 import { SkeletonStatCards } from '../components/Skeleton.jsx'
 import { fetchUsuarios, deleteUsuario, toggleUserStatus } from '../api/usuarios.js'
+import { fetchIpsBloqueadas, desbloquearIp } from '../api/reports.js'
 
 const ROLES = ['Admin', 'Oficina', 'Vendedor Sucursal', 'Vendedor Calle']
 const ROLE_COLOR = { 'Admin': 'indigo', 'Oficina': 'blue', 'Vendedor Sucursal': 'green', 'Vendedor Calle': 'amber' }
@@ -89,7 +90,12 @@ export default function Usuarios() {
   const [cardFilter, setCardFilter] = useState(null) // null | 'admin' | 'vendedores' | 'blocked' — filtro al hacer clic en una tarjeta
   const [search,     setSearch]     = useState('')
   const [usuarios,   setUsuarios]   = useState([])
+  const [ipsBloqueadas, setIpsBloqueadas] = useState([])
   const [loading,    setLoading]    = useState(true)
+
+  // Ver IPs bloqueadas requiere config.view_audit; desbloquear, config.manage_security.
+  const canViewIps    = canAct('config', 'view_audit')
+  const canUnblockIps = canAct('config', 'manage_security')
 
   const loadUsuarios = useCallback(async () => {
     setLoading(true)
@@ -104,21 +110,47 @@ export default function Usuarios() {
     }
   }, [showToast, refreshUser])
 
-  useEffect(() => { loadUsuarios() }, [loadUsuarios])
+  const loadIps = useCallback(async () => {
+    if (!canViewIps) return
+    try {
+      const res = await fetchIpsBloqueadas()
+      setIpsBloqueadas(res.data || [])
+    } catch { /* silencioso */ }
+  }, [canViewIps])
 
-  // El estado "Activo ahora" antes solo se cargaba una vez al entrar a la
-  // página y se quedaba congelado — un usuario que cerraba sesión seguía
-  // viéndose activo hasta que alguien recargara la página a mano. Se
-  // refresca en silencio (sin spinner) cada 20s mientras la página está abierta.
+  useEffect(() => { loadUsuarios(); loadIps() }, [loadUsuarios, loadIps])
+
+  // Refresco en vivo (sin spinner) cada 15s: refleja en tiempo real los cambios
+  // que sufre la página sin recargar — usuarios que se conectan/desconectan, se
+  // bloquean, cambian de IP, y las IPs que se bloquean/desbloquean.
   useEffect(() => {
     const id = setInterval(async () => {
       try {
-        const res = await fetchUsuarios()
-        setUsuarios(res.data)
+        const [u, ips] = await Promise.all([
+          fetchUsuarios(),
+          canViewIps ? fetchIpsBloqueadas().catch(() => null) : Promise.resolve(null),
+        ])
+        setUsuarios(u.data)
+        if (ips) setIpsBloqueadas(ips.data || [])
       } catch { /* silencioso: un fallo puntual no debe interrumpir la vista */ }
-    }, 20_000)
+    }, 15_000)
     return () => clearInterval(id)
-  }, [])
+  }, [canViewIps])
+
+  const handleUnblockIp = (ip) => {
+    showModal('confirmAction', {
+      title: 'Desbloquear IP',
+      message: `La IP ${ip.ip} podrá volver a intentar iniciar sesión.`,
+      icon: LockOpen,
+      color: 'emerald',
+      confirmLabel: 'Desbloquear',
+      onConfirm: async () => {
+        await desbloquearIp(ip.id)
+        showToast(`IP ${ip.ip} desbloqueada`, 'success')
+        loadIps()
+      },
+    })
+  }
 
   // ── Estadísticas ──
   const byRole  = ROLES.reduce((a, r) => ({ ...a, [r]: usuarios.filter(u => u.tipo === r).length }), {})
@@ -268,6 +300,49 @@ export default function Usuarios() {
         <div className="card flex flex-col items-center justify-center py-16 gap-2 text-center">
           <Lock className="w-6 h-6 text-slate-300" />
           <p className="text-xs text-slate-400">No tienes permiso para ver el listado de usuarios.</p>
+        </div>
+      )}
+
+      {/* ── IPs Bloqueadas (en vivo) ── */}
+      {canViewIps && (
+        <div className="mt-8">
+          <div className="flex items-center gap-2 mb-3">
+            <Ban className="w-4 h-4 text-rose-500" />
+            <h4 className="font-semibold text-slate-700 text-sm">IPs Bloqueadas</h4>
+            {ipsBloqueadas.length > 0 && (
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-600">{ipsBloqueadas.length}</span>
+            )}
+            <span className="ml-auto inline-flex items-center gap-1.5 text-[11px] text-slate-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> En vivo
+            </span>
+          </div>
+          {ipsBloqueadas.length === 0 ? (
+            <div className="card flex flex-col items-center justify-center py-10 gap-2 text-center">
+              <ShieldCheck className="w-6 h-6 text-slate-300" />
+              <p className="text-xs text-slate-400">No hay ninguna IP bloqueada actualmente.</p>
+            </div>
+          ) : (
+            <DataTable
+              cols={[
+                { k: 'fecha',   l: 'Fecha',    nw: true },
+                { k: 'ip',      l: 'IP',       m: true },
+                { k: 'usuario', l: 'Usuario',  hide: 'sm' },
+                { k: 'motivo',  l: 'Motivo',   tr: true },
+                ...(canUnblockIps ? [{ k: 'accion', l: '', acc: true }] : []),
+              ]}
+              rows={ipsBloqueadas.map(ip => ({
+                fecha:   ip.created_at ? new Date(ip.created_at).toLocaleString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : '—',
+                ip:      ip.ip,
+                usuario: ip.usuario?.nombre || '—',
+                motivo:  ip.motivo || '—',
+                accion:  canUnblockIps ? (
+                  <button onClick={() => handleUnblockIp(ip)} className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition" title="Desbloquear IP">
+                    <LockOpen className="w-3.5 h-3.5" /> Desbloquear
+                  </button>
+                ) : null,
+              }))}
+            />
+          )}
         </div>
       )}
     </div>
