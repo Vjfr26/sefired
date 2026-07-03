@@ -45,7 +45,7 @@ import { uploadDocumentoProducto, deleteDocumentoProducto } from '../api/product
 import { fetchPolizasCliente, fetchFacturasCliente, fetchSolicitudesCliente } from '../api/clientes.js'
 import { fetchDocumentosCliente, uploadDocumentoCliente, deleteDocumentoCliente } from '../api/clienteDocumentos.js'
 import { fetchProductos } from '../api/productos.js'
-import { ciudadesDe, TEL_VE_DEFAULT } from '../utils/venezuela.js'
+import { ciudadesDe } from '../utils/venezuela.js'
 import { updatePoliza, renovarPoliza, downloadPolizaPdf, fetchBeneficiarios, createBeneficiario, updateBeneficiario, deleteBeneficiario, fetchBienesPoliza, agregarBienPoliza, quitarBienPoliza, fetchCuotas, pagarCuota } from '../api/polizas.js'
 import { fetchBienes, createBien } from '../api/bienes.js'
 import { fetchVehiculosCatalogo } from '../api/vehiculosCatalogo.js'
@@ -5071,6 +5071,33 @@ const CL_SEXO         = ['Masculino', 'Femenino']
 const CL_NACIONALIDAD = ['Venezolano/a', 'Extranjero/a']
 
 // ── Formulario de cliente (crear / editar) ────────────────────────────────────
+// Teléfono venezolano para el formulario de cliente: prefijo "+58" fijo (no se
+// puede borrar) + hasta 11 dígitos, solo numérico (sin símbolos).
+const soloDigitosVE = (v) => {
+  const s = String(v ?? '').trim()
+  const rest = s.startsWith('+58') ? s.slice(3) : s
+  return rest.replace(/\D/g, '').slice(0, 11)
+}
+const conPrefijoVE = (digits) => (digits ? '+58 ' + digits : '')
+
+function TelInputVE({ value, onChange, placeholder }) {
+  const digits = soloDigitosVE(value)
+  return (
+    <div className="flex items-stretch">
+      <span className="inline-flex items-center px-3 rounded-l-xl border border-r-0 border-slate-200 bg-slate-100 text-slate-500 text-sm font-bold select-none" aria-hidden="true">+58</span>
+      <input
+        type="tel"
+        inputMode="numeric"
+        className="input-field rounded-l-none min-w-0"
+        value={digits}
+        onChange={e => onChange(conPrefijoVE(e.target.value.replace(/\D/g, '').slice(0, 11)))}
+        placeholder={placeholder}
+        maxLength={11}
+      />
+    </div>
+  )
+}
+
 function ClienteFormModal({ cliente, onSave }) {
   const { closeModal, showToast, canAct } = useApp()
   const isNew = !cliente?.id
@@ -5085,7 +5112,7 @@ function ClienteFormModal({ cliente, onSave }) {
     nacimiento:    cliente?.nacimiento || '',
     nacionalidad:  cliente?.nacionalidad || '',
     telefono:      cliente?.telefono || '',
-    celular:       cliente?.celular || (cliente?.id ? '' : TEL_VE_DEFAULT),
+    celular:       cliente?.celular || '',
     correo:        cliente?.correo || cliente?.email || '',
     estado:        cliente?.estado || '',
     ciudad:        cliente?.ciudad || '',
@@ -5118,7 +5145,7 @@ function ClienteFormModal({ cliente, onSave }) {
     if (!form.sexo)             { showToast('Selecciona el sexo', 'error'); return }
     if (!form.nacimiento)       { showToast('La fecha de nacimiento es obligatoria', 'error'); return }
     if (!form.nacionalidad)     { showToast('Selecciona la nacionalidad', 'error'); return }
-    if (!form.celular.trim())   { showToast('El celular es obligatorio', 'error'); return }
+    if (!soloDigitosVE(form.celular)) { showToast('El celular es obligatorio', 'error'); return }
     if (!form.correo.trim())    { showToast('El correo electrónico es obligatorio', 'error'); return }
     if (!form.estado)           { showToast('Selecciona el estado', 'error'); return }
     if (!form.ciudad.trim())    { showToast('La ciudad es obligatoria', 'error'); return }
@@ -5209,11 +5236,11 @@ function ClienteFormModal({ cliente, onSave }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Lbl>Teléfono fijo</Lbl>
-              <input className="input-field" value={form.telefono} onChange={f('telefono', filtrarTelefono)} placeholder="0212-000-0000" maxLength={20} />
+              <TelInputVE value={form.telefono} onChange={v => setForm(p => ({ ...p, telefono: v }))} placeholder="0212 1234567" />
             </div>
             <div>
               <Lbl req>Celular</Lbl>
-              <input className="input-field" value={form.celular} onChange={f('celular', filtrarTelefono)} placeholder="+58 414-000-0000" maxLength={20} />
+              <TelInputVE value={form.celular} onChange={v => setForm(p => ({ ...p, celular: v }))} placeholder="0414 1234567" />
             </div>
             <div className="sm:col-span-2">
               <Lbl req>Correo electrónico</Lbl>
