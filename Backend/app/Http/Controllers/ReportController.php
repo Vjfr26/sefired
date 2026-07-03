@@ -1194,24 +1194,34 @@ class ReportController extends Controller
             'polizas_por_vencer' => Poliza::where('status', 'ACTIVA')->whereBetween('fecha_vencimiento', [now()->toDateString(), now()->addDays(30)->toDateString()])->count(),
         ];
 
-        // ── Opciones para filtros (marcas/modelos desde atributos JSON) ───────────
-        $marcas = BienAsegurado::where('tipo', 'vehiculo')
-            ->selectRaw("DISTINCT JSON_UNQUOTE(JSON_EXTRACT(atributos, '$.marca')) as marca")
-            ->whereRaw("JSON_EXTRACT(atributos, '$.marca') IS NOT NULL")
-            ->orderBy('marca')
-            ->pluck('marca')
-            ->filter()
+        // ── Opciones para filtros (marcas/modelos) ────────────────────────────────
+        // Se toman del catálogo de vehículos, que es la fuente de verdad con
+        // casing consistente. Antes se derivaban de atributos.marca de los bienes,
+        // donde el mismo modelo podía estar guardado con distinto casing
+        // (p.ej. "Chevrolet" y "CHEVROLET") y salía duplicado en el filtro.
+        $catalogoPath = storage_path('app/public/modelos_vehiculos.json');
+        $catalogo = is_file($catalogoPath) ? (json_decode(file_get_contents($catalogoPath), true) ?: []) : [];
+
+        $fuenteMarcas = !empty($catalogo)
+            ? collect($catalogo)
+            // Respaldo si el catálogo está vacío: derivar de los bienes.
+            : BienAsegurado::where('tipo', 'vehiculo')->get()
+                ->map(fn ($b) => ['marca' => $b->atributos['marca'] ?? null, 'modelo' => $b->atributos['modelo'] ?? null]);
+
+        // Deduplica sin distinguir mayúsculas/minúsculas (una sola "Chevrolet").
+        $marcas = $fuenteMarcas->pluck('marca')->filter()
+            ->unique(fn ($m) => mb_strtoupper(trim((string) $m)))
+            ->sortBy(fn ($m) => mb_strtoupper((string) $m))
             ->values()
             ->all();
 
-        $modelosRaw = BienAsegurado::where('tipo', 'vehiculo')
-            ->selectRaw("JSON_UNQUOTE(JSON_EXTRACT(atributos, '$.marca')) as marca, JSON_UNQUOTE(JSON_EXTRACT(atributos, '$.modelo')) as modelo")
-            ->whereRaw("JSON_EXTRACT(atributos, '$.modelo') IS NOT NULL")
-            ->get();
-
-        $modelos = $modelosRaw
+        $modelos = $fuenteMarcas
+            ->filter(fn ($i) => !empty($i['marca']) && !empty($i['modelo']))
             ->groupBy('marca')
-            ->map(fn ($g) => $g->pluck('modelo')->unique()->filter()->sort()->values()->all())
+            ->map(fn ($g) => $g->pluck('modelo')->filter()
+                ->unique(fn ($m) => mb_strtoupper(trim((string) $m)))
+                ->sortBy(fn ($m) => mb_strtoupper((string) $m))
+                ->values()->all())
             ->all();
 
         $filtros_opciones = ['marcas' => $marcas, 'modelos' => $modelos];
@@ -1245,16 +1255,20 @@ class ReportController extends Controller
             });
         }
 
+        // Coincidencia sin distinguir mayúsculas: los JSON de MySQL comparan de
+        // forma binaria (sensible a mayúsculas), por eso se normaliza con UPPER()
+        // en ambos lados — si no, elegir "Chevrolet" no encontraba los bienes
+        // guardados como "CHEVROLET".
         if ($request->filled('marca')) {
             $clientesQuery->whereHas('bienes', function ($q) use ($request) {
                 $q->where('tipo', 'vehiculo')
-                  ->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(atributos, '$.marca')) = ?", [$request->marca]);
+                  ->whereRaw("UPPER(JSON_UNQUOTE(JSON_EXTRACT(atributos, '$.marca'))) = UPPER(?)", [$request->marca]);
             });
         }
         if ($request->filled('modelo')) {
             $clientesQuery->whereHas('bienes', function ($q) use ($request) {
                 $q->where('tipo', 'vehiculo')
-                  ->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(atributos, '$.modelo')) = ?", [$request->modelo]);
+                  ->whereRaw("UPPER(JSON_UNQUOTE(JSON_EXTRACT(atributos, '$.modelo'))) = UPPER(?)", [$request->modelo]);
             });
         }
         if ($request->filled('estado_poliza')) {
