@@ -2045,11 +2045,12 @@ function TabUsuariosMetrics() {
             { k: 'com_gen', l: 'Com. Generada', r: true, hide: 'md' },
             { k: 'com_pagada', l: 'Com. Pagada', r: true, hide: 'md' },
             { k: 'com_pend', l: 'Com. Pendiente', r: true, hide: 'md' },
-            { k: 'est', l: 'Estado' },
+            { k: 'est', l: 'Estado', s: 'est_sort' },
             { k: 'action', l: '', acc: true }
           ]}
           rows={rows.map(r => ({
             ...r,
+            est_sort: r.est ?? '',
             nom: r.id === null ? <strong>{r.nom}</strong> : r.nom,
             prima: usd(r.prima),
             com_gen: usd(r.com_gen),
