@@ -788,7 +788,7 @@ function RenovarModal({ client, diasVencimiento, onSaved, onCancel }) {
                   {!totalOk && excedente > 0 && `⚠ Excede el ${esMensual ? 'total financiado' : 'total anual'} por ${fmtMonto(excedente, monedaNativa)}`}
                   {totalOk && (adelanto > 0 ? `✓ Cuota cubierta · adelanto de ${fmtMonto(adelanto, monedaNativa)}` : '✓ Total cuadra')}
                 </span>
-                <span className="font-bold font-mono ml-auto">{fmtMonto(totalIngresadoUsd, monedaNativa)} / {fmtMonto(montoMaximo, monedaNativa)}</span>
+                <span className="font-bold font-mono ml-auto">{fmtMonto(pagCents / 100, monedaNativa)} / {fmtMonto(montoMaximo, monedaNativa)}</span>
               </div>
               {formErr.total && <p className="text-xs text-rose-600 mt-1">{formErr.total}</p>}
             </div>
@@ -868,7 +868,10 @@ function EmitirCotizacionModal({ cot, onSaved }) {
   // usando para pagar, para que sepa cuánto falta en esas monedas, no solo en $.
   const monedasPago = [...new Set(pagos.map(p => p.moneda).filter(Boolean))]
   const faltanteTxt = (monedasPago.length ? monedasPago : [monedaNativa])
-    .map(m => fmtMonto(convertirMoneda(faltante, monedaNativa, m, tasas.usd || 0, tasas.eur || 0), m))
+    // Se redondea el faltante HACIA ARRIBA en cada moneda, para que al pagar el
+    // monto mostrado el total sí cubra la cuota (si no, por el redondeo de Bs/€
+    // podía quedar corto por sub-céntimos).
+    .map(m => fmtMonto(Math.ceil(convertirMoneda(faltante, monedaNativa, m, tasas.usd || 0, tasas.eur || 0) * 100) / 100, m))
     .join(' · ')
 
   const handleEmitir = async () => {
@@ -1033,7 +1036,7 @@ function EmitirCotizacionModal({ cot, onSaved }) {
               {totalOk && (adelanto > 0 ? `✓ Cuota cubierta · adelanto de ${fmtMonto(adelanto, monedaNativa)}` : '✓ Total cuadra')}
             </span>
             <span className="font-bold font-mono ml-auto">
-              {fmtMonto(totalIngresadoUsd, monedaNativa)} / {fmtMonto(montoMaximo, monedaNativa)}
+              {fmtMonto(pagCents / 100, monedaNativa)} / {fmtMonto(montoMaximo, monedaNativa)}
             </span>
           </div>
           {formErr.total && <p className="text-xs text-rose-600 mt-1">{formErr.total}</p>}
