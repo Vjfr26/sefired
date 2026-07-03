@@ -1384,13 +1384,13 @@ function BeneficiosModal({ producto, onClose, onSaved }) {
 // ── Columnas de la tabla ──────────────────────────────────────────────────────
 const COLS = [
   { k: 'displayId', l: 'ID',          m: true },
-  { k: 'tipob',     l: 'Tipo',        nw: true },
+  { k: 'tipob',     l: 'Tipo',        nw: true, s: 'tipo' },
   { k: 'nombre',    l: 'Tipo de Póliza', tr: true, primary: true },
-  { k: 'calc',      l: 'Cálculo',     nw: true, hide: 'md' },
-  { k: 'primab',    l: 'Prima base',  r: true, nw: true },
-  { k: 'cob',       l: 'Cobertura',   r: true, nw: true },
-  { k: 'mon',       l: 'Moneda',      nw: true },
-  { k: 'est',       l: 'Estado',      nw: true, hide: 'sm' },
+  { k: 'calc',      l: 'Cálculo',     nw: true, hide: 'md', s: 'tipo_calculo' },
+  { k: 'primab',    l: 'Prima base',  r: true, nw: true, s: 'prima' },
+  { k: 'cob',       l: 'Cobertura',   r: true, nw: true, s: 'cobertura' },
+  { k: 'mon',       l: 'Moneda',      nw: true, s: 'moneda' },
+  { k: 'est',       l: 'Estado',      nw: true, hide: 'sm', s: 'est_sort' },
   { k: 'acc',       l: '',            acc: true },
 ]
 
@@ -1409,6 +1409,7 @@ export default function Productos() {
   const [error,         setError]         = useState(null)
   const [monedaDisplay, setMonedaDisplay] = useState('USD')
   const [monedaOpen,    setMonedaOpen]    = useState(false)
+  const [monedaFiltro,  setMonedaFiltro]  = useState('')   // filtro de la lista por moneda del producto
   const [modalProd,     setModalProd]     = useState(null)  // null | 'new' | producto
   const [modalTar,      setModalTar]      = useState(null)  // null | producto
   const [modalBenef,    setModalBenef]    = useState(null)  // null | producto
@@ -1460,12 +1461,14 @@ export default function Productos() {
   const sumaPrimaActual = sumaEnMoneda('prima',     monedaDisplay)
   const sumaCobActual   = sumaEnMoneda('cobertura', monedaDisplay)
 
-  const filtered = search
-    ? productos.filter(p => {
-        const q = search.toLowerCase()
-        return p.nombre.toLowerCase().includes(q) || p.descripcion?.toLowerCase().includes(q)
-      })
-    : productos
+  const filtered = productos.filter(p => {
+    if (monedaFiltro && p.moneda !== monedaFiltro) return false
+    if (search) {
+      const q = search.toLowerCase()
+      return p.nombre.toLowerCase().includes(q) || p.descripcion?.toLowerCase().includes(q)
+    }
+    return true
+  })
 
   const dataRows = filtered.map(p => {
     const calcMeta = CALCULO_BADGE[p.tipo_calculo] ?? CALCULO_BADGE.fijo
@@ -1478,6 +1481,7 @@ export default function Productos() {
       primab: fmtMonto(p.prima,     p.moneda),
       cob:    fmtMonto(p.cobertura, p.moneda),
       mon:    <span className={`badge badge-${monColor}`}>{p.moneda}</span>,
+      est_sort: p.publicado ? 'Publicado' : 'Borrador',
       est: p.publicado
         ? <span className="inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-700">Publicado</span>
         : <span className="inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-500">Borrador</span>,
@@ -1641,11 +1645,25 @@ export default function Productos() {
         placeholder="Buscar por nombre o descripción…"
         onSearch={setSearch}
         extra={
-          canCreate && (
-            <button onClick={() => setModalProd('new')} className="btn-primary ml-auto">
-              <Plus className="w-4 h-4" />Nueva Póliza
-            </button>
-          )
+          <>
+            <select
+              className="select-field text-sm w-auto"
+              value={monedaFiltro}
+              onChange={e => setMonedaFiltro(e.target.value)}
+              title="Filtrar por moneda del producto"
+            >
+              <option value="">Todas las monedas</option>
+              {[...new Set(productos.map(p => p.moneda).filter(Boolean))].map(m => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+            <p className="text-xs text-slate-400 whitespace-nowrap">{filtered.length} producto{filtered.length !== 1 ? 's' : ''}</p>
+            {canCreate && (
+              <button onClick={() => setModalProd('new')} className="btn-primary ml-auto">
+                <Plus className="w-4 h-4" />Nueva Póliza
+              </button>
+            )}
+          </>
         }
       />
 

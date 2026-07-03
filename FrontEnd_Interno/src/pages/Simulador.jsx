@@ -811,7 +811,7 @@ function Step3({ sim, setSim, onNext, onBack, onClose, vehiculosCatalogo }) {
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm pointer-events-none">$</span>
               <input type="number" min="500" step="500" className="input-field pl-7" placeholder="15000"
-                value={sim.valor} onChange={e => setSim(p => ({ ...p, valor: parseFloat(e.target.value) || 0 }))} />
+                value={sim.valor || ''} onChange={e => setSim(p => ({ ...p, valor: e.target.value === '' ? '' : (parseFloat(e.target.value) || 0) }))} />
             </div>
             <p className="text-[10px] text-slate-400 mt-1">Se precarga con el valor de referencia del catálogo para este modelo. Puedes ajustarlo si el vehículo lo amerita.</p>
           </div>
@@ -969,9 +969,9 @@ function Step3({ sim, setSim, onNext, onBack, onClose, vehiculosCatalogo }) {
                       <div>
                         <label className="field-label">Valor de mercado <span className="text-rose-500">*</span></label>
                         <input type="number" min="500" step="500" className="input-field" placeholder="15000"
-                          value={v.valor} onChange={e => {
+                          value={v.valor || ''} onChange={e => {
                             const arr = [...sim.vehiculos_adicionales];
-                            arr[i].valor = parseFloat(e.target.value) || 0;
+                            arr[i].valor = e.target.value === '' ? '' : (parseFloat(e.target.value) || 0);
                             setSim(p => ({ ...p, vehiculos_adicionales: arr }));
                           }} />
                       </div>
@@ -1235,7 +1235,7 @@ function Step4({ sim, setSim, tasaBcv, tasaEur, onNext, onBack, onClose }) {
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold pointer-events-none">$</span>
                   <input type="number" min="1" step="100" className="input-field pl-7"
                     placeholder="0.00"
-                    value={sim.valor_declarado || ''} onChange={e => setSim(p => ({ ...p, valor_declarado: parseFloat(e.target.value) || 0 }))} />
+                    value={sim.valor_declarado || ''} onChange={e => setSim(p => ({ ...p, valor_declarado: e.target.value === '' ? '' : (parseFloat(e.target.value) || 0) }))} />
                 </div>
                 {tarifas[0]?.datos?.tasa_pct && (
                   <p className="text-xs text-slate-400 mt-2">Tasa aplicada: {tarifas[0].datos.tasa_pct}% sobre el valor declarado</p>
