@@ -81,6 +81,10 @@ export default function Renovaciones() {
 
   const dataRows = rows.map(r => ({
     ...r,
+    // Campos crudos para ordenar (celdas JSX).
+    met_sort:   r.pagos?.[0]?.metodo || '',
+    ref_sort:   r.pagos?.[0]?.referencia || '',
+    monto_sort: (r.pagos || []).reduce((s, p) => s + Number(p.monto || 0), 0),
     f:      r.fecha,
     pol: (
       <div>
@@ -206,13 +210,13 @@ export default function Renovaciones() {
           loading={loading}
           cols={[
             { k: 'f',     l: 'Fecha',        nw: true, hide: 'md' },
-            { k: 'pol',   l: 'Póliza',        nw: true, bold: true },
+            { k: 'pol',   l: 'Póliza',        nw: true, bold: true, s: 'nro_contrato' },
             { k: 'cli',   l: 'Solicitante',   tr: true, primary: true },
             { k: 'tel',   l: 'Teléfono',      hide: 'sm' },
-            { k: 'met',   l: 'Método',        hide: 'lg' },
-            { k: 'ref',   l: 'Referencia',    hide: 'md' },
-            { k: 'monto', l: 'Monto',         r: true, nw: true },
-            { k: 'est',   l: 'Estado',        nw: true },
+            { k: 'met',   l: 'Método',        hide: 'lg', s: 'met_sort' },
+            { k: 'ref',   l: 'Referencia',    hide: 'md', s: 'ref_sort' },
+            { k: 'monto', l: 'Monto',         r: true, nw: true, s: 'monto_sort' },
+            { k: 'est',   l: 'Estado',        nw: true, s: 'status' },
             { k: 'acc',   l: '',              acc: true },
           ]}
           rows={dataRows}

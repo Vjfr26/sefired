@@ -267,13 +267,13 @@ function BienModal({ bien, onClose, onSaved }) {
 
 // ── Página Bienes Asegurados ──────────────────────────────────────────────────
 const COLS = [
-  { k: 'tipo_label',   l: 'Tipo',          nw: true },
-  { k: 'ref_cell',     l: 'Identificación', bold: true, tr: true, primary: true },
-  { k: 'detalles',     l: 'Detalles',       tr: true,  hide: 'md' },
-  { k: 'titular_cell', l: 'Titular',        tr: true,  hide: 'sm' },
-  { k: 'vendedor_cell',l: 'Vendedor',       nw: true,  hide: 'lg' },
-  { k: 'poliza_cell',  l: 'Póliza',         nw: true,  hide: 'lg' },
-  { k: 'vigencia_cell',l: 'Vigencia',       nw: true,  hide: 'xl' },
+  { k: 'tipo_label',   l: 'Tipo',          nw: true, s: 'tipo_sort' },
+  { k: 'ref_cell',     l: 'Identificación', bold: true, tr: true, primary: true, s: 'ref_sort' },
+  { k: 'detalles',     l: 'Detalles',       tr: true,  hide: 'md', s: 'detalles_sort' },
+  { k: 'titular_cell', l: 'Titular',        tr: true,  hide: 'sm', s: 'titular_sort' },
+  { k: 'vendedor_cell',l: 'Vendedor',       nw: true,  hide: 'lg', s: 'vendedor_sort' },
+  { k: 'poliza_cell',  l: 'Póliza',         nw: true,  hide: 'lg', s: 'poliza_sort' },
+  { k: 'vigencia_cell',l: 'Vigencia',       nw: true,  hide: 'xl', s: 'vig_sort' },
   { k: 'acc',          l: '',               acc: true },
 ]
 
@@ -382,6 +382,14 @@ export default function Vehiculos() {
       : [a.color, a.uso].filter(Boolean).join(' · ') || b.tipo
 
     return {
+      // Campos crudos para ordenar (las celdas son JSX).
+      tipo_sort:      TIPO_LABEL[b.tipo] ?? b.tipo ?? '',
+      ref_sort:       bienRef(b),
+      detalles_sort:  detalles,
+      titular_sort:   b.persona?.nombre ?? '',
+      vendedor_sort:  b.persona?.vendedor_nombre ?? '',
+      poliza_sort:    b.poliza_nro ?? '',
+      vig_sort:       b.poliza_venc_iso ?? '',
       tipo_label: (
         <span className="inline-flex items-center gap-1.5">
           <Icon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
