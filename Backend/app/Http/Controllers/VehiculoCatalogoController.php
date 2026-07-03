@@ -76,6 +76,10 @@ class VehiculoCatalogoController extends Controller
             'modelo'      => 'required|string|max:100',
             'anio_inicio' => 'required|integer|min:1900|max:2100',
             'anio_fin'    => 'required|integer|min:1900|max:2100|gte:anio_inicio',
+            // Valor de referencia (USD) del modelo. Es el valor base que el
+            // catálogo aporta al resto del sistema: se precarga como valor de
+            // mercado al cotizar/emitir una póliza de este modelo.
+            'valor_referencia' => 'nullable|numeric|min:0',
         ]);
 
         $items = $this->getItems();
@@ -96,6 +100,7 @@ class VehiculoCatalogoController extends Controller
             'modelo'      => $data['modelo'],
             'anio_inicio' => (int) $data['anio_inicio'],
             'anio_fin'    => (int) $data['anio_fin'],
+            'valor_referencia' => isset($data['valor_referencia']) ? (float) $data['valor_referencia'] : null,
         ];
 
         $items[] = $newItem;
@@ -122,6 +127,7 @@ class VehiculoCatalogoController extends Controller
             'modelo'      => 'required|string|max:100',
             'anio_inicio' => 'required|integer|min:1900|max:2100',
             'anio_fin'    => 'required|integer|min:1900|max:2100|gte:anio_inicio',
+            'valor_referencia' => 'nullable|numeric|min:0',
         ]);
 
         $items = $this->getItems();
@@ -145,6 +151,7 @@ class VehiculoCatalogoController extends Controller
             'modelo'      => $data['modelo'],
             'anio_inicio' => (int) $data['anio_inicio'],
             'anio_fin'    => (int) $data['anio_fin'],
+            'valor_referencia' => isset($data['valor_referencia']) ? (float) $data['valor_referencia'] : null,
         ];
 
         $this->saveItems($items);

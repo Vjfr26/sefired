@@ -50,7 +50,7 @@ class ReportController extends Controller
             'hasta'      => 'nullable|date|after_or_equal:desde',
         ]);
 
-        $query = Log::with('usuario:id,nombre')->orderBy('created_at', 'desc');
+        $query = Log::with('usuario:id,nombre,nick')->orderBy('created_at', 'desc');
 
         if ($request->filled('usuario_id')) {
             $query->where('usuario_id', (int) $request->usuario_id);
@@ -88,7 +88,7 @@ class ReportController extends Controller
             'hasta'      => 'nullable|date|after_or_equal:desde',
         ]);
 
-        $query = AuditLog::with('usuario:id,nombre')->orderBy('created_at', 'desc');
+        $query = AuditLog::with('usuario:id,nombre,nick')->orderBy('created_at', 'desc');
 
         if ($request->filled('modelo')) {
             $query->where('modelo', $request->modelo);

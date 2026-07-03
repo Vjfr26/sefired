@@ -277,6 +277,11 @@
   .th-cell { @apply px-0.5 sm:px-5 py-2 sm:py-3 text-xs font-bold uppercase tracking-wider text-slate-500 whitespace-nowrap; }
   .td-cell { @apply px-0.5 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-slate-800 overflow-hidden uppercase; }
 
+  /* Compact variant for wide tables (many columns) — tighter padding and
+     wrapping headers so the table fits without horizontal scroll. */
+  .th-cell-compact { @apply px-1 sm:px-2.5 py-2 sm:py-2.5 text-[11px] font-bold uppercase tracking-wide text-slate-500 align-bottom leading-tight; }
+  .td-cell-compact { @apply px-1 sm:px-2.5 py-2 sm:py-2.5 text-xs text-slate-800 overflow-hidden uppercase; }
+
   /* Toggle switch */
   .toggle-wrap  { @apply relative inline-flex items-center; }
   .toggle-input { @apply sr-only; }

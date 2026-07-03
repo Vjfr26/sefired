@@ -1,117 +1,13 @@
 import { useState, useEffect } from 'react'
-import { KeyRound, Activity, Info, Check, CheckCircle, AlertTriangle, Lock, Circle, ShieldCheck, Monitor, Smartphone, LogOut } from 'lucide-react'
+import { KeyRound, Activity, Info, Check, CheckCircle, AlertTriangle, Lock, Circle, ShieldCheck } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
-import { fetchLogs, fetchAuditLog, fetchEmailLogs, fetchIpsBloqueadas, desbloquearIp } from '../api/reports.js'
+import { fetchLogs, fetchAuditLog, fetchEmailLogs } from '../api/reports.js'
 import { changePassword } from '../api/usuarios.js'
-import { fetchSesiones, cerrarSesion, cerrarOtrasSesiones } from '../api/sesiones.js'
 import { badge } from '../utils/helpers.jsx'
 import DataTable from '../components/DataTable.jsx'
 import { PasswordInput } from '../components/FormControls.jsx'
 
 // ── Tab: Seguridad ───────────────────────────────────────────
-// Etiqueta legible del navegador/SO a partir del user-agent.
-function labelUA(ua = '') {
-  if (!ua) return 'Dispositivo desconocido'
-  const browser = /Edg/i.test(ua) ? 'Edge'
-    : /OPR|Opera/i.test(ua) ? 'Opera'
-    : /Chrome/i.test(ua) ? 'Chrome'
-    : /Firefox/i.test(ua) ? 'Firefox'
-    : /Safari/i.test(ua) ? 'Safari'
-    : 'Navegador'
-  const os = /Windows/i.test(ua) ? 'Windows'
-    : /Android/i.test(ua) ? 'Android'
-    : /iPhone|iPad|iOS/i.test(ua) ? 'iOS'
-    : /Mac OS|Macintosh/i.test(ua) ? 'macOS'
-    : /Linux/i.test(ua) ? 'Linux'
-    : ''
-  return os ? `${browser} · ${os}` : browser
-}
-
-const fmtVisto = (x) => {
-  if (!x) return '—'
-  try { return new Date(x).toLocaleString('es-VE', { dateStyle: 'medium', timeStyle: 'short' }) }
-  catch { return '—' }
-}
-
-// Sesiones activas del usuario (gestión de dispositivos).
-function SesionesActivas() {
-  const { showToast } = useApp()
-  const [sesiones, setSesiones] = useState([])
-  const [loading, setLoading] = useState(true)
-
-  const load = async () => {
-    setLoading(true)
-    try { setSesiones(await fetchSesiones()) }
-    catch (e) { showToast(e.message, 'error') }
-    finally { setLoading(false) }
-  }
-  useEffect(() => { load() }, [])
-
-  const cerrar = async (id) => {
-    try { await cerrarSesion(id); showToast('Sesión cerrada', 'success'); load() }
-    catch (e) { showToast(e.message, 'error') }
-  }
-  const cerrarOtras = async () => {
-    try { const r = await cerrarOtrasSesiones(); showToast(r.message || 'Sesiones cerradas', 'success'); load() }
-    catch (e) { showToast(e.message, 'error') }
-  }
-
-  const otras = sesiones.filter(s => !s.es_actual).length
-
-  return (
-    <div className="card p-6">
-      <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
-        <div className="flex items-center gap-2">
-          <Monitor className="w-4 h-4 text-jm-blue" />
-          <h4 className="font-semibold text-slate-700 text-sm">Sesiones activas</h4>
-        </div>
-        {otras > 0 && (
-          <button onClick={cerrarOtras} className="btn-secondary text-xs">
-            <LogOut className="w-3.5 h-3.5" /> Cerrar las demás
-          </button>
-        )}
-      </div>
-
-      {loading ? (
-        <p className="text-sm text-slate-400 py-4">Cargando…</p>
-      ) : sesiones.length === 0 ? (
-        <p className="text-sm text-slate-400 py-4">No hay sesiones activas.</p>
-      ) : (
-        <div className="space-y-2.5">
-          {sesiones.map(s => {
-            const movil = /Mobile|Android|iPhone|iPad/i.test(s.user_agent || '')
-            return (
-              <div key={s.id} className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 bg-slate-50/60">
-                <span className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0 text-slate-500">
-                  {movil ? <Smartphone className="w-4 h-4" /> : <Monitor className="w-4 h-4" />}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-slate-700 truncate">
-                    {labelUA(s.user_agent)}
-                    {s.es_actual && (
-                      <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">Esta sesión</span>
-                    )}
-                  </p>
-                  <p className="text-xs text-slate-400 truncate">{s.ip || '—'} · {fmtVisto(s.ultimo_visto)}</p>
-                </div>
-                {!s.es_actual && (
-                  <button
-                    onClick={() => cerrar(s.id)}
-                    className="p-2 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition shrink-0"
-                    title="Cerrar esta sesión"
-                  >
-                    <LogOut className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
-
 function TabSeguridad() {
   const { showToast, canAct } = useApp()
   const canChangePassword = canAct('config', 'change_password')
@@ -209,100 +105,13 @@ function TabSeguridad() {
           </div>
         )}
       </div>
-
-      <div className="lg:col-span-2">
-        <SesionesActivas />
-      </div>
-
-      {canAct('config', 'view_audit') && (
-        <div className="lg:col-span-2">
-          <TabIpsBloqueadas />
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Sub-sección: IPs bloqueadas ──────────────────────────────
-/**
- * IPs bloqueadas por intentos de login fallidos, patrones de ataque, o al
- * desactivar un usuario. Ya bloqueaban accesos reales, pero no había forma
- * de verlas ni de desbloquear una por error (ej. IP de oficina compartida).
- */
-function TabIpsBloqueadas() {
-  const { showToast, showModal, canAct } = useApp()
-  const canUnblock = canAct('config', 'manage_security')
-  const [items, setItems]     = useState([])
-  const [loading, setLoading] = useState(true)
-
-  const load = async () => {
-    setLoading(true)
-    try {
-      const data = await fetchIpsBloqueadas()
-      setItems(data.data || [])
-    } catch (error) {
-      showToast(error.message, 'error')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => { load() }, [])
-
-  const handleUnblock = (ip) => {
-    showModal('confirmAction', {
-      title: 'Desbloquear IP',
-      message: `La IP ${ip.ip} podrá volver a intentar iniciar sesión.`,
-      icon: Lock,
-      color: 'emerald',
-      confirmLabel: 'Desbloquear',
-      onConfirm: async () => {
-        await desbloquearIp(ip.id)
-        showToast(`IP ${ip.ip} desbloqueada`, 'success')
-        load()
-      },
-    })
-  }
-
-  const rows = items.map(ip => ({
-    id: ip.id,
-    fecha: ip.created_at ? new Date(ip.created_at).toLocaleString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : '—',
-    ip: ip.ip,
-    usuario: ip.usuario?.nombre || '—',
-    motivo: ip.motivo || '—',
-    accion: canUnblock ? (
-      <button onClick={() => handleUnblock(ip)} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition" title="Desbloquear IP">
-        Desbloquear
-      </button>
-    ) : null,
-  }))
-
-  return (
-    <div className="card p-6">
-      <h4 className="font-semibold text-slate-700 text-sm mb-4">IPs Bloqueadas</h4>
-      {!loading && items.length === 0 ? (
-        <p className="text-xs text-slate-400 text-center py-6">No hay ninguna IP bloqueada actualmente.</p>
-      ) : (
-        <DataTable
-          searchable
-          loading={loading}
-          cols={[
-            { k: 'fecha',   l: 'Fecha',    nw: true },
-            { k: 'ip',      l: 'IP',       m: true },
-            { k: 'usuario', l: 'Usuario',  hide: 'sm' },
-            { k: 'motivo',  l: 'Motivo',   tr: true },
-            { k: 'accion',  l: '', acc: true },
-          ]}
-          rows={rows}
-        />
-      )}
     </div>
   )
 }
 
 // ── Tab: Auditoría ───────────────────────────────────────────
 function TabAuditoria() {
-  const { showToast, canAct } = useApp()
+  const { showToast, showModal, canAct } = useApp()
   const canViewEmailLogs = canAct('config', 'view_email_logs')
   const [vista, setVista] = useState('resumen') // 'resumen' | 'detallado' | 'correos'
   const [logs, setLogs] = useState([])
@@ -355,6 +164,22 @@ function TabAuditoria() {
     })
   }
 
+  const openDetail = (r) => showModal('auditoriaDetail', {
+    title: `Actividad #${r.id}`,
+    eyebrow: 'Resumen de actividad',
+    fields: [
+      { label: 'Fecha / Hora', value: formatDate(r.created_at) },
+      { label: 'Usuario', value: r.usuario?.nick || r.usuario?.nombre || 'Sistema' },
+      { label: 'Acción', value: r.accion },
+      { label: 'Módulo', value: r.tabla || 'Sistema' },
+      { label: 'Detalle', value: r.descripcion },
+      { label: 'IP', value: r.ip, mono: true },
+      { label: 'Dispositivo', value: parseUA(r.user_agent) },
+      { label: 'User-Agent', value: r.user_agent, mono: true },
+      r.device_fingerprint ? { label: 'Huella de dispositivo', value: JSON.stringify(r.device_fingerprint, null, 2), mono: true } : null,
+    ],
+  })
+
   const rows = logs.map(r => ({
     id: r.id,
     fecha: formatDate(r.created_at),
@@ -364,6 +189,11 @@ function TabAuditoria() {
     descripcion: r.descripcion || '—',
     ip: r.ip || '—',
     dispositivo: parseUA(r.user_agent),
+    ver: (
+      <button onClick={() => openDetail(r)} className="text-xs font-semibold text-jm-blue hover:underline bg-transparent border-none p-0 cursor-pointer whitespace-nowrap">
+        Ver detalle
+      </button>
+    ),
   }))
 
   return (
@@ -403,6 +233,7 @@ function TabAuditoria() {
             { k: 'descripcion', l: 'Detalle',     hide: 'lg', tr: true },
             { k: 'ip',          l: 'IP',          hide: 'lg', m: true },
             { k: 'dispositivo', l: 'Dispositivo', hide: 'xl' },
+            { k: 'ver',         l: '', acc: true },
           ]}
           rows={rows}
         />
@@ -423,7 +254,7 @@ function TabAuditoria() {
  * EmailLog::registrar() pero no tenía ninguna vista — quedaba invisible.
  */
 function TabEmailLogs() {
-  const { showToast } = useApp()
+  const { showToast, showModal } = useApp()
   const [items, setItems]     = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -449,6 +280,21 @@ function TabEmailLogs() {
     })
   }
 
+  const openDetail = (e) => showModal('auditoriaDetail', {
+    title: `Correo #${e.id}`,
+    eyebrow: 'Log de correo',
+    fields: [
+      { label: 'Fecha / Hora', value: formatDate(e.sent_at) },
+      { label: 'Tipo', value: e.tipo },
+      { label: 'Destinatario', value: e.destinatario, mono: true },
+      { label: 'Asunto', value: e.asunto },
+      { label: 'Cliente', value: e.persona?.nombre },
+      { label: 'Póliza', value: e.poliza?.nro_contrato },
+      { label: 'Estado', value: e.status === 'enviado' ? 'Enviado' : 'Error' },
+      { label: 'Mensaje de error', value: e.error_msg },
+    ],
+  })
+
   const rows = items.map(e => ({
     id: e.id,
     fecha: formatDate(e.sent_at),
@@ -458,6 +304,11 @@ function TabEmailLogs() {
     cliente: e.persona?.nombre || '—',
     status: e.status === 'enviado' ? badge('Enviado', 'green') : badge('Error', 'red'),
     error: e.error_msg || '—',
+    ver: (
+      <button onClick={() => openDetail(e)} className="text-xs font-semibold text-jm-blue hover:underline bg-transparent border-none p-0 cursor-pointer whitespace-nowrap">
+        Ver detalle
+      </button>
+    ),
   }))
 
   return (
@@ -472,6 +323,7 @@ function TabEmailLogs() {
         { k: 'cliente',      l: 'Cliente',       hide: 'md' },
         { k: 'status',       l: 'Estado' },
         { k: 'error',        l: 'Error',         hide: 'lg', tr: true },
+        { k: 'ver',          l: '', acc: true },
       ]}
       rows={rows}
     />
@@ -485,7 +337,7 @@ function TabEmailLogs() {
  * arriba con el detalle exacto de qué valor cambió a cuál.
  */
 function TabCambiosDetallados() {
-  const { showToast } = useApp()
+  const { showToast, showModal } = useApp()
   const [items, setItems]     = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -532,6 +384,19 @@ function TabCambiosDetallados() {
     )
   }
 
+  const openDetail = (a) => showModal('auditoriaDetail', {
+    title: `${a.modelo} #${a.modelo_id ?? '—'}`,
+    eyebrow: 'Cambio detallado',
+    fields: [
+      { label: 'Fecha / Hora', value: formatDate(a.created_at) },
+      { label: 'Registro', value: `${a.modelo} #${a.modelo_id ?? '—'}` },
+      { label: 'Acción', value: a.accion },
+      { label: 'Usuario', value: a.usuario?.nick || a.usuario?.nombre || 'Sistema' },
+      { label: 'IP', value: a.ip, mono: true },
+      { label: 'Cambios', value: formatCambios(a.cambios, a.accion) },
+    ],
+  })
+
   const rows = items.map(a => ({
     id: a.id,
     fecha: formatDate(a.created_at),
@@ -540,6 +405,11 @@ function TabCambiosDetallados() {
     usuario: a.usuario?.nick || a.usuario?.nombre || 'Sistema',
     cambios: formatCambios(a.cambios, a.accion),
     ip: a.ip || '—',
+    ver: (
+      <button onClick={() => openDetail(a)} className="text-xs font-semibold text-jm-blue hover:underline bg-transparent border-none p-0 cursor-pointer whitespace-nowrap">
+        Ver detalle
+      </button>
+    ),
   }))
 
   return (
@@ -553,6 +423,7 @@ function TabCambiosDetallados() {
         { k: 'usuario', l: 'Usuario',    m: true, hide: 'sm' },
         { k: 'cambios', l: 'Cambios',    tr: true },
         { k: 'ip',      l: 'IP',         hide: 'lg', m: true },
+        { k: 'ver',     l: '', acc: true },
       ]}
       rows={rows}
     />
@@ -560,26 +431,50 @@ function TabCambiosDetallados() {
 }
 
 // ── Tab: Acerca de ───────────────────────────────────────────
+// Apartado puramente informativo: créditos del software y titularidad. El
+// sistema es propiedad de INVERSIONES J&M, C.A., que mantiene un convenio con
+// LA VENEZOLANA DE SEGUROS Y VIDA C.A. Fue desarrollado y vendido por
+// Victecnology, Lda como una venta única (sin soporte ni actualizaciones).
 function TabAbout() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {/* Company info */}
+      {/* Titularidad y convenio */}
       <div className="card p-6">
-        <div className="flex items-center gap-4 mb-6 pb-4 border-b border-slate-100">
-          <img src="/logo2.png" alt="J&M" className="h-14 object-contain" />
-          <div>
-            <h3 className="font-bold text-slate-800 text-lg">LA VENEZOLANA DE SEGUROS Y VIDA C.A.</h3>
-            <p className="text-sm text-slate-500">Operado por INVERSIONES J&M, C.A.</p>
+        <h4 className="font-semibold text-slate-800 mb-5">Titularidad y convenio</h4>
+
+        <div className="flex items-center gap-4 pb-4 border-b border-slate-100">
+          <img src="/logo-sinfondo.png" alt="Inversiones J&M, C.A." className="h-12 w-auto object-contain shrink-0" />
+          <div className="min-w-0">
+            <h3 className="font-bold text-slate-800">INVERSIONES J&M, C.A.</h3>
+            <p className="text-xs text-slate-500">Propietario legal del sistema</p>
           </div>
         </div>
+
+        <div className="flex items-center gap-4 py-4 border-b border-slate-100">
+          <img src="/logotipovenezolanaseguros.png" alt="La Venezolana de Seguros y Vida, C.A." className="h-12 w-auto object-contain shrink-0" />
+          <div className="min-w-0">
+            <h3 className="font-bold text-slate-800">LA VENEZOLANA DE SEGUROS Y VIDA C.A.</h3>
+            <p className="text-xs text-slate-500">Convenio con Inversiones J&M, C.A.</p>
+          </div>
+        </div>
+
+        <p className="text-sm text-slate-600 leading-relaxed mt-4">
+          El sistema pertenece a <strong className="text-slate-800">INVERSIONES J&amp;M, C.A.</strong>, quien
+          mantiene un convenio con <strong className="text-slate-800">LA VENEZOLANA DE SEGUROS Y VIDA C.A.</strong>
+          La responsabilidad por el uso del sistema recae en ambas empresas; el propietario legal del software es
+          Inversiones J&amp;M, C.A.
+        </p>
+      </div>
+
+      {/* Créditos del software */}
+      <div className="card p-6">
+        <h4 className="font-semibold text-slate-800 mb-5">Créditos del software</h4>
         <div className="space-y-3 text-sm">
           {[
-            ['RIF',        'J-30012345-6',     'font-mono font-semibold'],
-            ['Regulador',  'SUDEASEG',          'font-semibold text-blue-700'],
-            ['Registro',   'RSE-2010-00247',    'font-mono text-xs text-slate-600'],
-            ['País',       'Venezuela',         'font-semibold'],
-            ['Email',      'info@jandm.com',  'text-blue-600'],
-            ['Web',        'www.jandm.com',   'text-blue-600'],
+            ['Versión',              '1.0.1',                     'font-mono font-semibold text-slate-700'],
+            ['Fecha de adquisición', '15/07/2026',                'font-semibold'],
+            ['Desarrollado por',     'Victecnology, Lda',         'font-bold text-blue-700'],
+            ['Contacto',             'contacto@victecnology.com', 'text-blue-500 text-xs'],
           ].map(([label, val, cls]) => (
             <div key={label} className="flex justify-between gap-3 py-2 border-b border-slate-100">
               <span className="text-slate-500">{label}</span>
@@ -587,29 +482,20 @@ function TabAbout() {
             </div>
           ))}
         </div>
-      </div>
 
-      {/* System info */}
-      <div className="card p-6">
-        <h4 className="font-semibold text-slate-800 mb-5">Sistema de Gestión Interno</h4>
-        <div className="space-y-3 text-sm">
-          {[
-            ['Versión',           'v1.0.0-beta',             'font-mono font-semibold text-slate-700'],
-            ['Entorno',           null,                       ''],
-            ['Desarrollado por',  'Victecnology Lda',         'font-bold text-blue-700'],
-            ['Soporte',           'contacto@victecnology.com','text-blue-500 text-xs'],
-            ['Módulos activos',   '8',                        'font-semibold'],
-            ['Última actualización','07/05/2026',             'font-semibold'],
-          ].map(([label, val, cls]) => (
-            <div key={label} className="flex justify-between gap-3 py-2 border-b border-slate-100">
-              <span className="text-slate-500">{label}</span>
-              {val === null ? badge('Producción', 'green') : <span className={cls}>{val}</span>}
-            </div>
-          ))}
+        <div className="mt-5 p-4 bg-amber-50 rounded-xl">
+          <p className="text-xs font-semibold text-amber-800 mb-1">Venta única</p>
+          <p className="text-xs text-amber-700">
+            Este software se entregó como una venta única. No incluye soporte técnico ni la integración de nuevas
+            actualizaciones.
+          </p>
         </div>
-        <div className="mt-5 p-4 bg-blue-50 rounded-xl">
+
+        <div className="mt-3 p-4 bg-blue-50 rounded-xl">
           <p className="text-xs font-semibold text-blue-800 mb-1">Licencia de uso</p>
-          <p className="text-xs text-blue-600">Este sistema es propiedad de INVERSIONES J&M, C.A. Su uso no autorizado está prohibido.</p>
+          <p className="text-xs text-blue-600">
+            Este sistema es propiedad de INVERSIONES J&amp;M, C.A. Su uso no autorizado está prohibido.
+          </p>
         </div>
       </div>
     </div>

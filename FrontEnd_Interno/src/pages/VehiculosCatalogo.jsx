@@ -27,6 +27,7 @@ function CatalogoModal({ item, tipos = TIPOS_VEHICULO_BASE, marcas = [], modelos
     modelo: item?.modelo ?? '',
     anio_inicio: item?.anio_inicio ?? 2000,
     anio_fin: item?.anio_fin ?? new Date().getFullYear(),
+    valor_referencia: item?.valor_referencia ?? '',
   })
   // "Otro": modo texto libre cuando el tipo no es uno de los conocidos.
   const [customTipo, setCustomTipo] = useState(item?.tipo ? !tipos.includes(item.tipo) : false)
@@ -57,6 +58,9 @@ function CatalogoModal({ item, tipos = TIPOS_VEHICULO_BASE, marcas = [], modelos
         modelo: form.modelo.trim(),
         anio_inicio: parseInt(form.anio_inicio),
         anio_fin: parseInt(form.anio_fin),
+        valor_referencia: form.valor_referencia === '' || form.valor_referencia === null
+          ? null
+          : parseFloat(form.valor_referencia),
       }
 
       if (item?.id) {
@@ -207,6 +211,23 @@ function CatalogoModal({ item, tipos = TIPOS_VEHICULO_BASE, marcas = [], modelos
                 />
               </div>
             </div>
+
+            <div>
+              <label className={lbl}>Valor de referencia (USD)</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm pointer-events-none">$</span>
+                <input
+                  type="number"
+                  className={`${inp} pl-7`}
+                  min="0"
+                  step="100"
+                  placeholder="15000"
+                  value={form.valor_referencia}
+                  onChange={e => set('valor_referencia', e.target.value)}
+                />
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1">Valor base del modelo. Se precarga como valor de mercado al cotizar/emitir una póliza de este vehículo.</p>
+            </div>
           </div>
 
           {/* Footer */}
@@ -304,6 +325,9 @@ export default function VehiculosCatalogo() {
     return filtered.map(item => ({
       ...item,
       rango_anios: `${item.anio_inicio} - ${item.anio_fin}`,
+      valor_ref: item.valor_referencia != null && item.valor_referencia !== ''
+        ? `$${Number(item.valor_referencia).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        : '—',
       acc: (
         <div className="flex gap-1.5 justify-center">
           {canEdit && (
@@ -403,6 +427,7 @@ export default function VehiculosCatalogo() {
           { k: 'marca', l: 'Marca', bold: true, nw: true },
           { k: 'modelo', l: 'Modelo', nw: true },
           { k: 'rango_anios', l: 'Años Permitidos', nw: true },
+          { k: 'valor_ref', l: 'Valor Ref. (USD)', r: true, nw: true },
           { k: 'acc', l: '', acc: true }
         ]}
         rows={rows}

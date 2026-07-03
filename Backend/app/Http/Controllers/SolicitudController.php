@@ -642,6 +642,7 @@ class SolicitudController extends Controller
             'poliza_id'         => $s->polizas->first()?->id,
             'status'            => $s->status ?? 'en_revision',
             'fecha'             => $s->fecha_solicitud?->format('d/m/Y') ?? '—',
+            'fecha_iso'         => $s->fecha_solicitud?->format('Y-m-d'),
             'coberturas'        => $cobs,
             'asegurado_nombre'    => $s->asegurado_nombre,
             'asegurado_ci'        => $s->asegurado_ci,

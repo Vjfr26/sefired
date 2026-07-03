@@ -49,8 +49,16 @@ class BienAseguradoController extends Controller
         // no emitidas son borradores y no se muestran aquí. El selector de
         // "agregar bien a póliza" (que filtra por persona_id) sí los necesita,
         // por eso el filtro es opt-in con ?con_poliza=1.
+        //
+        // Un bien puede estar vinculado a su póliza de dos formas: por el pivot
+        // poliza_bienes (modelo multi-bien actual) o por su solicitud (emisiones
+        // antiguas / de un solo bien). Se aceptan AMBAS para no dejar fuera
+        // bienes asegurados —típicamente inmuebles y otros tipos emitidos por el
+        // flujo viejo— que sí tienen póliza pero no entrada en el pivot.
         if ($request->boolean('con_poliza')) {
-            $query->has('polizaBienes');
+            $query->where(function ($q) {
+                $q->has('polizaBienes')->orHas('solicitudes.polizas');
+            });
         }
 
         if ($request->filled('tipo')) {

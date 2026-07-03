@@ -2035,6 +2035,7 @@ function TabUsuariosMetrics() {
         </div>
       ) : (
         <DataTable
+          compact
           cols={[
             { k: 'nom', l: 'Nombre Completo', tr: true },
             { k: 'rol', l: 'Cargo', hide: 'sm' },
@@ -2076,6 +2077,10 @@ function TabUsuariosMetrics() {
     </div>
   )
 }
+
+// Claves de filtro rápido válidas para el reporte de clientes (deben coincidir
+// con la validación `in:` del backend en getClientesReport).
+const CLIENTE_QUICK_FILTERS = ['por_vencer', 'mas_polizas', 'por_bienes', 'activos', 'bloqueados']
 
 // ── Tab: Métricas de Clientes ────────────────────────────────
 function TabClientesMetrics() {
@@ -2119,11 +2124,17 @@ function TabClientesMetrics() {
   const [loadingDetail, setLoadingDetail] = useState(false)
 
   const buildParams = (overrides = {}) => {
+    // `activeFilter` guarda tanto la clave de un filtro rápido (por_vencer, etc.)
+    // como el id de un filtro personalizado (un timestamp). Solo las claves de
+    // filtro rápido son válidas para el backend (validación `in:`); si es un
+    // filtro personalizado no debe viajar como `filtro` o el backend responde 422.
+    const rawFiltro = overrides.filtro ?? activeFilter ?? ''
+    const filtro = CLIENTE_QUICK_FILTERS.includes(rawFiltro) ? rawFiltro : ''
     const p = {
       fecha_inicio: fechaInicio,
       fecha_fin: fechaFin,
       search,
-      filtro: overrides.filtro ?? activeFilter ?? '',
+      filtro,
       marca: overrides.marca ?? marca,
       modelo: overrides.modelo ?? modelo,
       estado_poliza: overrides.estado_poliza ?? estadoPoliza,

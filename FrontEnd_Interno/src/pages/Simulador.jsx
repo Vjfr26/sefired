@@ -757,7 +757,11 @@ function Step3({ sim, setSim, onNext, onBack, onClose, vehiculosCatalogo }) {
               <label className="field-label">Modelo <span className="text-rose-500">*</span></label>
               <select className="select-field" value={sim.modelo} onChange={e => {
                 const newModelo = e.target.value;
-                setSim(p => ({ ...p, modelo: newModelo, año: '' }));
+                // El catálogo es el referente: al elegir el modelo se precarga
+                // su valor de referencia como valor de mercado del vehículo.
+                const match = vehiculosCatalogo?.find(it => it.tipo === sim.clase && it.marca === sim.marca && it.modelo === newModelo);
+                const refVal = match && match.valor_referencia != null && match.valor_referencia !== '' ? Number(match.valor_referencia) : null;
+                setSim(p => ({ ...p, modelo: newModelo, año: '', valor: refVal && refVal > 0 ? refVal : p.valor }));
               }} disabled={!sim.marca}>
                 <option value="">Seleccione modelo...</option>
                 {modelosDisponibles.map(m => <option key={m} value={m}>{m}</option>)}
@@ -809,6 +813,7 @@ function Step3({ sim, setSim, onNext, onBack, onClose, vehiculosCatalogo }) {
               <input type="number" min="500" step="500" className="input-field pl-7" placeholder="15000"
                 value={sim.valor} onChange={e => setSim(p => ({ ...p, valor: parseFloat(e.target.value) || 0 }))} />
             </div>
+            <p className="text-[10px] text-slate-400 mt-1">Se precarga con el valor de referencia del catálogo para este modelo. Puedes ajustarlo si el vehículo lo amerita.</p>
           </div>
           <div className="mt-4">
             <SecLabel icon={User} label="Asegurado (solo si es distinto del tomador)" />
@@ -2059,6 +2064,9 @@ export default function Simulador() {
   const [loadingCot, setLoadingCot] = useState(true)
   const [chipActive, setChipActive] = useState(0)
   const [search, setSearch] = useState('')
+  const [fechaInicio, setFechaInicio] = useState('')
+  const [fechaFin, setFechaFin] = useState('')
+  const [productoFilter, setProductoFilter] = useState('')
   const [uwModal, setUwModal] = useState(null) // cotización para underwriting
   const [cotPage, setCotPage] = useState(0)
   const [cotPageSize, setCotPageSize] = useState(20)
@@ -2102,15 +2110,41 @@ export default function Simulador() {
   const statuses = ['Todos', 'en_revision', 'aprobado', 'emitida', 'rechazado']
   const statusLabels = ['Todos', 'En Revisión', 'Aprobado', 'Emitida', 'Rechazado']
 
+  // Convierte "dd/mm/yyyy" → "yyyy-mm-dd" para comparar contra los <input type=date>.
+  // Se usa solo como respaldo cuando el backend no envía fecha_iso.
+  const isoFromDmy = (s) => {
+    const m = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(s || '')
+    return m ? `${m[3]}-${m[2]}-${m[1]}` : ''
+  }
+
+  // Productos presentes en las cotizaciones (para el filtro por producto).
+  const productosEnCots = [...new Map(
+    cotizaciones.filter(q => q.producto_id).map(q => [q.producto_id, q.producto])
+  )].sort((a, b) => String(a[1]).localeCompare(String(b[1]), 'es'))
+
+  const hayFiltros = search.trim() || fechaInicio || fechaFin || productoFilter
+
   const byChip = chipActive === 0 ? cotizaciones : cotizaciones.filter(q => q.status === statuses[chipActive])
-  const visibleCots = search.trim()
-    ? byChip.filter(q => {
+  const visibleCots = byChip.filter(q => {
+    if (productoFilter && String(q.producto_id) !== String(productoFilter)) return false
+    if (fechaInicio || fechaFin) {
+      const iso = q.fecha_iso || isoFromDmy(q.fecha)
+      if (!iso) return false
+      if (fechaInicio && iso < fechaInicio) return false
+      if (fechaFin && iso > fechaFin) return false
+    }
+    if (search.trim()) {
       const sq = search.toLowerCase()
       const placaRef = q.bien_atributos?.placa || q.bien_atributos?.descripcion || ''
-      return q.nombre.toLowerCase().includes(sq) || q.ci.toLowerCase().includes(sq)
-        || placaRef.toLowerCase().includes(sq) || q.nro.toLowerCase().includes(sq)
-    })
-    : byChip
+      if (!(q.nombre.toLowerCase().includes(sq) || q.ci.toLowerCase().includes(sq)
+        || placaRef.toLowerCase().includes(sq) || q.nro.toLowerCase().includes(sq))) return false
+    }
+    return true
+  })
+
+  const limpiarFiltros = () => {
+    setSearch(''); setFechaInicio(''); setFechaFin(''); setProductoFilter(''); setCotPage(0)
+  }
 
   const cotTotalPages = Math.max(1, Math.ceil(visibleCots.length / cotPageSize))
   const cotSafePage = Math.min(cotPage, cotTotalPages - 1)
@@ -2254,16 +2288,46 @@ export default function Simulador() {
         <div className="flex flex-wrap items-center gap-3 px-1 sm:px-0">
           <div className="min-w-0">
             <h3 className="text-base font-black text-slate-800">Cotizaciones registradas</h3>
-            <p className="text-xs text-slate-400">{cotizaciones.length} registros</p>
+            <p className="text-xs text-slate-400">{visibleCots.length} de {cotizaciones.length} registros</p>
           </div>
           {canViewList && (
             <div className="relative ml-auto w-full sm:w-56">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-              <input className="input-field pl-9 py-2 text-sm w-full" placeholder="Buscar…" value={search} onChange={e => setSearch(e.target.value)} />
+              <input className="input-field pl-9 py-2 text-sm w-full" placeholder="Buscar…" value={search} onChange={e => { setSearch(e.target.value); setCotPage(0) }} />
               {search && <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X className="w-3.5 h-3.5" /></button>}
             </div>
           )}
         </div>
+
+        {/* Filtros: rango de fechas + producto */}
+        {canViewList && (
+          <div className="flex flex-wrap items-end gap-2.5 px-1 sm:px-0">
+            <div>
+              <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Desde</label>
+              <input type="date" value={fechaInicio} onChange={e => { setFechaInicio(e.target.value); setCotPage(0) }}
+                className="input-field py-2 text-sm w-auto" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Hasta</label>
+              <input type="date" value={fechaFin} onChange={e => { setFechaFin(e.target.value); setCotPage(0) }}
+                className="input-field py-2 text-sm w-auto" />
+            </div>
+            <div className="min-w-[10rem]">
+              <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Producto</label>
+              <select value={productoFilter} onChange={e => { setProductoFilter(e.target.value); setCotPage(0) }}
+                className="select-field py-2 text-sm w-full">
+                <option value="">Todos los productos</option>
+                {productosEnCots.map(([id, nombre]) => <option key={id} value={id}>{nombre}</option>)}
+              </select>
+            </div>
+            {hayFiltros && (
+              <button onClick={limpiarFiltros}
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-500 hover:text-rose-500 transition bg-transparent border border-slate-200 rounded-xl">
+                <X className="w-3.5 h-3.5" /> Limpiar
+              </button>
+            )}
+          </div>
+        )}
 
         {!canViewList ? (
           <div className="card flex flex-col items-center justify-center py-16 gap-2 text-center">
@@ -2295,7 +2359,7 @@ export default function Simulador() {
                   </div>
                 ) : visibleCots.length === 0 ? (
                   <p className="text-center text-slate-400 text-sm py-10">
-                    {search ? `Sin resultados para "${search}"` : 'No hay cotizaciones registradas.'}
+                    {hayFiltros ? 'Sin resultados con los filtros aplicados.' : 'No hay cotizaciones registradas.'}
                   </p>
                 ) : pagedCots.map(q => (
                   <div key={q.id} className="p-4">
@@ -2345,7 +2409,7 @@ export default function Simulador() {
                       </td></tr>
                     ) : visibleCots.length === 0 ? (
                       <tr><td colSpan={hasAnyAction ? 8 : 7} className="td-cell text-center py-10 text-slate-400">
-                        {search ? `Sin resultados para "${search}"` : 'No hay cotizaciones registradas.'}
+                        {hayFiltros ? 'Sin resultados con los filtros aplicados.' : 'No hay cotizaciones registradas.'}
                       </td></tr>
                     ) : pagedCots.map(q => (
                       <tr key={q.id} className="hover:bg-slate-50/60 transition-colors">

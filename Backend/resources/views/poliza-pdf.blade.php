@@ -356,7 +356,7 @@
     <tr class="titu"><td colspan="2">Vigencia:</td><td>Moneda</td></tr>
     <tr class="titu2">
         <th colspan="2">
-            &nbsp;&nbsp;&nbsp;Desde: {{ $poliza->fecha_emision?->format('d-m-Y') }}
+            Desde: {{ $poliza->fecha_emision?->format('d-m-Y') }}
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Hasta: {{ $poliza->fecha_vencimiento?->format('d-m-Y') }}
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Hora: {{ now()->format('H:i') }}
         </th>
@@ -387,7 +387,7 @@
     <tr class="titu2">
         <th>{{ $numeroRecibo }}</th>
         <th colspan="2">
-            &nbsp;&nbsp;&nbsp;Desde: {{ $poliza->fecha_emision?->format('d-m-Y') }}
+            Desde: {{ $poliza->fecha_emision?->format('d-m-Y') }}
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Hasta: {{ $poliza->fecha_vencimiento?->format('d-m-Y') }}
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Hora: {{ now()->format('H:i') }}
         </th>
@@ -513,10 +513,11 @@
 
     <tr>
         @if(($cobs['iva'] ?? 0) > 0)
-        <td style="border-bottom:1px solid #888; text-align:left; padding:3px 5px; color:#555; font-size:9px;">IVA:</td>
-        <td style="border-bottom:1px solid #888; border-right:1px solid #888; padding:3px 5px;" colspan="2" align="center"><strong>{{ $monedaSimbolo }}{{ number_format((float)$cobs["iva"], 2) }}</strong></td>
+        <td style="border-left:1px solid #888; border-bottom:1px solid #888; text-align:left; padding:3px 5px; color:#555; font-size:9px;">IVA:</td>
+        <td style="border-bottom:1px solid #888; padding:3px 5px;"><strong>{{ $monedaSimbolo }}{{ number_format((float)$cobs["iva"], 2) }}</strong></td>
+        <td colspan="4" style="border-right:1px solid #888; border-bottom:1px solid #888;"></td>
         @else
-        <td colspan="3" style="border-bottom:1px solid #888; border-right:1px solid #888;"></td>
+        <td colspan="6" style="border-left:1px solid #888; border-right:1px solid #888; border-bottom:1px solid #888;"></td>
         @endif
     </tr>
 

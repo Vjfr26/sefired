@@ -49,15 +49,17 @@ const HIDE = {
   xl: 'hidden xl:table-cell',
 }
 
-// Construye las clases CSS de una celda según las propiedades de la columna
-const tdCls = c =>
-  `td-cell${c.r    ? ' text-right'                      : ''}` +
+// Construye las clases CSS de una celda según las propiedades de la columna.
+// `compact` reduce el padding y estrecha la columna de acciones para tablas
+// anchas (muchas columnas) que de otro modo provocan scroll horizontal.
+const tdCls = (c, compact = false) =>
+  `${compact ? 'td-cell-compact' : 'td-cell'}${c.r ? ' text-right' : ''}` +
   `${c.m           ? ' font-mono text-xs'               : ''}` +
   `${c.bold        ? ' font-bold text-slate-800'        : ''}` +
   `${c.nw          ? ' whitespace-nowrap'               : ''}` +
   `${c.hide        ? ' ' + HIDE[c.hide]                 : ''}` +
   `${c.tr          ? ' max-w-[220px] truncate'          : ''}` +
-  `${c.acc         ? ' whitespace-nowrap !overflow-visible min-w-[150px]' : ''}`
+  `${c.acc         ? ` whitespace-nowrap !overflow-visible ${compact ? 'min-w-[100px]' : 'min-w-[150px]'}` : ''}`
 
 /**
  * Convierte el valor de una celda a un tipo comparable para ordenar.
@@ -122,7 +124,7 @@ function MobileCard({ r, titleCol, alwaysCols, moreCols, accCols }) {
   )
 }
 
-export default function DataTable({ cols, rows, footer = null, id, searchable = false, loading = false, skeletonRows = 6 }) {
+export default function DataTable({ cols, rows, footer = null, id, searchable = false, loading = false, skeletonRows = 6, compact = false }) {
   const [search,   setSearch]   = useState('')
   const [sortKey,  setSortKey]  = useState(null)   // clave de la columna activa para ordenar
   const [sortDir,  setSortDir]  = useState('asc')  // 'asc' o 'desc'
@@ -184,7 +186,7 @@ export default function DataTable({ cols, rows, footer = null, id, searchable = 
             <thead className="bg-slate-100 text-slate-600 text-xs font-semibold uppercase tracking-wider">
               <tr>
                 {cols.map((c, i) => (
-                  <th key={c.k} className={`th-cell${c.hide ? ' ' + HIDE[c.hide] : ''}`}>
+                  <th key={c.k} className={`${compact ? 'th-cell-compact' : 'th-cell'}${c.hide ? ' ' + HIDE[c.hide] : ''}`}>
                     <Skel className="h-3 rounded" style={{ width: SKEL_WIDTHS[i % SKEL_WIDTHS.length] }} />
                   </th>
                 ))}
@@ -194,7 +196,7 @@ export default function DataTable({ cols, rows, footer = null, id, searchable = 
               {Array.from({ length: skeletonRows }).map((_, ri) => (
                 <tr key={ri}>
                   {cols.map((c, ci) => (
-                    <td key={c.k} className={tdCls(c)}>
+                    <td key={c.k} className={tdCls(c, compact)}>
                       <Skel
                         className="h-3.5 rounded"
                         style={{ width: c.acc ? 72 : SKEL_WIDTHS[(ci + ri) % SKEL_WIDTHS.length] }}
@@ -244,9 +246,9 @@ export default function DataTable({ cols, rows, footer = null, id, searchable = 
                 const sortable = !c.acc   // las columnas de acción no se pueden ordenar
                 const active   = sortKey === c.k
                 const thCls    =
-                  `th-cell ${c.r ? 'text-right' : 'text-left'}` +
+                  `${compact ? 'th-cell-compact' : 'th-cell'} ${c.r ? 'text-right' : 'text-left'}` +
                   `${c.hide   ? ' ' + HIDE[c.hide] : ''}` +
-                  `${c.acc    ? ' min-w-[150px]' : ''}` +
+                  `${c.acc    ? (compact ? ' min-w-[100px]' : ' min-w-[150px]') : ''}` +
                   `${sortable ? ' cursor-pointer select-none hover:bg-slate-200/60 transition-colors group' : ''}`
                 return (
                   <th key={c.k} className={thCls} onClick={sortable ? () => handleSort(c.k) : undefined}>
@@ -276,7 +278,7 @@ export default function DataTable({ cols, rows, footer = null, id, searchable = 
               paged.map((r, i) => (
                 <tr key={i} className="hover:bg-slate-50/80 transition-colors">
                   {cols.map(c => (
-                    <td key={c.k} className={tdCls(c)} title={c.tr && typeof r[c.k] === 'string' ? r[c.k] : undefined}>
+                    <td key={c.k} className={tdCls(c, compact)} title={c.tr && typeof r[c.k] === 'string' ? r[c.k] : undefined}>
                       {/* tr: texto largo en una línea con elipsis (max-w + truncate en td) */}
                       {r[c.k] ?? '—'}
                     </td>

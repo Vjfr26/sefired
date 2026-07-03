@@ -368,6 +368,39 @@ function NoteViewModal({ title = 'Observación', note, empty = 'Sin observación
   )
 }
 
+// ── Detalle de un registro de auditoría ─────────────────────────────────────
+/**
+ * Vista de solo lectura del registro completo de auditoría seleccionado en la
+ * lista (resumen de actividad, cambios detallados o logs de correos). Muestra
+ * todos los campos —incluidos los que en la tabla van truncados u ocultos por
+ * espacio (descripción larga, user-agent, huella de dispositivo, cambios
+ * campo a campo)—.
+ *
+ * @param {string} title    Título del modal
+ * @param {string} eyebrow  Etiqueta pequeña sobre el título
+ * @param {Array}  fields   [{ label, value, mono }] — value puede ser texto o JSX
+ */
+function AuditoriaDetailModal({ title = 'Detalle del registro', eyebrow = 'Auditoría', fields = [] }) {
+  const { closeModal } = useApp()
+  const visibles = fields.filter(Boolean)
+  return (
+    <ModalShell title={title} eyebrow={eyebrow} Icon={FileText} wide footer={
+      <button onClick={closeModal} className="btn-primary">Cerrar</button>
+    }>
+      <dl className="divide-y divide-slate-100">
+        {visibles.map(({ label, value, mono }) => (
+          <div key={label} className="py-2.5 grid grid-cols-1 sm:grid-cols-3 gap-0.5 sm:gap-3">
+            <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</dt>
+            <dd className={`sm:col-span-2 text-sm text-slate-700 break-words whitespace-pre-wrap ${mono ? 'font-mono text-xs' : ''}`}>
+              {value === null || value === undefined || value === '' ? <span className="text-slate-300">—</span> : value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </ModalShell>
+  )
+}
+
 // ── Menú de acciones (uso en filas de tabla en pantallas chicas) ────────────
 /**
  * En móvil no caben todos los botones de acción de una fila sin desbordar
@@ -5265,6 +5298,7 @@ export default function Modal() {
     case 'confirmTasa':     return <ConfirmTasaModal {...props} />
     case 'confirmAction':   return <ConfirmActionModal {...props} />
     case 'noteView':        return <NoteViewModal {...props} />
+    case 'auditoriaDetail': return <AuditoriaDetailModal {...props} />
     case 'actionMenu':      return <ActionMenuModal {...props} />
     case 'editForm':        return <EditFormModal {...props} />
     case 'renovar':              return <RenovarModal {...props} />
