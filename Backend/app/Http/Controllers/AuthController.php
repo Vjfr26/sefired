@@ -169,6 +169,21 @@ class AuthController extends Controller
             return response()->json(['message' => 'El acceso temporal de esta cuenta ha vencido. Contacte al administrador.'], 403);
         }
 
+        // ── 4b. Sesión única: no permitir un segundo login si ya hay una activa ────
+        // "Activa" = una sesión cuyo `expira_en` aún no venció (las inactivas
+        // caducan solas por el idle timeout). Evita el uso simultáneo de una
+        // cuenta; si el usuario cerró el navegador sin cerrar sesión, debe cerrar
+        // esa sesión o esperar a que caduque para volver a entrar.
+        $sesionActiva = Sesion::where('usuario_id', $usuario->id)
+            ->where('expira_en', '>', now())
+            ->exists();
+        if ($sesionActiva) {
+            $this->logActivity('login_blocked', "Login rechazado: ya existe una sesión activa — {$usuario->nick}", 'usuarios', $usuario->id);
+            return response()->json([
+                'message' => 'Ya existe una sesión activa. Cierre sesión y espere unos minutos para volver a intentar iniciar sesión aquí.',
+            ], 409);
+        }
+
         // ── 5. Login exitoso ──────────────────────────────────────────────────────
         // Ya no se rechaza por "sesión duplicada": la política de concurrencia
         // (auth.token.max_sessions) se aplica más abajo creando la nueva sesión
