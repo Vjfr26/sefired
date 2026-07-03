@@ -403,12 +403,24 @@ function AuditoriaDetailModal({ title = 'Detalle del registro', eyebrow = 'Audit
 
 // ── Desbloquear usuario: elegir alcance (usuario / IP / ambos) ──────────────
 function DesbloquearUsuarioModal({ nom, onConfirm }) {
-  const { closeModal } = useApp()
+  const { closeModal, showToast } = useApp()
   const [saving, setSaving] = useState('')
+  const [password, setPassword] = useState('')
+  const [passErr, setPassErr] = useState('')
   const run = async (scope) => {
-    setSaving(scope)
+    // Igual que eliminar u otras acciones sensibles: exige la contraseña del
+    // usuario logueado antes de desbloquear (usuario / IP / ambos).
+    if (!password.trim()) { setPassErr('Ingresa tu contraseña para confirmar.'); return }
+    setSaving(scope); setPassErr('')
+    try {
+      await verifyPassword(password)
+    } catch (err) {
+      setPassErr(err.message || 'Contraseña incorrecta.')
+      setSaving('')
+      return
+    }
     try { await onConfirm(scope); closeModal() }
-    catch { setSaving('') }
+    catch (e) { showToast(e.message || 'Error al desbloquear', 'error'); setSaving('') }
   }
   const opt = (scope, titulo, desc) => (
     <button
@@ -430,6 +442,18 @@ function DesbloquearUsuarioModal({ nom, onConfirm }) {
     <ModalShell title="Desbloquear" eyebrow={nom} Icon={LockOpen} footer={
       <button onClick={closeModal} className="btn-secondary">Cancelar</button>
     }>
+      <div className="mb-4 text-left">
+        <label className="field-label">Confirma tu contraseña <span className="text-rose-500">*</span></label>
+        <input
+          type="password"
+          className={`input-field ${passErr ? 'border-rose-400' : ''}`}
+          placeholder="Tu contraseña"
+          value={password}
+          onChange={e => { setPassword(e.target.value); setPassErr('') }}
+          autoComplete="current-password"
+        />
+        {passErr && <p className="text-xs text-rose-600 mt-1">{passErr}</p>}
+      </div>
       <p className="text-sm text-slate-600 mb-3">¿Qué deseas desbloquear de <strong>{nom}</strong>?</p>
       <div className="space-y-2">
         {opt('usuario', 'Solo el usuario', 'Reactiva la cuenta; la IP sigue bloqueada')}
