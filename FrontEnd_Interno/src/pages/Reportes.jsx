@@ -281,13 +281,15 @@ function TabVentas() {
               { k: 'agente',l: 'Agente',     tr: true, primary: true },
               { k: 'tipo',  l: 'Tipo',       hide: 'lg', tr: true },
               { k: 'prima', l: 'Prima Neta', r: true },
-              { k: 'est',   l: 'Estado' },
+              { k: 'est',   l: 'Estado', s: 'est_sort' },
               { k: 'comision_monto', l: 'Comisión (individual)', r: true },
-              { k: 'comision_status', l: 'Comisión' },
+              { k: 'comision_status', l: 'Comisión', s: 'comision_status_sort' },
               ...(canManageComisiones || canRevertirComisiones ? [{ k: 'accion', l: '', acc: true }] : []),
             ]}
             rows={filteredVentas.map(v => ({
               ...v,
+              est_sort: v.est ?? '',
+              comision_status_sort: v.comision_status ?? '',
               prima: usd(v.prima),
               est: rsbadge(v.est),
               comision_monto: v.comision_monto != null ? `${usd(v.comision_monto)} (${v.comision_tasa_pct}%)` : '—',
@@ -559,12 +561,13 @@ function TabOficinas() {
             { k: 'pol',   l: 'Pólizas',     r: true, hide: 'sm' },
             { k: 'prima', l: 'Prima Neta',  r: true },
             { k: 'pct',   l: '% del Total', r: true, hide: 'md' },
-            { k: 'est',   l: 'Estado',      hide: 'md' },
+            { k: 'est',   l: 'Estado',      hide: 'md', s: 'est_sort' },
             { k: 'acc',   l: '',            acc: true },
           ]}
           emptyMsg="No hay reportes en este rango de fechas."
           rows={rows.map(r => ({
             ...r,
+            est_sort: r.est ?? '',
             prima: usd(r.prima),
             est: r.est ? rsbadge(r.est) : '',
             acc: r.ofi !== 'TOTAL' ? (
@@ -1197,6 +1200,8 @@ function TabLeads() {
     id: s.id,
     fecha: fmtDT(s.created_at),
     email: s.email,
+    motivo_sort: MOTIVO_LABEL[s.motivo] ?? s.motivo ?? '',
+    status_sort: s.status ?? '',
     motivo: badge(MOTIVO_LABEL[s.motivo] ?? s.motivo, s.motivo === 'siniestro' ? 'red' : s.motivo === 'tecnico' ? 'amber' : 'blue'),
     destino: s.destino === 'tecnico' ? 'Soporte técnico' : 'Asesor comercial',
     status: s.status === 'atendido' ? badge('Atendido', 'green') : badge('Pendiente', 'amber'),
@@ -1230,9 +1235,9 @@ function TabLeads() {
         cols={[
           { k: 'fecha',   l: 'Fecha/Hora', nw: true },
           { k: 'email',   l: 'Correo',     tr: true, primary: true },
-          { k: 'motivo',  l: 'Motivo' },
+          { k: 'motivo',  l: 'Motivo', s: 'motivo_sort' },
           { k: 'destino', l: 'Se dirige a', hide: 'sm' },
-          { k: 'status',  l: 'Estado' },
+          { k: 'status',  l: 'Estado', s: 'status_sort' },
           { k: 'accion',  l: '', acc: true },
         ]}
         rows={rows}
@@ -2562,11 +2567,12 @@ function TabClientesMetrics() {
               { k: 'pol_act', l: 'Activas', r: true, hide: 'sm' },
               { k: 'prox_venc', l: 'Próx. Vencimiento', hide: 'md', nw: true },
               { k: 'prima', l: 'Prima Total (USD)', r: true, hide: 'sm' },
-              { k: 'est', l: 'Estado' },
+              { k: 'est', l: 'Estado', s: 'est_sort' },
               { k: 'action', l: 'Historial', acc: true }
             ]}
             rows={clientes.map(c => ({
               ...c,
+              est_sort: c.est ?? '',
               prima: usd(c.prima),
               est: rsbadge(c.est),
               prox_venc: c.prox_venc === '—' ? '—' : (
@@ -2789,11 +2795,12 @@ function TabVehiculosMetrics() {
               { k: 'col', l: 'Color', hide: 'sm' },
               { k: 'pro', l: 'Propietario', tr: true },
               { k: 'pol', l: 'Última Póliza', m: true, hide: 'md' },
-              { k: 'est', l: 'Seguro' },
+              { k: 'est', l: 'Seguro', s: 'est_sort' },
               { k: 'action', l: 'Historial', acc: true }
             ]}
             rows={vehiculos.map(v => ({
               ...v,
+              est_sort: v.est ?? '',
               est: sbadge(v.est === 'Asegurado' ? 'ACTIVA' : 'EXPIRADA'),
               action: (
                 <button onClick={() => setSelectedPlaca(v.pla)} className="text-xs text-blue-600 hover:underline font-semibold bg-transparent border-none p-0 cursor-pointer">
