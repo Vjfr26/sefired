@@ -863,15 +863,19 @@ function EmitirCotizacionModal({ cot, onSaved }) {
   const excedente  = Math.max(0, pagCents - maxCents) / 100
   const adelanto   = Math.max(0, Math.min(pagCents, maxCents) - minCents) / 100
   const totalOk    = pagCents >= minCents && pagCents <= maxCents + 10
+  // Brecha REAL (no en centavos redondeados): lo que falta exactamente para
+  // llegar a la cuota. Se usa para mostrar el faltante en cada moneda como el
+  // MÍNIMO exacto — pagar menos que eso (aunque sea por 0.01 Bs) no cuadra.
+  const faltanteReal = Math.max(0, montoEsperadoUsd - totalIngresadoUsd)
   // El faltante se calcula en la moneda nativa del producto, pero el usuario
   // puede estar pagando en Bs./€: lo mostramos en cada moneda que se está
   // usando para pagar, para que sepa cuánto falta en esas monedas, no solo en $.
   const monedasPago = [...new Set(pagos.map(p => p.moneda).filter(Boolean))]
   const faltanteTxt = (monedasPago.length ? monedasPago : [monedaNativa])
-    // Se redondea el faltante HACIA ARRIBA en cada moneda, para que al pagar el
-    // monto mostrado el total sí cubra la cuota (si no, por el redondeo de Bs/€
-    // podía quedar corto por sub-céntimos).
-    .map(m => fmtMonto(Math.ceil(convertirMoneda(faltante, monedaNativa, m, tasas.usd || 0, tasas.eur || 0) * 100) / 100, m))
+    // Se redondea el faltante HACIA ARRIBA a la moneda, para que sea el mínimo
+    // exacto a pagar: al pagar ese monto el total cubre la cuota, y pagar un
+    // poco menos (por el redondeo de Bs/€) no cuadra.
+    .map(m => fmtMonto(Math.ceil(convertirMoneda(faltanteReal, monedaNativa, m, tasas.usd || 0, tasas.eur || 0) * 100) / 100, m))
     .join(' · ')
 
   const handleEmitir = async () => {
