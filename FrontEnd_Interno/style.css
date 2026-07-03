@@ -65,6 +65,18 @@
     overflow-x: hidden;
   }
 
+  /* Inputs numéricos: sin las flechas de aumentar/disminuir (spinner). Quedan
+     como un campo numérico plano en el que se escribe la cantidad a mano. */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+
   body {
     @apply font-sans min-h-screen relative overflow-x-hidden;
     background-color: #f8faff;

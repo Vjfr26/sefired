@@ -722,9 +722,9 @@ class PolizaController extends Controller
         $pagCents = (int) round($totalPagado * 100);
         $minCents = (int) round($montoMinimo * 100);
         $maxCents = (int) round($montoMaximo * 100);
-        if ($pagCents < $minCents - 10 || $pagCents > $maxCents + 10) {
+        if ($pagCents < $minCents || $pagCents > $maxCents + 10) {
             return response()->json([
-                'error' => $pagCents < $minCents - 10
+                'error' => $pagCents < $minCents
                     ? sprintf(
                         'El pago (%s%.2f %s) es menor a %s (%s%.2f %s).',
                         Moneda::simbolo($monedaNativa), round($totalPagado, 2), Moneda::etiqueta($monedaNativa),

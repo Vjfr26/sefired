@@ -572,7 +572,7 @@ function RenovarModal({ client, diasVencimiento, onSaved, onCancel }) {
   const faltante          = Math.max(0, minCents - pagCents) / 100
   const excedente         = Math.max(0, pagCents - maxCents) / 100
   const adelanto          = Math.max(0, Math.min(pagCents, maxCents) - minCents) / 100
-  const totalOk           = pagCents >= minCents - 10 && pagCents <= maxCents + 10
+  const totalOk           = pagCents >= minCents && pagCents <= maxCents + 10
 
   const handleRenovar = async () => {
     if (!client.poliza_id) { showToast('Este cliente no tiene póliza para renovar', 'error'); return }
@@ -823,7 +823,7 @@ function EmitirCotizacionModal({ cot, onSaved }) {
   const faltante   = Math.max(0, minCents - pagCents) / 100
   const excedente  = Math.max(0, pagCents - maxCents) / 100
   const adelanto   = Math.max(0, Math.min(pagCents, maxCents) - minCents) / 100
-  const totalOk    = pagCents >= minCents - 10 && pagCents <= maxCents + 10
+  const totalOk    = pagCents >= minCents && pagCents <= maxCents + 10
   // El faltante se calcula en la moneda nativa del producto, pero el usuario
   // puede estar pagando en Bs./€: lo mostramos en cada moneda que se está
   // usando para pagar, para que sepa cuánto falta en esas monedas, no solo en $.

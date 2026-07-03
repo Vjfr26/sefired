@@ -296,7 +296,7 @@ class SolicitudController extends Controller
         $pagCents = (int) round($totalPagado * 100);
         $minCents = (int) round($montoMinimo * 100);
         $maxCents = (int) round($montoMaximo * 100);
-        if ($pagCents < $minCents - 10) {
+        if ($pagCents < $minCents) {
             return response()->json([
                 'error' => sprintf(
                     'El pago (%s%.2f %s) es menor a %s (%s%.2f %s).',
