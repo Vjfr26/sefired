@@ -320,7 +320,9 @@ const T = {
 /* ─────────────────────────────────────────────
    i18n ENGINE
    ───────────────────────────────────────────── */
-let currentLang = localStorage.getItem('jm-lang') || 'es';
+// Portal solo en español: se elimina el selector de idioma. Se mantiene el
+// motor de render de textos (setLanguage) fijado en 'es'.
+let currentLang = 'es';
 
 function t(key) { return T[currentLang]?.[key] ?? T.es[key] ?? key; }
 
@@ -411,12 +413,6 @@ document.getElementById('veh-placa')?.addEventListener('input', function () {
 })();
 
 setLanguage(currentLang);
-document.querySelectorAll('.lang-btn').forEach(btn =>
-  btn.addEventListener('click', () => {
-    setLanguage(btn.dataset.lang);
-    refreshChatMenu();
-  })
-);
 
 /* ─────────────────────────────────────────────
    API BASE URL
