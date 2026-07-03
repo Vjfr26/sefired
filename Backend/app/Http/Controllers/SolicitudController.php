@@ -189,6 +189,15 @@ class SolicitudController extends Controller
             );
         }
 
+        // Un lead del portal entra como 'pendiente' y solo tiene editar/eliminar,
+        // por lo que antes se quedaba en 'pendiente' para siempre sin entrar al
+        // flujo. Al editarlo internamente (sin un cambio de estado explícito) se
+        // promueve a 'en_revision' para que siga el ciclo normal
+        // (en_revision → aprobado → emitida).
+        if ($solicitud->status === 'pendiente' && !isset($data['status'])) {
+            $data['status'] = 'en_revision';
+        }
+
         // Validar transición de estado antes de persistir
         if (isset($data['status'])) {
             WorkflowService::assertSolicitud($solicitud->status, $data['status']);
