@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, Fragment } from 'react'
+import { createPortal } from 'react-dom'
 import { useInputLimits } from '../utils/inputLimits.js'
 
 const fmtDT = (s) => {
@@ -92,21 +93,46 @@ const COLS_ASESOR = [
 function ExportButton({ cols, onExport, exporting, disabled = false, label = 'Exportar' }) {
   const [open, setOpen] = useState(false)
   const [sel, setSel] = useState(() => new Set(cols.map(([k]) => k)))
-  const ref = useRef(null)
+  const [pos, setPos] = useState(null)
+  const btnRef = useRef(null)
+  const popRef = useRef(null)
+
+  // El panel se renderiza en un portal a <body> con posición fija: así escapa
+  // de los stacking contexts que crean las tarjetas (backdrop-blur) y no queda
+  // atrapado detrás de la tabla de abajo.
+  const openPanel = () => {
+    const r = btnRef.current?.getBoundingClientRect()
+    if (r) setPos({ top: r.bottom + 8, right: Math.max(8, window.innerWidth - r.right) })
+    setOpen(true)
+  }
+
   useEffect(() => {
     if (!open) return
-    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    const onDoc = (e) => {
+      if (popRef.current?.contains(e.target) || btnRef.current?.contains(e.target)) return
+      setOpen(false)
+    }
+    const onMove = () => setOpen(false) // al hacer scroll/resize se cierra (evita quedar desalineado)
     document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
+    window.addEventListener('resize', onMove)
+    window.addEventListener('scroll', onMove, true)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      window.removeEventListener('resize', onMove)
+      window.removeEventListener('scroll', onMove, true)
+    }
   }, [open])
+
   const all = cols.map(([k]) => k)
   const todas = sel.size === all.length
   const doExport = () => onExport(todas ? null : all.filter(k => sel.has(k)))
+
   return (
-    <div ref={ref} className="relative flex items-center gap-2 shrink-0">
+    <div className="flex items-center gap-2 shrink-0">
       <button
+        ref={btnRef}
         type="button"
-        onClick={() => setOpen(o => !o)}
+        onClick={() => (open ? setOpen(false) : openPanel())}
         className="btn-secondary shrink-0"
         title="Elegir qué columnas incluir en el Excel"
       >
@@ -116,8 +142,12 @@ function ExportButton({ cols, onExport, exporting, disabled = false, label = 'Ex
         {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
         {label}
       </button>
-      {open && (
-        <div className="absolute top-full right-0 mt-2 z-30 w-72 sm:w-80 p-3 rounded-2xl border border-slate-200 bg-white shadow-xl">
+      {open && pos && createPortal(
+        <div
+          ref={popRef}
+          style={{ position: 'fixed', top: pos.top, right: pos.right, zIndex: 9999 }}
+          className="w-72 sm:w-80 p-3 rounded-2xl border border-slate-200 bg-white shadow-xl"
+        >
           <div className="flex items-center justify-between mb-1.5">
             <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Columnas del Excel</p>
             <div className="flex items-center gap-3">
@@ -141,7 +171,8 @@ function ExportButton({ cols, onExport, exporting, disabled = false, label = 'Ex
               </label>
             ))}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
@@ -706,73 +737,33 @@ function TabOficinas() {
                   <th className="text-left font-bold px-4 py-2.5">Forma de pago</th>
                   <th className="text-right font-bold px-4 py-2.5 whitespace-nowrap">Pólizas</th>
                   <th className="text-right font-bold px-4 py-2.5 whitespace-nowrap">Prima neta</th>
-                  <th className="text-right font-bold px-4 py-2.5 whitespace-nowrap">Efectivo retirado</th>
                 </tr>
               </thead>
               <tbody>
                 {agruparPagosPorOficina(pagosRows).map(g => (
                   <Fragment key={g.ofi}>
-                    {g.formas.map((r, i) => {
-                      const esEfectivo = r.retirado !== undefined
-                      return (
-                        <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/50">
-                          {i === 0 && (
-                            <td rowSpan={g.formas.length + 1} className="align-top px-4 py-3 border-r border-slate-100 bg-slate-50/40 min-w-[160px]">
-                              <div className="flex items-center gap-2">
-                                <span className="w-7 h-7 rounded-lg bg-jm-blue/10 text-jm-blue flex items-center justify-center shrink-0">
-                                  <Building2 className="w-4 h-4" />
-                                </span>
-                                <span className="font-bold text-slate-800">{g.ofi}</span>
-                              </div>
-                              {g.efectivoPendiente > 0 && (
-                                <span className="mt-2 inline-block text-[10px] font-bold uppercase tracking-wide text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
-                                  {g.efectivoPendiente} efectivo por retirar
-                                </span>
-                              )}
-                            </td>
-                          )}
-                          <td className="px-4 py-2.5 text-slate-700 break-words max-w-xs">{r.forma_pago}</td>
-                          <td className="px-4 py-2.5 text-right text-slate-500 tabular-nums whitespace-nowrap">{r.pol}</td>
-                          <td className="px-4 py-2.5 text-right font-semibold text-slate-800 tabular-nums whitespace-nowrap">{usd(r.prima)}</td>
-                          <td className="px-4 py-2.5 text-right whitespace-nowrap">
-                            <div className="flex justify-end items-center gap-1.5">
-                              {esEfectivo ? (
-                                <>
-                                  {r.retirado ? badge('Retirado', 'green') : badge('Pendiente', 'amber')}
-                                  {canManageOficinas && (
-                                    <>
-                                      <button
-                                        onClick={() => handleToggleRetirado(r)}
-                                        className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition whitespace-nowrap ${
-                                          r.retirado ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
-                                        }`}
-                                      >
-                                        {r.retirado ? 'Marcar pendiente' : 'Marcar retirado'}
-                                      </button>
-                                      <button
-                                        onClick={() => setRetiroEdit(r)}
-                                        title="Notas / documento de entrega"
-                                        className="p-1.5 rounded-lg hover:bg-slate-100 transition"
-                                      >
-                                        <Paperclip className={`w-4 h-4 ${r.documento_url ? 'text-blue-600' : 'text-slate-400'}`} />
-                                      </button>
-                                    </>
-                                  )}
-                                </>
-                              ) : (
-                                <span className="text-xs text-slate-300">No aplica</span>
-                              )}
+                    {g.formas.map((r, i) => (
+                      <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/50">
+                        {i === 0 && (
+                          <td rowSpan={g.formas.length + 1} className="align-top px-4 py-3 border-r border-slate-100 bg-slate-50/40 min-w-[160px]">
+                            <div className="flex items-center gap-2">
+                              <span className="w-7 h-7 rounded-lg bg-jm-blue/10 text-jm-blue flex items-center justify-center shrink-0">
+                                <Building2 className="w-4 h-4" />
+                              </span>
+                              <span className="font-bold text-slate-800">{g.ofi}</span>
                             </div>
                           </td>
-                        </tr>
-                      )
-                    })}
+                        )}
+                        <td className="px-4 py-2.5 text-slate-700 break-words max-w-xs">{r.forma_pago}</td>
+                        <td className="px-4 py-2.5 text-right text-slate-500 tabular-nums whitespace-nowrap">{r.pol}</td>
+                        <td className="px-4 py-2.5 text-right font-semibold text-slate-800 tabular-nums whitespace-nowrap">{usd(r.prima)}</td>
+                      </tr>
+                    ))}
                     {/* Subtotal de la oficina */}
                     <tr className="border-b-2 border-slate-200 bg-slate-50/70">
                       <td className="px-4 py-2 text-right text-[10px] font-bold uppercase tracking-wide text-slate-400">Subtotal</td>
                       <td className="px-4 py-2 text-right font-bold text-slate-600 tabular-nums whitespace-nowrap">{g.totalPol}</td>
                       <td className="px-4 py-2 text-right font-black text-slate-800 tabular-nums whitespace-nowrap">{usd(g.totalPrima)}</td>
-                      <td className="px-4 py-2"></td>
                     </tr>
                   </Fragment>
                 ))}
