@@ -280,7 +280,10 @@ export default function DataTable({ cols, rows, footer = null, id, searchable = 
                   {cols.map(c => (
                     <td key={c.k} className={tdCls(c, compact)} title={c.tr && typeof r[c.k] === 'string' ? r[c.k] : undefined}>
                       {/* tr: texto largo en una línea con elipsis (max-w + truncate en td) */}
-                      {r[c.k] ?? '—'}
+                      {/* Columnas de acción (botones): si no hay botón, celda vacía —
+                          no un "—", que parecería un botón roto. El guion solo tiene
+                          sentido como "sin valor" en columnas de datos. */}
+                      {c.acc ? (r[c.k] ?? null) : (r[c.k] ?? '—')}
                     </td>
                   ))}
                 </tr>
