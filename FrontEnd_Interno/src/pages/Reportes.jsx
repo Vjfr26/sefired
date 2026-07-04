@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Fragment } from 'react'
 import { useInputLimits } from '../utils/inputLimits.js'
 
 const fmtDT = (s) => {
@@ -59,6 +59,93 @@ import { useApp } from '../context/AppContext.jsx'
 import { usd, bs, fmtMonto, badge, rsbadge, sbadge } from '../utils/helpers.jsx'
 import DataTable from '../components/DataTable.jsx'
 import { Paperclip, FileText, UserSearch, MessageCircle, RotateCcw, MessageSquareText } from 'lucide-react'
+
+// Columnas exportables por reporte (clave => etiqueta). Las claves deben
+// coincidir con columnDefs() del Export PHP correspondiente.
+const COLS_VENTAS = [
+  ['fecha', 'Fecha'], ['poliza', 'Póliza'], ['agente', 'Agente'], ['producto', 'Producto'],
+  ['prima_usd', 'Prima (USD)'], ['prima_bs', 'Prima (Bs)'], ['estado', 'Estado'],
+  ['comision_usd', 'Comisión (USD)'], ['estado_comision', 'Estado Comisión'],
+]
+const COLS_OFICINAS = [
+  ['ofi', 'Oficina'], ['ag', 'Agentes'], ['pol', 'Pólizas'], ['prima', 'Prima (USD)'],
+  ['pct', 'Participación (%)'], ['est', 'Estado'],
+]
+const COLS_PAGOS = [
+  ['ofi', 'Oficina'], ['forma_pago', 'Forma de Pago'], ['pol', 'Pólizas Cobradas'], ['prima', 'Prima (USD)'],
+]
+const COLS_METRICAS = [
+  ['nom', 'Nombre'], ['rol', 'Cargo'], ['ofi', 'Sede'], ['pol', 'Pólizas'], ['prima', 'Prima (USD)'],
+  ['com_gen', 'Comisión Generada'], ['com_pagada', 'Comisión Pagada'], ['com_pend', 'Comisión Pendiente'], ['est', 'Estado'],
+]
+const COLS_ASESOR = [
+  ['fecha_emision', 'Fecha Emisión'], ['nro_contrato', 'Póliza'], ['cliente_nombre', 'Cliente'],
+  ['producto_nombre', 'Producto'], ['total', 'Prima'], ['moneda_producto', 'Moneda'], ['status', 'Estado Póliza'],
+  ['comision_monto', 'Comisión'], ['comision_status', 'Estado Comisión'], ['comision_fecha_pago', 'Fecha Pago'],
+]
+
+/**
+ * Botón "Exportar" con un selector de columnas (todo o personalizado), reusable
+ * para todos los reportes. Gestiona su propia selección y llama
+ * onExport(columnas) donde columnas = null (todas) o array de claves elegidas.
+ */
+function ExportButton({ cols, onExport, exporting, disabled = false, label = 'Exportar' }) {
+  const [open, setOpen] = useState(false)
+  const [sel, setSel] = useState(() => new Set(cols.map(([k]) => k)))
+  const ref = useRef(null)
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [open])
+  const all = cols.map(([k]) => k)
+  const todas = sel.size === all.length
+  const doExport = () => onExport(todas ? null : all.filter(k => sel.has(k)))
+  return (
+    <div ref={ref} className="relative flex items-center gap-2 shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="btn-secondary shrink-0"
+        title="Elegir qué columnas incluir en el Excel"
+      >
+        <Filter className="w-4 h-4" /> Columnas ({sel.size}/{all.length})
+      </button>
+      <button type="button" onClick={doExport} disabled={exporting || disabled || sel.size === 0} className="btn-secondary shrink-0">
+        {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+        {label}
+      </button>
+      {open && (
+        <div className="absolute top-full right-0 mt-2 z-30 w-72 sm:w-80 p-3 rounded-2xl border border-slate-200 bg-white shadow-xl">
+          <div className="flex items-center justify-between mb-1.5">
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Columnas del Excel</p>
+            <div className="flex items-center gap-3">
+              <button type="button" onClick={() => setSel(new Set(all))} className="text-xs font-semibold text-jm-blue hover:underline">Todas</button>
+              <button type="button" onClick={() => setSel(new Set())} className="text-xs font-semibold text-slate-400 hover:underline">Ninguna</button>
+            </div>
+          </div>
+          <p className={`text-[11px] mb-2 ${todas ? 'text-emerald-600' : 'text-amber-600'}`}>
+            {todas ? 'Todas las columnas' : `Personalizado (${sel.size} de ${all.length})`}
+          </p>
+          <div className="max-h-60 overflow-y-auto grid grid-cols-1 gap-0.5 pr-1">
+            {cols.map(([k, l]) => (
+              <label key={k} className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer py-0.5">
+                <input
+                  type="checkbox"
+                  checked={sel.has(k)}
+                  onChange={() => setSel(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n })}
+                  className="rounded border-slate-300 text-jm-blue focus:ring-jm-blue/30"
+                />
+                <span className="truncate">{l}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 // Helper to get start of current month and today's date dynamically
 const getInitialDates = () => {
@@ -127,14 +214,15 @@ function TabVentas() {
     }
   }
 
-  const handleExport = async () => {
+  const handleExport = async (columnas = null) => {
     setExporting(true)
     showToast('Exportando reporte de ventas…', 'info')
     try {
       const blob = await exportVentas({
         fecha_inicio: fechaInicio,
         fecha_fin: fechaFin,
-        search: search
+        search: search,
+        ...(columnas ? { columnas } : {})
       })
       downloadBlob(blob, `reporte_ventas_${new Date().toISOString().slice(0, 10)}.xlsx`)
       showToast('Reporte de ventas exportado correctamente', 'success')
@@ -250,14 +338,9 @@ function TabVentas() {
           className="min-w-0 text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
         />
         {canExport && (
-          <button
-            onClick={handleExport}
-            disabled={exporting}
-            className="btn-secondary ml-auto shrink-0"
-          >
-            {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            Exportar
-          </button>
+          <div className="ml-auto">
+            <ExportButton cols={COLS_VENTAS} onExport={handleExport} exporting={exporting} />
+          </div>
         )}
       </div>
 
@@ -503,13 +586,14 @@ function TabOficinas() {
     }
   }
 
-  const handleExport = async () => {
+  const handleExport = async (columnas = null) => {
     setExporting(true)
     showToast('Exportando reporte de oficinas…', 'info')
     try {
       const blob = await exportOficinas({
         fecha_inicio: fechaInicio,
-        fecha_fin: fechaFin
+        fecha_fin: fechaFin,
+        ...(columnas ? { columnas } : {})
       })
       downloadBlob(blob, `reporte_oficinas_${new Date().toISOString().slice(0, 10)}.xlsx`)
       showToast('Reporte de oficinas exportado correctamente', 'success')
@@ -520,13 +604,14 @@ function TabOficinas() {
     }
   }
 
-  const handleExportPagos = async () => {
+  const handleExportPagos = async (columnas = null) => {
     setPagosExporting(true)
     showToast('Exportando pólizas cobradas…', 'info')
     try {
       const blob = await exportOficinasPagos({
         fecha_inicio: fechaInicio,
-        fecha_fin: fechaFin
+        fecha_fin: fechaFin,
+        ...(columnas ? { columnas } : {})
       })
       downloadBlob(blob, `reporte_oficinas_pagos_${new Date().toISOString().slice(0, 10)}.xlsx`)
       showToast('Pólizas cobradas exportadas correctamente', 'success')
@@ -558,14 +643,9 @@ function TabOficinas() {
           className="min-w-0 text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500" 
         />
         {canExport && (
-          <button 
-            onClick={handleExport} 
-            disabled={exporting}
-            className="btn-secondary ml-auto shrink-0"
-          >
-            {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            Exportar
-          </button>
+          <div className="ml-auto">
+            <ExportButton cols={COLS_OFICINAS} onExport={handleExport} exporting={exporting} />
+          </div>
         )}
       </div>
 
@@ -606,14 +686,7 @@ function TabOficinas() {
       <div className="flex items-center justify-between mt-6 mb-3">
         <h3 className="text-sm font-semibold text-slate-700">Pólizas cobradas por forma de pago</h3>
         {canExport && (
-          <button
-            onClick={handleExportPagos}
-            disabled={pagosExporting}
-            className="btn-secondary shrink-0"
-          >
-            {pagosExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            Exportar
-          </button>
+          <ExportButton cols={COLS_PAGOS} onExport={handleExportPagos} exporting={pagosExporting} />
         )}
       </div>
 
@@ -624,81 +697,88 @@ function TabOficinas() {
       ) : pagosRows.length === 0 ? (
         <div className="card py-10 text-center text-sm text-slate-400">No hay pólizas cobradas en este rango de fechas.</div>
       ) : (
-        <div className="space-y-4">
-          {agruparPagosPorOficina(pagosRows).map(g => (
-            <div key={g.ofi} className="card p-0 overflow-hidden">
-              {/* Cabecera de la oficina con su subtotal */}
-              <div className="flex items-center justify-between gap-3 px-4 py-3 bg-slate-50 border-b border-slate-100">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="w-8 h-8 rounded-lg bg-jm-blue/10 text-jm-blue flex items-center justify-center shrink-0">
-                    <Building2 className="w-4 h-4" />
-                  </span>
-                  <span className="font-bold text-slate-800 truncate">{g.ofi}</span>
-                  {g.efectivoPendiente > 0 && (
-                    <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
-                      {g.efectivoPendiente} efectivo por retirar
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-4 shrink-0">
-                  <span className="text-xs text-slate-500">{g.totalPol} póliza{g.totalPol !== 1 ? 's' : ''}</span>
-                  <span className="text-sm font-black text-slate-800 tabular-nums">{usd(g.totalPrima)}</span>
-                </div>
-              </div>
-
-              {/* Encabezados de columnas del detalle */}
-              <div className="hidden sm:flex items-center gap-3 px-4 py-2 text-[10px] font-bold uppercase tracking-wide text-slate-400 border-b border-slate-100">
-                <span className="flex-1">Forma de pago</span>
-                <span className="w-20 text-right">Pólizas</span>
-                <span className="w-28 text-right">Prima neta</span>
-                <span className="w-52 text-right">Efectivo retirado</span>
-              </div>
-
-              {/* Detalle por forma de pago */}
-              <div className="divide-y divide-slate-50">
-                {g.formas.map((r, i) => {
-                  const esEfectivo = r.retirado !== undefined
-                  return (
-                    <div key={i} className="flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-1 px-4 py-2.5">
-                      <span className="flex-1 min-w-0 text-sm text-slate-700 break-words basis-full sm:basis-auto">{r.forma_pago}</span>
-                      <span className="w-20 text-right text-sm text-slate-500 tabular-nums">
-                        <span className="sm:hidden text-[10px] text-slate-400 mr-1">Pól.</span>{r.pol}
-                      </span>
-                      <span className="w-28 text-right text-sm font-semibold text-slate-800 tabular-nums">{usd(r.prima)}</span>
-                      <div className="w-52 flex justify-end items-center gap-1.5">
-                        {esEfectivo ? (
-                          <>
-                            {r.retirado ? badge('Retirado', 'green') : badge('Pendiente', 'amber')}
-                            {canManageOficinas && (
-                              <>
-                                <button
-                                  onClick={() => handleToggleRetirado(r)}
-                                  className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition whitespace-nowrap ${
-                                    r.retirado ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
-                                  }`}
-                                >
-                                  {r.retirado ? 'Marcar pendiente' : 'Marcar retirado'}
-                                </button>
-                                <button
-                                  onClick={() => setRetiroEdit(r)}
-                                  title="Notas / documento de entrega"
-                                  className="p-1.5 rounded-lg hover:bg-slate-100 transition"
-                                >
-                                  <Paperclip className={`w-4 h-4 ${r.documento_url ? 'text-blue-600' : 'text-slate-400'}`} />
-                                </button>
-                              </>
-                            )}
-                          </>
-                        ) : (
-                          <span className="text-xs text-slate-300">No aplica</span>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          ))}
+        <div className="card p-0 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                  <th className="text-left font-bold px-4 py-2.5">Oficina</th>
+                  <th className="text-left font-bold px-4 py-2.5">Forma de pago</th>
+                  <th className="text-right font-bold px-4 py-2.5 whitespace-nowrap">Pólizas</th>
+                  <th className="text-right font-bold px-4 py-2.5 whitespace-nowrap">Prima neta</th>
+                  <th className="text-right font-bold px-4 py-2.5 whitespace-nowrap">Efectivo retirado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {agruparPagosPorOficina(pagosRows).map(g => (
+                  <Fragment key={g.ofi}>
+                    {g.formas.map((r, i) => {
+                      const esEfectivo = r.retirado !== undefined
+                      return (
+                        <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/50">
+                          {i === 0 && (
+                            <td rowSpan={g.formas.length + 1} className="align-top px-4 py-3 border-r border-slate-100 bg-slate-50/40 min-w-[160px]">
+                              <div className="flex items-center gap-2">
+                                <span className="w-7 h-7 rounded-lg bg-jm-blue/10 text-jm-blue flex items-center justify-center shrink-0">
+                                  <Building2 className="w-4 h-4" />
+                                </span>
+                                <span className="font-bold text-slate-800">{g.ofi}</span>
+                              </div>
+                              {g.efectivoPendiente > 0 && (
+                                <span className="mt-2 inline-block text-[10px] font-bold uppercase tracking-wide text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+                                  {g.efectivoPendiente} efectivo por retirar
+                                </span>
+                              )}
+                            </td>
+                          )}
+                          <td className="px-4 py-2.5 text-slate-700 break-words max-w-xs">{r.forma_pago}</td>
+                          <td className="px-4 py-2.5 text-right text-slate-500 tabular-nums whitespace-nowrap">{r.pol}</td>
+                          <td className="px-4 py-2.5 text-right font-semibold text-slate-800 tabular-nums whitespace-nowrap">{usd(r.prima)}</td>
+                          <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                            <div className="flex justify-end items-center gap-1.5">
+                              {esEfectivo ? (
+                                <>
+                                  {r.retirado ? badge('Retirado', 'green') : badge('Pendiente', 'amber')}
+                                  {canManageOficinas && (
+                                    <>
+                                      <button
+                                        onClick={() => handleToggleRetirado(r)}
+                                        className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition whitespace-nowrap ${
+                                          r.retirado ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                                        }`}
+                                      >
+                                        {r.retirado ? 'Marcar pendiente' : 'Marcar retirado'}
+                                      </button>
+                                      <button
+                                        onClick={() => setRetiroEdit(r)}
+                                        title="Notas / documento de entrega"
+                                        className="p-1.5 rounded-lg hover:bg-slate-100 transition"
+                                      >
+                                        <Paperclip className={`w-4 h-4 ${r.documento_url ? 'text-blue-600' : 'text-slate-400'}`} />
+                                      </button>
+                                    </>
+                                  )}
+                                </>
+                              ) : (
+                                <span className="text-xs text-slate-300">No aplica</span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                    {/* Subtotal de la oficina */}
+                    <tr className="border-b-2 border-slate-200 bg-slate-50/70">
+                      <td className="px-4 py-2 text-right text-[10px] font-bold uppercase tracking-wide text-slate-400">Subtotal</td>
+                      <td className="px-4 py-2 text-right font-bold text-slate-600 tabular-nums whitespace-nowrap">{g.totalPol}</td>
+                      <td className="px-4 py-2 text-right font-black text-slate-800 tabular-nums whitespace-nowrap">{usd(g.totalPrima)}</td>
+                      <td className="px-4 py-2"></td>
+                    </tr>
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -1876,14 +1956,15 @@ function TabUsuariosMetrics() {
     if (!selectedUser) loadData()
   }
 
-  const handleExport = async () => {
+  const handleExport = async (columnas = null) => {
     setExporting(true)
     showToast('Exportando métricas de personal…', 'info')
     try {
       const blob = await exportUsuariosReport({
         fecha_inicio: fechaInicio,
         fecha_fin: fechaFin,
-        ...(selectedUser ? { usuario_id: selectedUser } : { search })
+        ...(selectedUser ? { usuario_id: selectedUser } : { search }),
+        ...(columnas ? { columnas } : {})
       })
       downloadBlob(blob, `metricas_personal_${new Date().toISOString().slice(0, 10)}.xlsx`)
       showToast('Métricas de personal exportadas correctamente', 'success')
@@ -2003,10 +2084,7 @@ function TabUsuariosMetrics() {
               className="text-xs border border-slate-200 rounded-xl px-2.5 py-1.5 bg-slate-50 text-slate-600 focus:ring-2 focus:ring-blue-500 outline-none"
             />
             {canExport && (
-              <button onClick={handleExport} disabled={exporting} className="btn-secondary shrink-0">
-                {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                Exportar
-              </button>
+              <ExportButton cols={COLS_ASESOR} onExport={handleExport} exporting={exporting} />
             )}
           </div>
         </div>
@@ -2155,10 +2233,7 @@ function TabUsuariosMetrics() {
         />
         <button type="submit" className="btn-primary">Filtrar</button>
         {canExport && (
-          <button type="button" onClick={handleExport} disabled={exporting} className="btn-secondary shrink-0">
-            {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            Exportar
-          </button>
+          <ExportButton cols={COLS_METRICAS} onExport={handleExport} exporting={exporting} />
         )}
       </form>
 

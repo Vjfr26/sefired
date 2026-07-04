@@ -2,21 +2,26 @@
 
 namespace App\Exports;
 
+use App\Exports\Concerns\HasSelectableColumns;
 use Illuminate\Support\Collection;
 
 /**
  * Exportación del Reporte de Pólizas Cobradas por Forma de Pago, por oficina.
+ * Columnas personalizables (todo o selección).
  */
 class OficinasPagosExport extends BaseExport
 {
+    use HasSelectableColumns;
+
     protected Collection $rows;
 
     /**
      * @param Collection $rows  Colección de arrays con claves: ofi, forma_pago, pol, prima
      */
-    public function __construct(Collection $rows)
+    public function __construct(Collection $rows, ?array $columns = null)
     {
         $this->rows = $rows;
+        $this->initColumns($columns);
     }
 
     public function title(): string
@@ -24,9 +29,14 @@ class OficinasPagosExport extends BaseExport
         return 'Pólizas cobradas';
     }
 
-    public function headings(): array
+    public function columnDefs(): array
     {
-        return ['Oficina', 'Forma de Pago', 'Pólizas Cobradas', 'Prima (USD)'];
+        return [
+            'ofi'        => 'Oficina',
+            'forma_pago' => 'Forma de Pago',
+            'pol'        => 'Pólizas Cobradas',
+            'prima'      => 'Prima (USD)',
+        ];
     }
 
     public function collection(): Collection
@@ -34,13 +44,13 @@ class OficinasPagosExport extends BaseExport
         return $this->rows;
     }
 
-    public function map($row): array
+    protected function mapAssoc($row): array
     {
         return [
-            $row['ofi'],
-            $row['forma_pago'],
-            $row['pol'],
-            $row['prima'],
+            'ofi'        => $row['ofi'],
+            'forma_pago' => $row['forma_pago'],
+            'pol'        => $row['pol'],
+            'prima'      => $row['prima'],
         ];
     }
 }

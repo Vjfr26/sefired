@@ -2,20 +2,26 @@
 
 namespace App\Exports;
 
+use App\Exports\Concerns\HasSelectableColumns;
 use App\Models\Poliza;
 use Illuminate\Support\Collection;
 
 /**
  * Exportación del Reporte de Ventas y Comisiones.
  * Incluye dos secciones: ventas del período y comisiones agrupadas por vendedor.
+ * Las columnas de la hoja "Ventas" son personalizables (la hoja "Comisiones"
+ * es un resumen fijo).
  */
 class VentasExport extends BaseExport
 {
+    use HasSelectableColumns;
+
     protected Collection $policies;
 
-    public function __construct(Collection $policies)
+    public function __construct(Collection $policies, ?array $columns = null)
     {
         $this->policies = $policies;
+        $this->initColumns($columns);
     }
 
     public function title(): string
@@ -23,9 +29,19 @@ class VentasExport extends BaseExport
         return 'Ventas y Comisiones';
     }
 
-    public function headings(): array
+    public function columnDefs(): array
     {
-        return ['Fecha', 'Póliza', 'Agente', 'Producto', 'Prima (USD)', 'Prima (Bs)', 'Estado', 'Comisión (USD)', 'Estado Comisión'];
+        return [
+            'fecha'           => 'Fecha',
+            'poliza'          => 'Póliza',
+            'agente'          => 'Agente',
+            'producto'        => 'Producto',
+            'prima_usd'       => 'Prima (USD)',
+            'prima_bs'        => 'Prima (Bs)',
+            'estado'          => 'Estado',
+            'comision_usd'    => 'Comisión (USD)',
+            'estado_comision' => 'Estado Comisión',
+        ];
     }
 
     public function collection(): Collection
@@ -33,18 +49,18 @@ class VentasExport extends BaseExport
         return $this->policies;
     }
 
-    public function map($p): array
+    protected function mapAssoc($p): array
     {
         return [
-            $p->fecha_emision ? $p->fecha_emision->format('d/m/Y') : '—',
-            $p->nro_contrato,
-            $p->vendedor?->nombre ?? '—',
-            $p->producto?->nombre ?? '—',
-            (float)$p->total,
-            (float)($p->total_bs ?? 0),
-            $p->status === 'ACTIVA' ? 'Vigente' : ($p->status === 'ANULADA' ? 'Anulada' : ($p->status ?? '—')),
-            $p->comision ? (float) $p->comision->monto : null,
-            $p->comision?->status ?? '—',
+            'fecha'           => $p->fecha_emision ? $p->fecha_emision->format('d/m/Y') : '—',
+            'poliza'          => $p->nro_contrato,
+            'agente'          => $p->vendedor?->nombre ?? '—',
+            'producto'        => $p->producto?->nombre ?? '—',
+            'prima_usd'       => (float)$p->total,
+            'prima_bs'        => (float)($p->total_bs ?? 0),
+            'estado'          => $p->status === 'ACTIVA' ? 'Vigente' : ($p->status === 'ANULADA' ? 'Anulada' : ($p->status ?? '—')),
+            'comision_usd'    => $p->comision ? (float) $p->comision->monto : null,
+            'estado_comision' => $p->comision?->status ?? '—',
         ];
     }
 

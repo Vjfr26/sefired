@@ -596,7 +596,7 @@ class ReportController extends Controller
             )->values();
         }
 
-        return (new VentasExport($policies))
+        return (new VentasExport($policies, $request->input('columnas')))
             ->download('reporte_ventas_' . now()->format('Ymd_His') . '.xlsx');
     }
 
@@ -680,7 +680,7 @@ class ReportController extends Controller
             $rows->push(['ofi' => 'TOTAL', 'ag' => $tAg, 'pol' => $tPol, 'prima' => $tPri, 'pct' => '100%', 'est' => '']);
         }
 
-        return (new OficinasExport($rows))
+        return (new OficinasExport($rows, $request->input('columnas')))
             ->download('reporte_oficinas_' . now()->format('Ymd_His') . '.xlsx');
     }
 
@@ -784,7 +784,7 @@ class ReportController extends Controller
 
     public function exportOficinasPagos(Request $request)
     {
-        return (new OficinasPagosExport($this->oficinasPagosRows($request)))
+        return (new OficinasPagosExport($this->oficinasPagosRows($request), $request->input('columnas')))
             ->download('reporte_oficinas_pagos_' . now()->format('Ymd_His') . '.xlsx');
     }
 
@@ -1077,7 +1077,7 @@ class ReportController extends Controller
                     'comision_fecha_pago' => $p->comision?->fecha_pago?->format('d/m/Y'),
                 ]);
 
-            return (new UsuarioPolizasExport($rows, $usuario->nombre))
+            return (new UsuarioPolizasExport($rows, $usuario->nombre, $request->input('columnas')))
                 ->download('metricas_personal_' . str_replace(' ', '_', $usuario->nombre) . '_' . now()->format('Ymd_His') . '.xlsx');
         }
 
@@ -1114,7 +1114,7 @@ class ReportController extends Controller
             ]);
         }
 
-        return (new UsuariosMetricsExport($rows))
+        return (new UsuariosMetricsExport($rows, $request->input('columnas')))
             ->download('metricas_personal_' . now()->format('Ymd_His') . '.xlsx');
     }
 
