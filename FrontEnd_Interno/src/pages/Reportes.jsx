@@ -874,10 +874,13 @@ function SchedulesManager({ title, hint, schedules, setSchedules, canManage, sav
   const [uploadingId, setUploadingId] = useState(null)
   const [colsOpenId, setColsOpenId] = useState(null)     // programación cuyo selector de columnas está abierto
 
-  // Columnas seleccionadas de una programación: null/ausente = todas (mismo
-  // criterio que la descarga manual). Devuelve un Set para el render.
+  // Columnas seleccionadas de una programación. Distinguir null vs [] es clave:
+  //   null/ausente → NO personalizado = todas (formato oficial)
+  //   []           → personalizado con NINGUNA marcada
+  //   [a, b, …]    → esas columnas
+  // (antes se trataba [] como null, así que "Ninguna" reaparecía como "Todas").
   const colsDe = (sched) => new Set(
-    Array.isArray(sched.columnas) && sched.columnas.length
+    Array.isArray(sched.columnas)
       ? sched.columnas
       : (columnOptions || []).map(([k]) => k)
   )
