@@ -796,11 +796,28 @@ const FRECUENCIAS = [
  * cada destinatario tiene su PROPIA frecuencia — el mismo reporte puede
  * llegarle a uno todos los días y a otro solo una vez al mes.
  */
-function SchedulesManager({ title, hint, schedules, setSchedules, canManage, saving, onSave, runningSchedId, onRun, tipoOptions = null }) {
+function SchedulesManager({ title, hint, schedules, setSchedules, canManage, saving, onSave, runningSchedId, onRun, tipoOptions = null, columnOptions = null }) {
   const { showToast } = useApp()
   const [nuevoEmail, setNuevoEmail] = useState({})       // { [scheduleId]: 'texto en el input' }
   const [nuevaFrecuencia, setNuevaFrecuencia] = useState({}) // { [scheduleId]: 'diario' }
   const [uploadingId, setUploadingId] = useState(null)
+  const [colsOpenId, setColsOpenId] = useState(null)     // programación cuyo selector de columnas está abierto
+
+  // Columnas seleccionadas de una programación: null/ausente = todas (mismo
+  // criterio que la descarga manual). Devuelve un Set para el render.
+  const colsDe = (sched) => new Set(
+    Array.isArray(sched.columnas) && sched.columnas.length
+      ? sched.columnas
+      : (columnOptions || []).map(([k]) => k)
+  )
+  const setCols = (schedId, keysSet) => {
+    const all = (columnOptions || []).map(([k]) => k)
+    // Si están todas marcadas, se guarda null (todas) para no fijar el formato.
+    const arr = all.filter(k => keysSet.has(k))
+    setSchedules(prev => prev.map(s => s.id === schedId
+      ? { ...s, columnas: arr.length === all.length ? null : arr }
+      : s))
+  }
 
   const updateSchedule = (id, field, value) => {
     setSchedules(prev => prev.map(s => s.id === id ? { ...s, [field]: value } : s))
@@ -1048,6 +1065,53 @@ function SchedulesManager({ title, hint, schedules, setSchedules, canManage, sav
                 </div>
               )}
             </div>
+
+            {/* ── Columnas del Excel: personalizar qué columnas incluye este reporte ── */}
+            {columnOptions && (() => {
+              const cols  = colsDe(sched)
+              const total = columnOptions.length
+              const abierto = colsOpenId === sched.id
+              return (
+                <div className="pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setColsOpenId(abierto ? null : sched.id)}
+                    className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-jm-blue transition"
+                  >
+                    <Filter className="w-3.5 h-3.5" />
+                    Columnas del Excel ({cols.size}/{total})
+                    {abierto ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  </button>
+                  {cols.size === total
+                    ? <p className="text-[11px] text-emerald-600 mt-1">Formato oficial completo (todas las columnas).</p>
+                    : <p className="text-[11px] text-amber-600 mt-1">Formato personalizado ({cols.size} de {total} columnas).</p>}
+                  {abierto && (
+                    <div className="mt-2 p-3 rounded-xl border border-slate-200 bg-white">
+                      {canManage && (
+                        <div className="flex items-center gap-3 mb-2">
+                          <button type="button" onClick={() => setCols(sched.id, new Set(columnOptions.map(([k]) => k)))} className="text-xs font-semibold text-jm-blue hover:underline">Todas</button>
+                          <button type="button" onClick={() => setCols(sched.id, new Set())} className="text-xs font-semibold text-slate-400 hover:underline">Ninguna</button>
+                        </div>
+                      )}
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1.5">
+                        {columnOptions.map(([k, label]) => (
+                          <label key={k} className={`flex items-center gap-2 text-xs text-slate-600 ${canManage ? 'cursor-pointer' : 'opacity-70'}`}>
+                            <input
+                              type="checkbox"
+                              disabled={!canManage}
+                              checked={cols.has(k)}
+                              onChange={() => { const n = new Set(cols); n.has(k) ? n.delete(k) : n.add(k); setCols(sched.id, n) }}
+                              className="rounded border-slate-300 text-jm-blue focus:ring-jm-blue/30"
+                            />
+                            <span className="truncate">{label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
 
             {/* ── Documentos adicionales: archivos sueltos para esta programación ── */}
             <div className="pt-2 border-t border-slate-100">
@@ -1455,6 +1519,8 @@ function TabExternos() {
         activo: !!s.activo,
         hora: s.hora,
         nombre: s.nombre,
+        // null/ausente = todas las columnas (no fija el formato); array = selección.
+        columnas: Array.isArray(s.columnas) && s.columnas.length ? s.columnas : null,
         documentos_adicionales: s.documentos_adicionales || [],
         cliente_documento_ids: s.cliente_documento_ids || [],
         destinatarios: (s.destinatarios || []).map(d => ({
@@ -1683,6 +1749,7 @@ function TabExternos() {
             onSave={handleSaveSchedules}
             runningSchedId={runningSchedId}
             onRun={handleRunNow}
+            columnOptions={EXT_COLS}
           />
         )}
 

@@ -13,8 +13,12 @@ use Illuminate\Support\Facades\Storage;
  */
 class ReporteGeneratorService
 {
-    /** @return array{path: string, filename: string, size: int} */
-    public function generarExterno(): array
+    /**
+     * @param array<int, string>|null $columnas Columnas a incluir (mismas claves
+     *        que la descarga manual). NULL o vacío = todas.
+     * @return array{path: string, filename: string, size: int}
+     */
+    public function generarExterno(?array $columnas = null): array
     {
         $policies = Poliza::with(['solicitud.persona', 'solicitud.bien', 'producto'])
             ->orderBy('fecha_emision', 'desc')
@@ -22,7 +26,7 @@ class ReporteGeneratorService
 
         $filename = 'reporte_externo_' . now()->format('Ymd_His') . '.xlsx';
         $path     = 'reportes_externos/' . $filename;
-        (new ExternalReportExport($policies))->store($path);
+        (new ExternalReportExport($policies, is_array($columnas) && count($columnas) ? array_values($columnas) : null))->store($path);
 
         return ['path' => $path, 'filename' => $filename, 'size' => Storage::disk(config('filesystems.docs_disk'))->size($path)];
     }

@@ -32,7 +32,7 @@ class SendReportesProgramados extends Command
     {
         $this->procesar(
             ReporteExternoProgramacion::with('destinatarios')->where('activo', true)->get(),
-            fn($prog) => $generator->generarExterno(),
+            fn($prog) => $generator->generarExterno($prog->columnas),
             'reportes_externos_historial',
             'reporte_externo',
         );

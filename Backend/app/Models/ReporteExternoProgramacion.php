@@ -9,7 +9,7 @@ class ReporteExternoProgramacion extends Model
 {
     protected $table = 'reportes_externos_programaciones';
 
-    protected $fillable = ['nombre', 'hora', 'activo', 'documentos_adicionales', 'cliente_documento_ids'];
+    protected $fillable = ['nombre', 'hora', 'activo', 'documentos_adicionales', 'cliente_documento_ids', 'columnas'];
 
     protected function casts(): array
     {
@@ -17,6 +17,7 @@ class ReporteExternoProgramacion extends Model
             'activo'                 => 'boolean',
             'documentos_adicionales' => 'array',
             'cliente_documento_ids'  => 'array',
+            'columnas'               => 'array',
         ];
     }
 

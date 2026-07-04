@@ -316,6 +316,8 @@ class ReportController extends Controller
             'schedules.*.documentos_adicionales.*.nombre'  => 'required_with:schedules.*.documentos_adicionales|string',
             'schedules.*.cliente_documento_ids'            => 'nullable|array',
             'schedules.*.cliente_documento_ids.*'          => 'integer|exists:cliente_documentos,id',
+            'schedules.*.columnas'                         => 'nullable|array',
+            'schedules.*.columnas.*'                       => 'string|max:60',
         ]);
 
         $this->upsertProgramaciones($request->input('schedules', []), ReporteExternoProgramacion::class);
@@ -334,9 +336,10 @@ class ReportController extends Controller
 
     public function runExternalReportSchedule(Request $request, ReporteGeneratorService $generator)
     {
-        $archivo = $generator->generarExterno();
         $scheduleId = $request->input('schedule_id');
         $schedule   = $scheduleId ? ReporteExternoProgramacion::find($scheduleId) : null;
+        // El Excel respeta las columnas configuradas en la programación (si tiene).
+        $archivo = $generator->generarExterno($schedule?->columnas);
 
         $nombre = $schedule ? $schedule->nombre : 'Reporte Externo';
         $id = DB::table('reportes_externos_historial')->insertGetId([
@@ -399,6 +402,12 @@ class ReportController extends Controller
                 $prog->activo = (bool) ($s['activo'] ?? true);
                 if ($modelClass === ReporteInternoProgramacion::class) {
                     $prog->tipo = $s['tipo'] ?? 'ventas';
+                }
+                if ($modelClass === ReporteExternoProgramacion::class) {
+                    // Columnas del Excel para esta programación. Vacío/ausente =
+                    // todas (NULL), igual que la descarga manual sin selección.
+                    $cols = $s['columnas'] ?? null;
+                    $prog->columnas = is_array($cols) && count($cols) ? array_values($cols) : null;
                 }
                 $prog->documentos_adicionales = $s['documentos_adicionales'] ?? [];
                 $prog->cliente_documento_ids  = $s['cliente_documento_ids'] ?? [];
