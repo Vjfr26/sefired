@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { KeyRound, Activity, Info, Check, CheckCircle, AlertTriangle, Lock, Circle, ShieldCheck } from 'lucide-react'
+import { KeyRound, Activity, Info, Check, CheckCircle, AlertTriangle, Lock, Circle, ShieldCheck, FileText, Users, Receipt, RefreshCw, TrendingUp, Package, Mail, Calendar, Building2 } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { fetchLogs, fetchAuditLog, fetchEmailLogs } from '../api/reports.js'
 import { changePassword } from '../api/usuarios.js'
@@ -433,27 +433,76 @@ function TabCambiosDetallados() {
 // ── Tab: Acerca de ───────────────────────────────────────────
 // Apartado puramente informativo: créditos del software desarrollado y vendido
 // por Victecnology, Lda como una venta única (sin soporte ni actualizaciones).
+const ABOUT_MODULOS = [
+  { Icon: FileText,   t: 'Emisión de pólizas',   d: 'Cotización, suscripción (underwriting) y emisión con recibo.' },
+  { Icon: RefreshCw,  t: 'Renovaciones',          d: 'Renovación anual y por cuotas, con avisos de vencimiento.' },
+  { Icon: Receipt,    t: 'Cuotas mensuales',      d: 'Financiamiento en 12 cuotas, cobros y recibos automáticos.' },
+  { Icon: Users,      t: 'Cartera de clientes',   d: 'Gestión de clientes, bienes asegurados y beneficiarios.' },
+  { Icon: TrendingUp, t: 'Comisiones y métricas', d: 'Comisiones por vendedor, pagos y reportes de gestión.' },
+  { Icon: ShieldCheck,t: 'Seguridad y auditoría', d: 'Control de accesos, bloqueo por intentos y bitácora.' },
+]
+
 function TabAbout() {
   return (
-    <div className="max-w-xl">
+    <div className="max-w-3xl space-y-5">
+      {/* Portada del producto */}
+      <div className="card overflow-hidden p-0">
+        <div className="relative bg-gradient-to-br from-jm-blue to-blue-700 px-6 py-7 sm:px-8 sm:py-9 text-white">
+          <div className="flex items-center gap-4 sm:gap-5">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white/15 backdrop-blur flex items-center justify-center shrink-0 ring-1 ring-white/20">
+              <img src="/logo-sinfondo.png" alt="Logo J&M" className="w-12 h-12 sm:w-14 sm:h-14 object-contain" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-xl sm:text-2xl font-black leading-tight">INVERSIONES J&amp;M</h3>
+              <p className="text-blue-100 text-sm sm:text-base">Sistema de Emisión y Registro de Pólizas</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-white/20 rounded-full px-2.5 py-1">
+                  <Info className="w-3.5 h-3.5" /> Versión 1.0.1
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Qué incluye la plataforma */}
+      <div className="card p-6">
+        <h4 className="font-semibold text-slate-800 mb-4">Qué incluye la plataforma</h4>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {ABOUT_MODULOS.map(({ Icon, t, d }) => (
+            <div key={t} className="flex items-start gap-3 p-3 rounded-xl border border-slate-100 bg-slate-50/60">
+              <span className="w-9 h-9 rounded-lg bg-blue-50 text-jm-blue flex items-center justify-center shrink-0">
+                <Icon className="w-[18px] h-[18px]" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-slate-800">{t}</p>
+                <p className="text-xs text-slate-500 leading-snug">{d}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Créditos del software */}
       <div className="card p-6">
         <h4 className="font-semibold text-slate-800 mb-5">Créditos del software</h4>
-        <div className="space-y-3 text-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1 text-sm">
           {[
-            ['Versión',              '1.0.1',                     'font-mono font-semibold text-slate-700'],
-            ['Fecha de adquisición', '15/07/2026',                'font-semibold'],
-            ['Desarrollado por',     'Victecnology, Lda',         'font-bold text-blue-700'],
-            ['Contacto',             'contacto@victecnology.com', 'text-blue-500 text-xs'],
-          ].map(([label, val, cls]) => (
-            <div key={label} className="flex justify-between gap-3 py-2 border-b border-slate-100">
-              <span className="text-slate-500">{label}</span>
+            [Calendar,  'Versión',              '1.0.1',                     'font-mono font-semibold text-slate-700'],
+            [Calendar,  'Fecha de adquisición', '15/07/2026',                'font-semibold text-slate-700'],
+            [Building2, 'Desarrollado por',     'Victecnology, Lda',         'font-bold text-blue-700'],
+            [Mail,      'Contacto',             'contacto@victecnology.com', 'text-blue-500 text-xs'],
+          ].map(([Icon, label, val, cls]) => (
+            <div key={label} className="flex items-center justify-between gap-3 py-2.5 border-b border-slate-100">
+              <span className="flex items-center gap-2 text-slate-500">
+                <Icon className="w-4 h-4 text-slate-400 shrink-0" /> {label}
+              </span>
               <span className={cls}>{val}</span>
             </div>
           ))}
         </div>
 
-        <div className="mt-5 p-4 bg-amber-50 rounded-xl">
+        <div className="mt-5 p-4 bg-amber-50 rounded-xl border border-amber-100">
           <p className="text-xs font-semibold text-amber-800 mb-1">Venta única</p>
           <p className="text-xs text-amber-700">
             Este software se entregó como una venta única. No incluye soporte técnico ni la integración de nuevas

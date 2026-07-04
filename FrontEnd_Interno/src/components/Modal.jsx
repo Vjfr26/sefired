@@ -38,7 +38,7 @@ import { useApp } from '../context/AppContext.jsx'
 import FormGrid from './FormGrid.jsx'
 import { useInputLimits } from '../utils/inputLimits.js'
 import { Switch, Segmented, PasswordInput } from './FormControls.jsx'
-import { fmtMonto, fmtTasa, convertirMoneda, PERMISOS_POR_ROL, getEffectivePerms, getEffectivePermsObj, PERMS_CATALOG, PERMS_ORDER, LOCKED_PERMS, pdfPage, pdfHdr, pdfSec, pdfRow, pdfTotal, pdfFooterSimple, useModalLock, filtrarCedula, filtrarTelefono, filtrarSoloDigitos } from '../utils/helpers.jsx'
+import { fmtMonto, fmtTasa, convertirMoneda, badge, PERMISOS_POR_ROL, getEffectivePerms, getEffectivePermsObj, PERMS_CATALOG, PERMS_ORDER, LOCKED_PERMS, pdfPage, pdfHdr, pdfSec, pdfRow, pdfTotal, pdfFooterSimple, useModalLock, filtrarCedula, filtrarTelefono, filtrarSoloDigitos } from '../utils/helpers.jsx'
 import { TIPOS_PRODUCTO, TIPOS_CALCULO, tipoBadge } from '../utils/productos.jsx'
 import { storeUsuario, updateUsuario, verifyPassword, fetchVendedoresDisponibles } from '../api/usuarios.js'
 import { uploadDocumentoProducto, deleteDocumentoProducto } from '../api/productos.js'
@@ -402,7 +402,7 @@ function AuditoriaDetailModal({ title = 'Detalle del registro', eyebrow = 'Audit
 }
 
 // ── Desbloquear usuario: elegir alcance (usuario / IP / ambos) ──────────────
-function DesbloquearUsuarioModal({ nom, onConfirm }) {
+function DesbloquearUsuarioModal({ nom, onConfirm, mostrarScopeIp = true }) {
   const { closeModal, showToast } = useApp()
   const [saving, setSaving] = useState('')
   const [password, setPassword] = useState('')
@@ -454,12 +454,25 @@ function DesbloquearUsuarioModal({ nom, onConfirm }) {
         />
         {passErr && <p className="text-xs text-rose-600 mt-1">{passErr}</p>}
       </div>
-      <p className="text-sm text-slate-600 mb-3">¿Qué deseas desbloquear de <strong>{nom}</strong>?</p>
-      <div className="space-y-2">
-        {opt('usuario', 'Solo el usuario', 'Reactiva la cuenta; la IP sigue bloqueada')}
-        {opt('ip',      'Solo la IP',      'Suelta la IP; la cuenta sigue bloqueada')}
-        {opt('ambos',   'Ambos',           'Reactiva la cuenta y suelta la IP')}
-      </div>
+      {mostrarScopeIp ? (
+        <>
+          <p className="text-sm text-slate-600 mb-3">¿Qué deseas desbloquear de <strong>{nom}</strong>?</p>
+          <div className="space-y-2">
+            {opt('usuario', 'Solo el usuario', 'Reactiva la cuenta; la IP sigue bloqueada')}
+            {opt('ip',      'Solo la IP',      'Suelta la IP; la cuenta sigue bloqueada')}
+            {opt('ambos',   'Ambos',           'Reactiva la cuenta y suelta la IP')}
+          </div>
+        </>
+      ) : (
+        // La IP de este usuario ya no está bloqueada (o no aplica): solo queda
+        // reactivar la cuenta. No tiene sentido ofrecer "soltar IP" ni "ambos".
+        <>
+          <p className="text-sm text-slate-600 mb-3">Se reactivará la cuenta de <strong>{nom}</strong> para que pueda volver a iniciar sesión. No hay ninguna IP bloqueada asociada.</p>
+          <div className="space-y-2">
+            {opt('usuario', 'Reactivar la cuenta', 'La cuenta podrá iniciar sesión de nuevo')}
+          </div>
+        </>
+      )}
     </ModalShell>
   )
 }

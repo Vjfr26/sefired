@@ -26,7 +26,7 @@ const COLS_BASE = [
   { k: 'acc',       l: '',                acc: true },
 ]
 
-function UserActions({ u, onReload }) {
+function UserActions({ u, onReload, mostrarScopeIp = true }) {
   const { showModal, canAct } = useApp()
   const estado = u.activo ? 'Activo' : 'Bloqueado'
 
@@ -71,6 +71,7 @@ function UserActions({ u, onReload }) {
               })
             : showModal('desbloquearUsuario', {
                 nom: u.nombre,
+                mostrarScopeIp,
                 onConfirm: async (scope) => { await toggleUserStatus(u.id, { scope }); onReload() },
               })}
           className="p-2.5 rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 transition inline-flex items-center justify-center"
@@ -191,6 +192,14 @@ export default function Usuarios() {
   }
   const cardActive = (key) => key === null ? (cardFilter === null && chipActive === 0) : cardFilter === key
 
+  // IDs de usuarios que aún tienen una IP bloqueada asociada. Sirve para que el
+  // modal de desbloqueo NO ofrezca "soltar IP" cuando la IP ya fue liberada
+  // (solo la cuenta sigue bloqueada). Si no hay permiso para ver IPs no podemos
+  // saberlo, así que en ese caso se dejan todas las opciones.
+  const usuariosConIpBloqueada = new Set(
+    ipsBloqueadas.map(ip => ip.usuario?.id).filter(Boolean)
+  )
+
   // ── Filas de la tabla ──
   const dataRows = filtered.map(u => {
     const estado = u.activo ? 'Activo' : 'Bloqueado'
@@ -240,7 +249,7 @@ export default function Usuarios() {
         ? <span className="text-xs sm:text-sm text-rose-500 max-w-[150px] block truncate" title={u.motivo_bloqueo}>{u.motivo_bloqueo}</span>
         : <span className="text-slate-300 text-xs sm:text-sm">—</span>,
       estb: rsbadge(estado),
-      acc:  <UserActions u={u} onReload={reloadTablas} />,
+      acc:  <UserActions u={u} onReload={reloadTablas} mostrarScopeIp={!canViewIps || usuariosConIpBloqueada.has(u.id)} />,
     }
   })
 
