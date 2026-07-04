@@ -245,8 +245,14 @@ export default function DataTable({ cols, rows, footer = null, id, searchable = 
               {cols.map(c => {
                 const sortable = !c.acc   // las columnas de acción no se pueden ordenar
                 const active   = sortKey === c.k
+                // La columna título (nombre) absorbe el espacio sobrante para que
+                // las demás no queden muy separadas; los extremos llevan un poco
+                // más de padding para que el contenido no quede pegado al borde.
+                const isTitle  = !c.acc && c === titleCol
                 const thCls    =
                   `${compact ? 'th-cell-compact' : 'th-cell'} ${c.r ? 'text-right' : 'text-left'}` +
+                  ' first:pl-4 sm:first:pl-6 last:pr-4 sm:last:pr-6' +
+                  `${isTitle && compact ? ' w-full' : ''}` +
                   `${c.hide   ? ' ' + HIDE[c.hide] : ''}` +
                   `${c.acc    ? (compact ? ' min-w-[100px]' : ' min-w-[150px]') : ''}` +
                   `${sortable ? ' cursor-pointer select-none hover:bg-slate-200/60 transition-colors group' : ''}`
@@ -278,7 +284,7 @@ export default function DataTable({ cols, rows, footer = null, id, searchable = 
               paged.map((r, i) => (
                 <tr key={i} className="hover:bg-slate-50/80 transition-colors">
                   {cols.map(c => (
-                    <td key={c.k} className={tdCls(c, compact)} title={c.tr && typeof r[c.k] === 'string' ? r[c.k] : undefined}>
+                    <td key={c.k} className={`${tdCls(c, compact)} first:pl-4 sm:first:pl-6 last:pr-4 sm:last:pr-6${!c.acc && c === titleCol && compact ? ' w-full' : ''}`} title={c.tr && typeof r[c.k] === 'string' ? r[c.k] : undefined}>
                       {/* tr: texto largo en una línea con elipsis (max-w + truncate en td) */}
                       {/* Columnas de acción (botones): si no hay botón, celda vacía —
                           no un "—", que parecería un botón roto. El guion solo tiene

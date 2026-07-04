@@ -2210,7 +2210,7 @@ function TabUsuariosMetrics() {
         <DataTable
           compact
           cols={[
-            { k: 'nom', l: 'Nombre Completo', tr: true },
+            { k: 'nom', l: 'Nombre Completo', primary: true },
             { k: 'rol', l: 'Cargo', hide: 'sm' },
             { k: 'ofi', l: 'Sede/Oficina', hide: 'md' },
             { k: 'pol', l: 'Pólizas Vendidas', r: true },
