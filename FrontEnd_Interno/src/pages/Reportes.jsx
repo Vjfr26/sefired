@@ -7,6 +7,26 @@ const fmtDT = (s) => {
   return d.toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
     ' ' + d.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: false })
 }
+
+// Agrupa las filas planas (oficina × forma de pago) del reporte de pagos por
+// oficina, con subtotales, para mostrar una tarjeta por oficina en vez de
+// repetir el nombre de la oficina en cada forma de pago.
+const agruparPagosPorOficina = (rows) => {
+  const map = new Map()
+  for (const r of rows) {
+    if (!map.has(r.ofi)) {
+      map.set(r.ofi, { ofi: r.ofi, formas: [], totalPol: 0, totalPrima: 0, efectivoPendiente: 0 })
+    }
+    const g = map.get(r.ofi)
+    g.formas.push(r)
+    g.totalPol   += r.pol   || 0
+    g.totalPrima += r.prima || 0
+    if (r.retirado === false) g.efectivoPendiente += 1
+  }
+  return Array.from(map.values())
+    .map(g => ({ ...g, formas: g.formas.slice().sort((a, b) => (b.prima || 0) - (a.prima || 0)) }))
+    .sort((a, b) => a.ofi.localeCompare(b.ofi))
+}
 import { TrendingUp, Building2, Users, Search, Download, Check, Calendar, Loader2, Play, CheckCircle2, Car, Package, Filter, ChevronDown, ChevronUp, AlertTriangle, X, Clock, Bookmark, Trash2 } from 'lucide-react'
 import {
   fetchExternalReportPolicies,
@@ -601,44 +621,85 @@ function TabOficinas() {
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
         </div>
+      ) : pagosRows.length === 0 ? (
+        <div className="card py-10 text-center text-sm text-slate-400">No hay pólizas cobradas en este rango de fechas.</div>
       ) : (
-        <DataTable
-          cols={[
-            { k: 'ofi',        l: 'Oficina',          tr: true },
-            { k: 'forma_pago', l: 'Forma de Pago' },
-            { k: 'pol',        l: 'Pólizas Cobradas', r: true },
-            { k: 'prima',      l: 'Prima Neta',       r: true, hide: 'sm' },
-            { k: 'retirado',   l: 'Efectivo Retirado' },
-            ...(canManageOficinas ? [{ k: 'acciones', l: '', acc: true }] : []),
-          ]}
-          rows={pagosRows.map(r => {
-            const esEfectivo = r.retirado !== undefined
-            return {
-              ...r,
-              prima: usd(r.prima),
-              retirado: esEfectivo ? (r.retirado ? badge('Retirado', 'green') : badge('Pendiente', 'amber')) : '—',
-              acciones: esEfectivo && canManageOficinas ? (
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => handleToggleRetirado(r)}
-                    className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition whitespace-nowrap ${
-                      r.retirado ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
-                    }`}
-                  >
-                    {r.retirado ? 'Marcar pendiente' : 'Marcar retirado'}
-                  </button>
-                  <button
-                    onClick={() => setRetiroEdit(r)}
-                    title="Notas / documento de entrega"
-                    className="p-1.5 rounded-lg hover:bg-slate-100 transition"
-                  >
-                    <Paperclip className={`w-4 h-4 ${r.documento_url ? 'text-blue-600' : 'text-slate-400'}`} />
-                  </button>
+        <div className="space-y-4">
+          {agruparPagosPorOficina(pagosRows).map(g => (
+            <div key={g.ofi} className="card p-0 overflow-hidden">
+              {/* Cabecera de la oficina con su subtotal */}
+              <div className="flex items-center justify-between gap-3 px-4 py-3 bg-slate-50 border-b border-slate-100">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="w-8 h-8 rounded-lg bg-jm-blue/10 text-jm-blue flex items-center justify-center shrink-0">
+                    <Building2 className="w-4 h-4" />
+                  </span>
+                  <span className="font-bold text-slate-800 truncate">{g.ofi}</span>
+                  {g.efectivoPendiente > 0 && (
+                    <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+                      {g.efectivoPendiente} efectivo por retirar
+                    </span>
+                  )}
                 </div>
-              ) : null,
-            }
-          })}
-        />
+                <div className="flex items-center gap-4 shrink-0">
+                  <span className="text-xs text-slate-500">{g.totalPol} póliza{g.totalPol !== 1 ? 's' : ''}</span>
+                  <span className="text-sm font-black text-slate-800 tabular-nums">{usd(g.totalPrima)}</span>
+                </div>
+              </div>
+
+              {/* Encabezados de columnas del detalle */}
+              <div className="hidden sm:flex items-center gap-3 px-4 py-2 text-[10px] font-bold uppercase tracking-wide text-slate-400 border-b border-slate-100">
+                <span className="flex-1">Forma de pago</span>
+                <span className="w-20 text-right">Pólizas</span>
+                <span className="w-28 text-right">Prima neta</span>
+                <span className="w-52 text-right">Efectivo retirado</span>
+              </div>
+
+              {/* Detalle por forma de pago */}
+              <div className="divide-y divide-slate-50">
+                {g.formas.map((r, i) => {
+                  const esEfectivo = r.retirado !== undefined
+                  return (
+                    <div key={i} className="flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-1 px-4 py-2.5">
+                      <span className="flex-1 min-w-0 text-sm text-slate-700 break-words basis-full sm:basis-auto">{r.forma_pago}</span>
+                      <span className="w-20 text-right text-sm text-slate-500 tabular-nums">
+                        <span className="sm:hidden text-[10px] text-slate-400 mr-1">Pól.</span>{r.pol}
+                      </span>
+                      <span className="w-28 text-right text-sm font-semibold text-slate-800 tabular-nums">{usd(r.prima)}</span>
+                      <div className="w-52 flex justify-end items-center gap-1.5">
+                        {esEfectivo ? (
+                          <>
+                            {r.retirado ? badge('Retirado', 'green') : badge('Pendiente', 'amber')}
+                            {canManageOficinas && (
+                              <>
+                                <button
+                                  onClick={() => handleToggleRetirado(r)}
+                                  className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition whitespace-nowrap ${
+                                    r.retirado ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                                  }`}
+                                >
+                                  {r.retirado ? 'Marcar pendiente' : 'Marcar retirado'}
+                                </button>
+                                <button
+                                  onClick={() => setRetiroEdit(r)}
+                                  title="Notas / documento de entrega"
+                                  className="p-1.5 rounded-lg hover:bg-slate-100 transition"
+                                >
+                                  <Paperclip className={`w-4 h-4 ${r.documento_url ? 'text-blue-600' : 'text-slate-400'}`} />
+                                </button>
+                              </>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-xs text-slate-300">No aplica</span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
       )}
 
       {retiroEdit && (
