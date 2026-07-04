@@ -886,6 +886,8 @@ class ReportController extends Controller
             return [
                 'id'                      => $v->id,
                 'nom'                     => $v->nombre,
+                'tipo'                    => $v->tipo,    // para el avatar en la tabla
+                'genero'                  => $v->genero,  // para el avatar en la tabla
                 'rol'                     => $v->cargo,
                 'ofi'                     => $v->sede ?? 'Sede Central',
                 'pol'                     => $policies->count(),

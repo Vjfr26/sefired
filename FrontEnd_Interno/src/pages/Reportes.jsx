@@ -57,7 +57,7 @@ import { fetchClientes } from '../api/clientes.js'
 import { fetchDocumentosCliente } from '../api/clienteDocumentos.js'
 import { fetchSolicitudesContacto, actualizarSolicitudContacto } from '../api/solicitudesContacto.js'
 import { useApp } from '../context/AppContext.jsx'
-import { usd, bs, fmtMonto, badge, rsbadge, sbadge } from '../utils/helpers.jsx'
+import { usd, bs, fmtMonto, badge, rsbadge, sbadge, UserAvatar } from '../utils/helpers.jsx'
 import DataTable from '../components/DataTable.jsx'
 import { Paperclip, FileText, UserSearch, MessageCircle, RotateCcw, MessageSquareText } from 'lucide-react'
 
@@ -1212,32 +1212,6 @@ function SchedulesManager({ title, hint, schedules, setSchedules, canManage, sav
               )}
             </div>
 
-            {/* ── Documentos de un cliente: adjunta algo ya subido al perfil de un cliente ── */}
-            <div className="pt-2 border-t border-slate-100">
-              <p className="text-xs font-semibold text-slate-500 mb-2">Documentos de un cliente a enviar</p>
-              {(sched.cliente_documentos_info || []).length === 0 && (
-                <p className="text-xs text-slate-400 mb-2">Sin documentos de clientes seleccionados.</p>
-              )}
-              <div className="space-y-1.5 mb-2">
-                {(sched.cliente_documentos_info || []).map(doc => (
-                  <div key={doc.id} className="flex items-center gap-2 bg-white rounded-lg border border-slate-200 px-2.5 py-1.5">
-                    <FileText className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <span className="flex-1 text-xs text-slate-700 truncate">{doc.nombre} <span className="text-slate-400">— {doc.cliente_nombre}</span></span>
-                    {canManage && (
-                      <button onClick={() => removeClienteDocumento(sched.id, doc.id)} className="p-1 text-slate-400 hover:text-red-500 shrink-0">
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-              {canManage && (
-                <ClienteDocPicker
-                  excludeIds={sched.cliente_documento_ids || []}
-                  onPick={(doc, clienteNombre) => addClienteDocumento(sched.id, doc, clienteNombre)}
-                />
-              )}
-            </div>
           </div>
         ))}
 
@@ -2250,7 +2224,12 @@ function TabUsuariosMetrics() {
           rows={rows.map(r => ({
             ...r,
             est_sort: r.est ?? '',
-            nom: r.id === null ? <strong>{r.nom}</strong> : r.nom,
+            nom: r.id === null ? <strong>{r.nom}</strong> : (
+              <div className="flex items-center gap-2 min-w-0">
+                <UserAvatar rol={r.tipo} genero={r.genero || 'M'} blocked={r.est === 'Inactivo'} className="w-8 h-8 rounded-lg" />
+                <span className="min-w-0 break-words font-medium text-slate-700">{r.nom}</span>
+              </div>
+            ),
             prima: usd(r.prima),
             com_gen: usd(r.com_gen),
             com_pagada: usd(r.com_pagada),
