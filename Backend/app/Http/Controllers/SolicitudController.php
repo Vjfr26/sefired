@@ -123,6 +123,15 @@ class SolicitudController extends Controller
         $solicitud = Solicitud::create($data);
         $solicitud->load(['persona', 'producto', 'bien']);
 
+        // Vincula el bien a su titular si aún no lo estaba. Los bienes creados
+        // como lead del portal nacen sin persona_id (no había cliente aún);
+        // cuando la cotización interna reutiliza ese bien con un cliente ya
+        // seleccionado, sin esto el bien queda huérfano y en la pantalla de
+        // Bienes sale sin titular ni vendedor.
+        if ($solicitud->persona_id && $solicitud->bien && $solicitud->bien->persona_id === null) {
+            $solicitud->bien->update(['persona_id' => $solicitud->persona_id]);
+        }
+
         $ref = $solicitud->asegurado_nombre ?? $solicitud->nombre_tomador ?? "solicitud #{$solicitud->id}";
         $this->logActivity(
             'Cotización Creada',
@@ -454,6 +463,15 @@ class SolicitudController extends Controller
             // Si más adelante se agregan bienes adicionales a esta póliza,
             // esos sí recibirán un certificado propio.
             if ($solicitud->bien_asegurado_id) {
+                // Red de seguridad: vincula el bien a su titular si aún no lo
+                // estaba (leads del portal nacen sin persona_id) — así la póliza
+                // aparece con titular y vendedor en la pantalla de Bienes.
+                if ($solicitud->persona_id) {
+                    BienAsegurado::where('id', $solicitud->bien_asegurado_id)
+                        ->whereNull('persona_id')
+                        ->update(['persona_id' => $solicitud->persona_id]);
+                }
+
                 PolizaBien::create([
                     'poliza_id'         => $poliza->id,
                     'bien_asegurado_id' => $solicitud->bien_asegurado_id,
