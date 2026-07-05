@@ -28,7 +28,10 @@ Route::prefix('portal')->middleware('throttle:60,1')->group(function () {
     Route::get('/tasas',                             [PortalController::class, 'tasas']);
     Route::post('/verificar',                        [PortalController::class, 'verificarCliente'])->middleware('throttle:20,1');
     Route::post('/cotizacion',                       [PortalController::class, 'cotizar'])->middleware('throttle:10,1');
-    Route::post('/contacto',                         [PortalController::class, 'contacto'])->middleware('throttle:5,1');
+    // throttle:20,1 por IP (tolerante con redes compartidas/NAT donde varios
+    // usuarios salen por la misma IP); el anti-spam real es el cooldown de 2 min
+    // por correo dentro de contacto().
+    Route::post('/contacto',                         [PortalController::class, 'contacto'])->middleware('throttle:20,1');
 });
 
 // El brute force lo maneja AuthController (3 fallos → lockout → IP ban).
@@ -132,6 +135,9 @@ Route::middleware([\App\Http\Middleware\ApiTokenMiddleware::class, 'throttle:120
         Route::delete('/bienes/{id}/personas/{rolId}',     [BienAseguradoController::class,   'quitarPersona'])->middleware('perm_any:vehiculos.edit,cotizaciones.create,cotizaciones.edit');
         Route::post('/cotizaciones',               [SolicitudController::class,       'store'])->middleware('perm:cotizaciones,create');
         Route::put('/cotizaciones/{id}',           [SolicitudController::class,       'update'])->middleware('perm:cotizaciones,edit');
+        // NUEVO FLUJO: el vendedor registra el pago (cotizaciones.create) ANTES
+        // de la evaluación; la emisión ocurre al aprobar underwriting.
+        Route::post('/cotizaciones/{id}/registrar-pago', [SolicitudController::class,  'registrarPago'])->middleware('perm:cotizaciones,create');
         Route::post('/cotizaciones/{id}/emitir',   [SolicitudController::class,       'emitir'])->middleware('perm:cotizaciones,emit');
         Route::delete('/cotizaciones/{id}',        [SolicitudController::class,       'destroy'])->middleware('perm:cotizaciones,delete');
         Route::post('/cotizaciones/{id}/underwriting', [UnderwritingController::class,'store'])->middleware('perm:cotizaciones,underwrite');
@@ -146,6 +152,7 @@ Route::middleware([\App\Http\Middleware\ApiTokenMiddleware::class, 'throttle:120
         Route::post('/reports/oficinas/pagos/exportar',       [ReportController::class, 'exportOficinasPagos'])->middleware('perm:reportes,export');
         Route::post('/reports/oficinas/retiro-efectivo',      [ReportController::class, 'marcarRetiroEfectivo'])->middleware('perm:reportes,manage_oficinas');
         Route::post('/reports/usuarios/exportar',             [ReportController::class, 'exportUsuariosReport'])->middleware('perm:reportes,export');
+        Route::post('/reports/clientes/exportar',             [ReportController::class, 'exportClientesReport'])->middleware('perm:reportes,export');
         Route::patch('/reports/comisiones/{id}',              [ReportController::class, 'marcarComision'])->middleware('perm:reportes,manage_comisiones');
         Route::post('/reports/comisiones/pagar-lote',         [ReportController::class, 'pagarLoteComisiones'])->middleware('perm:reportes,manage_comisiones');
         Route::post('/reportes/adjuntos',                     [ReportController::class, 'uploadReporteAdjunto'])->middleware('perm:reportes,manage_schedules');

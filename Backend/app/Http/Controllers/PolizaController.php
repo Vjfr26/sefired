@@ -88,6 +88,9 @@ class PolizaController extends Controller
             'bien_color'        => ['sometimes', 'nullable', 'string', 'max:30', $noInjection],
             'bien_version'      => ['sometimes', 'nullable', 'string', 'max:40', $noInjection],
             'bien_puestos'      => ['sometimes', 'nullable', 'string', 'max:5', $noInjection],
+            'bien_uso'               => ['sometimes', 'nullable', 'string', 'max:40', $noInjection],
+            'bien_serial_carroceria' => ['sometimes', 'nullable', 'string', 'max:30', $noInjection],
+            'bien_serial_motor'      => ['sometimes', 'nullable', 'string', 'max:30', $noInjection],
         ]);
 
         // Coherencia de fechas: el vencimiento debe ser posterior a la emisión.
@@ -115,7 +118,7 @@ class PolizaController extends Controller
         foreach ($snapMap as $field => [$grp, $key]) {
             if (array_key_exists($field, $data)) { $snap[$grp][$key] = $data[$field]; unset($data[$field]); }
         }
-        $bienMap = ['bien_marca'=>'marca','bien_modelo'=>'modelo','bien_anio'=>'anio','bien_placa'=>'placa','bien_color'=>'color','bien_version'=>'version','bien_puestos'=>'puestos'];
+        $bienMap = ['bien_marca'=>'marca','bien_modelo'=>'modelo','bien_anio'=>'anio','bien_placa'=>'placa','bien_color'=>'color','bien_version'=>'version','bien_puestos'=>'puestos','bien_uso'=>'uso','bien_serial_carroceria'=>'serial_carroceria','bien_serial_motor'=>'serial_motor'];
         foreach ($bienMap as $field => $key) {
             if (array_key_exists($field, $data)) { $snap['bien']['atributos'][$key] = $data[$field]; unset($data[$field]); }
         }

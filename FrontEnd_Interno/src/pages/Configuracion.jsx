@@ -445,21 +445,17 @@ const ABOUT_MODULOS = [
 function TabAbout() {
   return (
     <div className="max-w-3xl space-y-5">
-      {/* Portada del producto */}
+      {/* Portada del software (sin marca del cliente: esta pantalla habla del
+          software en sí y de la empresa que lo desarrolló). */}
       <div className="card overflow-hidden p-0">
         <div className="relative bg-gradient-to-br from-jm-blue to-blue-700 px-6 py-7 sm:px-8 sm:py-9 text-white">
           <div className="flex items-center gap-4 sm:gap-5">
             <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white/15 backdrop-blur flex items-center justify-center shrink-0 ring-1 ring-white/20">
-              <img src="/logo-sinfondo.png" alt="Logo J&M" className="w-12 h-12 sm:w-14 sm:h-14 object-contain" />
+              <ShieldCheck className="w-9 h-9 sm:w-11 sm:h-11 text-white" />
             </div>
             <div className="min-w-0">
-              <h3 className="text-xl sm:text-2xl font-black leading-tight">INVERSIONES J&amp;M</h3>
-              <p className="text-blue-100 text-sm sm:text-base">Sistema de Emisión y Registro de Pólizas</p>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-white/20 rounded-full px-2.5 py-1">
-                  <Info className="w-3.5 h-3.5" /> Versión 1.0.1
-                </span>
-              </div>
+              <h3 className="text-xl sm:text-2xl font-black leading-tight">Victecnology, Lda</h3>
+              <p className="text-blue-100 text-sm sm:text-base">Software de gestión y emisión de pólizas de seguro</p>
             </div>
           </div>
         </div>

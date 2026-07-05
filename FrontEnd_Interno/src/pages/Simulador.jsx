@@ -663,6 +663,9 @@ function Step2({ sim, setSim, onNext, onBack, onClose }) {
 
 // ── PASO 3: Bien asegurado ────────────────────────────────────────────────────
 const USOS = ['Particular', 'Ejecutivo / Transporte de personal', 'Carga liviana', 'Carga pesada', 'Colectivo / Minibús', 'Rústico / Pickup', 'Oficial']
+// Tipos de vehículo base; se combinan con los tipos del catálogo (Vehículos →
+// Catálogo) para que los tipos creados ahí aparezcan aquí sin tocar código.
+const TIPOS_VEHICULO_BASE = ['Automóvil', 'Camioneta', 'Motocicleta', 'Camión / Carga']
 
 function Step3({ sim, setSim, onNext, onBack, onClose, vehiculosCatalogo }) {
   const tipoBien = sim.producto?.tipo_bien ?? 'ninguno'
@@ -701,6 +704,19 @@ function Step3({ sim, setSim, onNext, onBack, onClose, vehiculosCatalogo }) {
     return list
   }, [vehiculosCatalogo, sim.clase, sim.marca, sim.modelo])
 
+  // Tipos de vehículo = base + los del catálogo (así los tipos nuevos creados
+  // en Vehículos → Catálogo aparecen en este selector).
+  const tiposVehiculo = useMemo(() => {
+    const s = new Set(TIPOS_VEHICULO_BASE)
+    for (const it of (vehiculosCatalogo || [])) if (it.tipo) s.add(it.tipo)
+    return [...s]
+  }, [vehiculosCatalogo])
+  // Garantiza que el valor actualmente seleccionado siempre esté en la lista.
+  const tipoOptions = (current) => {
+    const list = current && !tiposVehiculo.includes(current) ? [current, ...tiposVehiculo] : tiposVehiculo
+    return list.map(tp => <option key={tp} value={tp}>{tp}</option>)
+  }
+
   const canContinueAdicionales = (sim.vehiculos_adicionales || []).every(
     v => v.placa.trim().length >= 4 && v.marca && v.modelo && v.año && v.valor > 0
   )
@@ -732,10 +748,7 @@ function Step3({ sim, setSim, onNext, onBack, onClose, vehiculosCatalogo }) {
                 const newClase = e.target.value;
                 setSim(p => ({ ...p, clase: newClase, marca: '', modelo: '', año: '' }));
               }}>
-                <option value="Automóvil">Automóvil</option>
-                <option value="Camioneta">Camioneta</option>
-                <option value="Motocicleta">Motocicleta</option>
-                <option value="Camión / Carga">Camión / Carga</option>
+                {tipoOptions(sim.clase)}
               </select>
             </div>
             <div>
@@ -906,10 +919,7 @@ function Step3({ sim, setSim, onNext, onBack, onClose, vehiculosCatalogo }) {
                           arr[i].año = '';
                           setSim(p => ({ ...p, vehiculos_adicionales: arr }));
                         }}>
-                          <option value="Automóvil">Automóvil</option>
-                          <option value="Camioneta">Camioneta</option>
-                          <option value="Motocicleta">Motocicleta</option>
-                          <option value="Camión / Carga">Camión / Carga</option>
+                          {tipoOptions(v.clase)}
                         </select>
                       </div>
                       <div>
@@ -1787,6 +1797,40 @@ function UnderwritingModal({ cot, productos = [], onClose, onStatusChanged, show
 
           {/* Izquierda: formulario nueva evaluación */}
           <div className="p-6 space-y-5">
+            {/* Pago registrado por el vendedor — se verifica ANTES de aprobar. */}
+            {cot.pago_datos?.pagos?.length > 0 ? (
+              <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-3.5">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-7 h-7 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                    <DollarSign className="w-3.5 h-3.5" />
+                  </span>
+                  <p className="text-xs font-bold text-emerald-800 uppercase tracking-widest">Pago registrado</p>
+                  <span className="ml-auto text-[10px] font-semibold text-emerald-600">
+                    {cot.pago_datos.frecuencia_pago || 'Anual'}
+                  </span>
+                </div>
+                <div className="space-y-1.5">
+                  {cot.pago_datos.pagos.map((p, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs bg-white rounded-lg border border-emerald-100 px-2.5 py-1.5">
+                      <span className="font-semibold text-slate-700">{p.forma}</span>
+                      <span className="text-slate-400">·</span>
+                      <span className="font-mono font-bold text-emerald-700">{fmtMonto(Number(p.monto) || 0, p.moneda)} {p.moneda}</span>
+                      {p.referencia && (
+                        <span className="ml-auto text-[11px] text-slate-500 font-mono truncate max-w-[140px]" title={p.referencia}>
+                          Ref: {p.referencia}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 flex items-start gap-2 text-[11px] text-amber-700">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                Aún no se ha registrado el pago del vendedor. Al aprobar no se emitirá la póliza hasta que el pago esté registrado.
+              </div>
+            )}
+
             <div className="flex items-center gap-2">
               <span className="w-7 h-7 rounded-xl bg-jm-blue/10 text-jm-blue flex items-center justify-center shrink-0">
                 <ClipboardList className="w-3.5 h-3.5" />
@@ -2181,6 +2225,19 @@ export default function Simulador() {
   // en las tarjetas (móvil).
   const accionesCot = (q) => (
     <>
+      {/* NUEVO FLUJO: el vendedor registra el pago primero; luego la oficina evalúa. */}
+      {canCreate && (q.status === 'pendiente' || q.status === 'en_revision') && (
+        <button onClick={() => {
+          const prod = productos.find(p => p.id === q.producto_id)
+          showModal('emitirCotizacion', {
+            cot: { ...q, producto_permite_mensualidades: !!prod?.permite_mensualidades, producto_recargo_mensual_pct: prod?.recargo_mensual_pct },
+            mode: 'registrar',
+            onSaved: loadData,
+          })
+        }} className="p-2.5 rounded-lg bg-teal-50 text-teal-600 hover:bg-teal-100 transition" title={q.pago_datos ? 'Actualizar pago registrado' : 'Registrar pago'}>
+          <DollarSign className="w-[18px] h-[18px]" />
+        </button>
+      )}
       {canUnderwrite && (q.status === 'pendiente' || q.status === 'en_revision') && (
         <button onClick={() => setUwModal(q)} className="p-2.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition" title="Evaluación de Underwriting">
           <ClipboardList className="w-[18px] h-[18px]" />
@@ -2191,6 +2248,7 @@ export default function Simulador() {
           const prod = productos.find(p => p.id === q.producto_id)
           showModal('emitirCotizacion', {
             cot: { ...q, producto_permite_mensualidades: !!prod?.permite_mensualidades, producto_recargo_mensual_pct: prod?.recargo_mensual_pct },
+            mode: 'emitir',
             onSaved: loadData,
           })
         }} className="p-2.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition" title="Emitir póliza">

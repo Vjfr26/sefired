@@ -240,6 +240,17 @@ export async function fetchClientesReport(params = {}) {
   return res.json()
 }
 
+export async function exportClientesReport(params = {}) {
+  const token = localStorage.getItem('auth_token')
+  const res = await fetch(`${API_BASE_URL}/api/reports/clientes/exportar`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': '*/*', 'Authorization': `Bearer ${token}` },
+    body: JSON.stringify(params)
+  })
+  if (!res.ok) throw new Error('Error al exportar métricas de clientes')
+  return res.blob()
+}
+
 export async function fetchVehiculosReport(params = {}) {
   const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v != null && v !== '')))
   const res = await fetch(`${API_BASE_URL}/api/reports/vehiculos?${qs}`, { headers: getAuthHeaders() })

@@ -50,7 +50,7 @@ import { updatePoliza, renovarPoliza, downloadPolizaPdf, fetchBeneficiarios, cre
 import { fetchBienes, createBien } from '../api/bienes.js'
 import { fetchVehiculosCatalogo } from '../api/vehiculosCatalogo.js'
 import { BIEN_TIPO_PRESETS } from '../utils/bienPresets.js'
-import { emitirCotizacion } from '../api/solicitudes.js'
+import { emitirCotizacion, registrarPagoCotizacion } from '../api/solicitudes.js'
 import { fetchTasas } from '../api/tasas.js'
 
 // ── Estructura base de todos los modales ────────────────────────────────────
@@ -858,8 +858,11 @@ const PAGOS_SIN_REF = new Set(['Efectivo USD', 'Efectivo Bs.'])
 
 const pagoVacio = () => ({ forma: 'Transferencia', moneda: 'USD', monto: '', referencia: '' })
 
-function EmitirCotizacionModal({ cot, onSaved }) {
+// mode: 'registrar' (nuevo flujo — el vendedor registra el pago y pasa a
+// evaluación) | 'emitir' (legacy — emite directo desde 'aprobado').
+function EmitirCotizacionModal({ cot, onSaved, mode = 'registrar' }) {
   const { closeModal, showToast } = useApp()
+  const esRegistro = mode === 'registrar'
   const [tasas, setTasas]         = useState({ usd: null, eur: null })
   const [pagos, setPagos]         = useState(() => [{ ...pagoVacio(), moneda: cot.moneda_producto || 'USD' }])
   const [frecuencia, setFrecuencia] = useState('Anual')
@@ -947,8 +950,13 @@ function EmitirCotizacionModal({ cot, onSaved }) {
         frecuencia_pago: frecuencia,
         pagos,
       }
-      const result = await emitirCotizacion(cot.id, payload)
-      showToast(`Póliza ${result.nro_contrato} emitida correctamente`, 'success')
+      if (esRegistro) {
+        await registrarPagoCotizacion(cot.id, payload)
+        showToast('Pago registrado. La cotización pasó a evaluación de la oficina.', 'success')
+      } else {
+        const result = await emitirCotizacion(cot.id, payload)
+        showToast(`Póliza ${result.nro_contrato} emitida correctamente`, 'success')
+      }
       onSaved?.()
       closeModal()
     } catch (err) {
@@ -959,11 +967,14 @@ function EmitirCotizacionModal({ cot, onSaved }) {
   }
 
   return (
-    <ModalShell title="Emitir Póliza" maxW="max-w-xl" footer={
+    <ModalShell title={esRegistro ? 'Registrar Pago' : 'Emitir Póliza'} maxW="max-w-xl" footer={
       <>
         <button onClick={closeModal} className="btn-secondary">Cancelar</button>
         <button onClick={handleEmitir} disabled={saving} className="btn-success">
-          <FileCheck className="w-4 h-4" />{saving ? 'Emitiendo…' : 'Emitir Póliza'}
+          <FileCheck className="w-4 h-4" />
+          {esRegistro
+            ? (saving ? 'Registrando…' : 'Registrar Pago')
+            : (saving ? 'Emitiendo…'   : 'Emitir Póliza')}
         </button>
       </>
     }>
@@ -1102,7 +1113,9 @@ function EmitirCotizacionModal({ cot, onSaved }) {
         </div>
 
         <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100 text-xs text-emerald-700">
-          Se generará la póliza y el recibo automáticamente. La cotización quedará como Emitida.
+          {esRegistro
+            ? 'El pago quedará registrado y la cotización pasará a evaluación de la oficina. La póliza se generará cuando aprueben.'
+            : 'Se generará la póliza y el recibo automáticamente. La cotización quedará como Emitida.'}
         </div>
       </div>
     </ModalShell>
@@ -3004,6 +3017,9 @@ function AjustarPolizaModal({ c, onSave, polizaId, onCancel }) {
       bien_color:        pol.bien_color || '',
       bien_version:      pol.bien_version || '',
       bien_puestos:      pol.bien_puestos || '',
+      bien_uso:              pol.bien_uso || '',
+      bien_serial_carroceria: pol.bien_serial_carroceria || '',
+      bien_serial_motor:      pol.bien_serial_motor || '',
     })
   }
 
@@ -3325,6 +3341,18 @@ function AjustarPolizaModal({ c, onSave, polizaId, onCancel }) {
                 <div className="input-group">
                   <label className="input-label">Puestos</label>
                   <input type="text" className="input-field" value={form.bien_puestos ?? ''} onChange={e => setForm(f => ({ ...f, bien_puestos: e.target.value }))} />
+                </div>
+                <div className="input-group">
+                  <label className="input-label">Uso</label>
+                  <input type="text" className="input-field" value={form.bien_uso ?? ''} onChange={e => setForm(f => ({ ...f, bien_uso: e.target.value }))} placeholder="Particular" />
+                </div>
+                <div className="input-group">
+                  <label className="input-label">Serial de carrocería</label>
+                  <input type="text" className="input-field font-mono uppercase" value={form.bien_serial_carroceria ?? ''} onChange={e => setForm(f => ({ ...f, bien_serial_carroceria: e.target.value.toUpperCase() }))} />
+                </div>
+                <div className="input-group">
+                  <label className="input-label">Serial de motor</label>
+                  <input type="text" className="input-field font-mono uppercase" value={form.bien_serial_motor ?? ''} onChange={e => setForm(f => ({ ...f, bien_serial_motor: e.target.value.toUpperCase() }))} />
                 </div>
               </>
             )}
@@ -3682,6 +3710,8 @@ function PolizaBienesModal({ poliza, personaId, onClose }) {
 
   // Listas en cascada del catálogo de vehículos permitidos (Tipo→Marca→Modelo→Año).
   const claseSel   = nuevo.clase || 'Automóvil'
+  // Tipos = base + los que existan en el catálogo (así aparecen los tipos nuevos).
+  const tiposCat   = [...new Set([...CLASES_VEHICULO, ...catalogo.map(c => c.tipo).filter(Boolean)])]
   const marcasCat  = esVehiculo
     ? [...new Set(catalogo.filter(c => c.tipo === claseSel).map(c => c.marca))].sort()
     : []
@@ -3893,7 +3923,7 @@ function PolizaBienesModal({ poliza, personaId, onClose }) {
                             <label className="field-label">Tipo de vehículo</label>
                             <select className="select-field" value={claseSel}
                               onChange={e => setNuevo(p => ({ ...p, clase: e.target.value, marca: '', modelo: '', anio: '' }))}>
-                              {CLASES_VEHICULO.map(c => <option key={c} value={c}>{c}</option>)}
+                              {tiposCat.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                           </div>
                           <div>

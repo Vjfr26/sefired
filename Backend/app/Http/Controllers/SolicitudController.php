@@ -29,6 +29,7 @@ use App\Traits\ScopesVendedor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Gestión de cotizaciones/solicitudes de seguro.
@@ -257,6 +258,22 @@ class SolicitudController extends Controller
         // evaluación de underwriting por completo.
         WorkflowService::assertSolicitud($solicitud->status, 'emitida');
 
+        $pago   = $this->validarPagoRequest($request);
+        $result = $this->emitirConPago($solicitud, $pago);
+
+        return response()->json([
+            'message'      => 'Póliza y recibo generados correctamente',
+            'nro_contrato' => $result['nro_contrato'],
+            'nro_factura'  => $result['nro_factura'],
+        ], 201);
+    }
+
+    /**
+     * Valida y normaliza el payload de pago (formas/montos/moneda/tasas). Lo
+     * usan tanto la emisión directa como el registro de pago del vendedor.
+     */
+    private function validarPagoRequest(Request $request): array
+    {
         $noInjection = new NoInjectionChars();
 
         $data = $request->validate([
@@ -268,40 +285,78 @@ class SolicitudController extends Controller
             'pagos.*.moneda'    => 'required|string|in:USD,EUR,Bs.',
             'pagos.*.monto'     => 'required|numeric|min:0.01',
             'pagos.*.referencia'=> ['nullable', 'string', 'max:100', $noInjection],
-            // campos legacy / fallback
-            'pago'      => ['nullable', 'string', 'max:30', $noInjection],
-            'moneda'    => ['nullable', 'string', 'max:10', $noInjection],
-            'referencia'=> ['nullable', 'string', 'max:50', $noInjection],
         ]);
 
-        $solicitud->load(['persona', 'producto', 'tarifario', 'bien']);
+        return [
+            'pagos'           => $data['pagos'],
+            'tasa_bcv'        => (float) $data['tasa_bcv'],
+            'tasa_eur'        => isset($data['tasa_eur']) && $data['tasa_eur'] > 0 ? (float) $data['tasa_eur'] : (float) $data['tasa_bcv'],
+            'frecuencia_pago' => $data['frecuencia_pago'] ?? 'Anual',
+        ];
+    }
 
-        $cobs    = is_array($solicitud->coberturas) ? $solicitud->coberturas : [];
-        $hoy     = now()->toDateString();
-        $venc    = now()->addYear()->toDateString();
-        $tasaBcv = (float) $data['tasa_bcv'];
-        $tasaEur = isset($data['tasa_eur']) && $data['tasa_eur'] > 0 ? (float) $data['tasa_eur'] : $tasaBcv;
+    /**
+     * NUEVO FLUJO — el pago lo registra el VENDEDOR antes de la evaluación de
+     * la oficina. Guarda el pago en la solicitud y la mueve a 'en_revision'
+     * para que administración lo verifique y apruebe (ahí se genera la póliza).
+     */
+    public function registrarPago(Request $request, $id)
+    {
+        $solicitud = Solicitud::with('producto')->findOrFail($id);
+        $this->assertAccesoSolicitud($solicitud);
 
-        // Moneda en la que está denominado el total de esta solicitud — la
-        // del producto contratado, no la moneda en la que el cliente pague.
+        if ($solicitud->status === 'emitida') {
+            return response()->json(['error' => 'Esta cotización ya fue emitida.'], 409);
+        }
+        if (!in_array($solicitud->status, ['pendiente', 'en_revision'], true)) {
+            return response()->json(['error' => 'Solo se puede registrar el pago de una cotización pendiente o en revisión.'], 422);
+        }
+
+        $pago = $this->validarPagoRequest($request);
+        $this->validarMontoPago($solicitud, $pago);
+
+        $pago['registrado_por'] = auth()->id();
+        $pago['registrado_en']  = now()->toDateTimeString();
+
+        // pendiente → en_revision (si ya estaba en_revision, solo se re-guarda el pago).
+        if ($solicitud->status === 'pendiente') {
+            WorkflowService::assertSolicitud($solicitud->status, 'en_revision');
+            $solicitud->status = 'en_revision';
+        }
+        $solicitud->pago_datos = $pago;
+        $solicitud->save();
+
+        $this->logActivity(
+            'Pago Registrado',
+            "Pago registrado para cotización #{$solicitud->id} — enviada a evaluación de la oficina",
+            'solicitud',
+            auth()->id()
+        );
+
+        return response()->json(['message' => 'Pago registrado. La cotización pasó a evaluación de la oficina.'], 200);
+    }
+
+    /**
+     * Verifica que el monto pagado esté dentro del rango permitido (desde la
+     * primera cuota mensual hasta el total financiado / anual). Lanza 422 si no.
+     */
+    public function validarMontoPago(Solicitud $solicitud, array $pago): void
+    {
+        $solicitud->loadMissing('producto');
         $monedaNativa = Moneda::normalizar($solicitud->moneda_producto ?? $solicitud->producto?->moneda ?? 'USD');
+        $tasaBcv = (float) $pago['tasa_bcv'];
+        $tasaEur = isset($pago['tasa_eur']) && $pago['tasa_eur'] > 0 ? (float) $pago['tasa_eur'] : $tasaBcv;
 
-        // El pago al emitir puede ir desde la primera cuota (si es Mensual y el
-        // producto admite mensualidades) hasta el total anual completo: el cliente
-        // puede adelantar pagos mensuales o pagar el año entero de una vez. Lo que
-        // NO se permite es pagar menos que la cuota del mes ni más que el total anual.
-        $totalPoliza  = (float) $solicitud->total;
-        $totalPagado  = 0.0;
-        foreach ($data['pagos'] as $p) {
+        $totalPoliza = (float) $solicitud->total;
+        $totalPagado = 0.0;
+        foreach ($pago['pagos'] as $p) {
             $totalPagado += Moneda::convertir((float) $p['monto'], $p['moneda'], $monedaNativa, $tasaBcv, $tasaEur);
         }
 
-        $frecuencia     = $data['frecuencia_pago'] ?? 'Anual';
+        $frecuencia     = $pago['frecuencia_pago'] ?? 'Anual';
         $permiteMensual = (bool) ($solicitud->producto?->permite_mensualidades);
         $recargoPct     = (float) ($solicitud->producto?->recargo_mensual_pct ?? 0);
         $esMensual      = $frecuencia === 'Mensual' && $permiteMensual;
-        // En mensual el cliente puede pagar desde la 1ª cuota hasta el total
-        // financiado (prima * (1+recargo%)); en anual, exactamente la prima.
         $montoMinimo    = $esMensual ? Mensualidades::montoCuota($totalPoliza, $recargoPct) : $totalPoliza;
         $montoMaximo    = $esMensual ? Mensualidades::totalFinanciado($totalPoliza, $recargoPct) : $totalPoliza;
 
@@ -310,32 +365,59 @@ class SolicitudController extends Controller
         $minCents = (int) round($montoMinimo * 100);
         $maxCents = (int) round($montoMaximo * 100);
         if ($pagCents < $minCents) {
-            return response()->json([
-                'error' => sprintf(
-                    'El pago (%s%.2f %s) es menor a %s (%s%.2f %s).',
-                    Moneda::simbolo($monedaNativa), round($totalPagado, 2), Moneda::etiqueta($monedaNativa),
-                    $esMensual ? 'la primera cuota mensual' : 'el total de la póliza',
-                    Moneda::simbolo($monedaNativa), $montoMinimo, Moneda::etiqueta($monedaNativa)
-                ),
-            ], 422);
+            throw ValidationException::withMessages(['pago' => sprintf(
+                'El pago (%s%.2f %s) es menor a %s (%s%.2f %s).',
+                Moneda::simbolo($monedaNativa), round($totalPagado, 2), Moneda::etiqueta($monedaNativa),
+                $esMensual ? 'la primera cuota mensual' : 'el total de la póliza',
+                Moneda::simbolo($monedaNativa), $montoMinimo, Moneda::etiqueta($monedaNativa)
+            )]);
         }
         if ($pagCents > $maxCents + 10) {
-            return response()->json([
-                'error' => sprintf(
-                    'El pago (%s%.2f %s) supera el %s (%s%.2f %s).',
-                    Moneda::simbolo($monedaNativa), round($totalPagado, 2), Moneda::etiqueta($monedaNativa),
-                    $esMensual ? 'total financiado de las 12 cuotas' : 'total anual de la póliza',
-                    Moneda::simbolo($monedaNativa), $montoMaximo, Moneda::etiqueta($monedaNativa)
-                ),
-            ], 422);
+            throw ValidationException::withMessages(['pago' => sprintf(
+                'El pago (%s%.2f %s) supera el %s (%s%.2f %s).',
+                Moneda::simbolo($monedaNativa), round($totalPagado, 2), Moneda::etiqueta($monedaNativa),
+                $esMensual ? 'total financiado de las 12 cuotas' : 'total anual de la póliza',
+                Moneda::simbolo($monedaNativa), $montoMaximo, Moneda::etiqueta($monedaNativa)
+            )]);
+        }
+    }
+
+    /**
+     * Genera la póliza + recibo a partir de un pago ya validado. La usan tanto
+     * la emisión directa (emitir) como la aprobación de underwriting.
+     */
+    public function emitirConPago(Solicitud $solicitud, array $pago): array
+    {
+        $solicitud->load(['persona', 'producto', 'tarifario', 'bien']);
+        $this->validarMontoPago($solicitud, $pago);
+
+        $cobs    = is_array($solicitud->coberturas) ? $solicitud->coberturas : [];
+        $hoy     = now()->toDateString();
+        $venc    = now()->addYear()->toDateString();
+        $tasaBcv = (float) $pago['tasa_bcv'];
+        $tasaEur = isset($pago['tasa_eur']) && $pago['tasa_eur'] > 0 ? (float) $pago['tasa_eur'] : $tasaBcv;
+
+        // Moneda en la que está denominado el total de esta solicitud — la
+        // del producto contratado, no la moneda en la que el cliente pague.
+        $monedaNativa = Moneda::normalizar($solicitud->moneda_producto ?? $solicitud->producto?->moneda ?? 'USD');
+
+        $totalPoliza  = (float) $solicitud->total;
+        $totalPagado  = 0.0;
+        foreach ($pago['pagos'] as $p) {
+            $totalPagado += Moneda::convertir((float) $p['monto'], $p['moneda'], $monedaNativa, $tasaBcv, $tasaEur);
         }
 
+        $frecuencia     = $pago['frecuencia_pago'] ?? 'Anual';
+        $permiteMensual = (bool) ($solicitud->producto?->permite_mensualidades);
+        $recargoPct     = (float) ($solicitud->producto?->recargo_mensual_pct ?? 0);
+        $esMensual      = $frecuencia === 'Mensual' && $permiteMensual;
+
         // Resumen de formas de pago para el campo string
-        $pagoResumen = collect($data['pagos'])
+        $pagoResumen = collect($pago['pagos'])
             ->map(fn($p) => $p['forma'] . ' ' . $p['moneda'])
             ->join(' / ');
 
-        $moneda      = $data['pagos'][0]['moneda'] ?? 'USD';
+        $moneda      = $pago['pagos'][0]['moneda'] ?? 'USD';
 
         // Sede desde el usuario autenticado o fallback
         $sede = auth()->user()?->sede ?? 'Principal';
@@ -394,7 +476,7 @@ class SolicitudController extends Controller
             'tasa_emision'     => $tasaBcv,
             'tasa_emision_eur' => $tasaEur,
             'moneda'           => $moneda,
-            'pagos'            => $data['pagos'],
+            'pagos'            => $pago['pagos'],
             'bien'             => $solicitud->bien ? [
                 'id'            => $solicitud->bien->id,
                 'tipo'          => $solicitud->bien->tipo,
@@ -406,7 +488,7 @@ class SolicitudController extends Controller
             'total_bs'      => $totalBs,
         ];
 
-        $result = DB::transaction(function () use ($solicitud, $data, $hoy, $venc, $coberturaDolares, $coberturaBS, $aseguradoNombre, $aseguradoCi, $snapshot, $tasaBcv, $tasaEur, $totalUsd, $totalBs, $moneda, $monedaNativa, $pagoResumen, $sede, $frecuencia, $esMensual, $recargoPct, $totalPagado) {
+        $result = DB::transaction(function () use ($solicitud, $pago, $hoy, $venc, $coberturaDolares, $coberturaBS, $aseguradoNombre, $aseguradoCi, $snapshot, $tasaBcv, $tasaEur, $totalUsd, $totalBs, $moneda, $monedaNativa, $pagoResumen, $sede, $frecuencia, $esMensual, $recargoPct, $totalPagado) {
             $poliza = Poliza::create([
                 'nro_contrato'         => 'TMP-' . uniqid(),
                 'solicitud_id'         => $solicitud->id,
@@ -489,7 +571,7 @@ class SolicitudController extends Controller
                 Mensualidades::generarCuotas($poliza, (float) $totalUsd, $recargoPct, $hoy);
                 $factura = Mensualidades::aplicarPago(
                     $poliza, (float) $totalPagado, $pagoResumen, $moneda,
-                    $data['pagos'][0]['referencia'] ?? null, $tasaBcv, $tasaEur, auth()->id(), $sede
+                    $pago['pagos'][0]['referencia'] ?? null, $tasaBcv, $tasaEur, auth()->id(), $sede
                 );
                 $nroFactura = $factura?->numero ?? $nroFactura;
             } else {
@@ -502,7 +584,7 @@ class SolicitudController extends Controller
                     'valor_bs'      => $totalBs,
                     'forma_pago'    => $pagoResumen,
                     'moneda'        => $moneda,
-                    'referencia'    => $data['pagos'][0]['referencia'] ?? null,
+                    'referencia'    => $pago['pagos'][0]['referencia'] ?? null,
                     'usuario_id'    => auth()->id(),
                 ]);
             }
@@ -567,11 +649,7 @@ class SolicitudController extends Controller
             );
         }
 
-        return response()->json([
-            'message'      => 'Póliza y recibo generados correctamente',
-            'nro_contrato' => $result['nro_contrato'],
-            'nro_factura'  => $result['nro_factura'],
-        ], 201);
+        return $result;
     }
 
     /**
@@ -663,6 +741,7 @@ class SolicitudController extends Controller
             'fuente'            => $s->fuente ?? 'interno',
             'poliza_id'         => $s->polizas->first()?->id,
             'status'            => $s->status ?? 'en_revision',
+            'pago_datos'        => $s->pago_datos,
             'fecha'             => $s->fecha_solicitud?->format('d/m/Y') ?? '—',
             'fecha_iso'         => $s->fecha_solicitud?->format('Y-m-d'),
             'coberturas'        => $cobs,

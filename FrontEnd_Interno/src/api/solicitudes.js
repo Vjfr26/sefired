@@ -56,6 +56,18 @@ export async function emitirCotizacion(id, data) {
   return json
 }
 
+// NUEVO FLUJO: el vendedor registra el pago; la cotización pasa a evaluación.
+export async function registrarPagoCotizacion(id, data) {
+  const res = await fetch(`${API}/${id}/registrar-pago`, {
+    method: 'POST',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(data),
+  })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json.error || json.message || 'Error al registrar el pago')
+  return json
+}
+
 export async function deleteCotizacion(id) {
   const res = await fetch(`${API}/${id}`, {
     method: 'DELETE',

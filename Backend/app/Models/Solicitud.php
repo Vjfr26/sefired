@@ -30,6 +30,7 @@ class Solicitud extends Model
         'status',
         'vendedor_id',
         'coberturas',
+        'pago_datos',
         'nombre_tomador',
         'ci_tomador',
         'asegurado_nombre',
@@ -54,6 +55,7 @@ class Solicitud extends Model
             'suma_prima_bs'     => 'decimal:2',
             'fecha_solicitud'   => 'date',
             'coberturas'        => 'array',
+            'pago_datos'        => 'array',
         ];
     }
 

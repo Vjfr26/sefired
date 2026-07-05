@@ -413,6 +413,9 @@ class ClienteController extends Controller
                         'bien_color'            => data_get($poliza->snapshot_datos, 'bien.atributos.color') ?? $attr['color'] ?? '',
                         'bien_version'          => data_get($poliza->snapshot_datos, 'bien.atributos.version') ?? $attr['version'] ?? '',
                         'bien_puestos'          => (string) (data_get($poliza->snapshot_datos, 'bien.atributos.puestos') ?? $attr['puestos'] ?? ''),
+                        'bien_uso'              => data_get($poliza->snapshot_datos, 'bien.atributos.uso') ?? $attr['uso'] ?? '',
+                        'bien_serial_carroceria'=> data_get($poliza->snapshot_datos, 'bien.atributos.serial_carroceria') ?? $attr['serial_carroceria'] ?? '',
+                        'bien_serial_motor'     => data_get($poliza->snapshot_datos, 'bien.atributos.serial_motor') ?? $attr['serial_motor'] ?? '',
                         'bien_atributos'        => $attr,
                         'producto_documentos'   => array_map(
                             fn($d) => [

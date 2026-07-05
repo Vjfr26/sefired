@@ -6,6 +6,7 @@ use App\Mail\ReporteAdjuntoMail;
 use App\Models\AuditLog;
 use App\Models\Comision;
 use App\Models\EmailLog;
+use App\Models\IndicadorEconomico;
 use App\Models\IpBloqueada;
 use App\Models\Log;
 use App\Models\Usuario;
@@ -32,6 +33,7 @@ use App\Exports\OficinasExport;
 use App\Exports\OficinasPagosExport;
 use App\Exports\UsuariosMetricsExport;
 use App\Exports\UsuarioPolizasExport;
+use App\Exports\ClientesMetricsExport;
 
 class ReportController extends Controller
 {
@@ -535,7 +537,17 @@ class ReportController extends Controller
         // pagado/pendiente en la pestaña actúa sobre comision_id, no sobre
         // la póliza, así que ambas vistas (ventas y comisiones) siempre
         // reflejan el mismo registro.
-        $ventas = $policies->map(function ($p) {
+        // Conversión a Bs. con la tasa BCV de HOY (no la de emisión): la comisión
+        // se paga hoy, así que se valora a la tasa del día de consulta.
+        $tasaUsdHoy = (float) (IndicadorEconomico::usd()->orderByDesc('fecha')->orderByDesc('fecha_registro')->first()?->valor ?? 0);
+        $tasaEurHoy = (float) (IndicadorEconomico::eur()->orderByDesc('fecha')->orderByDesc('fecha_registro')->first()?->valor ?? 0);
+
+        // Comisión en Bs. = monto en USD × tasa BCV de hoy.
+        $comisionBs = fn ($p) => $p->comision
+            ? round((float) $p->comision->monto * $tasaUsdHoy, 2)
+            : null;
+
+        $ventas = $policies->map(function ($p) use ($comisionBs, $tasaUsdHoy, $tasaEurHoy) {
             return [
                 'id'                  => $p->id,
                 'fecha'               => $p->fecha_emision ? $p->fecha_emision->format('d/m/Y') : '—',
@@ -543,9 +555,11 @@ class ReportController extends Controller
                 'agente'              => $p->vendedor?->nombre ?? '—',
                 'tipo'                => $p->producto?->nombre ?? '—',
                 'prima'               => (float) $p->total,
+                'prima_bs'            => round(Moneda::aBs((float) $p->total, $p->monedaNativa(), $tasaUsdHoy, $tasaEurHoy), 2),
                 'est'                 => $p->status === 'ACTIVA' ? 'Vigente' : ($p->status === 'ANULADA' ? 'Anulada' : $p->status),
                 'comision_id'         => $p->comision?->id,
                 'comision_monto'      => $p->comision ? (float) $p->comision->monto : null,
+                'comision_bs'         => $comisionBs($p),
                 'comision_tasa_pct'   => $p->comision ? (float) $p->comision->tasa_pct : null,
                 'comision_status'     => $p->comision?->status,
                 'comision_fecha_pago' => $p->comision?->fecha_pago?->format('d/m/Y'),
@@ -557,17 +571,28 @@ class ReportController extends Controller
         // este usuario (todas, o solo las propias) en el período/filtro
         // actual, para el bloque de "lo pagado / lo pendiente" global. El
         // desglose por vendedor se movió a la pestaña Personal.
-        $totalGenerada  = $this->sumComision($policies);
-        $totalPagada    = $this->sumComision($policies, 'PAGADA');
-        $totalPendiente = $this->sumComision($policies, 'PENDIENTE');
+        $sumComisionBs = function ($status = null) use ($policies, $comisionBs) {
+            return round($policies->sum(function ($p) use ($status, $comisionBs) {
+                if (!$p->comision) return 0;
+                if ($status && $p->comision->status !== $status) return 0;
+                return $comisionBs($p) ?? 0;
+            }), 2);
+        };
+        $generadaBs   = $sumComisionBs();
+        $pagadaBs     = $sumComisionBs('PAGADA');
+        $pendienteBs  = $sumComisionBs('PENDIENTE');
 
         return response()->json([
             'ventas'      => $ventas,
             'resumen'     => [
-                'comision_generada'  => $totalGenerada,
-                'comision_pagada'    => $totalPagada,
-                'comision_pendiente' => $totalPendiente,
-                'pct_pagado'         => $totalGenerada > 0 ? round($totalPagada / $totalGenerada * 100, 1) : 0,
+                // Se mantienen los totales en USD (compatibilidad) y se agregan en Bs.
+                'comision_generada'     => $this->sumComision($policies),
+                'comision_pagada'       => $this->sumComision($policies, 'PAGADA'),
+                'comision_pendiente'    => $this->sumComision($policies, 'PENDIENTE'),
+                'comision_generada_bs'  => $generadaBs,
+                'comision_pagada_bs'    => $pagadaBs,
+                'comision_pendiente_bs' => $pendienteBs,
+                'pct_pagado'            => $generadaBs > 0 ? round($pagadaBs / $generadaBs * 100, 1) : 0,
             ],
         ]);
     }
@@ -1238,10 +1263,67 @@ class ReportController extends Controller
         $filtros_opciones = ['marcas' => $marcas, 'modelos' => $modelos];
 
         // ── Listado con filtros ───────────────────────────────────────────────────
-        $clientesQuery = Persona::with([
-            'bienes',
-            'solicitudes.polizas',
+        $filtro   = $request->input('filtro');
+        $clientes = $this->clientesFiltrados($request);
+
+        $rows = $clientes->map(function ($c) {
+            $polizas       = $c->solicitudes->flatMap->polizas;
+            $bienes        = $c->bienes; // todos los tipos de bien (vehículo, inmueble, etc.)
+            $polizasActivas = $polizas->where('status', 'ACTIVA');
+
+            $proxVenc     = $polizasActivas->filter(fn ($p) => $p->fecha_vencimiento !== null)->sortBy('fecha_vencimiento')->first();
+            $proxVencFecha = $proxVenc?->fecha_vencimiento ? $proxVenc->fecha_vencimiento->format('d/m/Y') : '—';
+            $proxVencSort  = $proxVenc?->fecha_vencimiento ? $proxVenc->fecha_vencimiento->toDateString() : '9999-12-31';
+
+            $marcasCliente = $bienes->map(fn ($b) => $b->atributos['marca'] ?? null)->filter()->unique()->values()->implode(', ');
+            $dir           = collect([$c->direccion, $c->ciudad, $c->estado])->filter()->implode(', ');
+
+            return [
+                'id'             => $c->id,
+                'ced'            => $c->cedula ?? '—',
+                'nom'            => $c->nombre ?? '—',
+                'cor'            => $c->correo ?? '—',
+                'tel'            => $c->celular ?? $c->telefono ?? '—',
+                'dir'            => $dir ?: '—',
+                'reg'            => $c->fecha_creacion ? $c->fecha_creacion->format('d/m/Y') : '—',
+                'bienes'         => $bienes->count(),
+                'marcas'         => $marcasCliente ?: '—',
+                'pol'            => $polizas->count(),
+                'pol_act'        => $polizasActivas->count(),
+                'prox_venc'      => $proxVencFecha,
+                'prox_venc_sort' => $proxVencSort,
+                'prima'          => round($this->sumTotalUsd($polizas), 2),
+                'est'            => $c->activo ? 'Activo' : 'Bloqueado',
+            ];
+        });
+
+        $rows = $this->filtrarClientesPorConteos($rows, $request);
+
+        if ($filtro === 'por_vencer') {
+            $rows = $rows->sortBy('prox_venc_sort')->values();
+        } elseif ($filtro === 'mas_polizas') {
+            $rows = $rows->sortByDesc('pol')->values();
+        } elseif ($filtro === 'por_bienes') {
+            $rows = $rows->sortByDesc('bienes')->values();
+        } else {
+            $rows = $rows->values();
+        }
+
+        return response()->json([
+            'stats'            => $stats,
+            'clientes'         => $rows,
+            'filtros_opciones' => $filtros_opciones,
         ]);
+    }
+
+    /**
+     * Aplica al query de clientes los mismos filtros del reporte (búsqueda,
+     * filtro rápido, marca/modelo del bien y estado de póliza). Compartido por
+     * el listado en pantalla y la exportación a Excel.
+     */
+    private function clientesFiltrados(Request $request): \Illuminate\Support\Collection
+    {
+        $clientesQuery = Persona::with(['bienes', 'solicitudes.polizas']);
 
         if ($request->filled('search')) {
             $search = $request->search;
@@ -1286,40 +1368,12 @@ class ReportController extends Controller
             $clientesQuery->whereHas('solicitudes.polizas', fn ($q) => $q->where('status', $request->estado_poliza));
         }
 
-        $clientes = $clientesQuery->get();
+        return $clientesQuery->get();
+    }
 
-        $rows = $clientes->map(function ($c) {
-            $polizas       = $c->solicitudes->flatMap->polizas;
-            $bienes        = $c->bienes; // todos los tipos de bien (vehículo, inmueble, etc.)
-            $polizasActivas = $polizas->where('status', 'ACTIVA');
-
-            $proxVenc     = $polizasActivas->filter(fn ($p) => $p->fecha_vencimiento !== null)->sortBy('fecha_vencimiento')->first();
-            $proxVencFecha = $proxVenc?->fecha_vencimiento ? $proxVenc->fecha_vencimiento->format('d/m/Y') : '—';
-            $proxVencSort  = $proxVenc?->fecha_vencimiento ? $proxVenc->fecha_vencimiento->toDateString() : '9999-12-31';
-
-            $marcasCliente = $bienes->map(fn ($b) => $b->atributos['marca'] ?? null)->filter()->unique()->values()->implode(', ');
-            $dir           = collect([$c->direccion, $c->ciudad, $c->estado])->filter()->implode(', ');
-
-            return [
-                'id'             => $c->id,
-                'ced'            => $c->cedula ?? '—',
-                'nom'            => $c->nombre ?? '—',
-                'cor'            => $c->correo ?? '—',
-                'tel'            => $c->celular ?? $c->telefono ?? '—',
-                'dir'            => $dir ?: '—',
-                'reg'            => $c->fecha_creacion ? $c->fecha_creacion->format('d/m/Y') : '—',
-                'bienes'         => $bienes->count(),
-                'marcas'         => $marcasCliente ?: '—',
-                'pol'            => $polizas->count(),
-                'pol_act'        => $polizasActivas->count(),
-                'prox_venc'      => $proxVencFecha,
-                'prox_venc_sort' => $proxVencSort,
-                'prima'          => $this->sumTotalUsd($polizas),
-                'est'            => $c->activo ? 'Activo' : 'Bloqueado',
-            ];
-        });
-
-        // Filtros post-query sobre conteos calculados
+    /** Filtros post-query sobre conteos calculados (bienes/prima min-max). */
+    private function filtrarClientesPorConteos(\Illuminate\Support\Collection $rows, Request $request): \Illuminate\Support\Collection
+    {
         if ($request->filled('min_bienes')) {
             $rows = $rows->filter(fn ($r) => $r['bienes'] >= (int) $request->min_bienes);
         }
@@ -1332,6 +1386,65 @@ class ReportController extends Controller
         if ($request->filled('max_prima')) {
             $rows = $rows->filter(fn ($r) => $r['prima'] <= (float) $request->max_prima);
         }
+        return $rows;
+    }
+
+    /**
+     * Exporta el reporte de clientes a Excel: una fila por cliente con TODOS
+     * sus datos individuales y completos (tabla gigante). Respeta los mismos
+     * filtros que la pantalla y permite elegir columnas.
+     */
+    public function exportClientesReport(Request $request)
+    {
+        $noInjection = new NoInjectionChars();
+        $request->validate([
+            'search'        => ['nullable', 'string', 'max:100', $noInjection],
+            'filtro'        => 'nullable|string|in:por_vencer,mas_polizas,por_bienes,activos,bloqueados',
+            'marca'         => ['nullable', 'string', 'max:100', $noInjection],
+            'modelo'        => ['nullable', 'string', 'max:100', $noInjection],
+            'min_bienes'    => 'nullable|integer|min:0',
+            'max_bienes'    => 'nullable|integer|min:0',
+            'estado_poliza' => 'nullable|string|in:ACTIVA,VENCIDA,ANULADA',
+            'min_prima'     => 'nullable|numeric|min:0',
+            'max_prima'     => 'nullable|numeric|min:0',
+            'columnas'      => 'nullable|array',
+        ]);
+
+        $filtro   = $request->input('filtro');
+        $clientes = $this->clientesFiltrados($request);
+
+        $rows = $clientes->map(function ($c) {
+            $polizas        = $c->solicitudes->flatMap->polizas;
+            $bienes         = $c->bienes;
+            $polizasActivas = $polizas->where('status', 'ACTIVA');
+
+            $proxVenc      = $polizasActivas->filter(fn ($p) => $p->fecha_vencimiento !== null)->sortBy('fecha_vencimiento')->first();
+            $proxVencFecha = $proxVenc?->fecha_vencimiento ? $proxVenc->fecha_vencimiento->format('d/m/Y') : '—';
+            $proxVencSort  = $proxVenc?->fecha_vencimiento ? $proxVenc->fecha_vencimiento->toDateString() : '9999-12-31';
+            $marcasCliente = $bienes->map(fn ($b) => $b->atributos['marca'] ?? null)->filter()->unique()->values()->implode(', ');
+
+            return [
+                'ced'            => $c->cedula ?? '—',
+                'nom'            => $c->nombre ?? '—',
+                'cor'            => $c->correo ?? '—',
+                'tel'            => $c->telefono ?? '—',
+                'cel'            => $c->celular ?? '—',
+                'dir'            => $c->direccion ?? '—',
+                'ciudad'         => $c->ciudad ?? '—',
+                'estado_region'  => $c->estado ?? '—',
+                'reg'            => $c->fecha_creacion ? $c->fecha_creacion->format('d/m/Y') : '—',
+                'bienes'         => $bienes->count(),
+                'marcas'         => $marcasCliente ?: '—',
+                'pol'            => $polizas->count(),
+                'pol_act'        => $polizasActivas->count(),
+                'prox_venc'      => $proxVencFecha,
+                'prox_venc_sort' => $proxVencSort,
+                'prima'          => round($this->sumTotalUsd($polizas), 2),
+                'est'            => $c->activo ? 'Activo' : 'Bloqueado',
+            ];
+        });
+
+        $rows = $this->filtrarClientesPorConteos($rows, $request);
 
         if ($filtro === 'por_vencer') {
             $rows = $rows->sortBy('prox_venc_sort')->values();
@@ -1340,14 +1453,11 @@ class ReportController extends Controller
         } elseif ($filtro === 'por_bienes') {
             $rows = $rows->sortByDesc('bienes')->values();
         } else {
-            $rows = $rows->values();
+            $rows = $rows->sortBy('nom')->values();
         }
 
-        return response()->json([
-            'stats'            => $stats,
-            'clientes'         => $rows,
-            'filtros_opciones' => $filtros_opciones,
-        ]);
+        return (new ClientesMetricsExport($rows, $request->input('columnas')))
+            ->download('metricas_clientes_' . now()->format('Ymd_His') . '.xlsx');
     }
 
     // ── REPORTE DE VEHÍCULOS ──────────────────────────────────────────────────────

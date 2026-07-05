@@ -71,15 +71,27 @@ class UnderwritingController extends Controller
         $data['tipo']            = $data['tipo'] ?? 'manual';
         $data['fecha_evaluacion'] = now();
 
-        $evaluacion = DB::transaction(function () use ($data, $solicitud) {
+        // Aprobación "limpia" (sin observaciones) — la única que desemboca en
+        // emisión automática, y solo si el vendedor ya registró el pago.
+        $tieneObservacion = trim((string) ($data['observaciones'] ?? '')) !== '';
+        $aproboLimpio     = $data['resultado'] === 'aprobado' && !$tieneObservacion;
+        $emitir           = $aproboLimpio && !empty($solicitud->pago_datos);
+
+        $solicitudCtrl = app(SolicitudController::class);
+        // Valida el monto ANTES de crear la evaluación: así una aprobación no
+        // queda "aprobada sin póliza" por un pago fuera de rango (falla 422).
+        if ($emitir) {
+            $solicitudCtrl->validarMontoPago($solicitud, $solicitud->pago_datos);
+        }
+
+        $evaluacion = DB::transaction(function () use ($data, $solicitud, $tieneObservacion) {
             $ev = UnderwritingEvaluacion::create($data);
 
             // Sincronizar el estado de la solicitud con la evaluación:
             //  - rechazado           → rechazado (una negativa es una negativa);
             //  - observado / con una  observación anotada → en_revision (queda
             //    para revisar);
-            //  - aprobado sin observación → aprobado (listo para emitir).
-            $tieneObservacion = trim((string) ($data['observaciones'] ?? '')) !== '';
+            //  - aprobado sin observación → aprobado (y, si hay pago, se emite abajo).
             $nuevoStatus = null;
             if ($data['resultado'] === 'rechazado') {
                 $nuevoStatus = 'rechazado';
@@ -96,6 +108,12 @@ class UnderwritingController extends Controller
 
             return $ev;
         });
+
+        // NUEVO FLUJO: aprobar con pago registrado genera la póliza + recibo
+        // automáticamente (aprobado → emitida), usando el pago del vendedor.
+        if ($emitir) {
+            $solicitudCtrl->emitirConPago($solicitud->fresh(), $solicitud->pago_datos);
+        }
 
         $this->logActivity(
             'Underwriting Creado',

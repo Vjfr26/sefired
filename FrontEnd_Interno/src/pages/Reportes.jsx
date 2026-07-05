@@ -50,6 +50,7 @@ import {
   marcarComision,
   pagarLoteComisiones,
   fetchClientesReport,
+  exportClientesReport,
   fetchVehiculosReport,
   uploadReporteAdjunto
 } from '../api/reportes.js'
@@ -83,6 +84,14 @@ const COLS_ASESOR = [
   ['fecha_emision', 'Fecha Emisión'], ['nro_contrato', 'Póliza'], ['cliente_nombre', 'Cliente'],
   ['producto_nombre', 'Producto'], ['total', 'Prima'], ['moneda_producto', 'Moneda'], ['status', 'Estado Póliza'],
   ['comision_monto', 'Comisión'], ['comision_status', 'Estado Comisión'], ['comision_fecha_pago', 'Fecha Pago'],
+]
+// Debe coincidir con columnDefs() de ClientesMetricsExport (una fila por cliente,
+// con todos sus datos individuales).
+const COLS_CLIENTES = [
+  ['ced', 'Cédula / RIF'], ['nom', 'Nombre Completo'], ['cor', 'Correo'], ['tel', 'Teléfono'], ['cel', 'Celular'],
+  ['dir', 'Dirección'], ['ciudad', 'Ciudad'], ['estado_region', 'Estado'], ['reg', 'Fecha de Registro'],
+  ['bienes', 'N° de Bienes'], ['marcas', 'Marcas'], ['pol', 'N° de Pólizas'], ['pol_act', 'Pólizas Activas'],
+  ['prox_venc', 'Próx. Vencimiento'], ['prima', 'Prima Total (USD)'], ['est', 'Estado del Cliente'],
 ]
 
 /**
@@ -218,7 +227,7 @@ function TabVentas() {
   const [fechaFin, setFechaFin] = useState(today)
   const [search, setSearch] = useState('')
   const [ventas, setVentas] = useState([])
-  const [resumen, setResumen] = useState({ comision_generada: 0, comision_pagada: 0, comision_pendiente: 0, pct_pagado: 0 })
+  const [resumen, setResumen] = useState({ comision_generada: 0, comision_pagada: 0, comision_pendiente: 0, comision_generada_bs: 0, comision_pagada_bs: 0, comision_pendiente_bs: 0, pct_pagado: 0 })
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [selected, setSelected] = useState(new Set())
@@ -236,7 +245,7 @@ function TabVentas() {
         search: search
       })
       setVentas(data.ventas || [])
-      setResumen(data.resumen || { comision_generada: 0, comision_pagada: 0, comision_pendiente: 0, pct_pagado: 0 })
+      setResumen(data.resumen || { comision_generada: 0, comision_pagada: 0, comision_pendiente: 0, comision_generada_bs: 0, comision_pagada_bs: 0, comision_pendiente_bs: 0, pct_pagado: 0 })
       setSelected(new Set())
     } catch (err) {
       showToast('Error al cargar ventas y comisiones', 'error')
@@ -271,7 +280,7 @@ function TabVentas() {
   const handleMarcarPagada = (venta) => {
     showModal('confirmAction', {
       title: 'Marcar comisión como pagada',
-      message: `¿Confirmas que la comisión de la póliza ${venta.pol} (${usd(venta.comision_monto)}) fue pagada? No podrás revertirlo desde aquí.`,
+      message: `¿Confirmas que la comisión de la póliza ${venta.pol} (${fmtMonto(venta.comision_bs, 'BS')}) fue pagada? No podrás revertirlo desde aquí.`,
       confirmLabel: 'Marcar pagada',
       color: 'emerald',
       icon: CheckCircle2,
@@ -312,10 +321,10 @@ function TabVentas() {
     const ids = Array.from(selected)
     const totalLote = ventas
       .filter(v => selected.has(v.comision_id))
-      .reduce((sum, v) => sum + (v.comision_monto || 0), 0)
+      .reduce((sum, v) => sum + (v.comision_bs || 0), 0)
     showModal('confirmAction', {
       title: 'Pagar comisiones seleccionadas',
-      message: `Se marcarán ${ids.length} comisiones como pagadas por un total de ${usd(totalLote)}. No podrás revertirlo desde aquí.`,
+      message: `Se marcarán ${ids.length} comisiones como pagadas por un total de ${fmtMonto(totalLote, 'BS')}. No podrás revertirlo desde aquí.`,
       confirmLabel: 'Pagar lote',
       color: 'emerald',
       icon: CheckCircle2,
@@ -384,9 +393,9 @@ function TabVentas() {
           {/* Resumen general: lo generado, lo pagado y lo pendiente de TODOS los vendedores del período filtrado */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
             {[
-              { label: 'Comisión Generada', val: usd(resumen.comision_generada), sub: 'Total del período', cls: 'border-t-indigo-500', vcls: 'text-indigo-700' },
-              { label: 'Comisión Pagada', val: usd(resumen.comision_pagada), sub: `${resumen.pct_pagado}% del total`, cls: 'border-t-emerald-500', vcls: 'text-emerald-700' },
-              { label: 'Comisión Pendiente', val: usd(resumen.comision_pendiente), sub: `${(100 - resumen.pct_pagado).toFixed(1)}% del total`, cls: 'border-t-amber-500', vcls: 'text-amber-700' },
+              { label: 'Comisión Generada', val: fmtMonto(resumen.comision_generada_bs, 'BS'), sub: 'Total del período', cls: 'border-t-indigo-500', vcls: 'text-indigo-700' },
+              { label: 'Comisión Pagada', val: fmtMonto(resumen.comision_pagada_bs, 'BS'), sub: `${resumen.pct_pagado}% del total`, cls: 'border-t-emerald-500', vcls: 'text-emerald-700' },
+              { label: 'Comisión Pendiente', val: fmtMonto(resumen.comision_pendiente_bs, 'BS'), sub: `${(100 - resumen.pct_pagado).toFixed(1)}% del total`, cls: 'border-t-amber-500', vcls: 'text-amber-700' },
             ].map(c => (
               <div key={c.label} className={`card p-4 text-center border-t-4 ${c.cls}`}>
                 <p className="text-xs text-slate-600 uppercase tracking-wide">{c.label}</p>
@@ -414,9 +423,9 @@ function TabVentas() {
               { k: 'pol',   l: 'Póliza',     m: true, hide: 'md' },
               { k: 'agente',l: 'Agente',     tr: true, primary: true },
               { k: 'tipo',  l: 'Tipo',       hide: 'lg', tr: true },
-              { k: 'prima', l: 'Prima Neta', r: true },
+              { k: 'prima', l: 'Prima Neta (Bs.)', r: true },
               { k: 'est',   l: 'Estado', s: 'est_sort' },
-              { k: 'comision_monto', l: 'Comisión (individual)', r: true },
+              { k: 'comision_monto', l: 'Comisión (Bs.)', r: true },
               { k: 'comision_status', l: 'Comisión', s: 'comision_status_sort' },
               ...(canManageComisiones || canRevertirComisiones ? [{ k: 'accion', l: '', acc: true }] : []),
             ]}
@@ -424,9 +433,9 @@ function TabVentas() {
               ...v,
               est_sort: v.est ?? '',
               comision_status_sort: v.comision_status ?? '',
-              prima: usd(v.prima),
+              prima: fmtMonto(v.prima_bs, 'BS'),
               est: rsbadge(v.est),
-              comision_monto: v.comision_monto != null ? `${usd(v.comision_monto)} (${v.comision_tasa_pct}%)` : '—',
+              comision_monto: v.comision_bs != null ? `${fmtMonto(v.comision_bs, 'BS')} (${v.comision_tasa_pct}%)` : '—',
               comision_status: v.comision_status
                 ? badge(v.comision_status === 'PAGADA' ? 'Pagada' : 'Pendiente', v.comision_status === 'PAGADA' ? 'green' : 'amber')
                 : '—',
@@ -2266,7 +2275,8 @@ const CLIENTE_QUICK_FILTERS = ['por_vencer', 'mas_polizas', 'por_bienes', 'activ
 
 // ── Tab: Métricas de Clientes ────────────────────────────────
 function TabClientesMetrics() {
-  const { showToast } = useApp()
+  const { showToast, canAct } = useApp()
+  const canExport = canAct('reportes', 'export')
   const { start, today } = getInitialDates()
   const [fechaInicio, setFechaInicio] = useState(start)
   const [fechaFin, setFechaFin] = useState(today)
@@ -2274,6 +2284,7 @@ function TabClientesMetrics() {
   const [stats, setStats] = useState({ nuevos_clientes: 0, total_clientes: 0, clientes_activos: 0, total_polizas: 0, polizas_por_vencer: 0 })
   const [clientes, setClientes] = useState([])
   const [loading, setLoading] = useState(false)
+  const [exporting, setExporting] = useState(false)
 
   // Filtros
   const [activeFilter, setActiveFilter] = useState(null)
@@ -2340,6 +2351,24 @@ function TabClientesMetrics() {
       showToast('Error al cargar métricas de clientes', 'error')
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Exporta TODOS los clientes filtrados con sus datos individuales completos.
+  const handleExport = async (columnas = null) => {
+    setExporting(true)
+    showToast('Exportando métricas de clientes…', 'info')
+    try {
+      const params = buildParams()
+      delete params.fecha_inicio
+      delete params.fecha_fin
+      const blob = await exportClientesReport({ ...params, ...(columnas ? { columnas } : {}) })
+      downloadBlob(blob, `metricas_clientes_${new Date().toISOString().slice(0, 10)}.xlsx`)
+      showToast('Métricas de clientes exportadas correctamente', 'success')
+    } catch (err) {
+      showToast(err.message || 'Error al exportar métricas de clientes', 'error')
+    } finally {
+      setExporting(false)
     }
   }
 
@@ -2565,6 +2594,9 @@ function TabClientesMetrics() {
           <input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)}
             className="text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto" />
           <button type="submit" className="btn-primary w-full sm:w-auto">Filtrar</button>
+          {canExport && (
+            <ExportButton cols={COLS_CLIENTES} onExport={handleExport} exporting={exporting} disabled={loading || clientes.length === 0} />
+          )}
         </div>
       </form>
 
