@@ -8,6 +8,9 @@
    ───────────────────────────────────────────── */
 const T = {
   es: {
+    /* Encabezado del cotizador */
+    'hero.title':    'Cotiza en línea',
+    'hero.subtitle': 'Elige tu seguro y obtén tu precio al instante.',
     /* Tabs */
     'tab.s1': 'Seguro',   'tab.s2': 'Datos',    'tab.s3': 'Bien',
     'tab.s4': 'Docs',     'tab.s5': 'Enviar',
@@ -147,13 +150,13 @@ const T = {
     'whatsapp.advisor_preset': 'Hola, me gustaría hablar con un asesor de J&M.',
     /* Chat / footer */
     'loading':       'Calculando...',
-    'chat.title':    'Asistente J&M',
+    'chat.title':    'Asistente',
     'chat.online':   'En línea',
     'chat.fab':      'Abrir chat',
     'chat.close':    'Cerrar chat',
     'chat.send_aria':'Enviar mensaje',
     'chat.email_ph': 'tu@correo.com',
-    'chat.greeting1':'¡Hola! 👋 Soy el asistente virtual de J&M.',
+    'chat.greeting1':'¡Hola! 👋 Soy el asistente virtual.',
     'chat.greeting2':'¿En qué puedo ayudarte hoy?',
     'chat.opt.cotizar':  'Cotizar un seguro',
     'chat.opt.seguros':  '¿Qué seguros ofrecen?',
@@ -170,6 +173,7 @@ const T = {
     'chat.contacto.invalid_email': 'Ese correo no parece válido. Intenta de nuevo.',
     'chat.contacto.ok':    '¡Listo! Tu solicitud fue recibida. En breve nos pondremos en contacto contigo a ese correo.',
     'chat.contacto.error': 'No pudimos enviar tu solicitud. Intenta de nuevo o escríbenos por WhatsApp.',
+    'chat.contacto.rate':  'Ya registramos una solicitud reciente con estos datos. Espera un momento antes de enviar otra.',
     'carousel.prev': 'Anterior',
     'carousel.next': 'Siguiente',
     'footer.rights': 'Todos los derechos reservados.',
@@ -182,6 +186,8 @@ const T = {
     'products.error':'No se pudieron cargar los productos. Recarga la página o contáctanos.',
   },
   en: {
+    'hero.title':    'Get a quote online',
+    'hero.subtitle': 'Pick your insurance and get your price instantly.',
     'tab.s1': 'Insurance', 'tab.s2': 'Data',  'tab.s3': 'Asset',
     'tab.s4': 'Docs',      'tab.s5': 'Submit',
     's1.question': 'What would you like to insure?',
@@ -284,12 +290,12 @@ const T = {
     'whatsapp.default_name':   'a customer',
     'whatsapp.advisor_preset': "Hi, I'd like to speak with a J&M advisor.",
     'loading': 'Processing...',
-    'chat.title': 'J&M Assistant', 'chat.online': 'Online',
+    'chat.title': 'Assistant', 'chat.online': 'Online',
     'chat.fab': 'Open chat',
     'chat.close': 'Close chat',
     'chat.send_aria': 'Send message',
     'chat.email_ph': 'you@email.com',
-    'chat.greeting1': "Hello! 👋 I'm J&M's virtual assistant.",
+    'chat.greeting1': "Hello! 👋 I'm the virtual assistant.",
     'chat.greeting2': 'How can I help you today?',
     'chat.opt.cotizar':  'Get an insurance quote',
     'chat.opt.seguros':  'What insurance do you offer?',
@@ -306,6 +312,7 @@ const T = {
     'chat.contacto.invalid_email': "That email doesn't look valid. Please try again.",
     'chat.contacto.ok':    "Done! We received your request. We'll be in touch at that email shortly.",
     'chat.contacto.error': "We couldn't send your request. Try again or message us on WhatsApp.",
+    'chat.contacto.rate':  'We already registered a recent request with these details. Please wait a moment before sending another.',
     'carousel.prev': 'Previous',
     'carousel.next': 'Next',
     'footer.rights': 'All rights reserved.', 'footer.by1': 'Made with', 'footer.by2': 'by',
@@ -1514,7 +1521,7 @@ document.querySelectorAll('.whatsapp-btn').forEach(btn => {
     const msg = currentLang === 'es'
       ? `Hola J&M, soy ${nombreCliente} y me interesa: ${sim.productoParentNombre}${sim.subtipoNombre ? ' — '+sim.subtipoNombre : ''}.`
       : `Hello J&M, I'm ${nombreCliente} and I'm interested in: ${sim.productoParentNombre}${sim.subtipoNombre ? ' — '+sim.subtipoNombre : ''}.`;
-    window.open(`https://wa.me/584148299562?text=${encodeURIComponent(msg)}`, '_blank');
+    window.open(`https://wa.me/584143169371?text=${encodeURIComponent(msg)}`, '_blank');
   });
 });
 
@@ -1585,7 +1592,7 @@ function closeChatPanel() {
 
 function openWhatsApp(messageKeyEs, messageKeyEn) {
   const msg = currentLang === 'es' ? messageKeyEs : messageKeyEn;
-  window.open(`https://wa.me/584148299562?text=${encodeURIComponent(msg)}`, '_blank');
+  window.open(`https://wa.me/584143169371?text=${encodeURIComponent(msg)}`, '_blank');
 }
 
 /* Cada "renderXButtons" sólo pinta botones (re-utilizable al refrescar idioma);
@@ -1692,6 +1699,12 @@ async function handleContactoEmailSubmit() {
       body: JSON.stringify({ email, motivo: chatState.motivo }),
     });
     typing.remove();
+    // 429 = límite anti-spam (throttle por IP o correo repetido): NO es un fallo
+    // real de envío, así que se muestra un mensaje calmado, no el error genérico.
+    if (res.status === 429) {
+      addMessage(esc(t('chat.contacto.rate')), 'bot');
+      return;
+    }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     addMessage(esc(t('chat.contacto.ok')), 'bot');
   } catch {

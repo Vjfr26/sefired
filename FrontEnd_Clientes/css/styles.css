@@ -267,6 +267,14 @@ footer  { position: relative; z-index: 1; }
 @media (min-width: 1280px) { .hero-right { width: 600px; max-width: 600px; } }
 @media (min-width: 1536px) { .hero-right { width: 640px; max-width: 640px; } }
 
+/* Encabezado "Cotiza en línea" sobre el cotizador — su alto se descuenta del
+   card (más abajo) para que todo quepa sin scroll de página. */
+.hero-heading {
+  flex-shrink: 0;
+  margin-bottom: 8px;
+}
+@media (min-width: 640px) { .hero-heading { margin-bottom: 10px; } }
+
 /* ─────────────────────────────────────────────
    QUOTE CARD — altura fija adaptable
    Las fórmulas descuentan: navbar + footer + padding hero × 2
@@ -282,23 +290,23 @@ footer  { position: relative; z-index: 1; }
     0 40px 80px rgba(0, 0, 0, 0.16);
   display: flex;
   flex-direction: column;
-  /* móvil: se adapta al contenido, acotado por el viewport */
+  /* móvil: se adapta al contenido, acotado por el viewport (descuenta el encabezado) */
   height: auto;
-  max-height: calc(100dvh - 128px);
+  max-height: calc(100dvh - 172px);
   min-height: 0;
 }
 
-/* tablet+: altura fija calculada */
+/* tablet+: altura fija calculada (descuenta el encabezado ~44px) */
 @media (min-width: 640px) {
   .quote-card {
-    height: calc(100dvh - 150px);
-    min-height: 480px;
-    max-height: 680px;
+    height: calc(100dvh - 196px);
+    min-height: 440px;
+    max-height: 640px;
   }
 }
 /* escritorio: clamp para respetar proporciones en pantallas grandes */
-@media (min-width: 1024px) { .quote-card { height: clamp(520px, calc(100dvh - 164px), 640px); } }
-@media (min-width: 1280px) { .quote-card { height: clamp(540px, calc(100dvh - 172px), 660px); } }
+@media (min-width: 1024px) { .quote-card { height: clamp(480px, calc(100dvh - 210px), 600px); } }
+@media (min-width: 1280px) { .quote-card { height: clamp(500px, calc(100dvh - 218px), 620px); } }
 
 /* ─────────────────────────────────────────────
    FORM SCROLL AREA — padding calibrado
