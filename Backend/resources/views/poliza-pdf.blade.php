@@ -204,6 +204,23 @@
     if (empty($cobertura_items) && (float) $poliza->cobertura_dolares > 0) {
         $cobertura_items[] = ['Suma Asegurada', number_format((float) $poliza->cobertura_dolares, 2)];
     }
+    // Pólizas MIGRADAS: la cobertura real quedó en el snapshot bajo 'rcv'/'apov'
+    // (no en la tarifa ni en cobertura_dolares). Se muestran esas sumas reales —
+    // NO se inventa nada, son los montos migrados de la póliza original.
+    if (empty($cobertura_items)) {
+        $rcvSnap = $snap['rcv'] ?? [];
+        if (!empty($rcvSnap['suma_persona'])) $cobertura_items[] = ['Daños a Personas', number_format((float) $rcvSnap['suma_persona'], 2)];
+        if (!empty($rcvSnap['suma_cosa']))    $cobertura_items[] = ['Daños a Cosas',    number_format((float) $rcvSnap['suma_cosa'], 2)];
+        $apovSnap = $snap['apov'] ?? [];
+        if (!empty($apovSnap['suma_muerte_accidental'])) $cobertura_items[] = ['Muerte Accidental',  number_format((float) $apovSnap['suma_muerte_accidental'], 2)];
+        if (!empty($apovSnap['suma_invalidez']))         $cobertura_items[] = ['Invalidez',           number_format((float) $apovSnap['suma_invalidez'], 2)];
+        if (!empty($apovSnap['suma_medicos']))           $cobertura_items[] = ['Gastos Médicos',      number_format((float) $apovSnap['suma_medicos'], 2)];
+        if (!empty($apovSnap['suma_funerarios']))        $cobertura_items[] = ['Gastos Funerarios',   number_format((float) $apovSnap['suma_funerarios'], 2)];
+    }
+    // Último respaldo: la suma asegurada en Bs guardada en la propia póliza.
+    if (empty($cobertura_items) && (float) $poliza->cobertura_bs > 0) {
+        $cobertura_items[] = ['Suma Asegurada', number_format((float) $poliza->cobertura_bs, 2)];
+    }
 
     // Para vehículos el cuadro póliza estándar (modelo La Venezolana) usa un
     // grid fijo de 8 coberturas típicas de auto en vez de una lista simple —
