@@ -3,6 +3,7 @@
 namespace App\Exports;
 
 use App\Models\Poliza;
+use App\Support\Moneda;
 use Illuminate\Support\Collection;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -18,11 +19,17 @@ class ExternalReportExport extends BaseExport
     protected Collection $policies;
     protected ?string $templatePath;
     protected ?array $columns;   // claves seleccionadas (en orden); null = todas
+    protected string $moneda;    // moneda de salida de los montos (USD|BS|EUR)
+    protected float $tasaUsd;
+    protected float $tasaEur;
 
-    public function __construct(Collection $policies, ?array $columns = null)
+    public function __construct(Collection $policies, ?array $columns = null, string $moneda = 'USD', float $tasaUsd = 0, float $tasaEur = 0)
     {
         $this->policies = $policies;
         $this->templatePath = $this->findTemplatePath();
+        $this->moneda  = Moneda::normalizar($moneda);
+        $this->tasaUsd = $tasaUsd;
+        $this->tasaEur = $tasaEur;
 
         // Solo claves válidas, en el orden canónico. Si están TODAS, se deja
         // null para usar la plantilla oficial (formato de la Superintendencia).
@@ -148,10 +155,13 @@ class ExternalReportExport extends BaseExport
         $nroPoliza = $p->nro_contrato;
         $inicioVigencia = $p->fecha_emision ? (is_string($p->fecha_emision) ? date('d/m/Y', strtotime($p->fecha_emision)) : $p->fecha_emision->format('d/m/Y')) : now()->format('d/m/Y');
         $finVigencia = $p->fecha_vencimiento ? (is_string($p->fecha_vencimiento) ? date('d/m/Y', strtotime($p->fecha_vencimiento)) : $p->fecha_vencimiento->format('d/m/Y')) : now()->addYear()->format('d/m/Y');
-        $sumaCosas = (float)$p->cobertura_dolares;
-        $sumaPersonas = (float)$p->cobertura_dolares;
-        $primaAnual = (float)$p->total;
-        $moneda = $p->producto?->moneda ?? 'USD';
+        // Montos convertidos a la moneda elegida para el export. Las sumas están
+        // en USD (cobertura_dolares); la prima, en la moneda nativa del producto.
+        $tgt = $this->moneda;
+        $sumaCosas    = round(Moneda::convertir((float)$p->cobertura_dolares, 'USD', $tgt, $this->tasaUsd, $this->tasaEur), 2);
+        $sumaPersonas = $sumaCosas;
+        $primaAnual   = round(Moneda::convertir((float)$p->total, $p->producto?->moneda ?? 'USD', $tgt, $this->tasaUsd, $this->tasaEur), 2);
+        $moneda = $tgt;
         $nacReferidor = 'V';
         $rifReferidor = '';
         $codIntermediario = $p->vendedor_id ?? 1;

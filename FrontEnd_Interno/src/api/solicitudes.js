@@ -17,8 +17,9 @@ function getAuthHeaders(extra = {}) {
   return { Accept: 'application/json', Authorization: `Bearer ${token}`, ...extra }
 }
 
-export async function fetchCotizaciones() {
-  const res = await fetch(API, { headers: getAuthHeaders() })
+export async function fetchCotizaciones(params = {}) {
+  const qs = new URLSearchParams(params).toString()
+  const res = await fetch(qs ? `${API}?${qs}` : API, { headers: getAuthHeaders() })
   if (!res.ok) throw new Error('Error al cargar cotizaciones')
   return res.json()
 }

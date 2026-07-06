@@ -124,32 +124,51 @@ function MobileCard({ r, titleCol, alwaysCols, moreCols, accCols }) {
   )
 }
 
-export default function DataTable({ cols, rows, footer = null, id, searchable = false, loading = false, skeletonRows = 6, compact = false }) {
-  const [search,   setSearch]   = useState('')
-  const [sortKey,  setSortKey]  = useState(null)   // clave de la columna activa para ordenar
-  const [sortDir,  setSortDir]  = useState('asc')  // 'asc' o 'desc'
-  const [pageSize, setPageSize] = useState(20)
-  const [page,     setPage]     = useState(0)
+export default function DataTable({
+  cols, rows, footer = null, id, searchable = false, loading = false, skeletonRows = 6, compact = false,
+  // ── Modo servidor (opcional) ──────────────────────────────────────────────
+  // Cuando `server` es true, la tabla NO filtra/ordena/pagina en memoria: el
+  // backend ya devolvió SOLO la página pedida. El estado de página/tamaño/orden
+  // lo controla la pantalla padre y se recibe por props; los controles avisan
+  // los cambios con onPageChange / onPageSizeChange / onSort. `total` es el
+  // total real de filas en el servidor (para el contador y el # de páginas).
+  server = false, total = null,
+  page: pageProp = 0, pageSize: pageSizeProp = 20,
+  sortKey: sortKeyProp = null, sortDir: sortDirProp = 'asc',
+  onPageChange, onPageSizeChange, onSort,
+}) {
+  const [search,    setSearch]    = useState('')
+  const [iSortKey,  setISortKey]  = useState(null)   // estado interno (modo cliente)
+  const [iSortDir,  setISortDir]  = useState('asc')
+  const [iPageSize, setIPageSize] = useState(20)
+  const [iPage,     setIPage]     = useState(0)
+
+  // Valores efectivos: en modo servidor vienen del padre; en cliente, internos.
+  // El orden se resuelve en el servidor SOLO si la pantalla lo maneja (pasa
+  // onSort). Si no, el orden es del lado cliente sobre la página visible, para
+  // que los encabezados siempre respondan al clic (incluso en tablas paginadas).
+  const usingServerSort = server && !!onSort
+  const sortKey  = usingServerSort ? sortKeyProp  : iSortKey
+  const sortDir  = usingServerSort ? sortDirProp  : iSortDir
+  const pageSize = server ? pageSizeProp : iPageSize
+  const page     = server ? pageProp     : iPage
+
+  const setPage     = server ? (v => onPageChange     && onPageChange(typeof v === 'function' ? v(page) : v))         : setIPage
+  const setPageSize = server ? (v => onPageSizeChange && onPageSizeChange(v))                                         : setIPageSize
 
   // Alterna la dirección si se hace clic en la columna ya activa;
   // si es una columna nueva, la activa y empieza en ascendente.
   const handleSort = (key) => {
-    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
-    else { setSortKey(key); setSortDir('asc') }
+    const nextDir = sortKey === key ? (sortDir === 'asc' ? 'desc' : 'asc') : 'asc'
+    if (usingServerSort) { onSort(key, nextDir) }
+    else { setISortKey(key); setISortDir(nextDir) }
   }
 
-  // 1. Filtrar por texto (solo si searchable está activo y hay algo escrito)
-  let visible = searchable && search.trim()
-    ? rows.filter(r => Object.values(r).some(v => typeof v === 'string' && v.toLowerCase().includes(search.toLowerCase())))
-    : rows
-
-  // 2. Ordenar el resultado del filtro (no el original)
-  if (sortKey) {
-    // La celda visible puede ser JSX (badges, montos con estilo), que no se
-    // puede comparar. La columna puede declarar `s` para apuntar al campo
-    // crudo (string/número) por el que se debe ordenar en su lugar.
+  // Ordena un arreglo de filas según la columna/dirección activa.
+  const ordenar = (arr) => {
+    if (!sortKey) return arr
     const accessor = cols.find(c => c.k === sortKey)?.s ?? sortKey
-    visible = [...visible].sort((a, b) => {
+    return [...arr].sort((a, b) => {
       const va = sortVal(a[accessor])
       const vb = sortVal(b[accessor])
       if (va < vb) return sortDir === 'asc' ? -1 : 1
@@ -158,13 +177,27 @@ export default function DataTable({ cols, rows, footer = null, id, searchable = 
     })
   }
 
-  // 3. Paginar el resultado ya filtrado/ordenado. Si el set de datos se
-  // achica (ej. una búsqueda) y la página actual queda fuera de rango,
-  // se recalcula sin necesidad de un efecto aparte.
-  const totalPages = Math.max(1, Math.ceil(visible.length / pageSize))
+  let visible
+  if (server) {
+    // El backend filtró y paginó. Si la pantalla NO maneja el orden en el
+    // servidor, se ordena la página visible en el cliente (encabezados activos).
+    visible = usingServerSort ? rows : ordenar(rows)
+  } else {
+    // 1. Filtrar por texto (solo si searchable está activo y hay algo escrito)
+    visible = searchable && search.trim()
+      ? rows.filter(r => Object.values(r).some(v => typeof v === 'string' && v.toLowerCase().includes(search.toLowerCase())))
+      : rows
+    // 2. Ordenar el resultado del filtro
+    visible = ordenar(visible)
+  }
+
+  // 3. Paginar. En modo servidor el total lo da el backend (`total`) y las
+  //    filas recibidas YA son la página; en cliente se corta en memoria.
+  const totalCount = server ? (total ?? rows.length) : visible.length
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
   const safePage   = Math.min(page, totalPages - 1)
   const start      = safePage * pageSize
-  const paged      = visible.slice(start, start + pageSize)
+  const paged      = server ? visible : visible.slice(start, start + pageSize)
 
   if (loading) {
     return (
@@ -243,7 +276,9 @@ export default function DataTable({ cols, rows, footer = null, id, searchable = 
           <thead className="bg-slate-100 text-slate-600 text-xs font-semibold uppercase tracking-wider">
             <tr>
               {cols.map(c => {
-                const sortable = !c.acc   // las columnas de acción no se pueden ordenar
+                // Columnas de acción nunca ordenan. En modo servidor, el orden solo
+                // se ofrece si la pantalla lo soporta (pasa onSort); si no, se oculta.
+                const sortable = !c.acc
                 const active   = sortKey === c.k
                 // La columna título (nombre) absorbe el espacio sobrante para que
                 // las demás no queden muy separadas; los extremos llevan un poco
@@ -300,9 +335,9 @@ export default function DataTable({ cols, rows, footer = null, id, searchable = 
       <div className="px-5 py-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400">
         <div className="flex flex-wrap items-center gap-3">
           <span>
-            {visible.length === 0
+            {totalCount === 0
               ? '0 registros'
-              : `${start + 1}–${Math.min(start + pageSize, visible.length)} de ${visible.length}`}
+              : `${start + 1}–${Math.min(start + pageSize, totalCount)} de ${totalCount}`}
           </span>
           <label className="flex items-center gap-1.5">
             Mostrar

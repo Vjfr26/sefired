@@ -568,7 +568,9 @@ function RetiroEfectivoModal({ row, fechaInicio, fechaFin, onClose, onSaved }) {
 
 // ── Tab: Oficinas ────────────────────────────────────────────
 function TabOficinas() {
-  const { showToast, canAct } = useApp()
+  const { showToast, canAct, tasas } = useApp()
+  const tasaUsd = parseFloat(tasas?.usd?.valor) || 0
+  const enBs = (montoUsd) => fmtMonto((montoUsd || 0) * tasaUsd, 'BS')
   const { start, today } = getInitialDates()
   const [fechaInicio, setFechaInicio] = useState(start)
   const [fechaFin, setFechaFin] = useState(today)
@@ -699,7 +701,7 @@ function TabOficinas() {
             { k: 'ofi',   l: 'Oficina',     tr: true },
             { k: 'ag',    l: 'Agentes',     r: true, hide: 'sm' },
             { k: 'pol',   l: 'Pólizas',     r: true, hide: 'sm' },
-            { k: 'prima', l: 'Prima Neta',  r: true },
+            { k: 'prima', l: 'Prima Neta (Bs.)',  r: true },
             { k: 'pct',   l: '% del Total', r: true, hide: 'md' },
             { k: 'est',   l: 'Estado',      hide: 'md', s: 'est_sort' },
             { k: 'acc',   l: '',            acc: true },
@@ -708,7 +710,7 @@ function TabOficinas() {
           rows={rows.map(r => ({
             ...r,
             est_sort: r.est ?? '',
-            prima: usd(r.prima),
+            prima: enBs(r.prima),
             est: r.est ? rsbadge(r.est) : '',
             acc: r.ofi !== 'TOTAL' ? (
               <button
@@ -765,14 +767,14 @@ function TabOficinas() {
                         )}
                         <td className="px-4 py-2.5 text-slate-700 break-words max-w-xs">{r.forma_pago}</td>
                         <td className="px-4 py-2.5 text-right text-slate-500 tabular-nums whitespace-nowrap">{r.pol}</td>
-                        <td className="px-4 py-2.5 text-right font-semibold text-slate-800 tabular-nums whitespace-nowrap">{usd(r.prima)}</td>
+                        <td className="px-4 py-2.5 text-right font-semibold text-slate-800 tabular-nums whitespace-nowrap">{enBs(r.prima)}</td>
                       </tr>
                     ))}
                     {/* Subtotal de la oficina */}
                     <tr className="border-b-2 border-slate-200 bg-slate-50/70">
                       <td className="px-4 py-2 text-right text-[10px] font-bold uppercase tracking-wide text-slate-400">Subtotal</td>
                       <td className="px-4 py-2 text-right font-bold text-slate-600 tabular-nums whitespace-nowrap">{g.totalPol}</td>
-                      <td className="px-4 py-2 text-right font-black text-slate-800 tabular-nums whitespace-nowrap">{usd(g.totalPrima)}</td>
+                      <td className="px-4 py-2 text-right font-black text-slate-800 tabular-nums whitespace-nowrap">{enBs(g.totalPrima)}</td>
                     </tr>
                   </Fragment>
                 ))}
@@ -1447,8 +1449,11 @@ const EXT_COLS = [
 ]
 
 function TabExternos() {
-  const { showToast, API_BASE_URL, canAct } = useApp()
+  const { showToast, API_BASE_URL, canAct, tasas } = useApp()
+  const tasaUsd = parseFloat(tasas?.usd?.valor) || 0
+  const enBs = (montoUsd) => fmtMonto((montoUsd || 0) * tasaUsd, 'BS')
   const canManage = canAct('reportes', 'manage_schedules')
+  const [monedaExport, setMonedaExport] = useState('BS') // moneda elegida para el Excel
   const [policies, setPolicies] = useState([])
   const [loadingPolicies, setLoadingPolicies] = useState(false)
   
@@ -1475,9 +1480,11 @@ function TabExternos() {
       const data = await fetchExternalReportPolicies({
         fecha_inicio: fechaInicio,
         fecha_fin: fechaFin,
-        search: search
+        search: search,
+        per_page: 200, // muestra hasta 200 en la vista previa; el Excel exporta todo
       })
-      setPolicies(data)
+      // El backend ahora pagina: { data, total }. (Compat: si viniera un array.)
+      setPolicies(Array.isArray(data) ? data : (data.data ?? []))
     } catch (err) {
       showToast('Error al cargar pólizas', 'error')
     } finally {
@@ -1547,6 +1554,7 @@ function TabExternos() {
         fecha_inicio: fechaInicio,
         fecha_fin: fechaFin,
         ignored_ids: Array.from(ignoredIds),
+        moneda: monedaExport, // USD | BS | EUR
         // En orden canónico; si están todas, el backend usa el formato oficial.
         columnas: EXT_COLS.map(([k]) => k).filter(k => colSel.has(k)),
       })
@@ -1646,7 +1654,7 @@ function TabExternos() {
     { k: 'bien',         l: 'Bienes' },
     { k: 'placa',        l: 'Placa', m: true, nw: true },
     { k: 'vigencia',     l: 'Vigencia', nw: true },
-    { k: 'total',        l: 'Monto', r: true, nw: true },
+    { k: 'total',        l: 'Monto (Bs.)', r: true, nw: true },
     { k: 'producto',     l: 'Producto' }
   ]
 
@@ -1666,7 +1674,7 @@ function TabExternos() {
     bien: p.bien,
     placa: p.placa,
     vigencia: p.vigencia,
-    total: usd(p.total),
+    total: enBs(p.total),
     producto: p.producto
   }))
 
@@ -1693,13 +1701,25 @@ function TabExternos() {
             >
               <Filter className="w-4 h-4" /> Columnas ({colSel.size}/{EXT_COLS.length})
             </button>
+            <label className="flex items-center gap-1.5 text-sm text-slate-600" title="Moneda de los montos en el Excel">
+              Moneda:
+              <select
+                value={monedaExport}
+                onChange={e => setMonedaExport(e.target.value)}
+                className="border border-slate-200 rounded-lg px-2 py-2 text-sm bg-white text-slate-700 outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="BS">Bs.</option>
+                <option value="USD">USD ($)</option>
+                <option value="EUR">EUR (€)</option>
+              </select>
+            </label>
             <button
               onClick={handleExport}
               disabled={exporting || policies.length === 0 || colSel.size === 0}
               className="btn-primary py-2 flex items-center justify-center gap-1.5"
             >
               {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              Generar y Descargar Excel
+              Generar y Descargar Excel ({monedaExport === 'BS' ? 'Bs.' : monedaExport})
             </button>
           </div>
         </div>
@@ -1854,7 +1874,9 @@ function TabExternos() {
 
 // ── Tab: Métricas de Personal ───────────────────────────────
 function TabUsuariosMetrics() {
-  const { showToast, showModal, currentUser, canAct } = useApp()
+  const { showToast, showModal, currentUser, canAct, tasas } = useApp()
+  const tasaUsd = parseFloat(tasas?.usd?.valor) || 0
+  const enBs = (montoUsd) => fmtMonto((montoUsd || 0) * tasaUsd, 'BS')
   // Sin este permiso, el usuario solo puede ver sus propias métricas — no
   // se ata al rol (un Admin lo puede otorgar/quitar a quien quiera).
   const canViewTodos = canAct('reportes', 'view_metrics_personal_todos')
@@ -2075,9 +2097,9 @@ function TabUsuariosMetrics() {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-3">
               {[
                 { label: 'Pólizas Emitidas', val: stats.total_polizas, sub: 'Ventas del período', cls: 'border-t-blue-500', vcls: 'text-slate-800' },
-                { label: 'Prima Emitida', val: usd(stats.total_prima), sub: 'USD equivalente', cls: 'border-t-emerald-500', vcls: 'text-emerald-700' },
-                { label: 'Comisión Generada', val: usd(stats.comision_generada), sub: `${usuario.cargo === 'Agente' ? '10%' : '5%'} de base`, cls: 'border-t-indigo-500', vcls: 'text-indigo-700' },
-                { label: 'Comisión Pendiente', val: usd(stats.comision_pendiente), sub: `Pagada: ${usd(stats.comision_pagada)}`, cls: 'border-t-amber-500', vcls: 'text-amber-700' },
+                { label: 'Prima Emitida', val: enBs(stats.total_prima), sub: 'Bs. equivalente', cls: 'border-t-emerald-500', vcls: 'text-emerald-700' },
+                { label: 'Comisión Generada', val: enBs(stats.comision_generada), sub: `${usuario.cargo === 'Agente' ? '10%' : '5%'} de base`, cls: 'border-t-indigo-500', vcls: 'text-indigo-700' },
+                { label: 'Comisión Pendiente', val: enBs(stats.comision_pendiente), sub: `Pagada: ${enBs(stats.comision_pagada)}`, cls: 'border-t-amber-500', vcls: 'text-amber-700' },
               ].map(c => (
                 <div key={c.label} className={`card p-4 text-center border-t-4 ${c.cls}`}>
                   <p className="text-xs text-slate-600 uppercase tracking-wide">{c.label}</p>
@@ -2127,7 +2149,7 @@ function TabUsuariosMetrics() {
                 { k: 'producto_nombre', l: 'Producto' },
                 { k: 'total', l: 'Prima', r: true },
                 { k: 'status', l: 'Estado' },
-                { k: 'comision_monto', l: 'Comisión', r: true },
+                { k: 'comision_monto', l: 'Comisión (Bs.)', r: true },
                 { k: 'comision_status', l: 'Estado Comisión' },
                 ...(canManageComisiones || canRevertirComisiones ? [{ k: 'accion', l: '', acc: true }] : []),
               ]}
@@ -2135,7 +2157,7 @@ function TabUsuariosMetrics() {
                 ...p,
                 total: fmtMonto(p.total, p.moneda_producto),
                 status: rsbadge(p.status),
-                comision_monto: p.comision_monto != null ? usd(p.comision_monto) : '—',
+                comision_monto: p.comision_monto != null ? enBs(p.comision_monto) : '—',
                 comision_status: p.comision_status
                   ? badge(p.comision_status === 'PAGADA' ? 'Pagada' : 'Pendiente', p.comision_status === 'PAGADA' ? 'green' : 'amber')
                   : '—',
@@ -2226,10 +2248,10 @@ function TabUsuariosMetrics() {
             { k: 'rol', l: 'Cargo', hide: 'sm' },
             { k: 'ofi', l: 'Sede/Oficina', hide: 'md' },
             { k: 'pol', l: 'Pólizas Vendidas', r: true },
-            { k: 'prima', l: 'Prima Generada (USD)', r: true },
-            { k: 'com_gen', l: 'Com. Generada', r: true, hide: 'md' },
-            { k: 'com_pagada', l: 'Com. Pagada', r: true, hide: 'md' },
-            { k: 'com_pend', l: 'Com. Pendiente', r: true, hide: 'md' },
+            { k: 'prima', l: 'Prima Generada (Bs.)', r: true },
+            { k: 'com_gen', l: 'Com. Generada (Bs.)', r: true, hide: 'md' },
+            { k: 'com_pagada', l: 'Com. Pagada (Bs.)', r: true, hide: 'md' },
+            { k: 'com_pend', l: 'Com. Pendiente (Bs.)', r: true, hide: 'md' },
             { k: 'est', l: 'Estado', s: 'est_sort' },
             { k: 'action', l: '', acc: true }
           ]}
@@ -2242,10 +2264,10 @@ function TabUsuariosMetrics() {
                 <span className="min-w-0 break-words font-medium text-slate-700">{r.nom}</span>
               </div>
             ),
-            prima: usd(r.prima),
-            com_gen: usd(r.com_gen),
-            com_pagada: usd(r.com_pagada),
-            com_pend: usd(r.com_pend),
+            prima: enBs(r.prima),
+            com_gen: enBs(r.com_gen),
+            com_pagada: enBs(r.com_pagada),
+            com_pend: enBs(r.com_pend),
             est: r.est ? rsbadge(r.est) : '',
             action: r.id !== null ? (
               <div className="flex flex-col items-start gap-1">
@@ -2275,7 +2297,9 @@ const CLIENTE_QUICK_FILTERS = ['por_vencer', 'mas_polizas', 'por_bienes', 'activ
 
 // ── Tab: Métricas de Clientes ────────────────────────────────
 function TabClientesMetrics() {
-  const { showToast, canAct } = useApp()
+  const { showToast, canAct, tasas } = useApp()
+  const tasaUsd = parseFloat(tasas?.usd?.valor) || 0
+  const enBs = (montoUsd) => fmtMonto((montoUsd || 0) * tasaUsd, 'BS')
   const canExport = canAct('reportes', 'export')
   const { start, today } = getInitialDates()
   const [fechaInicio, setFechaInicio] = useState(start)
@@ -2537,12 +2561,12 @@ function TabClientesMetrics() {
                 { k: 'fecha_emision', l: 'Fecha Emisión' },
                 { k: 'fecha_vencimiento', l: 'Fecha Vencimiento', hide: 'sm' },
                 { k: 'producto', l: 'Producto', tr: true },
-                { k: 'total', l: 'Prima USD', r: true },
+                { k: 'total', l: 'Prima (Bs.)', r: true },
                 { k: 'status', l: 'Estado' }
               ]}
               rows={polizas.map(p => ({
                 ...p,
-                total: usd(p.total),
+                total: enBs(p.total),
                 status: rsbadge(p.status)
               }))}
             />
@@ -2774,14 +2798,14 @@ function TabClientesMetrics() {
               { k: 'pol', l: 'Pólizas', r: true },
               { k: 'pol_act', l: 'Activas', r: true, hide: 'sm' },
               { k: 'prox_venc', l: 'Próx. Vencimiento', hide: 'md', nw: true },
-              { k: 'prima', l: 'Prima Total (USD)', r: true, hide: 'sm' },
+              { k: 'prima', l: 'Prima Total (Bs.)', r: true, hide: 'sm' },
               { k: 'est', l: 'Estado', s: 'est_sort' },
               { k: 'action', l: 'Historial', acc: true }
             ]}
             rows={clientes.map(c => ({
               ...c,
               est_sort: c.est ?? '',
-              prima: usd(c.prima),
+              prima: enBs(c.prima),
               est: rsbadge(c.est),
               prox_venc: c.prox_venc === '—' ? '—' : (
                 <span className={c.prox_venc_sort && c.prox_venc_sort <= new Date(Date.now() + 7*86400000).toISOString().slice(0,10) ? 'text-red-600 font-semibold' : ''}>
@@ -2803,7 +2827,9 @@ function TabClientesMetrics() {
 
 // ── Tab: Métricas de Vehículos ───────────────────────────────
 function TabVehiculosMetrics() {
-  const { showToast } = useApp()
+  const { showToast, tasas } = useApp()
+  const tasaUsd = parseFloat(tasas?.usd?.valor) || 0
+  const enBs = (montoUsd) => fmtMonto((montoUsd || 0) * tasaUsd, 'BS')
   const { start, today } = getInitialDates()
   const [fechaInicio, setFechaInicio] = useState(start)
   const [fechaFin, setFechaFin] = useState(today)
@@ -2902,12 +2928,12 @@ function TabVehiculosMetrics() {
                 { k: 'fecha_vencimiento', l: 'Fecha Vencimiento', hide: 'sm' },
                 { k: 'producto', l: 'Producto', tr: true },
                 { k: 'vendedor', l: 'Vendedor/Emisor', hide: 'md' },
-                { k: 'total', l: 'Prima USD', r: true },
+                { k: 'total', l: 'Prima (Bs.)', r: true },
                 { k: 'status', l: 'Estado' }
               ]}
               rows={historial.map(h => ({
                 ...h,
-                total: usd(h.total),
+                total: enBs(h.total),
                 status: rsbadge(h.status)
               }))}
             />

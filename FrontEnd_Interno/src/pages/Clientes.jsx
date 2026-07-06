@@ -92,53 +92,64 @@ const COLS = [
 
 export default function Clientes() {
   const { showModal, showToast, canAct } = useApp()
-  const [search, setSearch]     = useState('')
-  const [soloDocsPend, setSoloDocsPend] = useState(false) // filtrar solo con documentos obligatorios pendientes
-  const [cardFilter, setCardFilter] = useState(null) // null | 'activos' | 'conPoliza' | 'sinPoliza' — filtro al hacer clic en una tarjeta
+  const [searchInput, setSearchInput] = useState('') // lo que se teclea (inmediato)
+  const [search, setSearch]     = useState('')        // término "debounced" que se consulta al servidor
+  const [soloDocsPend, setSoloDocsPend] = useState(false) // filtra (sobre la página cargada) los que tienen documentos obligatorios pendientes
+  const [cardFilter, setCardFilter] = useState(null) // null | 'activos' | 'conPoliza' | 'sinPoliza'
   const toggleCard = (f) => setCardFilter(prev => prev === f ? null : f)
   const [clients, setClients]   = useState([])
+  const [total,   setTotal]     = useState(0)
+  const [page,    setPage]      = useState(0)
+  const [pageSize, setPageSize] = useState(20)
+  const [resumen, setResumen]   = useState({ total: 0, activos: 0, con_poliza: 0, sin_poliza: 0 })
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState(null)
 
-  // showToast es estable (memoizado en AppContext) así que incluirlo aquí no provoca bucles
+  // Traduce el filtro de tarjeta al parámetro que entiende el backend.
+  const FILTRO_MAP = { activos: 'activos', conPoliza: 'con_poliza', sinPoliza: 'sin_poliza' }
+
+  // Carga SOLO la página actual: la búsqueda, el filtro y la paginación se
+  // resuelven en el servidor, así se traen ~20 filas en vez de 50k.
   const loadClientes = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const data = await fetchClientes()
-      setClients(data)
+      const params = { page: page + 1, per_page: pageSize }
+      if (search) params.search = search
+      if (cardFilter && FILTRO_MAP[cardFilter]) params.filtro = FILTRO_MAP[cardFilter]
+      const res = await fetchClientes(params)
+      setClients(res.data ?? [])
+      setTotal(res.total ?? 0)
     } catch (err) {
       setError(err.message)
       showToast(err.message, 'error')
     } finally {
       setLoading(false)
     }
-  }, [showToast])
+  }, [page, pageSize, search, cardFilter, showToast])
 
-  // Carga inicial al montar el componente
   useEffect(() => { loadClientes() }, [loadClientes])
 
+  // Debounce de la búsqueda (SearchBar dispara en cada tecla).
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput.trim()), 350)
+    return () => clearTimeout(t)
+  }, [searchInput])
 
+  // Al cambiar búsqueda o filtro de tarjeta, volver a la primera página.
+  useEffect(() => { setPage(0) }, [search, cardFilter, pageSize])
 
-  // ── Filtrado local ────────────────────────────────────────────────────────
-  // La búsqueda trabaja sobre los datos ya cargados en memoria, sin peticiones adicionales
-  const tienePoliza = (c) => c.prima && c.prima !== '—'
-  const filtered = clients.filter(c => {
-    if (soloDocsPend && !c.documentos_faltantes) return false
-    if (cardFilter === 'activos'   && c.est !== 'Activo') return false
-    if (cardFilter === 'conPoliza' && !tienePoliza(c)) return false
-    if (cardFilter === 'sinPoliza' &&  tienePoliza(c)) return false
-    if (search) {
-      const q = search.toLowerCase()
-      return c.nom.toLowerCase().includes(q) || c.ci.toLowerCase().includes(q) || c.email.toLowerCase().includes(q)
-    }
-    return true
-  })
+  // Resumen de las tarjetas: se cuenta en la DB (no en la página). Se refresca con la búsqueda.
+  useEffect(() => {
+    const params = { resumen: 1 }
+    if (search) params.search = search
+    fetchClientes(params).then(setResumen).catch(() => {})
+  }, [search])
 
-  // ── Estadísticas para los cards ───────────────────────────────────────────
-  const activos    = clients.filter(c => c.est === 'Activo').length
-  const conPoliza  = clients.filter(tienePoliza).length
-  const docsPendientes = clients.filter(c => c.documentos_faltantes).length
+  // ── Estadísticas para los cards (vienen del backend: toda la DB) ──────────
+  const activos    = resumen.activos
+  const conPoliza  = resumen.con_poliza
+  const docsPendientes = clients.filter(c => c.documentos_faltantes).length // sobre la página cargada
 
   // ── Transformación de datos para la tabla ─────────────────────────────────
   // Se mantiene el objeto original (con todos los campos del backend) y se agregan
@@ -165,7 +176,10 @@ export default function Clientes() {
     )
   }
 
-  const dataRows = filtered.map(c => {
+  // El servidor ya devolvió la página filtrada; el toggle de docs pendientes
+  // afina sobre esas filas ya cargadas.
+  const pageRows = soloDocsPend ? clients.filter(c => c.documentos_faltantes) : clients
+  const dataRows = pageRows.map(c => {
     const tienePoliza = c.pol && c.pol !== '—'
     const isBlocked   = c.activo === false
 
@@ -313,7 +327,7 @@ export default function Clientes() {
           </div>
           <div className="min-w-0">
             <p className="text-xs text-slate-500 font-medium leading-tight">Total Clientes</p>
-            <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{clients.length}</p>
+            <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{resumen.total}</p>
             <p className="text-xs text-slate-400 mt-1 truncate">Registrados en el sistema</p>
           </div>
         </button>
@@ -358,7 +372,7 @@ export default function Clientes() {
           </div>
           <div className="min-w-0">
             <p className="text-xs text-slate-500 font-medium leading-tight">Sin Póliza</p>
-            <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{clients.length - conPoliza}</p>
+            <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{resumen.sin_poliza}</p>
             <p className="text-xs text-slate-400 mt-1">Sin cobertura</p>
           </div>
         </button>
@@ -366,7 +380,7 @@ export default function Clientes() {
 
       <SearchBar
         placeholder="Buscar por nombre, CI/RIF o email…"
-        onSearch={setSearch}
+        onSearch={setSearchInput}
         extra={
           <>
             {canViewDocs && (
@@ -404,7 +418,9 @@ export default function Clientes() {
         <div className="text-center py-12 text-rose-500 text-sm">{error}</div>
       )}
       {!error && (canViewList
-        ? <DataTable cols={COLS} rows={dataRows} loading={loading} />
+        ? <DataTable cols={COLS} rows={dataRows} loading={loading} emptyMsg="No hay clientes registrados."
+            server total={total} page={page} pageSize={pageSize}
+            onPageChange={setPage} onPageSizeChange={setPageSize} />
         : (
           <div className="card flex flex-col items-center justify-center py-16 gap-2 text-center">
             <Lock className="w-6 h-6 text-slate-300" />

@@ -18,8 +18,9 @@ function getAuthHeaders(extra = {}) {
  * Obtiene la lista completa de clientes con el resumen de su última póliza.
  * El backend resuelve las relaciones cliente→persona y cliente→solicitudes→polizas.
  */
-export async function fetchClientes() {
-  const res = await fetch(API, { headers: getAuthHeaders() })
+export async function fetchClientes(params = {}) {
+  const qs = new URLSearchParams(params).toString()
+  const res = await fetch(qs ? `${API}?${qs}` : API, { headers: getAuthHeaders() })
   if (!res.ok) throw new Error('Error al cargar clientes')
   return res.json()
 }

@@ -2127,29 +2127,70 @@ export default function Simulador() {
   const [uwModal, setUwModal] = useState(null) // cotización para underwriting
   const [cotPage, setCotPage] = useState(0)
   const [cotPageSize, setCotPageSize] = useState(20)
+  const [cotTotal, setCotTotal] = useState(0)
+  const [cotResumen, setCotResumen] = useState({ total: 0, pendiente: 0, en_revision: 0, aprobado: 0, emitida: 0, rechazado: 0 })
+  const [searchInput, setSearchInput] = useState('') // lo que se teclea (inmediato)
 
+  // Datos base del simulador (tasas/productos/catálogo): una sola vez. NO incluye
+  // las cotizaciones (esas se paginan aparte) para que un fallo suyo no rompa todo.
   const loadData = useCallback(async () => {
-    setLoadingCot(true)
     try {
-      const [tasas, cots, prods, vehs] = await Promise.all([
+      const [tasas, prods, vehs] = await Promise.all([
         fetchTasas(),
-        fetchCotizaciones(),
         fetchProductos(),
         fetchVehiculosCatalogo()
       ])
       if (tasas?.usd?.valor) setTasaBcv(parseFloat(tasas.usd.valor))
       if (tasas?.eur?.valor) setTasaEur(parseFloat(tasas.eur.valor))
-      setCotizaciones(cots)
       setProductos(prods)
       setVehiculosCatalogo(vehs)
     } catch {
       showToast('Error al cargar datos del simulador', 'error')
-    } finally {
-      setLoadingCot(false)
     }
   }, [showToast])
 
+  // Carga SOLO la página actual de cotizaciones: filtros, búsqueda y paginación
+  // se resuelven en el servidor (antes se traían las 125k y el navegador colapsaba).
+  const loadCots = useCallback(async () => {
+    setLoadingCot(true)
+    try {
+      const STATUS_KEYS = ['Todos', 'pendiente', 'en_revision', 'aprobado', 'emitida', 'rechazado']
+      const params = { page: cotPage + 1, per_page: cotPageSize }
+      if (chipActive > 0) params.status = STATUS_KEYS[chipActive]
+      if (search) params.search = search
+      if (fechaInicio) params.fecha_inicio = fechaInicio
+      if (fechaFin) params.fecha_fin = fechaFin
+      if (productoFilter) params.producto_id = productoFilter
+      const res = await fetchCotizaciones(params)
+      setCotizaciones(res.data ?? [])
+      setCotTotal(res.total ?? 0)
+    } catch {
+      showToast('Error al cargar cotizaciones', 'error')
+    } finally {
+      setLoadingCot(false)
+    }
+  }, [cotPage, cotPageSize, chipActive, search, fechaInicio, fechaFin, productoFilter, showToast])
+
   useEffect(() => { loadData() }, [loadData])
+  useEffect(() => { loadCots() }, [loadCots])
+
+  // Contadores de los chips: se cuentan en la DB (no en la página).
+  const loadCotResumen = useCallback(() => {
+    fetchCotizaciones({ resumen: 1 }).then(setCotResumen).catch(() => {})
+  }, [])
+  useEffect(() => { loadCotResumen() }, [loadCotResumen])
+
+  // Refresco tras crear/editar/emitir una cotización: recarga la página + contadores.
+  const refrescarCots = useCallback(() => { loadCots(); loadCotResumen() }, [loadCots, loadCotResumen])
+
+  // Debounce de la búsqueda.
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput.trim()), 350)
+    return () => clearTimeout(t)
+  }, [searchInput])
+
+  // Al cambiar filtros, volver a la primera página.
+  useEffect(() => { setCotPage(0) }, [chipActive, search, fechaInicio, fechaFin, productoFilter, cotPageSize])
 
   const openSim = () => {
     setSim(freshState()); setEditId(null); setStep(1)
@@ -2174,50 +2215,35 @@ export default function Simulador() {
     return m ? `${m[3]}-${m[2]}-${m[1]}` : ''
   }
 
-  // Productos presentes en las cotizaciones (para el filtro por producto).
+  // El filtro por producto ofrece TODOS los productos (no solo los de la página).
   const productosEnCots = [...new Map(
-    cotizaciones.filter(q => q.producto_id).map(q => [q.producto_id, q.producto])
+    productos.map(p => [p.id, p.nombre])
   )].sort((a, b) => String(a[1]).localeCompare(String(b[1]), 'es'))
 
   const hayFiltros = search.trim() || fechaInicio || fechaFin || productoFilter
 
-  const byChip = chipActive === 0 ? cotizaciones : cotizaciones.filter(q => q.status === statuses[chipActive])
-  const visibleCots = byChip.filter(q => {
-    if (productoFilter && String(q.producto_id) !== String(productoFilter)) return false
-    if (fechaInicio || fechaFin) {
-      const iso = q.fecha_iso || isoFromDmy(q.fecha)
-      if (!iso) return false
-      if (fechaInicio && iso < fechaInicio) return false
-      if (fechaFin && iso > fechaFin) return false
-    }
-    if (search.trim()) {
-      const sq = search.toLowerCase()
-      const placaRef = q.bien_atributos?.placa || q.bien_atributos?.descripcion || ''
-      if (!(q.nombre.toLowerCase().includes(sq) || q.ci.toLowerCase().includes(sq)
-        || placaRef.toLowerCase().includes(sq) || q.nro.toLowerCase().includes(sq))) return false
-    }
-    return true
-  })
+  // El servidor ya devolvió la página filtrada y ordenada: se renderiza tal cual.
+  const pagedCots = cotizaciones
 
   const limpiarFiltros = () => {
-    setSearch(''); setFechaInicio(''); setFechaFin(''); setProductoFilter(''); setCotPage(0)
+    setSearchInput(''); setSearch(''); setFechaInicio(''); setFechaFin(''); setProductoFilter(''); setCotPage(0)
   }
 
-  const cotTotalPages = Math.max(1, Math.ceil(visibleCots.length / cotPageSize))
+  const cotTotalPages = Math.max(1, Math.ceil(cotTotal / cotPageSize))
   const cotSafePage = Math.min(cotPage, cotTotalPages - 1)
   const cotStart = cotSafePage * cotPageSize
-  const pagedCots = visibleCots.slice(cotStart, cotStart + cotPageSize)
 
-  const simEmitidas = cotizaciones.filter(q => q.status === 'emitida').length
-  const simEnRevision = cotizaciones.filter(q => q.status === 'en_revision').length
-  const simRechazadas = cotizaciones.filter(q => q.status === 'rechazado').length
+  // Contadores desde el resumen del backend (toda la DB).
+  const simEmitidas = cotResumen.emitida
+  const simEnRevision = cotResumen.en_revision
+  const simRechazadas = cotResumen.rechazado
 
   const handleDelete = (id, nro) =>
     showModal('confirmDelete', {
       name: `Cotización ${nro}`,
       onConfirm: async () => {
         await deleteCotizacion(id)
-        loadData()
+        loadCots(); loadCotResumen()
       },
     })
 
@@ -2232,7 +2258,7 @@ export default function Simulador() {
           showModal('emitirCotizacion', {
             cot: { ...q, producto_permite_mensualidades: !!prod?.permite_mensualidades, producto_recargo_mensual_pct: prod?.recargo_mensual_pct },
             mode: 'registrar',
-            onSaved: loadData,
+            onSaved: refrescarCots,
           })
         }} className="p-2.5 rounded-lg bg-teal-50 text-teal-600 hover:bg-teal-100 transition" title={q.pago_datos ? 'Actualizar pago registrado' : 'Registrar pago'}>
           <DollarSign className="w-[18px] h-[18px]" />
@@ -2249,7 +2275,7 @@ export default function Simulador() {
           showModal('emitirCotizacion', {
             cot: { ...q, producto_permite_mensualidades: !!prod?.permite_mensualidades, producto_recargo_mensual_pct: prod?.recargo_mensual_pct },
             mode: 'emitir',
-            onSaved: loadData,
+            onSaved: refrescarCots,
           })
         }} className="p-2.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition" title="Emitir póliza">
           <FileCheck className="w-[18px] h-[18px]" />
@@ -2336,7 +2362,7 @@ export default function Simulador() {
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { l: 'Total Simulaciones', v: cotizaciones.length, sub: 'Registradas', Icon: Calculator, bg: 'bg-slate-100', ic: 'text-slate-600' },
+          { l: 'Total Simulaciones', v: cotResumen.total, sub: 'Registradas', Icon: Calculator, bg: 'bg-slate-100', ic: 'text-slate-600' },
           { l: 'Emitidas', v: simEmitidas, sub: 'Pólizas generadas', Icon: FileCheck, bg: 'bg-emerald-100', ic: 'text-emerald-600' },
           { l: 'En Revisión', v: simEnRevision, sub: 'Pendientes', Icon: Clock, bg: 'bg-amber-100', ic: 'text-amber-600' },
           { l: 'Rechazadas', v: simRechazadas, sub: 'Sin aprobación', Icon: XCircle, bg: 'bg-rose-100', ic: 'text-rose-600' },
@@ -2359,13 +2385,13 @@ export default function Simulador() {
         <div className="flex flex-wrap items-center gap-3 px-1 sm:px-0">
           <div className="min-w-0">
             <h3 className="text-base font-black text-slate-800">Cotizaciones registradas</h3>
-            <p className="text-xs text-slate-400">{visibleCots.length} de {cotizaciones.length} registros</p>
+            <p className="text-xs text-slate-400">{cotTotal.toLocaleString('es')} registro{cotTotal !== 1 ? 's' : ''}{hayFiltros ? ' (filtrados)' : ''}</p>
           </div>
           {canViewList && (
             <div className="relative ml-auto w-full sm:w-56">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-              <input className="input-field pl-9 py-2 text-sm w-full" placeholder="Buscar…" value={search} onChange={e => { setSearch(e.target.value); setCotPage(0) }} />
-              {search && <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X className="w-3.5 h-3.5" /></button>}
+              <input className="input-field pl-9 py-2 text-sm w-full" placeholder="Buscar…" value={searchInput} onChange={e => setSearchInput(e.target.value)} />
+              {searchInput && <button onClick={() => setSearchInput('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X className="w-3.5 h-3.5" /></button>}
             </div>
           )}
         </div>
@@ -2409,7 +2435,7 @@ export default function Simulador() {
           <>
             <div className="flex flex-wrap gap-2 px-1 sm:px-0">
               {statuses.map((s, i) => {
-                const count = i === 0 ? cotizaciones.length : cotizaciones.filter(q => q.status === s).length
+                const count = i === 0 ? cotResumen.total : (cotResumen[s] ?? 0)
                 return (
                   <button key={s} onClick={() => setChipActive(i)}
                     className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${i === chipActive ? 'bg-jm-blue text-white border-jm-blue shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}>
@@ -2428,7 +2454,7 @@ export default function Simulador() {
                     <div className="w-4 h-4 border-2 border-slate-300 border-t-jm-blue rounded-full animate-spin" />
                     Cargando cotizaciones…
                   </div>
-                ) : visibleCots.length === 0 ? (
+                ) : pagedCots.length === 0 ? (
                   <p className="text-center text-slate-400 text-sm py-10">
                     {hayFiltros ? 'Sin resultados con los filtros aplicados.' : 'No hay cotizaciones registradas.'}
                   </p>
@@ -2478,7 +2504,7 @@ export default function Simulador() {
                           Cargando cotizaciones…
                         </div>
                       </td></tr>
-                    ) : visibleCots.length === 0 ? (
+                    ) : pagedCots.length === 0 ? (
                       <tr><td colSpan={hasAnyAction ? 8 : 7} className="td-cell text-center py-10 text-slate-400">
                         {hayFiltros ? 'Sin resultados con los filtros aplicados.' : 'No hay cotizaciones registradas.'}
                       </td></tr>
@@ -2512,9 +2538,9 @@ export default function Simulador() {
               <div className="px-4 py-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400">
                 <div className="flex flex-wrap items-center gap-3">
                   <span>
-                    {visibleCots.length === 0
+                    {pagedCots.length === 0
                       ? '0 cotizaciones'
-                      : `${cotStart + 1}–${Math.min(cotStart + cotPageSize, visibleCots.length)} de ${visibleCots.length}`}
+                      : `${cotStart + 1}–${Math.min(cotStart + cotPageSize, cotTotal)} de ${cotTotal.toLocaleString('es')}`}
                   </span>
                   <label className="flex items-center gap-1.5">
                     Mostrar
@@ -2573,7 +2599,7 @@ export default function Simulador() {
       {step === 5 && (
         <Step5
           sim={sim} tasaBcv={tasaBcv} tasaEur={tasaEur} editId={editId}
-          onBack={() => setStep(4)} onClose={closeStep} onSaved={loadData}
+          onBack={() => setStep(4)} onClose={closeStep} onSaved={refrescarCots}
           showToast={showToast} currentUser={currentUser}
         />
       )}
@@ -2584,7 +2610,7 @@ export default function Simulador() {
           cot={uwModal}
           productos={productos}
           onClose={() => setUwModal(null)}
-          onStatusChanged={() => { loadData(); setUwModal(null) }}
+          onStatusChanged={() => { loadCots(); loadCotResumen(); setUwModal(null) }}
           showToast={showToast}
         />
       )}

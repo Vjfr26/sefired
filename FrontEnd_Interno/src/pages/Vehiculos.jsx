@@ -299,25 +299,58 @@ export default function Vehiculos() {
   }
 
   const [bienes,         setBienes]         = useState([])
+  const [total,          setTotal]          = useState(0)
   const [loading,        setLoading]        = useState(true)
   const [error,          setError]          = useState(null)
-  const [search,         setSearch]         = useState('')
+  const [searchInput,    setSearchInput]    = useState('')   // lo que se teclea (inmediato)
+  const [search,         setSearch]         = useState('')   // término "debounced" que se consulta
   const [tipo,           setTipo]           = useState('')
   const [claseVeh,       setClaseVeh]       = useState('')   // tipo de vehículo (Automóvil, Camioneta, Moto…)
+  const [page,           setPage]           = useState(0)
+  const [pageSize,       setPageSize]       = useState(20)
+  const [facets,         setFacets]         = useState({ tipos: [], clases: [], resumen: { total: 0, vehiculo: 0, inmueble: 0, otros: 0 } })
   const [editBien,       setEditBien]       = useState(null)
   const [pdfLoading,     setPdfLoading]     = useState(null)
   const [pdfVisor,       setPdfVisor]       = useState(null) // { url, title, nro }
   const pdfVisorPanelRef = useRef(null)
   useModalLock(pdfVisorPanelRef, !!pdfVisor)
 
+  // Debounce de la búsqueda: no consultar en cada tecla.
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput.trim()), 350)
+    return () => clearTimeout(t)
+  }, [searchInput])
+
+  // Desplegables de filtro (tipos/clases) y conteos por tipo: del servidor, una sola vez.
+  useEffect(() => {
+    fetchBienes({ con_poliza: 1, facets: 1 })
+      .then(f => setFacets({
+        tipos: f.tipos ?? [],
+        clases: f.clases ?? [],
+        resumen: f.resumen ?? { total: 0, vehiculo: 0, inmueble: 0, otros: 0 },
+      }))
+      .catch(() => {})
+  }, [])
+
+  // Carga SOLO la página actual (paginado + búsqueda + filtros en el servidor).
   const load = useCallback(async () => {
     setLoading(true); setError(null)
-    try { setBienes(await fetchBienes({ con_poliza: 1 })) }
-    catch (e) { setError(e.message); showToast(e.message, 'error') }
+    try {
+      const params = { con_poliza: 1, page: page + 1, per_page: pageSize }
+      if (search)   params.search = search
+      if (tipo)     params.tipo   = tipo
+      if (claseVeh) params.clase  = claseVeh
+      const res = await fetchBienes(params)
+      setBienes(res.data ?? [])
+      setTotal(res.total ?? 0)
+    } catch (e) { setError(e.message); showToast(e.message, 'error') }
     finally { setLoading(false) }
-  }, [showToast])
+  }, [page, pageSize, search, tipo, claseVeh, showToast])
 
   useEffect(() => { load() }, [load])
+
+  // Al cambiar búsqueda o filtros, volver a la primera página.
+  useEffect(() => { setPage(0) }, [search, tipo, claseVeh, pageSize])
 
   const handleVerPoliza = async (b) => {
     if (!b.poliza_id) return
@@ -339,26 +372,9 @@ export default function Vehiculos() {
     setPdfVisor(null)
   }
 
-  const tipos = [...new Set(bienes.map(b => b.tipo).filter(Boolean))]
-  // Clases de vehículo presentes (Automóvil, Camioneta, Moto…) — para el 2º filtro.
-  const clasesVeh = [...new Set(
-    bienes.filter(b => b.tipo === 'vehiculo')
-          .map(b => String(b.atributos?.clase || b.atributos?.tipo || '').trim())
-          .filter(Boolean)
-  )].sort((a, b) => a.localeCompare(b, 'es'))
-
-  const filt = bienes.filter(b => {
-    if (tipo === 'otros') { if (['vehiculo', 'inmueble'].includes(b.tipo)) return false }
-    else if (tipo && b.tipo !== tipo) return false
-    if (claseVeh) {
-      if (b.tipo !== 'vehiculo' || String(b.atributos?.clase || b.atributos?.tipo || '').trim() !== claseVeh) return false
-    }
-    if (!search) return true
-    const q = search.toLowerCase()
-    const a = b.atributos || {}
-    return [bienRef(b), b.descripcion, a.placa, a.marca, a.modelo, b.persona?.nombre, b.persona?.cedula]
-      .filter(Boolean).some(v => v.toLowerCase().includes(q))
-  })
+  // Tipos y clases para los desplegables vienen del servidor (facets).
+  const tipos     = facets.tipos
+  const clasesVeh = facets.clases
 
   const POL_STATUS_COLOR = {
     ACTIVA:   'text-emerald-700 bg-emerald-50',
@@ -367,7 +383,7 @@ export default function Vehiculos() {
     ANULADA:  'text-rose-600 bg-rose-50',
   }
 
-  const rows = filt.map(b => {
+  const rows = bienes.map(b => {
     const Icon = TIPO_ICON[b.tipo] ?? Package
     const a    = b.atributos || {}
 
@@ -507,10 +523,10 @@ export default function Vehiculos() {
         {canViewCards && (
           <div className="grid grid-cols-2 sm:grid-cols-4 border-t border-white/10">
             {[
-              ['',         `${bienes.length}`,                                         'Total bienes',   ShieldCheck],
-              ['vehiculo', `${bienes.filter(b => b.tipo === 'vehiculo').length}`,      'Vehículos',      Car       ],
-              ['inmueble', `${bienes.filter(b => b.tipo === 'inmueble').length}`,      'Inmuebles',      Home      ],
-              ['otros',    `${bienes.filter(b => !['vehiculo','inmueble'].includes(b.tipo)).length}`, 'Otros tipos', Package],
+              ['',         `${facets.resumen.total}`,    'Total bienes',   ShieldCheck],
+              ['vehiculo', `${facets.resumen.vehiculo}`, 'Vehículos',      Car       ],
+              ['inmueble', `${facets.resumen.inmueble}`, 'Inmuebles',      Home      ],
+              ['otros',    `${facets.resumen.otros}`,    'Otros tipos', Package],
             ].map(([key, val, label, Icon]) => {
               const on = tipo === key
               return (
@@ -536,7 +552,7 @@ export default function Vehiculos() {
       {/* Filtros */}
       <SearchBar
         placeholder="Buscar por placa, titular, marca…"
-        onSearch={setSearch}
+        onSearch={setSearchInput}
         extra={
           <>
             <select className="select-field text-sm w-auto" value={tipo} onChange={e => setTipo(e.target.value)}>
@@ -550,7 +566,7 @@ export default function Vehiculos() {
                 {clasesVeh.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             )}
-            <p className="text-xs text-slate-400 whitespace-nowrap">{filt.length} resultado{filt.length !== 1 ? 's' : ''}</p>
+            <p className="text-xs text-slate-400 whitespace-nowrap">{total} resultado{total !== 1 ? 's' : ''}</p>
           </>
         }
       />
@@ -562,7 +578,9 @@ export default function Vehiculos() {
       )}
 
       {canViewList ? (
-        <DataTable cols={COLS} rows={rows} loading={loading} emptyMsg="No hay bienes registrados." />
+        <DataTable cols={COLS} rows={rows} loading={loading} emptyMsg="No hay bienes registrados."
+          server total={total} page={page} pageSize={pageSize}
+          onPageChange={setPage} onPageSizeChange={setPageSize} />
       ) : (
         <div className="card flex flex-col items-center justify-center py-16 gap-2 text-center">
           <ShieldCheck className="w-6 h-6 text-slate-300" />

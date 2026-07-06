@@ -349,7 +349,7 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
         })
       }
 
-      onSaved()
+      onSaved(savedProducto)
       onClose()
     } catch (e) {
       setFormErr(e.message || 'Error al guardar')
@@ -1065,7 +1065,6 @@ function TarifarioModal({ producto, onClose }) {
   const [form,          setForm]          = useState({ nombre: '', subtipo: '', datosForm: {}, activo: true })
   const [saving,        setSaving]        = useState(false)
   const [err,           setErr]           = useState('')
-  const [showArchivado, setShowArchivado] = useState(false)
 
   // Compara usando el MISMO nombre en ambos lados — así un simple renombre
   // (que en por_nivel se reflejaría en datos.nivel) no dispara una nueva
@@ -1078,14 +1077,14 @@ function TarifarioModal({ producto, onClose }) {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetchTarifario(producto.id, showArchivado)
+      const res = await fetchTarifario(producto.id)
       setTarifas(res.tarifario)
     } catch (e) {
       showToast(e.message, 'error')
     } finally {
       setLoading(false)
     }
-  }, [producto.id, showToast, showArchivado])
+  }, [producto.id, showToast])
 
   useEffect(() => { load() }, [load])
 
@@ -1137,12 +1136,6 @@ function TarifarioModal({ producto, onClose }) {
             <p className="text-xs text-slate-400">{producto.tipo_calculo} · {vigenteCount} tarifa{vigenteCount !== 1 ? 's' : ''} vigente{vigenteCount !== 1 ? 's' : ''}</p>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowArchivado(v => !v)}
-              className={`text-xs font-semibold px-3 py-1.5 rounded-xl border transition ${showArchivado ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}
-            >
-              {showArchivado ? 'Ocultar archivadas' : 'Ver historial'}
-            </button>
             <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-xl transition">
               <X className="w-4 h-4 text-slate-500" />
             </button>
@@ -1437,6 +1430,20 @@ export default function Productos() {
 
   useEffect(() => { loadProductos() }, [loadProductos])
 
+  // Actualiza la lista en el sitio con el producto guardado, SIN recargar todo
+  // (la recarga completa dispara un conteo caro sobre ~124k pólizas y en el
+  // servidor de prod, corto de RAM, tardaba varios segundos al guardar).
+  const upsertProducto = useCallback((saved) => {
+    if (!saved?.id) { loadProductos(); return }
+    setProductos(prev => {
+      const i = prev.findIndex(p => p.id === saved.id)
+      if (i === -1) return [saved, ...prev]
+      const copia = [...prev]
+      copia[i] = { ...copia[i], ...saved } // conserva ventas_count u otros campos de la lista
+      return copia
+    })
+  }, [loadProductos])
+
   const canCreate     = canAct('productos', 'create')
   const canEdit       = canAct('productos', 'edit')
   const canDelete     = canAct('productos', 'delete')
@@ -1521,8 +1528,8 @@ export default function Productos() {
                 color: p.publicado ? 'amber' : 'emerald',
                 confirmLabel: p.publicado ? 'Despublicar' : 'Publicar',
                 onConfirm: async () => {
-                  await updateProducto(p.id, { publicado: !p.publicado })
-                  await loadProductos()
+                  const upd = await updateProducto(p.id, { publicado: !p.publicado })
+                  upsertProducto(upd)
                   showToast(p.publicado ? `"${p.nombre}" ya no aparece en el portal público` : `"${p.nombre}" publicado en el portal público`, 'success')
                 },
               })}
@@ -1534,7 +1541,7 @@ export default function Productos() {
           )}
           {canDelete && (
             <button
-              onClick={() => showModal('confirmDelete', { name: p.nombre, onConfirm: async () => { await deleteProducto(p.id); await loadProductos() } })}
+              onClick={() => showModal('confirmDelete', { name: p.nombre, onConfirm: async () => { await deleteProducto(p.id); setProductos(prev => prev.filter(x => x.id !== p.id)) } })}
               className="p-2.5 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition inline-flex items-center justify-center"
               title="Eliminar"
             >
@@ -1689,7 +1696,7 @@ export default function Productos() {
           producto={modalProd === 'new' ? null : modalProd}
           productos={productos}
           onClose={() => setModalProd(null)}
-          onSaved={loadProductos}
+          onSaved={upsertProducto}
         />
       )}
       {modalTar && (

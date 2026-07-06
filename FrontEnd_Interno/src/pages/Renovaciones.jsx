@@ -161,7 +161,8 @@ export default function Renovaciones() {
     )
   }
 
-  const pendientes = rows.filter(r => r.status === 'PENDIENTE').length
+  // En la pestaña PENDIENTE, el total real es el del servidor (no solo la página).
+  const pendientes = filter.status === 'PENDIENTE' ? total : rows.filter(r => r.status === 'PENDIENTE').length
 
   return (
     <div className="animate-in fade-in duration-500">

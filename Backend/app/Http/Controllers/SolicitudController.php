@@ -56,20 +56,74 @@ class SolicitudController extends Controller
      * mismos crearon — nunca las de otros vendedores ni los leads del
      * portal público (que no tienen vendedor_id asignado).
      */
-    public function index()
+    public function index(Request $request)
     {
-        $user  = auth()->user();
+        $user = auth()->user();
+
+        // Filtros (status/producto/fechas/búsqueda) aplicables a una query dada.
+        $aplicarFiltros = function ($q) use ($request) {
+            $status = $request->input('status');
+            if ($status && $status !== 'Todos') {
+                // El histórico migrado quedó como 'En Revisión'; el chip nuevo usa
+                // 'en_revision'. Se aceptan ambos para que el filtro no salga vacío.
+                if ($status === 'en_revision') {
+                    $q->whereIn('status', ['en_revision', 'En Revisión']);
+                } else {
+                    $q->where('status', $status);
+                }
+            }
+            if ($request->filled('producto_id')) {
+                $q->where('producto_id', $request->input('producto_id'));
+            }
+            if ($request->filled('fecha_inicio')) $q->whereDate('fecha_solicitud', '>=', $request->input('fecha_inicio'));
+            if ($request->filled('fecha_fin'))    $q->whereDate('fecha_solicitud', '<=', $request->input('fecha_fin'));
+            if ($request->filled('search')) {
+                $s = trim($request->input('search'));
+                $q->where(function ($w) use ($s) {
+                    $w->whereHas('persona', fn ($p) => $p->where('nombre', 'like', "%{$s}%")->orWhere('cedula', 'like', "%{$s}%"))
+                      ->orWhereHas('bien', fn ($b) => $b->where('placa_idx', 'like', "%{$s}%"));
+                    if (ctype_digit($s)) $w->orWhere('id', (int) $s);
+                });
+            }
+        };
+
+        // Resumen para los chips/contadores: cuenta sobre toda la DB (no la página).
+        if ($request->boolean('resumen')) {
+            $base = Solicitud::query();
+            if ($this->esRolRestringido()) $base->where('vendedor_id', $user->id);
+            return response()->json([
+                'total'       => (clone $base)->count(),
+                'pendiente'   => (clone $base)->where('status', 'pendiente')->count(),
+                'en_revision' => (clone $base)->whereIn('status', ['en_revision', 'En Revisión'])->count(),
+                'aprobado'    => (clone $base)->where('status', 'aprobado')->count(),
+                'emitida'     => (clone $base)->where('status', 'emitida')->count(),
+                'rechazado'   => (clone $base)->where('status', 'rechazado')->count(),
+            ]);
+        }
+
         $query = Solicitud::with(['persona', 'producto', 'bien', 'vendedor', 'polizas'])
             ->orderByDesc('fecha_solicitud')
             ->orderByDesc('id');
-
         if ($this->esRolRestringido()) {
             $query->where('vendedor_id', $user->id);
         }
+        $aplicarFiltros($query);
 
-        $solicitudes = $query->get()->map(fn($s) => $this->formatRow($s));
+        // Paginado (opt-in): las relaciones se cargan solo para las ~20 filas de la
+        // página, no para las 125k solicitudes migradas → rápido y sin OOM.
+        if ($request->filled('page') || $request->filled('per_page')) {
+            $perPage = min(max((int) $request->input('per_page', 20), 1), 200);
+            $p = $query->paginate($perPage);
+            return response()->json([
+                'data'     => $p->getCollection()->map(fn ($s) => $this->formatRow($s))->values(),
+                'total'    => $p->total(),
+                'page'     => $p->currentPage(),
+                'per_page' => $p->perPage(),
+            ]);
+        }
 
-        return response()->json($solicitudes);
+        // Compat: lista completa (llamadas antiguas sin parámetros de paginación).
+        return response()->json($query->get()->map(fn ($s) => $this->formatRow($s))->values());
     }
 
     /**

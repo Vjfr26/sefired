@@ -74,65 +74,125 @@ class ClienteController extends Controller
      * asignado (leads del portal, datos previos a este campo) NO se les
      * muestran y deben ser asignados por Admin/Oficina. Ver ScopesVendedor.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $query = Persona::with(['solicitudes.polizas.cuotas', 'solicitudes.producto', 'bienes', 'vendedor', 'documentos'])->withCount('documentos');
+        // Query base con el scope de "solo mis clientes" y la búsqueda/filtros.
+        $filtrar = function ($q) use ($request) {
+            if ($request->filled('search')) {
+                $s = trim($request->input('search'));
+                $q->where(function ($w) use ($s) {
+                    $w->where('nombre', 'like', "%{$s}%")
+                      ->orWhere('cedula', 'like', "%{$s}%")
+                      ->orWhere('correo', 'like', "%{$s}%");
+                });
+            }
+            switch ($request->input('filtro')) {
+                case 'activos':    $q->whereHas('solicitudes.polizas', fn ($p) => $p->where('status', 'ACTIVA')); break;
+                case 'con_poliza': $q->whereHas('solicitudes.polizas'); break;
+                case 'sin_poliza': $q->whereDoesntHave('solicitudes.polizas'); break;
+            }
+        };
+
+        // Resumen para las tarjetas: cuenta SIEMPRE sobre toda la DB (no la página),
+        // respetando el scope de vendedor y la búsqueda activa. Ignora `filtro`.
+        if ($request->boolean('resumen')) {
+            $base = Persona::query();
+            $this->whereVendedorPropio($base);
+            if ($request->filled('search')) {
+                $s = trim($request->input('search'));
+                $base->where(function ($w) use ($s) {
+                    $w->where('nombre', 'like', "%{$s}%")
+                      ->orWhere('cedula', 'like', "%{$s}%")
+                      ->orWhere('correo', 'like', "%{$s}%");
+                });
+            }
+            $total     = (clone $base)->count();
+            $conPoliza = (clone $base)->whereHas('solicitudes.polizas')->count();
+            $activos   = (clone $base)->whereHas('solicitudes.polizas', fn ($p) => $p->where('status', 'ACTIVA'))->count();
+            return response()->json([
+                'total'      => $total,
+                'activos'    => $activos,
+                'con_poliza' => $conPoliza,
+                'sin_poliza' => $total - $conPoliza,
+            ]);
+        }
+
+        $query = Persona::query();
         $this->whereVendedorPropio($query);
+        $filtrar($query);
+        $query->with(['solicitudes.polizas.cuotas', 'solicitudes.producto', 'bienes', 'vendedor', 'documentos'])
+              ->withCount('documentos')
+              ->orderBy('nombre');
 
-        $personas = $query->get()
-            ->map(function ($p) {
-                $polizas = $p->solicitudes->flatMap->polizas;
+        // Paginado (opt-in con ?page/?per_page): las relaciones se cargan SOLO para
+        // las ~20 filas de la página, no para los 50k clientes → rápido y sin OOM.
+        if ($request->filled('page') || $request->filled('per_page')) {
+            $perPage = min(max((int) $request->input('per_page', 20), 1), 200);
+            $p = $query->paginate($perPage);
+            return response()->json([
+                'data'     => $p->getCollection()->map(fn ($persona) => $this->buildClienteRow($persona))->values(),
+                'total'    => $p->total(),
+                'page'     => $p->currentPage(),
+                'per_page' => $p->perPage(),
+            ]);
+        }
 
-                $activa  = $polizas->where('status', 'ACTIVA')->sortByDesc('fecha_emision')->first();
-                $ultima  = $activa ?? $polizas->sortByDesc('fecha_emision')->first();
-                $ultimaSolicitud = $ultima ? null : $p->solicitudes->sortByDesc('id')->first();
+        // Compat: lista completa (llamadas antiguas sin parámetros de paginación).
+        return response()->json($query->get()->map(fn ($persona) => $this->buildClienteRow($persona))->values());
+    }
 
-                if ($ultima) {
-                    $pol      = $ultima->nro_contrato;
-                    $vig      = $ultima->fecha_emision->format('d/m/Y') . ' – ' . $ultima->fecha_vencimiento->format('d/m/Y');
-                    $prima    = Moneda::simbolo($ultima->monedaNativa()) . number_format($ultima->total, 2);
-                    $polizaId = $ultima->id;
-                } elseif ($ultimaSolicitud) {
-                    $anno     = $ultimaSolicitud->fecha_solicitud?->format('Y') ?? now()->year;
-                    $pol      = 'COT-' . $anno . '-' . str_pad($ultimaSolicitud->id, 5, '0', STR_PAD_LEFT);
-                    $vig      = '—';
-                    $monedaCot = Moneda::normalizar($ultimaSolicitud->moneda_producto ?? $ultimaSolicitud->producto?->moneda ?? 'USD');
-                    $prima    = $ultimaSolicitud->total ? Moneda::simbolo($monedaCot) . number_format($ultimaSolicitud->total, 2) : '—';
-                    $polizaId = null;
-                } else {
-                    $pol = '—'; $vig = '—'; $prima = '—'; $polizaId = null;
-                }
+    /** Construye la fila de la tabla de clientes para una Persona ya cargada con sus relaciones. */
+    private function buildClienteRow(Persona $p): array
+    {
+        $polizas = $p->solicitudes->flatMap->polizas;
 
-                if (!$p->activo) {
-                    $est = 'Bloqueado';
-                } elseif ($activa) {
-                    $est = 'Activo';
-                } elseif ($ultima) {
-                    $est = 'Inactivo';
-                } elseif ($ultimaSolicitud) {
-                    $est = $ultimaSolicitud->status;
-                } else {
-                    $est = 'Inactivo';
-                }
+        $activa  = $polizas->where('status', 'ACTIVA')->sortByDesc('fecha_emision')->first();
+        $ultima  = $activa ?? $polizas->sortByDesc('fecha_emision')->first();
+        $ultimaSolicitud = $ultima ? null : $p->solicitudes->sortByDesc('id')->first();
 
-                $monedaProducto = $ultima
-                    ? $ultima->monedaNativa()
-                    : Moneda::normalizar($ultimaSolicitud?->moneda_producto ?? $ultimaSolicitud?->producto?->moneda ?? 'USD');
-                $row = $this->formatRow($p, $est, $pol, $vig, $prima, $polizaId, $monedaProducto);
-                $row['fecha_vencimiento_iso'] = $ultima?->fecha_vencimiento?->format('Y-m-d');
-                $row['dias_vencimiento']      = $ultima?->fecha_vencimiento
-                    ? (int) now()->diffInDays($ultima->fecha_vencimiento, false)
-                    : null;
-                $row['poliza_status']         = $ultima?->status;
-                $row['documentos_faltantes']  = $this->tieneDocumentosFaltantes($p);
-                // Aviso de cuota(s) atrasada(s): cualquier póliza mensual del
-                // cliente con una cuota vencida y con saldo pendiente.
-                $row['cuotas_atrasadas']      = $polizas->sum(fn ($pol) => $pol->cuotasAtrasadas());
-                $row['cuota_atrasada']        = $row['cuotas_atrasadas'] > 0;
-                return $row;
-            });
+        if ($ultima) {
+            $pol      = $ultima->nro_contrato;
+            $vig      = $ultima->fecha_emision->format('d/m/Y') . ' – ' . $ultima->fecha_vencimiento->format('d/m/Y');
+            $prima    = Moneda::simbolo($ultima->monedaNativa()) . number_format($ultima->total, 2);
+            $polizaId = $ultima->id;
+        } elseif ($ultimaSolicitud) {
+            $anno     = $ultimaSolicitud->fecha_solicitud?->format('Y') ?? now()->year;
+            $pol      = 'COT-' . $anno . '-' . str_pad($ultimaSolicitud->id, 5, '0', STR_PAD_LEFT);
+            $vig      = '—';
+            $monedaCot = Moneda::normalizar($ultimaSolicitud->moneda_producto ?? $ultimaSolicitud->producto?->moneda ?? 'USD');
+            $prima    = $ultimaSolicitud->total ? Moneda::simbolo($monedaCot) . number_format($ultimaSolicitud->total, 2) : '—';
+            $polizaId = null;
+        } else {
+            $pol = '—'; $vig = '—'; $prima = '—'; $polizaId = null;
+        }
 
-        return response()->json($personas);
+        if (!$p->activo) {
+            $est = 'Bloqueado';
+        } elseif ($activa) {
+            $est = 'Activo';
+        } elseif ($ultima) {
+            $est = 'Inactivo';
+        } elseif ($ultimaSolicitud) {
+            $est = $ultimaSolicitud->status;
+        } else {
+            $est = 'Inactivo';
+        }
+
+        $monedaProducto = $ultima
+            ? $ultima->monedaNativa()
+            : Moneda::normalizar($ultimaSolicitud?->moneda_producto ?? $ultimaSolicitud?->producto?->moneda ?? 'USD');
+        $row = $this->formatRow($p, $est, $pol, $vig, $prima, $polizaId, $monedaProducto);
+        $row['fecha_vencimiento_iso'] = $ultima?->fecha_vencimiento?->format('Y-m-d');
+        $row['dias_vencimiento']      = $ultima?->fecha_vencimiento
+            ? (int) now()->diffInDays($ultima->fecha_vencimiento, false)
+            : null;
+        $row['poliza_status']         = $ultima?->status;
+        $row['documentos_faltantes']  = $this->tieneDocumentosFaltantes($p);
+        // Aviso de cuota(s) atrasada(s): cualquier póliza mensual del
+        // cliente con una cuota vencida y con saldo pendiente.
+        $row['cuotas_atrasadas']      = $polizas->sum(fn ($pol) => $pol->cuotasAtrasadas());
+        $row['cuota_atrasada']        = $row['cuotas_atrasadas'] > 0;
+        return $row;
     }
 
     public function store(Request $request)

@@ -240,7 +240,10 @@ class ReportController extends Controller
             });
         }
 
-        $policies = $query->get()->map(function ($p) {
+        // PAGINADO: ~50 por página (antes cargaba todas las pólizas del rango → OOM).
+        $perPage   = min(max((int) $request->input('per_page', 50), 1), 200);
+        $paginator = $query->paginate($perPage);
+        $policies = $paginator->getCollection()->map(function ($p) {
             $sol  = $p->solicitud;
             $bien = $sol?->bien;
             $attr = $bien?->atributos ?? [];
@@ -275,7 +278,12 @@ class ReportController extends Controller
             ];
         });
 
-        return response()->json($policies);
+        return response()->json([
+            'data'     => $policies,
+            'total'    => $paginator->total(),
+            'page'     => $paginator->currentPage(),
+            'per_page' => $paginator->perPage(),
+        ]);
     }
 
     public function exportExternalReport(Request $request)
@@ -295,8 +303,13 @@ class ReportController extends Controller
 
         $policies = $query->get();
         $columnas = $request->input('columnas');
+        // Moneda de salida elegida por el usuario (USD|BS|EUR). Se convierte con
+        // la tasa BCV de hoy (misma lógica que el resto de reportes en Bs).
+        $moneda   = $request->input('moneda', 'USD');
+        $tasaUsd  = (float) (IndicadorEconomico::usd()->orderByDesc('fecha')->orderByDesc('fecha_registro')->value('valor') ?? 0);
+        $tasaEur  = (float) (IndicadorEconomico::eur()->orderByDesc('fecha')->orderByDesc('fecha_registro')->value('valor') ?? 0);
         $filename = 'reporte_externo_' . now()->format('Ymd_His') . '.xlsx';
-        return (new ExternalReportExport($policies, is_array($columnas) && count($columnas) ? $columnas : null))->download($filename);
+        return (new ExternalReportExport($policies, is_array($columnas) && count($columnas) ? $columnas : null, $moneda, $tasaUsd, $tasaEur))->download($filename);
     }
 
     public function getExternalReportSchedules()
@@ -1262,11 +1275,12 @@ class ReportController extends Controller
 
         $filtros_opciones = ['marcas' => $marcas, 'modelos' => $modelos];
 
-        // ── Listado con filtros ───────────────────────────────────────────────────
-        $filtro   = $request->input('filtro');
-        $clientes = $this->clientesFiltrados($request);
+        // ── Listado con filtros (PAGINADO: ~50 clientes por página) ───────────────
+        $filtro    = $request->input('filtro');
+        $perPage   = min(max((int) $request->input('per_page', 50), 1), 200);
+        $paginator = $this->clientesFiltrados($request)->orderBy('nombre')->paginate($perPage);
 
-        $rows = $clientes->map(function ($c) {
+        $rows = $paginator->getCollection()->map(function ($c) {
             $polizas       = $c->solicitudes->flatMap->polizas;
             $bienes        = $c->bienes; // todos los tipos de bien (vehículo, inmueble, etc.)
             $polizasActivas = $polizas->where('status', 'ACTIVA');
@@ -1312,6 +1326,9 @@ class ReportController extends Controller
         return response()->json([
             'stats'            => $stats,
             'clientes'         => $rows,
+            'total'            => $paginator->total(),
+            'page'             => $paginator->currentPage(),
+            'per_page'         => $paginator->perPage(),
             'filtros_opciones' => $filtros_opciones,
         ]);
     }
@@ -1321,7 +1338,7 @@ class ReportController extends Controller
      * filtro rápido, marca/modelo del bien y estado de póliza). Compartido por
      * el listado en pantalla y la exportación a Excel.
      */
-    private function clientesFiltrados(Request $request): \Illuminate\Support\Collection
+    private function clientesFiltrados(Request $request): \Illuminate\Database\Eloquent\Builder
     {
         $clientesQuery = Persona::with(['bienes', 'solicitudes.polizas']);
 
@@ -1368,7 +1385,9 @@ class ReportController extends Controller
             $clientesQuery->whereHas('solicitudes.polizas', fn ($q) => $q->where('status', $request->estado_poliza));
         }
 
-        return $clientesQuery->get();
+        // Devuelve el QUERY (no ->get()): el listado en pantalla lo pagina para no
+        // cargar 52k clientes con relaciones en memoria; el export hace ->get().
+        return $clientesQuery;
     }
 
     /** Filtros post-query sobre conteos calculados (bienes/prima min-max). */
@@ -1411,7 +1430,7 @@ class ReportController extends Controller
         ]);
 
         $filtro   = $request->input('filtro');
-        $clientes = $this->clientesFiltrados($request);
+        $clientes = $this->clientesFiltrados($request)->get();
 
         $rows = $clientes->map(function ($c) {
             $polizas        = $c->solicitudes->flatMap->polizas;
@@ -1596,7 +1615,11 @@ class ReportController extends Controller
             );
         }
 
-        $rows = $bienesQuery->get()->map(function ($v) {
+        // PAGINADO: ~50 vehículos por página (antes cargaba 44k con relaciones → OOM).
+        $perPage   = min(max((int) $request->input('per_page', 50), 1), 200);
+        $paginator = $bienesQuery->orderByDesc('id')->paginate($perPage);
+
+        $rows = $paginator->getCollection()->map(function ($v) {
             $attr     = $v->atributos ?? [];
             $polizas  = $v->solicitudes->flatMap->polizas;
             $activa   = $polizas->where('status', 'ACTIVA')->isNotEmpty();
@@ -1616,6 +1639,12 @@ class ReportController extends Controller
             ];
         });
 
-        return response()->json(['stats' => $stats, 'vehiculos' => $rows]);
+        return response()->json([
+            'stats'     => $stats,
+            'vehiculos' => $rows,
+            'total'     => $paginator->total(),
+            'page'      => $paginator->currentPage(),
+            'per_page'  => $paginator->perPage(),
+        ]);
     }
 }

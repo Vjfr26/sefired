@@ -35,6 +35,38 @@ class BienAseguradoController extends Controller
 
     public function index(Request $request)
     {
+        // Facetas para los desplegables de filtro (tipos y clases de vehículo).
+        // Se resuelven con consultas DISTINCT baratas — no cargan filas completas.
+        if ($request->boolean('facets')) {
+            $tipos  = BienAsegurado::query()->select('tipo')->distinct()->orderBy('tipo')->pluck('tipo')->filter()->values();
+            $clases = BienAsegurado::query()->where('tipo', 'vehiculo')
+                ->selectRaw("JSON_UNQUOTE(JSON_EXTRACT(atributos, '$.clase')) AS clase")
+                ->distinct()->pluck('clase')->filter()->sort()->values();
+
+            // Conteos por tipo para las tarjetas: sobre TODA la DB (mismo universo
+            // con_poliza/vendedor que la lista), no sobre la página visible.
+            $base = BienAsegurado::query();
+            if ($this->esRolRestringido()) {
+                $base->whereHas('persona', fn($q) => $this->whereVendedorPropio($q));
+            }
+            if ($request->boolean('con_poliza')) {
+                $base->where(fn($q) => $q->has('polizaBienes')->orHas('solicitudes.polizas'));
+            }
+            $totalBienes = (clone $base)->count();
+            $vehiculos   = (clone $base)->where('tipo', 'vehiculo')->count();
+            $inmuebles   = (clone $base)->where('tipo', 'inmueble')->count();
+            return response()->json([
+                'tipos'   => $tipos,
+                'clases'  => $clases,
+                'resumen' => [
+                    'total'    => $totalBienes,
+                    'vehiculo' => $vehiculos,
+                    'inmueble' => $inmuebles,
+                    'otros'    => $totalBienes - $vehiculos - $inmuebles,
+                ],
+            ]);
+        }
+
         $query = BienAsegurado::with(['persona.vendedor', 'roles.persona', 'solicitudes.polizas', 'polizaBienes.poliza'])
             ->orderByDesc('created_at');
 
@@ -62,10 +94,44 @@ class BienAseguradoController extends Controller
         }
 
         if ($request->filled('tipo')) {
-            $query->where('tipo', $request->tipo);
+            if ($request->input('tipo') === 'otros') {
+                $query->whereNotIn('tipo', ['vehiculo', 'inmueble']);
+            } else {
+                $query->where('tipo', $request->tipo);
+            }
+        }
+        if ($request->filled('clase')) {
+            $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(atributos, '$.clase')) = ?", [$request->input('clase')]);
         }
         if ($request->filled('persona_id')) {
             $query->where('persona_id', $request->persona_id);
+        }
+
+        // Búsqueda servidor: por placa (índice), marca/modelo (JSON) o dueño.
+        if ($request->filled('search')) {
+            $s = trim((string) $request->input('search'));
+            $query->where(function ($q) use ($s) {
+                $q->where('placa_idx', 'like', "%{$s}%")
+                  ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(atributos, '$.marca'))  LIKE ?", ["%{$s}%"])
+                  ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(atributos, '$.modelo')) LIKE ?", ["%{$s}%"])
+                  ->orWhereHas('persona', fn ($p) => $p->where('nombre', 'like', "%{$s}%")
+                                                       ->orWhere('cedula', 'like', "%{$s}%"));
+            });
+        }
+
+        // Modo paginado (opt-in): con ?page o ?per_page se devuelve SOLO esa página
+        // { data, total, page, per_page }. Sin esos parámetros se conserva el
+        // comportamiento anterior (lista completa) — lo usan selectores como el de
+        // "agregar bien a póliza" (?persona_id=…), que traen pocos registros.
+        if ($request->filled('page') || $request->filled('per_page')) {
+            $perPage = min(max((int) $request->input('per_page', 50), 1), 200);
+            $p = $query->paginate($perPage);
+            return response()->json([
+                'data'     => collect($p->items())->map(fn ($b) => $this->formatBien($b))->all(),
+                'total'    => $p->total(),
+                'page'     => $p->currentPage(),
+                'per_page' => $p->perPage(),
+            ]);
         }
 
         return response()->json(
