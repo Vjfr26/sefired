@@ -2265,8 +2265,8 @@ export default function Simulador() {
   const handleDelete = (id, nro) =>
     showModal('confirmDelete', {
       name: `Cotización ${nro}`,
-      onConfirm: async () => {
-        await deleteCotizacion(id)
+      onConfirm: async (opts) => {
+        await deleteCotizacion(id, opts)
         loadCots(); loadCotResumen()
       },
     })

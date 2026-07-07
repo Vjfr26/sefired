@@ -131,13 +131,19 @@ export async function toggleCliente(id, motivo = null) {
  *
  * @param {number} id  ID numérico del cliente
  */
-export async function deleteCliente(id) {
+export async function deleteCliente(id, opts = {}) {
   const res = await fetch(`${API}/${id}`, {
     method: 'DELETE',
-    headers: getAuthHeaders(),
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    // force + password: segunda confirmación para clientes con pólizas
+    body: opts.force ? JSON.stringify({ force: true, password: opts.password }) : undefined,
   })
   const json = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(json.error || json.message || 'Error al eliminar cliente')
+  if (!res.ok) {
+    const err = new Error(json.error || json.message || 'Error al eliminar cliente')
+    err.requiereConfirmacion = !!json.requiere_confirmacion
+    throw err
+  }
   return json
 }
 

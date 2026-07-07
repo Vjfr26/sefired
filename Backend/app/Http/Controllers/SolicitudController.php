@@ -28,6 +28,7 @@ use App\Traits\LogsActivity;
 use App\Traits\ScopesVendedor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 
@@ -778,17 +779,36 @@ class SolicitudController extends Controller
     }
 
     /**
-     * Elimina una cotización (solo si no tiene pólizas emitidas).
+     * Elimina una cotización. Si tiene pólizas emitidas, avisa (409 con
+     * requiere_confirmacion) y solo procede con force=true + la contraseña
+     * del usuario verificada de nuevo — entonces elimina también las
+     * pólizas (soft delete).
      */
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
         $solicitud = Solicitud::with('polizas')->findOrFail($id);
         $this->assertAccesoSolicitud($solicitud);
 
         if ($solicitud->polizas->isNotEmpty()) {
-            return response()->json(
-                ['error' => 'No se puede eliminar una cotización con pólizas emitidas.'],
-                409
+            $password = (string) $request->input('password', '');
+            if (!$request->boolean('force') || $password === '' || !Hash::check($password, auth()->user()->password)) {
+                $activas = $solicitud->polizas->where('status', 'ACTIVA')->count();
+                return response()->json([
+                    'error' => 'Esta cotización tiene ' . $solicitud->polizas->count() . ' póliza(s) emitida(s)'
+                        . ($activas > 0 ? ", {$activas} ACTIVA(s)," : '')
+                        . ' que se eliminarán junto con ella.',
+                    'requiere_confirmacion' => true,
+                ], 409);
+            }
+            foreach ($solicitud->polizas as $p) {
+                $p->delete();
+            }
+            $this->logActivity(
+                'eliminar_cotizacion',
+                "Cotización #{$solicitud->id} eliminada con {$solicitud->polizas->count()} póliza(s): "
+                    . $solicitud->polizas->pluck('nro_contrato')->join(', '),
+                'solicitud',
+                auth()->id()
             );
         }
 

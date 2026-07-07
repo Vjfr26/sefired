@@ -110,6 +110,10 @@ function ConfirmDeleteModal({ name, onConfirm }) {
   const [password, setPassword] = useState('')
   const [passErr,  setPassErr]  = useState('')
   const [saving,   setSaving]   = useState(false)
+  // Aviso devuelto por el backend cuando el registro tiene pólizas/cotizaciones
+  // asociadas: se muestra y se exige la contraseña una SEGUNDA vez antes de
+  // eliminar en cascada.
+  const [warn, setWarn] = useState('')
 
   const handleDelete = async () => {
     if (!password.trim()) { setPassErr('Ingresa tu contraseña para confirmar.'); return }
@@ -122,10 +126,16 @@ function ConfirmDeleteModal({ name, onConfirm }) {
       return
     }
     try {
-      if (onConfirm) await onConfirm()
+      if (onConfirm) await onConfirm(warn ? { force: true, password } : undefined)
       closeModal()
       showToast(`${name} eliminado`, 'error')
     } catch (err) {
+      if (err.requiereConfirmacion && !warn) {
+        setWarn(err.message)
+        setPassword('')
+        setSaving(false)
+        return
+      }
       showToast(err.message || 'Error al eliminar', 'error')
       setSaving(false)
     }
@@ -151,12 +161,21 @@ function ConfirmDeleteModal({ name, onConfirm }) {
           <p className="font-semibold text-slate-800 mb-1">¿Eliminar <em>{name}</em>?</p>
           <p className="text-sm text-slate-500">Esta acción no se puede deshacer.</p>
         </div>
+        {warn && (
+          <div className="w-full p-3 bg-amber-50 border border-amber-300 rounded-xl text-left">
+            <p className="text-xs font-bold text-amber-800 mb-1">⚠️ Atención</p>
+            <p className="text-xs text-amber-800">{warn}</p>
+            <p className="text-xs text-amber-700 mt-1.5 font-semibold">
+              Para continuar, vuelve a ingresar tu contraseña.
+            </p>
+          </div>
+        )}
         <div className="w-full text-left">
           <label className="field-label">Contraseña <span className="text-rose-500">*</span></label>
           <input
             type="password"
             className={`input-field ${passErr ? 'border-rose-400' : ''}`}
-            placeholder="Ingresa tu contraseña para confirmar"
+            placeholder={warn ? 'Confirma nuevamente tu contraseña' : 'Ingresa tu contraseña para confirmar'}
             value={password}
             onChange={e => { setPassword(e.target.value); setPassErr('') }}
             onKeyDown={e => e.key === 'Enter' && handleDelete()}

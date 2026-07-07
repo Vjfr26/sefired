@@ -22,6 +22,7 @@ use App\Support\Moneda;
 use App\Traits\LogsActivity;
 use App\Traits\ScopesVendedor;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 
@@ -631,16 +632,35 @@ class ClienteController extends Controller
         return response()->json(['ok' => true, 'vendedor_nombre' => $vendedor->nombre]);
     }
 
-    public function destroy($id)
+    /**
+     * Elimina un cliente. Si tiene solicitudes/pólizas, avisa (409 con
+     * requiere_confirmacion) y solo procede con force=true + la contraseña
+     * del usuario verificada de nuevo — entonces elimina en cascada sus
+     * solicitudes y pólizas (soft delete).
+     */
+    public function destroy(Request $request, $id)
     {
-        $persona = Persona::with('solicitudes')->findOrFail($id);
+        $persona = Persona::with('solicitudes.polizas')->findOrFail($id);
         $this->assertAccesoCliente($persona);
 
         if ($persona->solicitudes->isNotEmpty()) {
-            return response()->json(
-                ['error' => 'No se puede eliminar un cliente con solicitudes o pólizas activas.'],
-                409
-            );
+            $password = (string) $request->input('password', '');
+            if (!$request->boolean('force') || $password === '' || !Hash::check($password, auth()->user()->password)) {
+                $polizas = $persona->solicitudes->flatMap->polizas;
+                $activas = $polizas->where('status', 'ACTIVA')->count();
+                return response()->json([
+                    'error' => "Este cliente tiene {$persona->solicitudes->count()} cotización(es) y {$polizas->count()} póliza(s)"
+                        . ($activas > 0 ? ", {$activas} ACTIVA(s)," : '')
+                        . ' que se eliminarán junto con él.',
+                    'requiere_confirmacion' => true,
+                ], 409);
+            }
+            foreach ($persona->solicitudes as $sol) {
+                foreach ($sol->polizas as $p) {
+                    $p->delete();
+                }
+                $sol->delete();
+            }
         }
 
         if ($persona->correo) {

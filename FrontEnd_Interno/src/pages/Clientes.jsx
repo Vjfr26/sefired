@@ -272,7 +272,7 @@ export default function Clientes() {
           }) },
           canDeleteClientes && { icon: Trash2, label: 'Eliminar cliente', color: 'rose', onClick: () => showModal('confirmDelete', {
             name: c.nom,
-            onConfirm: async () => { await deleteCliente(c.id); await loadClientes() },
+            onConfirm: async (opts) => { await deleteCliente(c.id, opts); await loadClientes() },
           }) },
         ].filter(Boolean)
 

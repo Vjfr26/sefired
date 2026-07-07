@@ -69,12 +69,18 @@ export async function registrarPagoCotizacion(id, data) {
   return json
 }
 
-export async function deleteCotizacion(id) {
+export async function deleteCotizacion(id, opts = {}) {
   const res = await fetch(`${API}/${id}`, {
     method: 'DELETE',
-    headers: getAuthHeaders(),
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    // force + password: segunda confirmación para cotizaciones con pólizas
+    body: opts.force ? JSON.stringify({ force: true, password: opts.password }) : undefined,
   })
   const json = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(json.error || json.message || 'Error al eliminar cotización')
+  if (!res.ok) {
+    const err = new Error(json.error || json.message || 'Error al eliminar cotización')
+    err.requiereConfirmacion = !!json.requiere_confirmacion
+    throw err
+  }
   return json
 }
