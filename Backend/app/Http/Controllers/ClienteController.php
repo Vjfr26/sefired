@@ -435,6 +435,7 @@ class ClienteController extends Controller
                         'frecuencia_pago'                   => $poliza->frecuencia_pago,
                         'bienes_count'          => (int) ($poliza->bienes_count ?? 0),
                         'renovable'             => $poliza->esRenovable(),
+                        'renovable_anticipada'  => $poliza->esRenovableAnticipada(),
                         'renovable_motivo'      => $poliza->motivoNoRenovable(),
                         'cuota_saldo'           => $poliza->saldoCuotas(),
                         'vendedor_id'           => $poliza->vendedor_id,

@@ -670,6 +670,10 @@ function RenovarModal({ client, diasVencimiento, onSaved, onCancel }) {
         tasa_bcv: tasas.usd ?? 1,
         tasa_eur: tasas.eur ?? 0,
         frecuencia_pago: frecuencia,
+        // La póliza aún no venció: el usuario ya confirmó en este modal que
+        // quiere renovarla igual (el backend exige este flag fuera de la
+        // ventana de renovación).
+        anticipada: diasNum !== null && diasNum > 0,
         pagos,
       })
       showToast(`Póliza ${result.nro_contrato} renovada correctamente`, 'success')
@@ -4580,7 +4584,7 @@ function ClienteHistorialModal({ c, onSaved }) {
                           }
                         </button>
                       )}
-                      {pol.renovable && pol.id && canRenew && (
+                      {(pol.renovable || pol.renovable_anticipada) && pol.id && canRenew && (
                         <button
                           onClick={() => {
                             const dias = pol.fecha_vencimiento_iso

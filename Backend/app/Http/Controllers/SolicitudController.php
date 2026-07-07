@@ -841,7 +841,9 @@ class SolicitudController extends Controller
         // Número de cotización: COT-YYYY-XXXXX
         $nro = 'COT-' . $s->fecha_solicitud?->format('Y') . '-' . str_pad($s->id, 5, '0', STR_PAD_LEFT);
 
-        $poliza = $s->polizas->first();
+        // Una solicitud acumula pólizas con cada renovación (la nueva reusa el
+        // mismo solicitud_id) — la vigente es siempre la de mayor id.
+        $poliza = $s->polizas->sortByDesc('id')->first();
 
         return [
             'id'                => $s->id,
@@ -863,6 +865,10 @@ class SolicitudController extends Controller
             'fuente'            => $s->fuente ?? 'interno',
             'poliza_id'         => $poliza?->id,
             'poliza_nro'        => $poliza?->nro_contrato,
+            'poliza_status'     => $poliza?->status,
+            'poliza_renovable'            => $poliza?->esRenovable() ?? false,
+            'poliza_renovable_anticipada' => $poliza?->esRenovableAnticipada() ?? false,
+            'poliza_frecuencia_pago'      => $poliza?->frecuencia_pago,
             'vig'               => $poliza ? $poliza->fecha_emision->format('d/m/Y') . ' – ' . $poliza->fecha_vencimiento->format('d/m/Y') : '—',
             'dias_vencimiento'  => $poliza?->fecha_vencimiento ? (int) now()->startOfDay()->diffInDays($poliza->fecha_vencimiento->copy()->startOfDay(), false) : null,
             'status'            => $s->status ?? 'en_revision',

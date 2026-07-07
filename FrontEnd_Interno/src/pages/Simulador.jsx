@@ -2127,9 +2127,10 @@ export default function Simulador() {
   const canDelete = canAct('cotizaciones', 'delete')
   const canEmit = canAct('cotizaciones', 'emit')
   const canAdjust = canAct('clientes', 'adjust')
+  const canRenewPoliza = canAct('clientes', 'renew')
   const canUnderwrite = canAct('cotizaciones', 'underwrite')
   const canViewList = canAct('cotizaciones', 'view_list')
-  const hasAnyAction = canEdit || canEmit || canDelete || canAdjust || canUnderwrite
+  const hasAnyAction = canEdit || canEmit || canDelete || canAdjust || canUnderwrite || canRenewPoliza
 
   const [sim, setSim] = useState(freshState())
   const [step, setStep] = useState(0)
@@ -2324,7 +2325,7 @@ export default function Simulador() {
           <Pencil className="w-[18px] h-[18px]" />
         </button>
       )}
-      {(q.status === 'emitida' || q.status === 'vencida') && q.poliza_id && (
+      {canRenewPoliza && q.poliza_id && (q.poliza_renovable || q.poliza_renovable_anticipada) && (
         <button onClick={() => {
           const prod = productos.find(p => p.id === q.producto_id)
           showModal('renovar', {

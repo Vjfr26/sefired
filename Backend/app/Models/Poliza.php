@@ -242,12 +242,24 @@ class Poliza extends Model
     }
 
     /**
+     * ¿Se puede renovar anticipadamente (fuera de la ventana, previa
+     * confirmación explícita del usuario)? Mantiene el resto de reglas:
+     * solo ACTIVA/VENCIDA y mensuales sin saldo de cuotas.
+     */
+    public function esRenovableAnticipada(): bool
+    {
+        return $this->motivoNoRenovable(permitirAnticipada: true) === null;
+    }
+
+    /**
      * Razón por la que NO se puede renovar, o null si sí se puede. Reglas:
      *  - Solo ACTIVA (próxima a vencer) o VENCIDA.
      *  - Mensual: no debe quedar saldo de cuotas (saldar el contrato primero).
-     *  - ACTIVA: debe estar dentro de la ventana (30 anual / 7 mensual).
+     *  - ACTIVA: debe estar dentro de la ventana (30 anual / 7 mensual),
+     *    salvo que $permitirAnticipada sea true (renovación anticipada
+     *    confirmada por el usuario).
      */
-    public function motivoNoRenovable(): ?string
+    public function motivoNoRenovable(bool $permitirAnticipada = false): ?string
     {
         if (!in_array($this->status, ['ACTIVA', 'VENCIDA'], true)) {
             return "No se puede renovar una póliza {$this->status}.";
@@ -258,7 +270,7 @@ class Poliza extends Model
         if ($this->status === 'VENCIDA') {
             return null; // vencida (sin saldo) siempre renovable
         }
-        if (!$this->fecha_vencimiento) {
+        if ($permitirAnticipada || !$this->fecha_vencimiento) {
             return null;
         }
         $ventana = $this->ventanaRenovacionDias();

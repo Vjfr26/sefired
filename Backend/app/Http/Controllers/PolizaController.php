@@ -680,9 +680,11 @@ class PolizaController extends Controller
         $this->assertAccesoVendedorId($polizaAnterior->solicitud?->vendedor_id, 'No tienes acceso a esta póliza.');
 
         // Solo se renueva una póliza "por vencer" (30 días anual / 7 mensual) o
-        // ya vencida; las mensuales además sin cuotas pendientes. Evita renovar
-        // anticipadamente (perder la cobertura restante) o dejar cuotas impagas.
-        if ($motivoNoRenov = $polizaAnterior->motivoNoRenovable()) {
+        // ya vencida; las mensuales además sin cuotas pendientes. Con el flag
+        // `anticipada` (confirmación explícita del usuario en el modal) se
+        // permite renovar fuera de la ventana — la póliza vigente queda como
+        // RENOVADA y pierde la cobertura restante, cosa que el modal advierte.
+        if ($motivoNoRenov = $polizaAnterior->motivoNoRenovable($request->boolean('anticipada'))) {
             return response()->json(['error' => $motivoNoRenov], 422);
         }
 
@@ -691,6 +693,7 @@ class PolizaController extends Controller
         $data = $request->validate([
             'tasa_bcv'          => 'required|numeric|min:0.0001',
             'tasa_eur'          => 'nullable|numeric|min:0.0001',
+            'anticipada'        => 'sometimes|boolean',
             'frecuencia_pago'   => 'nullable|string|in:Mensual,Anual',
             'pagos'             => 'required|array|min:1',
             'pagos.*.forma'     => ['required', 'string', 'max:30', $noInjection],
