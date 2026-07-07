@@ -555,9 +555,13 @@ class ReportController extends Controller
         $tasaUsdHoy = (float) (IndicadorEconomico::usd()->orderByDesc('fecha')->orderByDesc('fecha_registro')->first()?->valor ?? 0);
         $tasaEurHoy = (float) (IndicadorEconomico::eur()->orderByDesc('fecha')->orderByDesc('fecha_registro')->first()?->valor ?? 0);
 
-        // Comisión en Bs. = monto en USD × tasa BCV de hoy.
+        // Comisión en Bs. = prima en Bs × tasa_pct / 100.  Se calcula directo
+        // desde la prima convertida a Bs (sin pasar por el monto en USD de la
+        // tabla comision) para evitar la pérdida de precisión que causa el
+        // redondeo a 2 decimales en USD — en primas pequeñas en Bs el monto
+        // USD puede quedar en 0.00 y la reconversión devuelve 0.
         $comisionBs = fn ($p) => $p->comision
-            ? round((float) $p->comision->monto * $tasaUsdHoy, 2)
+            ? round(Moneda::aBs((float) $p->total, $p->monedaNativa(), $tasaUsdHoy, $tasaEurHoy) * (float) $p->comision->tasa_pct / 100, 2)
             : null;
 
         $ventas = $policies->map(function ($p) use ($comisionBs, $tasaUsdHoy, $tasaEurHoy) {

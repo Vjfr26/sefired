@@ -436,10 +436,12 @@ function TabVentas() {
               prima: fmtMonto(v.prima_bs, 'BS'),
               est: rsbadge(v.est),
               comision_monto: v.comision_bs != null ? `${fmtMonto(v.comision_bs, 'BS')} (${v.comision_tasa_pct}%)` : '—',
-              comision_status: v.comision_status
-                ? badge(v.comision_status === 'PAGADA' ? 'Pagada' : 'Pendiente', v.comision_status === 'PAGADA' ? 'green' : 'amber')
-                : '—',
-              sel: v.comision_id && v.comision_status === 'PENDIENTE' && canManageComisiones ? (
+              comision_status: v.est === 'Anulada'
+                ? badge('Anulada', 'red')
+                : v.comision_status
+                  ? badge(v.comision_status === 'PAGADA' ? 'Pagada' : 'Pendiente', v.comision_status === 'PAGADA' ? 'green' : 'amber')
+                  : '—',
+              sel: v.comision_id && v.comision_status === 'PENDIENTE' && v.est !== 'Anulada' && canManageComisiones ? (
                 <input
                   type="checkbox"
                   checked={selected.has(v.comision_id)}
@@ -447,7 +449,7 @@ function TabVentas() {
                   className="w-4 h-4 accent-jm-blue cursor-pointer"
                 />
               ) : null,
-              accion: v.comision_id && v.comision_status === 'PENDIENTE' && canManageComisiones ? (
+              accion: v.comision_id && v.comision_status === 'PENDIENTE' && v.est !== 'Anulada' && canManageComisiones ? (
                 <button
                   onClick={() => handleMarcarPagada(v)}
                   title="Marcar pagada"
