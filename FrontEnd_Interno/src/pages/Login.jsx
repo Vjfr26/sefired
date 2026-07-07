@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { User, KeyRound, Eye, EyeOff, Info } from 'lucide-react'
+import { API_BASE_URL } from '../config.js'
 
 export default function Login({ onLogin, msg }) {
   const [nick, setNick] = useState('')
@@ -113,7 +114,7 @@ export default function Login({ onLogin, msg }) {
     setLoading(true)
 
     try {
-      const response = await fetch('/api/login', {
+      const response = await fetch(`${API_BASE_URL}/api/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
         body: JSON.stringify({ nick: nick.trim(), password, turnstile_token: turnstileToken }),
