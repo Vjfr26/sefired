@@ -38,6 +38,15 @@ class MarcarPolizasVencidas extends Command
             $poliza->update(['status' => 'VENCIDA']);
             $procesadas++;
 
+            // La cotización pasa a 'vencida' solo si esta es su póliza más
+            // reciente — si ya fue renovada (hay una póliza posterior), la
+            // solicitud sigue reflejando la vigente.
+            $sol = $poliza->solicitud;
+            if ($sol && $sol->status === 'emitida'
+                && !Poliza::where('solicitud_id', $sol->id)->where('id', '>', $poliza->id)->exists()) {
+                $sol->update(['status' => 'vencida']);
+            }
+
             $correo = $poliza->solicitud?->persona?->correo;
             if (!$correo) continue;
 

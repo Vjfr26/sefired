@@ -772,6 +772,12 @@ class PolizaController extends Controller
         $result = DB::transaction(function () use ($polizaAnterior, $data, $hoy, $inicio, $vence, $sede, $pagoResumen, $moneda, $monedaNativa, $frecuencia, $tasaBcv, $tasaEur, $totalBsNuevo, $coberturaBsNew, $esMensual, $recargoPct, $totalPagado, $snapshotNuevo) {
             $polizaAnterior->update(['status' => 'RENOVADA']);
 
+            // La cotización refleja el estado de su póliza vigente: si quedó
+            // en 'vencida' (o 'emitida'), con la renovación vuelve a 'emitida'.
+            if (in_array($polizaAnterior->solicitud?->status, ['emitida', 'vencida'], true)) {
+                $polizaAnterior->solicitud->update(['status' => 'emitida']);
+            }
+
             $nueva = Poliza::create([
                 'nro_contrato'      => 'TMP-' . uniqid(),
                 'solicitud_id'      => $polizaAnterior->solicitud_id,
