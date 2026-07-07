@@ -682,8 +682,8 @@ class PolizaController extends Controller
         // Solo se renueva una póliza "por vencer" (30 días anual / 7 mensual) o
         // ya vencida; las mensuales además sin cuotas pendientes. Con el flag
         // `anticipada` (confirmación explícita del usuario en el modal) se
-        // permite renovar fuera de la ventana — la póliza vigente queda como
-        // RENOVADA y pierde la cobertura restante, cosa que el modal advierte.
+        // permite renovar fuera de la ventana — la nueva vigencia arranca al
+        // vencer la actual, así que no se pierde cobertura.
         if ($motivoNoRenov = $polizaAnterior->motivoNoRenovable($request->boolean('anticipada'))) {
             return response()->json(['error' => $motivoNoRenov], 422);
         }
@@ -747,9 +747,15 @@ class PolizaController extends Controller
         }
 
         $hoy  = now()->toDateString();
-        $vence = now()->addYear()->toDateString();
+        // La nueva vigencia encadena con la anterior: arranca al vencer la
+        // póliza vigente (renovar anticipado no pierde la cobertura restante).
+        // Si ya venció, arranca hoy.
+        $inicio = $polizaAnterior->fecha_vencimiento?->isFuture()
+            ? $polizaAnterior->fecha_vencimiento->toDateString()
+            : $hoy;
+        $vence = \Illuminate\Support\Carbon::parse($inicio)->addYear()->toDateString();
 
-        $result = DB::transaction(function () use ($polizaAnterior, $data, $hoy, $vence, $sede, $pagoResumen, $moneda, $monedaNativa, $frecuencia, $tasaBcv, $tasaEur, $totalBsNuevo, $coberturaBsNew, $esMensual, $recargoPct, $totalPagado) {
+        $result = DB::transaction(function () use ($polizaAnterior, $data, $hoy, $inicio, $vence, $sede, $pagoResumen, $moneda, $monedaNativa, $frecuencia, $tasaBcv, $tasaEur, $totalBsNuevo, $coberturaBsNew, $esMensual, $recargoPct, $totalPagado) {
             $polizaAnterior->update(['status' => 'RENOVADA']);
 
             $nueva = Poliza::create([
@@ -767,7 +773,7 @@ class PolizaController extends Controller
                 'frecuencia_pago'   => $frecuencia,
                 'moneda'            => $moneda,
                 'tipo'              => $polizaAnterior->tipo,
-                'fecha_emision'     => $hoy,
+                'fecha_emision'     => $inicio,
                 'fecha_vencimiento' => $vence,
                 'sede_poliza'       => $sede,
                 'vendedor_id'       => $polizaAnterior->vendedor_id ?? auth()->id(),
@@ -818,7 +824,8 @@ class PolizaController extends Controller
 
             if ($esMensual) {
                 // Renovación mensual: 12 cuotas nuevas + cobro inicial (emite recibo).
-                Mensualidades::generarCuotas($nueva, (float) $polizaAnterior->total, $recargoPct, $hoy);
+                // Las cuotas se calendarizan desde el inicio de la nueva vigencia.
+                Mensualidades::generarCuotas($nueva, (float) $polizaAnterior->total, $recargoPct, $inicio);
                 $factura = Mensualidades::aplicarPago(
                     $nueva, (float) $totalPagado, $pagoResumen, $moneda,
                     $data['pagos'][0]['referencia'] ?? null, $tasaBcv, $tasaEur, auth()->id(), $sede

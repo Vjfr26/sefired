@@ -724,12 +724,12 @@ function RenovarModal({ client, diasVencimiento, onSaved, onCancel }) {
           <>
             {confirmaVigente && (
               <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800">
-                ⚠️ Está renovando una póliza vigente ({diasNum} días restantes). La póliza actual quedará como <strong>RENOVADA</strong> al confirmar.
+                ⚠️ Está renovando una póliza vigente ({diasNum} días restantes). La póliza actual quedará como <strong>RENOVADA</strong> y la nueva vigencia contará a partir del vencimiento actual (no se pierde cobertura).
               </div>
             )}
             {!confirmaVigente && (
               <div className="p-3 bg-amber-50 rounded-xl border border-amber-100 text-xs text-amber-700">
-                Se creará una nueva póliza por un año adicional. La póliza actual quedará como RENOVADA.
+                Se creará una nueva póliza por un año a partir del vencimiento actual. La póliza actual quedará como RENOVADA.
               </div>
             )}
 
