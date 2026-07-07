@@ -191,7 +191,12 @@ class BienAseguradoController extends Controller
                 // la solicitud), así que el reuso de huérfanos no exige dueño.
                 $duenoActivo = $existente->persona_id !== null && $existente->persona !== null;
                 $mismoDueno  = !empty($data['persona_id']) && (int) $existente->persona_id === (int) $data['persona_id'];
-                if (!$duenoActivo || $mismoDueno) {
+                // Borrador: bien sin ninguna póliza (ni directa ni vía
+                // solicitud emitida) — no aparece en el listado de Bienes y
+                // puede reasignarse sin conflicto real.
+                $esBorrador = !$existente->polizaBienes()->exists()
+                    && !$existente->solicitudes()->has('polizas')->exists();
+                if (!$duenoActivo || $mismoDueno || $esBorrador) {
                     if (!empty($data['persona_id']) && (int) $existente->persona_id !== (int) $data['persona_id']) {
                         $existente->update(['persona_id' => $data['persona_id']]);
                     }

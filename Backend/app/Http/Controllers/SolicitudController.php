@@ -812,7 +812,15 @@ class SolicitudController extends Controller
             );
         }
 
+        $bien = $solicitud->bien;
         $solicitud->delete();
+
+        // El bien borrador de la cotización también se elimina si nada más lo
+        // usa — si quedara activo, su placa seguiría ocupando el índice único
+        // sin verse en ningún listado.
+        if ($bien && !$bien->solicitudes()->exists() && !$bien->polizaBienes()->exists()) {
+            $bien->delete();
+        }
 
         return response()->json(['message' => 'Cotización eliminada correctamente']);
     }
