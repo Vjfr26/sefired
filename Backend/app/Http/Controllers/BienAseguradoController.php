@@ -185,9 +185,11 @@ class BienAseguradoController extends Controller
                 return response()->json($this->formatBien($existente->fresh('persona')), 201);
             }
             if ($existente) {
-                // Mismo cliente (o bien sin dueño, que se adopta) → se reutiliza.
-                if (!empty($data['persona_id']) && ($existente->persona_id === null || (int) $existente->persona_id === (int) $data['persona_id'])) {
-                    if ($existente->persona_id === null) {
+                // Se reutiliza si es del mismo cliente, no tiene dueño, o su
+                // dueño fue eliminado (bien huérfano que ocupa la placa).
+                $duenoActivo = $existente->persona_id !== null && $existente->persona !== null;
+                if (!empty($data['persona_id']) && (!$duenoActivo || (int) $existente->persona_id === (int) $data['persona_id'])) {
+                    if ((int) $existente->persona_id !== (int) $data['persona_id']) {
                         $existente->update(['persona_id' => $data['persona_id']]);
                     }
                     return response()->json($this->formatBien($existente->fresh('persona')), 200);

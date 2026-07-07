@@ -676,6 +676,13 @@ class ClienteController extends Controller
             }
         }
 
+        // Los bienes del cliente también se eliminan (soft delete): si quedaran
+        // activos, sus placas seguirían ocupando el índice único aunque el bien
+        // ya no se vea en ningún listado (dueño borrado).
+        foreach ($persona->bienes as $bien) {
+            $bien->delete();
+        }
+
         if ($persona->correo) {
             try {
                 Mail::to($persona->correo)->queue(new ClienteEliminadoMail($persona->nombre, $persona->cedula));
