@@ -2126,11 +2126,12 @@ export default function Simulador() {
   const canEdit = canAct('cotizaciones', 'edit')
   const canDelete = canAct('cotizaciones', 'delete')
   const canEmit = canAct('cotizaciones', 'emit')
-  const canAdjust = canAct('clientes', 'adjust')
-  const canRenewPoliza = canAct('clientes', 'renew')
+  const canAdjust = canAct('cotizaciones', 'adjust')
+  const canRenewPoliza = canAct('cotizaciones', 'renew')
+  const canPrintPoliza = canAct('cotizaciones', 'print_poliza')
   const canUnderwrite = canAct('cotizaciones', 'underwrite')
   const canViewList = canAct('cotizaciones', 'view_list')
-  const hasAnyAction = canEdit || canEmit || canDelete || canAdjust || canUnderwrite || canRenewPoliza
+  const hasAnyAction = canEdit || canEmit || canDelete || canAdjust || canUnderwrite || canRenewPoliza || canPrintPoliza
 
   const [sim, setSim] = useState(freshState())
   const [step, setStep] = useState(0)
@@ -2346,7 +2347,7 @@ export default function Simulador() {
           <RefreshCw className="w-[18px] h-[18px]" />
         </button>
       )}
-      {(q.status === 'emitida' || q.status === 'vencida') && q.poliza_id && (
+      {canPrintPoliza && (q.status === 'emitida' || q.status === 'vencida') && q.poliza_id && (
         <button onClick={() => handleImprimirPoliza(q)} className="p-2.5 rounded-lg bg-sky-50 text-sky-600 hover:bg-sky-100 transition" title="Imprimir póliza">
           <Printer className="w-[18px] h-[18px]" />
         </button>
