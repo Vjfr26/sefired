@@ -14,7 +14,7 @@ import {
   Download, Trash2, Clock, XCircle, Search, UserCheck, Plus,
   DollarSign, Package, Users, FileText, Upload, AlertTriangle,
   Layers, ClipboardList, ChevronDown, Star, SlidersHorizontal,
-  Eye, FolderOpen, Printer,
+  Eye, FolderOpen, Printer, RefreshCw,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { fmtMonto, fmtNum, convertirMoneda, fmtTasa, pdfPage, pdfHdr, pdfSec, pdfRow, pdfTotal, pdfFooterSimple, useModalLock, filtrarCedula, filtrarTelefono } from '../utils/helpers.jsx'
@@ -2322,6 +2322,27 @@ export default function Simulador() {
       {canEdit && q.status !== 'emitida' && q.status !== 'vencida' && (
         <button onClick={() => openEditSim(q)} className="p-2.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition" title="Editar">
           <Pencil className="w-[18px] h-[18px]" />
+        </button>
+      )}
+      {(q.status === 'emitida' || q.status === 'vencida') && q.poliza_id && (
+        <button onClick={() => {
+          const prod = productos.find(p => p.id === q.producto_id)
+          showModal('renovar', {
+            client: {
+              poliza_id: q.poliza_id,
+              nom: q.nombre,
+              pol: q.poliza_nro || q.nro,
+              vig: q.vig || '—',
+              prima: fmtMonto(q.total, q.moneda_producto),
+              moneda_producto: q.moneda_producto,
+              producto_permite_mensualidades: prod?.permite_mensualidades,
+              producto_recargo_mensual_pct: prod?.recargo_mensual_pct
+            },
+            diasVencimiento: q.dias_vencimiento,
+            onSaved: refrescarCots
+          })
+        }} className="p-2.5 rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 transition" title="Renovar póliza">
+          <RefreshCw className="w-[18px] h-[18px]" />
         </button>
       )}
       {(q.status === 'emitida' || q.status === 'vencida') && q.poliza_id && (

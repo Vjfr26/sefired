@@ -841,6 +841,8 @@ class SolicitudController extends Controller
         // Número de cotización: COT-YYYY-XXXXX
         $nro = 'COT-' . $s->fecha_solicitud?->format('Y') . '-' . str_pad($s->id, 5, '0', STR_PAD_LEFT);
 
+        $poliza = $s->polizas->first();
+
         return [
             'id'                => $s->id,
             'nro'               => $nro,
@@ -859,7 +861,10 @@ class SolicitudController extends Controller
             'total_bs'          => $totalBs,
             'tasa_bcv'          => $tasaBcv,
             'fuente'            => $s->fuente ?? 'interno',
-            'poliza_id'         => $s->polizas->first()?->id,
+            'poliza_id'         => $poliza?->id,
+            'poliza_nro'        => $poliza?->nro_contrato,
+            'vig'               => $poliza ? $poliza->fecha_emision->format('d/m/Y') . ' – ' . $poliza->fecha_vencimiento->format('d/m/Y') : '—',
+            'dias_vencimiento'  => $poliza?->fecha_vencimiento ? (int) now()->startOfDay()->diffInDays($poliza->fecha_vencimiento->copy()->startOfDay(), false) : null,
             'status'            => $s->status ?? 'en_revision',
             'pago_datos'        => $s->pago_datos,
             'fecha'             => $s->fecha_solicitud?->format('d/m/Y') ?? '—',
