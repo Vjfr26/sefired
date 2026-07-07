@@ -186,10 +186,13 @@ class BienAseguradoController extends Controller
             }
             if ($existente) {
                 // Se reutiliza si es del mismo cliente, no tiene dueño, o su
-                // dueño fue eliminado (bien huérfano que ocupa la placa).
+                // dueño fue eliminado (bien huérfano que ocupa la placa). El
+                // cotizador crea bienes SIN persona_id (se vinculan luego por
+                // la solicitud), así que el reuso de huérfanos no exige dueño.
                 $duenoActivo = $existente->persona_id !== null && $existente->persona !== null;
-                if (!empty($data['persona_id']) && (!$duenoActivo || (int) $existente->persona_id === (int) $data['persona_id'])) {
-                    if ((int) $existente->persona_id !== (int) $data['persona_id']) {
+                $mismoDueno  = !empty($data['persona_id']) && (int) $existente->persona_id === (int) $data['persona_id'];
+                if (!$duenoActivo || $mismoDueno) {
+                    if (!empty($data['persona_id']) && (int) $existente->persona_id !== (int) $data['persona_id']) {
                         $existente->update(['persona_id' => $data['persona_id']]);
                     }
                     return response()->json($this->formatBien($existente->fresh('persona')), 200);

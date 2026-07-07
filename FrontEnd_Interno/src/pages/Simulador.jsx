@@ -1385,6 +1385,7 @@ function Step5({ sim, tasaBcv, tasaEur, editId, onBack, onClose, onSaved, showTo
 
       if (tipoBien === 'vehiculo' && sim.placa.trim()) {
         const bienData = {
+          persona_id: sim.cliente_id || null,
           tipo: 'vehiculo',
           atributos: {
             placa: sim.placa.trim().toUpperCase(),
@@ -1415,6 +1416,7 @@ function Step5({ sim, tasaBcv, tasaEur, editId, onBack, onClose, onSaved, showTo
         for (const v of (sim.vehiculos_adicionales || [])) {
           if (v.placa?.trim()) {
             const vData = {
+              persona_id: sim.cliente_id || null,
               tipo: 'vehiculo',
               atributos: {
                 placa: v.placa.trim().toUpperCase(),
@@ -1447,6 +1449,7 @@ function Step5({ sim, tasaBcv, tasaEur, editId, onBack, onClose, onSaved, showTo
         if (sim.asegurado_nombre) campos.asegurado_nombre = sim.asegurado_nombre
         if (sim.asegurado_ci) campos.asegurado_ci = sim.asegurado_ci
         const bienData = {
+          persona_id: sim.cliente_id || null,
           tipo: tipoBien,
           atributos: Object.keys(campos).length > 0 ? campos : null,
           valor_declarado: sim.valor_declarado || null,
