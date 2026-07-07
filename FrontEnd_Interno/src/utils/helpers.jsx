@@ -132,6 +132,16 @@ export const filtrarSoloDigitos = (v) => v.replace(/\D/g, '')
 export const usd = n => '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 /**
+ * Formatea una CANTIDAD (no moneda) con separadores de miles, sin símbolo.
+ * Enteros por defecto; pasa `dec` para forzar decimales.
+ *   fmtNum(1234567)      → "1,234,567"
+ *   fmtNum(1234.5, 2)    → "1,234.50"
+ * Para montos con símbolo de moneda usar fmtMonto.
+ */
+export const fmtNum = (n, dec = 0) =>
+  Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec })
+
+/**
  * Colapsa los distintos vocabularios de moneda del proyecto (producto.moneda
  * usa 'BS', pagos.*.moneda usa 'Bs.', datos legacy pueden venir en minúscula)
  * a un código canónico único. Espejo de App\Support\Moneda::normalizar en el backend.
@@ -229,7 +239,7 @@ export const STATUS_COLOR = {
   'Pendiente': 'amber', 'En Revisión': 'amber', 'Por Vencer': 'amber', 'Parcial': 'amber',
   'pendiente': 'amber', 'en_revision': 'amber',
   'Rechazado': 'red', 'Anulada': 'red', 'Bloqueado': 'red', 'En riesgo': 'red',
-  'rechazado': 'red',
+  'rechazado': 'red', 'vencida': 'red', 'VENCIDA': 'red',
   'Cliente Bloqueado': 'amber',
   'Asignado': 'blue', 'En Proceso': 'blue', 'Generada': 'blue', 'En curso': 'blue',
 }

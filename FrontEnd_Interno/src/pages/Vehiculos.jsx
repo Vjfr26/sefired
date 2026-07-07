@@ -6,7 +6,7 @@ import SearchBar from '../components/SearchBar.jsx'
 import DataTable from '../components/DataTable.jsx'
 import { fetchBienes, updateBien, deleteBien } from '../api/bienes.js'
 import { downloadPolizaPdf } from '../api/polizas.js'
-import { useModalLock } from '../utils/helpers.jsx'
+import { useModalLock, fmtNum } from '../utils/helpers.jsx'
 import { useInputLimits } from '../utils/inputLimits.js'
 import { BIEN_TIPO_PRESETS } from '../utils/bienPresets.js'
 
@@ -523,10 +523,10 @@ export default function Vehiculos() {
         {canViewCards && (
           <div className="grid grid-cols-2 sm:grid-cols-4 border-t border-white/10">
             {[
-              ['',         `${facets.resumen.total}`,    'Total bienes',   ShieldCheck],
-              ['vehiculo', `${facets.resumen.vehiculo}`, 'Vehículos',      Car       ],
-              ['inmueble', `${facets.resumen.inmueble}`, 'Inmuebles',      Home      ],
-              ['otros',    `${facets.resumen.otros}`,    'Otros tipos', Package],
+              ['',         fmtNum(facets.resumen.total),    'Total bienes',   ShieldCheck],
+              ['vehiculo', fmtNum(facets.resumen.vehiculo), 'Vehículos',      Car       ],
+              ['inmueble', fmtNum(facets.resumen.inmueble), 'Inmuebles',      Home      ],
+              ['otros',    fmtNum(facets.resumen.otros),    'Otros tipos', Package],
             ].map(([key, val, label, Icon]) => {
               const on = tipo === key
               return (

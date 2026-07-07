@@ -32,7 +32,10 @@ class WorkflowService
         'en_revision' => ['aprobado', 'rechazado'],
         'aprobado'    => ['emitida', 'rechazado', 'en_revision'],
         'rechazado'   => [],
-        'emitida'     => [],
+        'emitida'     => ['vencida'],
+        // Estado histórico de la migración: póliza emitida cuya fecha de
+        // vencimiento ya pasó. Terminal (no admite transiciones desde la app).
+        'vencida'     => [],
     ];
 
     private const POLIZA_TRANSITIONS = [

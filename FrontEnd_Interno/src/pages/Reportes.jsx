@@ -58,7 +58,7 @@ import { fetchClientes } from '../api/clientes.js'
 import { fetchDocumentosCliente } from '../api/clienteDocumentos.js'
 import { fetchSolicitudesContacto, actualizarSolicitudContacto } from '../api/solicitudesContacto.js'
 import { useApp } from '../context/AppContext.jsx'
-import { usd, bs, fmtMonto, badge, rsbadge, sbadge, UserAvatar } from '../utils/helpers.jsx'
+import { usd, bs, fmtMonto, fmtNum, badge, rsbadge, sbadge, UserAvatar } from '../utils/helpers.jsx'
 import DataTable from '../components/DataTable.jsx'
 import { Paperclip, FileText, UserSearch, MessageCircle, RotateCcw, MessageSquareText } from 'lucide-react'
 
@@ -773,7 +773,7 @@ function TabOficinas() {
                     {/* Subtotal de la oficina */}
                     <tr className="border-b-2 border-slate-200 bg-slate-50/70">
                       <td className="px-4 py-2 text-right text-[10px] font-bold uppercase tracking-wide text-slate-400">Subtotal</td>
-                      <td className="px-4 py-2 text-right font-bold text-slate-600 tabular-nums whitespace-nowrap">{g.totalPol}</td>
+                      <td className="px-4 py-2 text-right font-bold text-slate-600 tabular-nums whitespace-nowrap">{fmtNum(g.totalPol)}</td>
                       <td className="px-4 py-2 text-right font-black text-slate-800 tabular-nums whitespace-nowrap">{enBs(g.totalPrima)}</td>
                     </tr>
                   </Fragment>
@@ -2096,7 +2096,7 @@ function TabUsuariosMetrics() {
           <>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-3">
               {[
-                { label: 'Pólizas Emitidas', val: stats.total_polizas, sub: 'Ventas del período', cls: 'border-t-blue-500', vcls: 'text-slate-800' },
+                { label: 'Pólizas Emitidas', val: fmtNum(stats.total_polizas), sub: 'Ventas del período', cls: 'border-t-blue-500', vcls: 'text-slate-800' },
                 { label: 'Prima Emitida', val: enBs(stats.total_prima), sub: 'Bs. equivalente', cls: 'border-t-emerald-500', vcls: 'text-emerald-700' },
                 { label: 'Comisión Generada', val: enBs(stats.comision_generada), sub: `${usuario.cargo === 'Agente' ? '10%' : '5%'} de base`, cls: 'border-t-indigo-500', vcls: 'text-indigo-700' },
                 { label: 'Comisión Pendiente', val: enBs(stats.comision_pendiente), sub: `Pagada: ${enBs(stats.comision_pagada)}`, cls: 'border-t-amber-500', vcls: 'text-amber-700' },
@@ -2650,7 +2650,7 @@ function TabClientesMetrics() {
             <button key={f.key} onClick={() => handleQuickFilter(f.key)} className={filterBtnCls(f.key, f.color)}>
               <f.Icon className="w-3.5 h-3.5" />
               {f.label}
-              {f.count != null && <span className="ml-0.5 bg-white/80 text-[10px] font-black px-1.5 py-0.5 rounded-full border border-current/10">{f.count}</span>}
+              {f.count != null && <span className="ml-0.5 bg-white/80 text-[10px] font-black px-1.5 py-0.5 rounded-full border border-current/10">{fmtNum(f.count)}</span>}
             </button>
           ))}
 
@@ -2774,11 +2774,11 @@ function TabClientesMetrics() {
           {/* Stats Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 mb-5">
             {[
-              { label: 'Nuevos Clientes', val: stats.nuevos_clientes, sub: 'En período seleccionado', cls: 'border-t-blue-500', vcls: 'text-slate-800' },
-              { label: 'Total Clientes', val: stats.total_clientes, sub: 'En el sistema', cls: 'border-t-emerald-500', vcls: 'text-emerald-700' },
-              { label: 'Clientes Activos', val: stats.clientes_activos, sub: 'Con pólizas activas', cls: 'border-t-indigo-500', vcls: 'text-indigo-700' },
-              { label: 'Pólizas Emitidas', val: stats.total_polizas, sub: 'En período seleccionado', cls: 'border-t-amber-500', vcls: 'text-amber-700' },
-              { label: 'Por Vencer', val: stats.polizas_por_vencer, sub: 'Próximos 30 días', cls: 'border-t-red-500', vcls: 'text-red-700' },
+              { label: 'Nuevos Clientes', val: fmtNum(stats.nuevos_clientes), sub: 'En período seleccionado', cls: 'border-t-blue-500', vcls: 'text-slate-800' },
+              { label: 'Total Clientes', val: fmtNum(stats.total_clientes), sub: 'En el sistema', cls: 'border-t-emerald-500', vcls: 'text-emerald-700' },
+              { label: 'Clientes Activos', val: fmtNum(stats.clientes_activos), sub: 'Con pólizas activas', cls: 'border-t-indigo-500', vcls: 'text-indigo-700' },
+              { label: 'Pólizas Emitidas', val: fmtNum(stats.total_polizas), sub: 'En período seleccionado', cls: 'border-t-amber-500', vcls: 'text-amber-700' },
+              { label: 'Por Vencer', val: fmtNum(stats.polizas_por_vencer), sub: 'Próximos 30 días', cls: 'border-t-red-500', vcls: 'text-red-700' },
             ].map(c => (
               <div key={c.label} className={`card p-4 text-center border-t-4 min-w-0 ${c.cls}`}>
                 <p className="text-xs text-slate-600 uppercase tracking-wide">{c.label}</p>
@@ -2993,12 +2993,12 @@ function TabVehiculosMetrics() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
             <div className="card p-4 text-center border-t-4 border-t-blue-500">
               <p className="text-xs text-slate-600 uppercase tracking-wide">Vehículos Asegurados</p>
-              <p className="text-2xl font-black mt-1 text-slate-800">{stats.vehiculos_asegurados_periodo}</p>
+              <p className="text-2xl font-black mt-1 text-slate-800">{fmtNum(stats.vehiculos_asegurados_periodo)}</p>
               <p className="text-xs text-slate-400">Pólizas en período</p>
             </div>
             <div className="card p-4 text-center border-t-4 border-t-emerald-500">
               <p className="text-xs text-slate-600 uppercase tracking-wide">Asegurados esta Semana</p>
-              <p className="text-2xl font-black mt-1 text-emerald-700">{stats.asegurados_esta_semana}</p>
+              <p className="text-2xl font-black mt-1 text-emerald-700">{fmtNum(stats.asegurados_esta_semana)}</p>
               <p className="text-xs text-slate-400">Últimos 7 días</p>
             </div>
             <div className="card p-4 border-t-4 border-t-indigo-500">

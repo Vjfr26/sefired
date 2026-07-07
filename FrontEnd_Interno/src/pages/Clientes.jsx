@@ -22,7 +22,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Pencil, RefreshCw, Trash2, UserPlus, Users, UserCheck, UserX, ShieldCheck, Eye, Lock, LockOpen, Receipt, ClipboardList, FolderOpen, AlertTriangle, MoreVertical } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
-import { rsbadge } from '../utils/helpers.jsx'
+import { rsbadge, fmtNum } from '../utils/helpers.jsx'
 import SearchBar from '../components/SearchBar.jsx'
 import DataTable from '../components/DataTable.jsx'
 import { SkeletonStatCards } from '../components/Skeleton.jsx'
@@ -327,7 +327,7 @@ export default function Clientes() {
           </div>
           <div className="min-w-0">
             <p className="text-xs text-slate-500 font-medium leading-tight">Total Clientes</p>
-            <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{resumen.total}</p>
+            <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{fmtNum(resumen.total)}</p>
             <p className="text-xs text-slate-400 mt-1 truncate">Registrados en el sistema</p>
           </div>
         </button>
@@ -342,7 +342,7 @@ export default function Clientes() {
           </div>
           <div className="min-w-0">
             <p className="text-xs text-slate-500 font-medium leading-tight">Activos</p>
-            <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{activos}</p>
+            <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{fmtNum(activos)}</p>
             <p className="text-xs text-slate-400 mt-1">Con póliza vigente</p>
           </div>
         </button>
@@ -357,7 +357,7 @@ export default function Clientes() {
           </div>
           <div className="min-w-0">
             <p className="text-xs text-slate-500 font-medium leading-tight">Con Póliza</p>
-            <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{conPoliza}</p>
+            <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{fmtNum(conPoliza)}</p>
             <p className="text-xs text-slate-400 mt-1">Seguros vigentes</p>
           </div>
         </button>
@@ -372,7 +372,7 @@ export default function Clientes() {
           </div>
           <div className="min-w-0">
             <p className="text-xs text-slate-500 font-medium leading-tight">Sin Póliza</p>
-            <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{resumen.sin_poliza}</p>
+            <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{fmtNum(resumen.sin_poliza)}</p>
             <p className="text-xs text-slate-400 mt-1">Sin cobertura</p>
           </div>
         </button>

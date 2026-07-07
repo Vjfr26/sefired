@@ -14,12 +14,13 @@ import {
   Download, Trash2, Clock, XCircle, Search, UserCheck, Plus,
   DollarSign, Package, Users, FileText, Upload, AlertTriangle,
   Layers, ClipboardList, ChevronDown, Star, SlidersHorizontal,
-  Eye, FolderOpen,
+  Eye, FolderOpen, Printer,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
-import { fmtMonto, convertirMoneda, fmtTasa, pdfPage, pdfHdr, pdfSec, pdfRow, pdfTotal, pdfFooterSimple, useModalLock, filtrarCedula, filtrarTelefono } from '../utils/helpers.jsx'
+import { fmtMonto, fmtNum, convertirMoneda, fmtTasa, pdfPage, pdfHdr, pdfSec, pdfRow, pdfTotal, pdfFooterSimple, useModalLock, filtrarCedula, filtrarTelefono } from '../utils/helpers.jsx'
 import { useInputLimits } from '../utils/inputLimits.js'
 import { buscarClientes, createCliente } from '../api/clientes.js'
+import { downloadPolizaPdf } from '../api/polizas.js'
 import { fetchTasas } from '../api/tasas.js'
 import { fetchProductos } from '../api/productos.js'
 import { fetchTarifario } from '../api/tarifario.js'
@@ -36,6 +37,7 @@ const STATUS_BADGE = {
   'en_revision': 'bg-amber-100 text-amber-700',
   'aprobado': 'bg-blue-100 text-blue-700',
   'emitida': 'bg-emerald-100 text-emerald-700',
+  'vencida': 'bg-red-100 text-red-700',
   'rechazado': 'bg-rose-100 text-rose-700',
   'pendiente': 'bg-slate-100 text-slate-500',
 }
@@ -43,6 +45,7 @@ const STATUS_LABEL = {
   'en_revision': 'En Revisión',
   'aprobado': 'Aprobado',
   'emitida': 'Emitida',
+  'vencida': 'Vencida',
   'rechazado': 'Rechazado',
   'pendiente': 'Pendiente',
 }
@@ -1695,6 +1698,10 @@ function UnderwritingModal({ cot, productos = [], onClose, onStatusChanged, show
   const [form, setForm] = useState(freshUwForm())
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
+  // Administración debe confirmar la referencia del pago (cargada por el
+  // vendedor) antes de aprobar y emitir la póliza.
+  const [refConfirmada, setRefConfirmada] = useState(false)
+  const hayPago = cot.pago_datos?.pagos?.length > 0
   const setF = (k, v) => setForm(p => ({ ...p, [k]: v }))
 
   const load = useCallback(async () => {
@@ -1746,6 +1753,17 @@ function UnderwritingModal({ cot, productos = [], onClose, onStatusChanged, show
     if (!form.resultado || form.resultado === 'pendiente') {
       setErr('Selecciona un resultado distinto de "Pendiente" para registrar la evaluación.')
       return
+    }
+    // Para APROBAR se exige un pago registrado y que su referencia esté confirmada.
+    if (form.resultado === 'aprobado') {
+      if (!hayPago) {
+        setErr('No se puede aprobar sin un pago registrado con su referencia. El vendedor debe registrarlo primero.')
+        return
+      }
+      if (!refConfirmada) {
+        setErr('Confirma la referencia del pago antes de aprobar.')
+        return
+      }
     }
     setSaving(true); setErr('')
     try {
@@ -1823,11 +1841,15 @@ function UnderwritingModal({ cot, productos = [], onClose, onStatusChanged, show
                     </div>
                   ))}
                 </div>
+                <label className="mt-2.5 flex items-center gap-2 text-[11px] font-semibold text-emerald-800 cursor-pointer select-none">
+                  <input type="checkbox" checked={refConfirmada} onChange={e => setRefConfirmada(e.target.checked)} className="w-3.5 h-3.5 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500" />
+                  Confirmo la referencia del pago (requerido para aprobar)
+                </label>
               </div>
             ) : (
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 flex items-start gap-2 text-[11px] text-amber-700">
                 <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                Aún no se ha registrado el pago del vendedor. Al aprobar no se emitirá la póliza hasta que el pago esté registrado.
+                Aún no se ha registrado el pago del vendedor con su referencia. Para aprobar y emitir, el vendedor debe registrarlo primero.
               </div>
             )}
 
@@ -2128,7 +2150,7 @@ export default function Simulador() {
   const [cotPage, setCotPage] = useState(0)
   const [cotPageSize, setCotPageSize] = useState(20)
   const [cotTotal, setCotTotal] = useState(0)
-  const [cotResumen, setCotResumen] = useState({ total: 0, pendiente: 0, en_revision: 0, aprobado: 0, emitida: 0, rechazado: 0 })
+  const [cotResumen, setCotResumen] = useState({ total: 0, pendiente: 0, en_revision: 0, aprobado: 0, emitida: 0, vencida: 0, rechazado: 0 })
   const [searchInput, setSearchInput] = useState('') // lo que se teclea (inmediato)
 
   // Datos base del simulador (tasas/productos/catálogo): una sola vez. NO incluye
@@ -2154,7 +2176,7 @@ export default function Simulador() {
   const loadCots = useCallback(async () => {
     setLoadingCot(true)
     try {
-      const STATUS_KEYS = ['Todos', 'pendiente', 'en_revision', 'aprobado', 'emitida', 'rechazado']
+      const STATUS_KEYS = ['Todos', 'pendiente', 'en_revision', 'aprobado', 'emitida', 'vencida', 'rechazado']
       const params = { page: cotPage + 1, per_page: cotPageSize }
       if (chipActive > 0) params.status = STATUS_KEYS[chipActive]
       if (search) params.search = search
@@ -2205,8 +2227,8 @@ export default function Simulador() {
 
   const closeStep = () => { setStep(0); setEditId(null) }
 
-  const statuses = ['Todos', 'pendiente', 'en_revision', 'aprobado', 'emitida', 'rechazado']
-  const statusLabels = ['Todos', 'Pendiente', 'En Revisión', 'Aprobado', 'Emitida', 'Rechazado']
+  const statuses = ['Todos', 'pendiente', 'en_revision', 'aprobado', 'emitida', 'vencida', 'rechazado']
+  const statusLabels = ['Todos', 'Pendiente', 'En Revisión', 'Aprobado', 'Emitida', 'Vencida', 'Rechazado']
 
   // Convierte "dd/mm/yyyy" → "yyyy-mm-dd" para comparar contra los <input type=date>.
   // Se usa solo como respaldo cuando el backend no envía fecha_iso.
@@ -2247,6 +2269,22 @@ export default function Simulador() {
       },
     })
 
+  // Imprime (abre en pestaña nueva) el PDF de una póliza ya emitida. Se abre la
+  // pestaña de forma síncrona ANTES del await para evitar el bloqueo de popups.
+  const handleImprimirPoliza = async (q) => {
+    if (!q.poliza_id) return
+    const win = window.open('', '_blank')
+    try {
+      const blob = await downloadPolizaPdf(q.poliza_id)
+      const url  = URL.createObjectURL(blob)
+      if (win) win.location = url; else window.open(url, '_blank')
+      setTimeout(() => URL.revokeObjectURL(url), 60000)
+    } catch (e) {
+      if (win) win.close()
+      showToast(e.message || 'Error al generar el PDF', 'error')
+    }
+  }
+
   // Botones de acción de una cotización — reutilizados en la tabla (desktop) y
   // en las tarjetas (móvil).
   const accionesCot = (q) => (
@@ -2281,12 +2319,17 @@ export default function Simulador() {
           <FileCheck className="w-[18px] h-[18px]" />
         </button>
       )}
-      {canEdit && q.status !== 'emitida' && (
+      {canEdit && q.status !== 'emitida' && q.status !== 'vencida' && (
         <button onClick={() => openEditSim(q)} className="p-2.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition" title="Editar">
           <Pencil className="w-[18px] h-[18px]" />
         </button>
       )}
-      {canAdjust && q.status === 'emitida' && q.poliza_id && (
+      {(q.status === 'emitida' || q.status === 'vencida') && q.poliza_id && (
+        <button onClick={() => handleImprimirPoliza(q)} className="p-2.5 rounded-lg bg-sky-50 text-sky-600 hover:bg-sky-100 transition" title="Imprimir póliza">
+          <Printer className="w-[18px] h-[18px]" />
+        </button>
+      )}
+      {canAdjust && (q.status === 'emitida' || q.status === 'vencida') && q.poliza_id && (
         <button onClick={() => showModal('ajustarPoliza', {
           c: { id: q.persona_id, nombre: q.nombre },
           polizaId: q.poliza_id,
@@ -2373,7 +2416,7 @@ export default function Simulador() {
             </div>
             <div className="min-w-0">
               <p className="text-xs text-slate-500 font-medium leading-tight">{l}</p>
-              <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{v}</p>
+              <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{fmtNum(v)}</p>
               <p className="text-xs text-slate-400 mt-1">{sub}</p>
             </div>
           </div>

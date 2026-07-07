@@ -6,7 +6,7 @@ import {
   Sparkles, GitBranch, Lock, Percent, Calendar,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
-import { usd, fmtMonto, fmtMontoAbrev, convertirMoneda, useModalLock } from '../utils/helpers.jsx'
+import { usd, fmtMonto, fmtMontoAbrev, fmtNum, convertirMoneda, useModalLock } from '../utils/helpers.jsx'
 import { useInputLimits } from '../utils/inputLimits.js'
 import { Switch } from '../components/FormControls.jsx'
 import SearchBar from '../components/SearchBar.jsx'
@@ -1607,7 +1607,7 @@ export default function Productos() {
               <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0"><Shield className="w-4 h-4 text-slate-600" /></div>
               <div className="min-w-0">
                 <p className="text-xs text-slate-500 font-medium leading-tight">Tipos de Póliza</p>
-                <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{productos.length}</p>
+                <p className="text-xl font-black text-slate-800 mt-0.5 leading-none">{fmtNum(productos.length)}</p>
                 <p className="text-xs text-slate-400 mt-1">Disponibles en el simulador</p>
               </div>
             </div>

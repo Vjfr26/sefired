@@ -4175,6 +4175,7 @@ const SOL_STATUS_STYLE = {
   'en_revision': { bg: 'bg-amber-100',  text: 'text-amber-700',  dot: 'bg-amber-500'  },
   'aprobado':    { bg: 'bg-blue-100',   text: 'text-blue-700',   dot: 'bg-blue-500'   },
   'emitida':     { bg: 'bg-emerald-100',text: 'text-emerald-700',dot: 'bg-emerald-500'},
+  'vencida':     { bg: 'bg-red-100',    text: 'text-red-700',    dot: 'bg-red-500'    },
   'rechazado':   { bg: 'bg-rose-100',   text: 'text-rose-700',   dot: 'bg-rose-500'   },
   'pendiente':   { bg: 'bg-slate-100',  text: 'text-slate-500',  dot: 'bg-slate-400'  },
 }
@@ -4182,6 +4183,7 @@ const SOL_STATUS_LABEL = {
   'en_revision': 'En Revisión',
   'aprobado':    'Aprobado',
   'emitida':     'Emitida',
+  'vencida':     'Vencida',
   'rechazado':   'Rechazado',
   'pendiente':   'Pendiente',
 }
@@ -4211,6 +4213,7 @@ function ClienteSolicitudesModal({ c }) {
     { id: 'en_revision', label: 'En Revisión', count: counts['en_revision'] ?? 0 },
     { id: 'aprobado',    label: 'Aprobadas',   count: counts['aprobado']    ?? 0 },
     { id: 'emitida',     label: 'Emitidas',    count: counts['emitida']     ?? 0 },
+    { id: 'vencida',     label: 'Vencidas',    count: counts['vencida']     ?? 0 },
     { id: 'rechazado',   label: 'Rechazadas',  count: counts['rechazado']   ?? 0 },
     { id: 'pendiente',   label: 'Pendientes',  count: counts['pendiente']   ?? 0 },
   ].filter(f => f.id === 'all' || f.count > 0)
@@ -4222,7 +4225,7 @@ function ClienteSolicitudesModal({ c }) {
     const nombre  = s.nombre_tomador || c.nombre || c.nom || '—'
     const ci      = s.ci_tomador     || c.ci      || '—'
     const st      = SOL_STATUS_STYLE[s.status] ?? {}
-    const stColor = s.status === 'rechazado' ? '#f43f5e' : s.status === 'emitida' ? '#059669' : s.status === 'aprobado' ? '#3b82f6' : '#f59e0b'
+    const stColor = s.status === 'rechazado' ? '#f43f5e' : s.status === 'vencida' ? '#ef4444' : s.status === 'emitida' ? '#059669' : s.status === 'aprobado' ? '#3b82f6' : '#f59e0b'
 
     const banner = `
       <div style="background:#001463;color:white;padding:14px 22px;border-radius:10px;margin-bottom:22px;display:flex;justify-content:space-between;align-items:center">

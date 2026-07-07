@@ -97,6 +97,7 @@ class SolicitudController extends Controller
                 'en_revision' => (clone $base)->whereIn('status', ['en_revision', 'En Revisión'])->count(),
                 'aprobado'    => (clone $base)->where('status', 'aprobado')->count(),
                 'emitida'     => (clone $base)->where('status', 'emitida')->count(),
+                'vencida'     => (clone $base)->where('status', 'vencida')->count(),
                 'rechazado'   => (clone $base)->where('status', 'rechazado')->count(),
             ]);
         }
