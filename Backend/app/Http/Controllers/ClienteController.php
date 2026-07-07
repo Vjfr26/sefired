@@ -203,7 +203,7 @@ class ClienteController extends Controller
         $noInjection = new NoInjectionChars();
         $data = $request->validate([
             'nombre'        => ['required', 'string', 'max:120', $noInjection],
-            'cedula'        => ['required', 'string', 'max:20', 'unique:persona,cedula', new CedulaValida()],
+            'cedula'        => ['required', 'string', 'max:20', \Illuminate\Validation\Rule::unique('persona', 'cedula')->whereNull('deleted_at'), new CedulaValida()],
             'condicion'     => ['required', 'string', 'max:40', $noInjection],
             'sexo'          => ['required', 'string', 'max:15', $noInjection],
             'nacimiento'    => ['required', 'date', function ($a, $v, $fail) {
@@ -230,9 +230,22 @@ class ClienteController extends Controller
 
         $data['activo']      = true;
         $data['vendedor_id'] = auth()->id();
-        $persona = Persona::create($data);
 
-        $this->logActivity('crear_cliente', "Cliente {$persona->nombre} (CI {$persona->cedula}) registrado", 'persona', auth()->id());
+        // Cliente previamente eliminado (soft delete): su cédula sigue ocupando
+        // el índice único de la BD, así que se restaura esa fila con los datos
+        // nuevos en vez de fallar el INSERT.
+        $trashed = Persona::onlyTrashed()->where('cedula', $data['cedula'])->first();
+        if ($trashed) {
+            $trashed->restore();
+            $trashed->fill($data);
+            $trashed->motivo_bloqueo = null;
+            $trashed->save();
+            $persona = $trashed;
+            $this->logActivity('crear_cliente', "Cliente {$persona->nombre} (CI {$persona->cedula}) reactivado (estaba eliminado)", 'persona', auth()->id());
+        } else {
+            $persona = Persona::create($data);
+            $this->logActivity('crear_cliente', "Cliente {$persona->nombre} (CI {$persona->cedula}) registrado", 'persona', auth()->id());
+        }
 
         if ($persona->correo) {
             try {

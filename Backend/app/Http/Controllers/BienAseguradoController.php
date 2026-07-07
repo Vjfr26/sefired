@@ -171,6 +171,34 @@ class BienAseguradoController extends Controller
             $this->assertAccesoCliente(Persona::findOrFail($data['persona_id']), permitirVenta: true);
         }
 
+        // La placa tiene índice ÚNICO en BD (placa_idx, columna generada) que
+        // incluye filas soft-borradas: sin este manejo el INSERT revienta con
+        // 500 al reusar la placa de un bien existente o eliminado.
+        $placa = strtoupper(trim((string) ($data['atributos']['placa'] ?? '')));
+        if ($placa !== '') {
+            $existente = BienAsegurado::withTrashed()->whereRaw('UPPER(placa_idx) = ?', [$placa])->first();
+            if ($existente && $existente->trashed()) {
+                // Bien previamente eliminado: se restaura con los datos nuevos.
+                $existente->restore();
+                $existente->update([...$data, 'created_by' => auth()->id()]);
+                $this->logActivity('crear_bien', "Bien [{$existente->tipo}] reactivado (estaba eliminado) — ID {$existente->id}");
+                return response()->json($this->formatBien($existente->fresh('persona')), 201);
+            }
+            if ($existente) {
+                // Mismo cliente (o bien sin dueño, que se adopta) → se reutiliza.
+                if (!empty($data['persona_id']) && ($existente->persona_id === null || (int) $existente->persona_id === (int) $data['persona_id'])) {
+                    if ($existente->persona_id === null) {
+                        $existente->update(['persona_id' => $data['persona_id']]);
+                    }
+                    return response()->json($this->formatBien($existente->fresh('persona')), 200);
+                }
+                $dueno = $existente->persona?->nombre;
+                return response()->json([
+                    'error' => "La placa {$placa} ya está registrada" . ($dueno ? " a nombre de {$dueno}" : '') . '.',
+                ], 422);
+            }
+        }
+
         $bien = BienAsegurado::create([
             ...$data,
             'created_by' => auth()->id(),
