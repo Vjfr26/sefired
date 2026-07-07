@@ -441,10 +441,75 @@ class SolicitudController extends Controller
      * Genera la póliza + recibo a partir de un pago ya validado. La usan tanto
      * la emisión directa (emitir) como la aprobación de underwriting.
      */
+    /**
+     * Garantiza que la solicitud tenga un cliente (Persona) asociado antes de
+     * emitir. Los leads del portal nacen sin persona_id; al emitir se registra
+     * el cliente con los datos capturados en la cotización (columnas del lead +
+     * el JSON coberturas), reutilizando un cliente existente si ya hay uno con
+     * la misma cédula (la columna es UNIQUE) en vez de duplicarlo.
+     */
+    private function asegurarPersona(Solicitud $solicitud): void
+    {
+        if ($solicitud->persona_id) {
+            return;
+        }
+
+        $cob    = is_array($solicitud->coberturas) ? $solicitud->coberturas : [];
+        $cedula = $solicitud->ci_tomador;
+
+        $persona = null;
+        if ($cedula) {
+            $cedNorm = strtoupper(Documento::soloAlfanumerico($cedula));
+            // withTrashed: la cédula es UNIQUE incluso para clientes borrados
+            // (soft-delete), así que si ya existe uno eliminado se reutiliza y
+            // se restaura, en vez de crear otro y chocar con el índice único.
+            $persona = Persona::withTrashed()->whereRaw(
+                "UPPER(REPLACE(REPLACE(REPLACE(cedula, '-', ''), '.', ''), ' ', '')) = ?",
+                [$cedNorm]
+            )->first();
+            if ($persona && $persona->trashed()) {
+                $persona->restore();
+            }
+        }
+
+        if (!$persona) {
+            $persona = Persona::create([
+                'vendedor_id'  => $solicitud->vendedor_id,
+                'cedula'       => $cedula,
+                'nombre'       => $solicitud->nombre_tomador,
+                'telefono'     => $cob['telefono']     ?? null,
+                'celular'      => $cob['telefono']     ?? null,
+                'correo'       => $cob['email']        ?? null,
+                'direccion'    => $cob['direccion']    ?? null,
+                'estado'       => $cob['estado_ve']    ?? null,
+                'ciudad'       => $cob['ciudad']       ?? null,
+                'nacimiento'   => $cob['nacimiento']   ?? null,
+                'sexo'         => $cob['sexo']         ?? null,
+                'condicion'    => $cob['condicion']    ?? null,
+                'nacionalidad' => $cob['nacionalidad'] ?? null,
+            ]);
+        }
+
+        $solicitud->persona_id = $persona->id;
+        $solicitud->save();
+
+        // El bien asegurado también se liga al cliente recién creado.
+        if ($solicitud->bien && $solicitud->bien->persona_id === null) {
+            $solicitud->bien->update(['persona_id' => $persona->id]);
+        }
+
+        $solicitud->setRelation('persona', $persona);
+    }
+
     public function emitirConPago(Solicitud $solicitud, array $pago): array
     {
         $solicitud->load(['persona', 'producto', 'tarifario', 'bien']);
         $this->validarMontoPago($solicitud, $pago);
+
+        // Registra el cliente (Persona) si el lead del portal aún no lo tenía:
+        // así el asegurado queda en el sistema y el snapshot/PDF obtienen su
+        // teléfono y dirección (que antes salían vacíos por no haber persona).
+        $this->asegurarPersona($solicitud);
 
         $cobs    = is_array($solicitud->coberturas) ? $solicitud->coberturas : [];
         $hoy     = now()->toDateString();
@@ -503,8 +568,8 @@ class SolicitudController extends Controller
             'tomador' => [
                 'nombre'    => $solicitud->nombre_tomador ?? $solicitud->persona?->nombre,
                 'ci'        => $solicitud->ci_tomador     ?? $solicitud->persona?->cedula,
-                'telefono'  => $solicitud->persona?->celular ?? $solicitud->persona?->telefono,
-                'direccion' => $solicitud->persona?->direccion,
+                'telefono'  => $solicitud->persona?->celular ?? $solicitud->persona?->telefono ?? ($cobs['telefono'] ?? null),
+                'direccion' => $solicitud->persona?->direccion ?? ($cobs['direccion'] ?? null),
             ],
             'asegurado' => [
                 'nombre'    => $aseguradoNombre,
