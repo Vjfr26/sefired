@@ -54,6 +54,10 @@ export function PasswordInput({ value, onChange, placeholder, className = '', na
         disabled={disabled}
         autoComplete={autoComplete}
         className={`input-field pr-10 ${className}`}
+        // .input-field aplica uppercase (para placas/nombres), pero en una
+        // contraseña la mayúscula/minúscula importa y confunde ver todo en
+        // mayúscula: se fuerza el texto tal cual se teclea.
+        style={{ textTransform: 'none' }}
         value={value}
         onChange={onChange}
         placeholder={placeholder}
