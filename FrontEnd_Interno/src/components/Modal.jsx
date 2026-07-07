@@ -38,7 +38,7 @@ import { useApp } from '../context/AppContext.jsx'
 import FormGrid from './FormGrid.jsx'
 import { useInputLimits } from '../utils/inputLimits.js'
 import { Switch, Segmented, PasswordInput } from './FormControls.jsx'
-import { fmtMonto, fmtTasa, convertirMoneda, badge, PERMISOS_POR_ROL, getEffectivePerms, getEffectivePermsObj, PERMS_CATALOG, PERMS_ORDER, LOCKED_PERMS, pdfPage, pdfHdr, pdfSec, pdfRow, pdfTotal, pdfFooterSimple, useModalLock, filtrarCedula, filtrarTelefono, filtrarSoloDigitos } from '../utils/helpers.jsx'
+import { fmtMonto, fmtTasa, convertirMoneda, monedaOpcion, badge, PERMISOS_POR_ROL, getEffectivePerms, getEffectivePermsObj, PERMS_CATALOG, PERMS_ORDER, LOCKED_PERMS, pdfPage, pdfHdr, pdfSec, pdfRow, pdfTotal, pdfFooterSimple, useModalLock, filtrarCedula, filtrarTelefono, filtrarSoloDigitos } from '../utils/helpers.jsx'
 import { TIPOS_PRODUCTO, TIPOS_CALCULO, tipoBadge } from '../utils/productos.jsx'
 import { storeUsuario, updateUsuario, verifyPassword, fetchVendedoresDisponibles } from '../api/usuarios.js'
 import { uploadDocumentoProducto, deleteDocumentoProducto } from '../api/productos.js'
@@ -593,7 +593,7 @@ function RenovarModal({ client, diasVencimiento, onSaved, onCancel }) {
   const { closeModal, showToast } = useApp()
   const handleCancel = () => { if (onCancel) onCancel(); else closeModal() }
   const [tasas, setTasas]         = useState({ usd: null, eur: null })
-  const [pagos, setPagos]         = useState(() => [{ ...pagoVacio(), moneda: client.moneda_producto || 'USD' }])
+  const [pagos, setPagos]         = useState(() => [{ ...pagoVacio(), moneda: monedaOpcion(client.moneda_producto) }])
   const [frecuencia, setFrecuencia] = useState('Anual')
   const [saving, setSaving]       = useState(false)
   const [formErr, setFormErr]     = useState({})
@@ -614,7 +614,7 @@ function RenovarModal({ client, diasVencimiento, onSaved, onCancel }) {
 
   const setPago    = (i, field, val) =>
     setPagos(prev => prev.map((p, idx) => idx === i ? { ...p, [field]: val, ...(field === 'forma' ? { referencia: '' } : {}) } : p))
-  const addPago    = () => setPagos(p => [...p, { ...pagoVacio(), moneda: monedaNativa }])
+  const addPago    = () => setPagos(p => [...p, { ...pagoVacio(), moneda: monedaOpcion(monedaNativa) }])
   const removePago = i  => setPagos(p => p.filter((_, idx) => idx !== i))
 
   // La prima de client.prima ya viene en la moneda nativa del producto (no
@@ -652,6 +652,14 @@ function RenovarModal({ client, diasVencimiento, onSaved, onCancel }) {
   const cuotasCubiertas   = esMensual && montoEsperadoUsd > 0
     ? Math.min(12, Math.floor((pagCents / 100) / (montoMaximo / 12) + 1e-9))
     : 0
+  // Igual que en Emitir: el faltante se muestra en cada moneda con la que se
+  // está pagando (redondeado hacia arriba = mínimo exacto), no solo en la
+  // moneda nativa del producto.
+  const faltanteReal = Math.max(0, montoEsperadoUsd - totalIngresadoUsd)
+  const monedasPago  = [...new Set(pagos.map(p => p.moneda).filter(Boolean))]
+  const faltanteTxt  = (monedasPago.length ? monedasPago : [monedaNativa])
+    .map(m => fmtMonto(Math.ceil(convertirMoneda(faltanteReal, monedaNativa, m, tasas.usd || 0, tasas.eur || 0) * 100) / 100, m))
+    .join(' · ')
 
   const handleRenovar = async () => {
     if (!client.poliza_id) { showToast('Este cliente no tiene póliza para renovar', 'error'); return }
@@ -828,7 +836,7 @@ function RenovarModal({ client, diasVencimiento, onSaved, onCancel }) {
                 totalOk ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'
               }`}>
                 <span>
-                  {!totalOk && faltante  > 0 && `⚠ Falta ${fmtMonto(faltante, monedaNativa)} para cubrir ${frecuencia === 'Mensual' ? 'la cuota del mes' : 'la prima'}`}
+                  {!totalOk && faltante  > 0 && `⚠ Falta ${faltanteTxt} para cubrir ${frecuencia === 'Mensual' ? 'la cuota del mes' : 'la prima'}`}
                   {!totalOk && excedente > 0 && `⚠ Excede el ${esMensual ? 'total financiado' : 'total anual'} por ${fmtMonto(excedente, monedaNativa)}`}
                   {totalOk && (
                     esMensual && adelanto > 0
@@ -868,7 +876,7 @@ function EmitirCotizacionModal({ cot, onSaved, mode = 'registrar' }) {
   const { closeModal, showToast } = useApp()
   const esRegistro = mode === 'registrar'
   const [tasas, setTasas]         = useState({ usd: null, eur: null })
-  const [pagos, setPagos]         = useState(() => [{ ...pagoVacio(), moneda: cot.moneda_producto || 'USD' }])
+  const [pagos, setPagos]         = useState(() => [{ ...pagoVacio(), moneda: monedaOpcion(cot.moneda_producto) }])
   const [frecuencia, setFrecuencia] = useState('Anual')
   const [saving, setSaving]       = useState(false)
   const [formErr, setFormErr]     = useState({})
@@ -884,7 +892,7 @@ function EmitirCotizacionModal({ cot, onSaved, mode = 'registrar' }) {
   const setPago = (i, field, val) =>
     setPagos(prev => prev.map((p, idx) => idx === i ? { ...p, [field]: val, ...(field === 'forma' ? { referencia: '' } : {}) } : p))
 
-  const addPago    = () => setPagos(p => [...p, { ...pagoVacio(), moneda: monedaNativa }])
+  const addPago    = () => setPagos(p => [...p, { ...pagoVacio(), moneda: monedaOpcion(monedaNativa) }])
   const removePago = i  => setPagos(p => p.filter((_, idx) => idx !== i))
 
   const monedaNativa = cot.moneda_producto || 'USD'
@@ -4027,7 +4035,7 @@ function PolizaCuotasModal({ poliza, onClose }) {
   const [data,    setData]    = useState(null)   // { cuotas, total, pagado, saldo, moneda, moneda_simbolo }
   const [tasas,   setTasas]   = useState({ usd: null, eur: null })
   const [loading, setLoading] = useState(true)
-  const [pagos,   setPagos]   = useState(() => [{ ...pagoVacio(), moneda: poliza.moneda_producto || 'USD' }])
+  const [pagos,   setPagos]   = useState(() => [{ ...pagoVacio(), moneda: monedaOpcion(poliza.moneda_producto) }])
   const [saving,  setSaving]  = useState(false)
   const [formErr, setFormErr] = useState({})
   const [cobrar,  setCobrar]  = useState(false)
@@ -4046,7 +4054,7 @@ function PolizaCuotasModal({ poliza, onClose }) {
 
   const monedaNativa = data?.moneda || poliza.moneda_producto || 'USD'
   const setPago    = (i, f, v) => setPagos(prev => prev.map((p, idx) => idx === i ? { ...p, [f]: v, ...(f === 'forma' ? { referencia: '' } : {}) } : p))
-  const addPago    = () => setPagos(p => [...p, { ...pagoVacio(), moneda: monedaNativa }])
+  const addPago    = () => setPagos(p => [...p, { ...pagoVacio(), moneda: monedaOpcion(monedaNativa) }])
   const removePago = i  => setPagos(p => p.filter((_, idx) => idx !== i))
 
   const pagoEnNativo    = (p) => convertirMoneda(parseFloat(p.monto) || 0, p.moneda, monedaNativa, tasas.usd || 0, tasas.eur || 0)

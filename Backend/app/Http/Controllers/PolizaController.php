@@ -755,7 +755,21 @@ class PolizaController extends Controller
             : $hoy;
         $vence = \Illuminate\Support\Carbon::parse($inicio)->addYear()->toDateString();
 
-        $result = DB::transaction(function () use ($polizaAnterior, $data, $hoy, $inicio, $vence, $sede, $pagoResumen, $moneda, $monedaNativa, $frecuencia, $tasaBcv, $tasaEur, $totalBsNuevo, $coberturaBsNew, $esMensual, $recargoPct, $totalPagado) {
+        // La renovación hereda el snapshot de la póliza anterior (datos del
+        // bien/vehículo, coberturas del tarifario, sumas RCV/APOV migradas…):
+        // el PDF del cuadro póliza sale de ahí. Solo se refrescan los datos
+        // propios de esta emisión (fecha, tasas, pagos).
+        $snapshotNuevo = $polizaAnterior->snapshot_datos ?? [];
+        if (!empty($snapshotNuevo)) {
+            $snapshotNuevo['fecha_emision']    = $inicio;
+            $snapshotNuevo['tasa_emision']     = $tasaBcv;
+            $snapshotNuevo['tasa_emision_eur'] = $tasaEur;
+            $snapshotNuevo['moneda']           = $moneda;
+            $snapshotNuevo['pagos']            = $data['pagos'];
+            $snapshotNuevo['total_bs']         = $totalBsNuevo;
+        }
+
+        $result = DB::transaction(function () use ($polizaAnterior, $data, $hoy, $inicio, $vence, $sede, $pagoResumen, $moneda, $monedaNativa, $frecuencia, $tasaBcv, $tasaEur, $totalBsNuevo, $coberturaBsNew, $esMensual, $recargoPct, $totalPagado, $snapshotNuevo) {
             $polizaAnterior->update(['status' => 'RENOVADA']);
 
             $nueva = Poliza::create([
@@ -773,11 +787,15 @@ class PolizaController extends Controller
                 'frecuencia_pago'   => $frecuencia,
                 'moneda'            => $moneda,
                 'tipo'              => $polizaAnterior->tipo,
+                'asegurado_nombre'  => $polizaAnterior->asegurado_nombre,
+                'asegurado_ci'      => $polizaAnterior->asegurado_ci,
                 'fecha_emision'     => $inicio,
                 'fecha_vencimiento' => $vence,
                 'sede_poliza'       => $sede,
                 'vendedor_id'       => $polizaAnterior->vendedor_id ?? auth()->id(),
                 'status'            => 'ACTIVA',
+                'snapshot_datos'    => $snapshotNuevo ?: null,
+                'tarifario_version_id' => $polizaAnterior->tarifario_version_id,
             ]);
 
             $nroContrato = CodigoPoliza::generar(

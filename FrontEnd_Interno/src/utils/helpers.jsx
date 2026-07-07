@@ -154,6 +154,18 @@ export const normalizarMoneda = (moneda) => {
   return m || 'USD'
 }
 
+/**
+ * Devuelve la moneda en la forma exacta de las opciones de los selects de
+ * pago ('USD' | 'EUR' | 'Bs.'). El backend manda códigos normalizados ('BS');
+ * si se usa ese valor directo en un <select> cuyas opciones son 'Bs.', el
+ * navegador muestra la primera opción (USD) mientras el estado real sigue
+ * siendo bolívares — el monto se interpreta en la moneda equivocada.
+ */
+export const monedaOpcion = (moneda) => {
+  const n = normalizarMoneda(moneda)
+  return n === 'BS' ? 'Bs.' : n
+}
+
 /** Convierte un monto entre monedas pivoteando por bolívares (Bs.), usando las tasas BCV del día. */
 export const convertirMoneda = (valor, desde, hacia, tasaUsd, tasaEur) => {
   const d = normalizarMoneda(desde)
