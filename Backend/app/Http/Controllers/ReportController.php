@@ -273,7 +273,7 @@ class ReportController extends Controller
                 'fecha_emision'     => $inicio,
                 'fecha_vencimiento' => $fin,
                 'vigencia'          => "{$inicio} - {$fin}",
-                'total'             => (float) $p->total,
+                'total'             => round($this->totalUsd($p), 2),
                 'producto'          => $p->producto?->nombre ?? '—',
             ];
         });
@@ -396,11 +396,20 @@ class ReportController extends Controller
      * emitió) — sin esto, sumar `total` directo mezclaría unidades distintas
      * si hay pólizas en USD, EUR y Bs en el mismo grupo.
      */
+    /**
+     * Prima de UNA póliza expresada en USD según su moneda nativa y las tasas
+     * del día de emisión. Todo monto que el frontend de Reportes vaya a
+     * multiplicar por la tasa BCV de hoy (helper enBs) debe salir de aquí —
+     * mandar $p->total crudo infla ×tasa las pólizas denominadas en Bs.
+     */
+    private function totalUsd($p): float
+    {
+        return Moneda::aUsd((float) $p->total, $p->monedaNativa(), (float) $p->tasa_emision, (float) $p->tasa_emision_eur);
+    }
+
     private function sumTotalUsd($policies): float
     {
-        return (float) $policies->sum(
-            fn($p) => Moneda::aUsd((float) $p->total, $p->monedaNativa(), (float) $p->tasa_emision, (float) $p->tasa_emision_eur)
-        );
+        return (float) $policies->sum(fn($p) => $this->totalUsd($p));
     }
 
     private function upsertProgramaciones(array $schedules, string $modelClass): void
@@ -571,7 +580,7 @@ class ReportController extends Controller
                 'pol'                 => $p->nro_contrato,
                 'agente'              => $p->vendedor?->nombre ?? '—',
                 'tipo'                => $p->producto?->nombre ?? '—',
-                'prima'               => (float) $p->total,
+                'prima'               => round($this->totalUsd($p), 2),
                 'prima_bs'            => round(Moneda::aBs((float) $p->total, $p->monedaNativa(), $tasaUsdHoy, $tasaEurHoy), 2),
                 'est'                 => $p->status === 'ACTIVA' ? 'Vigente' : ($p->status === 'ANULADA' ? 'Anulada' : $p->status),
                 'comision_id'         => $p->comision?->id,
@@ -1231,7 +1240,7 @@ class ReportController extends Controller
                         'fecha_emision'     => $p->fecha_emision ? $p->fecha_emision->format('d/m/Y') : '—',
                         'fecha_vencimiento' => $p->fecha_vencimiento ? $p->fecha_vencimiento->format('d/m/Y') : '—',
                         'producto'          => $p->producto?->nombre ?? '—',
-                        'total'             => (float) $p->total,
+                        'total'             => round($this->totalUsd($p), 2),
                         'status'            => $p->status,
                     ];
                 }),
@@ -1539,7 +1548,7 @@ class ReportController extends Controller
                         'fecha_vencimiento' => $p->fecha_vencimiento ? $p->fecha_vencimiento->format('d/m/Y') : '—',
                         'producto'          => $p->producto?->nombre ?? '—',
                         'vendedor'          => $p->vendedor?->nombre ?? '—',
-                        'total'             => (float) $p->total,
+                        'total'             => round($this->totalUsd($p), 2),
                         'status'            => $p->status,
                     ];
                 }),

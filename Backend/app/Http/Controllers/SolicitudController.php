@@ -81,7 +81,8 @@ class SolicitudController extends Controller
                 $s = trim($request->input('search'));
                 $q->where(function ($w) use ($s) {
                     $w->whereHas('persona', fn ($p) => $p->where('nombre', 'like', "%{$s}%")->orWhere('cedula', 'like', "%{$s}%"))
-                      ->orWhereHas('bien', fn ($b) => $b->where('placa_idx', 'like', "%{$s}%"));
+                      ->orWhereHas('bien', fn ($b) => $b->where('placa_idx', 'like', "%{$s}%"))
+                      ->orWhereHas('polizas', fn ($p) => $p->where('nro_contrato', 'like', "%{$s}%"));
                     if (ctype_digit($s)) $w->orWhere('id', (int) $s);
                 });
             }
@@ -105,7 +106,11 @@ class SolicitudController extends Controller
         $query = Solicitud::with(['persona', 'producto', 'bien', 'vendedor', 'polizas'])
             ->orderByDesc('fecha_solicitud')
             ->orderByDesc('id');
-        if ($this->esRolRestringido()) {
+        // El vendedor restringido solo ve SUS cotizaciones — salvo que esté
+        // buscando por nombre/cédula/placa/póliza: ahí se abre el scope para
+        // que encuentre la cotización aunque el cliente no sea suyo (igual
+        // que /clientes/buscar para detectar duplicados antes de recotizar).
+        if ($this->esRolRestringido() && !$request->filled('search')) {
             $query->where('vendedor_id', $user->id);
         }
         $aplicarFiltros($query);
