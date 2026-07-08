@@ -25,6 +25,26 @@
         : ($poliza->bienes->isNotEmpty() ? $poliza->bienes : collect([null]));
 
     $snap        = $poliza->snapshot_datos ?? [];
+
+    // RENOVACIONES VIEJAS: antes el snapshot no se heredaba al renovar, así
+    // que esas pólizas quedaron sin datos de vehículo/tomador/coberturas en
+    // su propio snapshot. Las secciones que falten se completan con el
+    // snapshot de la póliza predecesora (misma solicitud, id anterior) — la
+    // emisión y sus renovaciones deben mostrar los mismos datos. Los campos
+    // propios de esta emisión (fechas, tasas, pagos, totales) salen de las
+    // columnas de la póliza, no del snapshot, así que no se contaminan.
+    if (empty($snap['bien']) && $poliza->solicitud_id) {
+        $prevSnap = \App\Models\Poliza::where('solicitud_id', $poliza->solicitud_id)
+            ->where('id', '<', $poliza->id)
+            ->whereNotNull('snapshot_datos')
+            ->orderByDesc('id')
+            ->value('snapshot_datos');
+        if (is_array($prevSnap)) {
+            $heredables = ['bien', 'tomador', 'asegurado', 'producto', 'coberturas', 'tarifario', 'rcv', 'apov', 'tasa_bcv'];
+            $snap += array_intersect_key($prevSnap, array_flip($heredables));
+        }
+    }
+
     $tomador     = $snap['tomador']    ?? [];
     $asegurado   = $snap['asegurado']  ?? [];
     // Pólizas anteriores al snapshot enriquecido no tienen 'bien'/'producto'
@@ -50,6 +70,15 @@
         'atributos'     => $poliza->solicitud->bien->atributos ?? [],
         'observaciones' => $poliza->solicitud->bien->observaciones,
     ] : []);
+    // Último respaldo del bien principal: el bien enlazado en poliza_bienes
+    // (renovaciones cuyo origen no tiene ni snapshot ni bien en la solicitud).
+    if (empty($bien) && $bienPrincipal?->bien) {
+        $bien = [
+            'tipo'          => $bienPrincipal->bien->tipo,
+            'atributos'     => $bienPrincipal->bien->atributos ?? [],
+            'observaciones' => $bienPrincipal->bien->observaciones,
+        ];
+    }
     // Documento acotado a un bien adicional: sus datos vienen del propio bien
     // (el snapshot solo guarda el bien original de la solicitud).
     if ($bienScope && $bienScope->certificado !== null && $bienScope->bien) {
@@ -100,7 +129,31 @@
 
     $cobs        = $snap['coberturas'] ?? [];
     $tipoCal     = $prodSnap['tipo_calculo'] ?? $poliza->producto?->tipo_calculo ?? 'fijo';
-    $tarifaDatos = $cobs['tarifa']['datos'] ?? ($snap['tarifario']['datos'] ?? []);
+
+    // El cuadro "Coberturas / Sumas Aseguradas" refleja la versión VIGENTE de
+    // la tarifa de la póliza (las coberturas cargadas hoy — p.ej. montos RCV
+    // LEY actualizados), no la copia congelada en el snapshot: al actualizar
+    // el tarifario, las pólizas ya emitidas deben mostrar las sumas nuevas.
+    // El snapshot sigue mandando en primas/totales/recibo; aquí solo se
+    // refresca la presentación de las sumas. Si la tarifa fue re-versionada
+    // (editar datos archiva y crea hija), se sigue el linaje parent_id hasta
+    // la versión vigente actual; si el linaje ya no existe, se cae al snapshot.
+    $tarifaViva  = null;
+    $tarifaIdRef = $poliza->tarifario_version_id
+        ?? ($cobs['tarifa']['id'] ?? null)
+        ?? ($snap['tarifario']['id'] ?? null);
+    if ($tarifaIdRef) {
+        $tv   = \App\Models\Tarifario::find($tarifaIdRef);
+        $hops = 0;
+        while ($tv && $tv->estado !== 'vigente' && $hops++ < 20) {
+            $tv = \App\Models\Tarifario::where('parent_id', $tv->id)->orderByDesc('version')->first();
+        }
+        if ($tv && $tv->estado === 'vigente' && is_array($tv->datos)) $tarifaViva = $tv;
+    }
+    $tarifaDatos = $tarifaViva?->datos ?? ($cobs['tarifa']['datos'] ?? ($snap['tarifario']['datos'] ?? []));
+    // La estructura de los datos de la tarifa viva la define el tipo de
+    // cálculo ACTUAL del producto (pudo cambiar desde la emisión).
+    if ($tarifaViva) $tipoCal = $poliza->producto?->tipo_calculo ?? $tipoCal;
 
     // Todos los montos del documento (prima, sumas aseguradas, IVA, total a
     // cobrar) van en UNA sola moneda — nunca mezclada con otra. Por defecto
@@ -123,41 +176,45 @@
     $fmtM = fn($v) => number_format(((float) $v) * $convFactor, 2);
     $monedaSimbolo = \App\Support\Moneda::simbolo($monedaDoc);
 
-    $tomadorNombre = $tomador['nombre']   ?? ($poliza->asegurado_nombre ?? '—');
-    $tomadorCi     = $tomador['ci']       ?? ($poliza->asegurado_ci     ?? '—');
-    $asegNombre    = $asegurado['nombre'] ?? ($poliza->asegurado_nombre ?? $tomadorNombre);
-    $asegCi        = $asegurado['ci']     ?? ($poliza->asegurado_ci     ?? $tomadorCi);
+    // Todos los datos de personas del documento van en MAYÚSCULAS sin importar
+    // cómo estén guardados en la BD (mb_ para que Á/É/Ñ también suban).
+    $U = fn($v) => $v === null || $v === '' ? '—' : mb_strtoupper(trim((string) $v));
+
+    $tomadorNombre = $U($tomador['nombre']   ?? ($poliza->asegurado_nombre ?? null));
+    $tomadorCi     = $U($tomador['ci']       ?? ($poliza->asegurado_ci     ?? null));
+    $asegNombre    = $U($asegurado['nombre'] ?? ($poliza->asegurado_nombre ?? $tomadorNombre));
+    $asegCi        = $U($asegurado['ci']     ?? ($poliza->asegurado_ci     ?? $tomadorCi));
     $asegPartes    = \App\Support\NombreSplitter::partes($asegNombre);
 
     // Teléfono y dirección: del snapshot (pólizas futuras con esos campos) o
     // de la relación persona en vivo.
     $persona         = $poliza->solicitud?->persona;
-    $tomadorTel      = $tomador['telefono']  ?? ($persona?->celular ?? ($persona?->telefono ?? '—'));
-    $tomadorDireccion = $tomador['direccion'] ?? ($persona?->direccion ?? '—');
+    $tomadorTel      = $U($tomador['telefono']  ?? ($persona?->celular ?? ($persona?->telefono ?? null)));
+    $tomadorDireccion = $U($tomador['direccion'] ?? ($persona?->direccion ?? null));
     // El asegurado no siempre tiene su propio registro de Persona (puede ser
     // un familiar indicado solo por nombre/CI al cotizar) — si no hay datos
     // propios, se asume la misma dirección/teléfono del tomador.
-    $asegDireccion   = $asegurado['direccion'] ?? $tomadorDireccion;
-    $asegTel         = $asegurado['telefono']  ?? $tomadorTel;
+    $asegDireccion   = $U($asegurado['direccion'] ?? $tomadorDireccion);
+    $asegTel         = $U($asegurado['telefono']  ?? $tomadorTel);
 
     // Vendedor / intermediario desde la relación cargada
-    $vendedorNombre = strtoupper($poliza->vendedor?->nombre ?? '—');
+    $vendedorNombre = mb_strtoupper($poliza->vendedor?->nombre ?? '—');
     $vendedorCodigo = $poliza->vendedor?->nro_sede ?? '—';
     // Canal de venta: "Vendedor Calle" vende como intermediario externo;
     // "Oficina"/"Admin" gestionan la venta directa desde la cooperativa.
     $canalVenta     = $poliza->vendedor?->cargo === 'Vendedor Calle' ? 'INTERMEDIARIO' : 'DIRECTO';
 
-    $marca   = strtoupper($attrs['marca']  ?? '—');
-    $modelo  = strtoupper($attrs['modelo'] ?? '—');
+    $marca   = mb_strtoupper($attrs['marca']  ?? '—');
+    $modelo  = mb_strtoupper($attrs['modelo'] ?? '—');
     $anio    = $attrs['anio']              ?? '—';
-    $placa   = strtoupper($attrs['placa']  ?? '—');
-    $color   = strtoupper($attrs['color']  ?? '—');
-    $uso     = strtoupper($attrs['uso']    ?? '—');
-    $serCar  = strtoupper($attrs['serial_carroceria'] ?? ($attrs['serialCarroceria'] ?? '—'));
-    $serMot  = strtoupper($attrs['serial_motor']      ?? ($attrs['serialMotor']      ?? '—'));
+    $placa   = mb_strtoupper($attrs['placa']  ?? '—');
+    $color   = mb_strtoupper($attrs['color']  ?? '—');
+    $uso     = mb_strtoupper($attrs['uso']    ?? '—');
+    $serCar  = mb_strtoupper($attrs['serial_carroceria'] ?? ($attrs['serialCarroceria'] ?? '—'));
+    $serMot  = mb_strtoupper($attrs['serial_motor']      ?? ($attrs['serialMotor']      ?? '—'));
     $puestos = $attrs['puestos'] ?? '—';
-    $clase   = strtoupper($attrs['clase']  ?? ($attrs['tipo'] ?? '—'));
-    $version = strtoupper($attrs['version'] ?? 'A INDICAR');
+    $clase   = mb_strtoupper($attrs['clase']  ?? ($attrs['tipo'] ?? '—'));
+    $version = mb_strtoupper($attrs['version'] ?? 'A INDICAR');
 
     // Datos de presentación de un bien (principal o adicional) para las secciones
     // que se repiten por vehículo. El principal usa el snapshot ya calculado; los
@@ -176,27 +233,32 @@
             'cert'    => ($cb?->certificado) ?: $poliza->nro_contrato,
             'tipo'    => $t,
             'attrs'   => $a,
-            'obs'     => $obs ?: '—',
-            'marca'   => strtoupper($a['marca']  ?? '—'),
-            'modelo'  => strtoupper($a['modelo'] ?? '—'),
+            'obs'     => $obs ? mb_strtoupper(trim((string) $obs)) : '—',
+            'marca'   => mb_strtoupper($a['marca']  ?? '—'),
+            'modelo'  => mb_strtoupper($a['modelo'] ?? '—'),
             'anio'    => $a['anio']              ?? '—',
-            'placa'   => strtoupper($a['placa']  ?? '—'),
-            'color'   => strtoupper($a['color']  ?? '—'),
-            'uso'     => strtoupper($a['uso']    ?? '—'),
-            'serCar'  => strtoupper($a['serial_carroceria'] ?? ($a['serialCarroceria'] ?? '—')),
-            'serMot'  => strtoupper($a['serial_motor']      ?? ($a['serialMotor']      ?? '—')),
+            'placa'   => mb_strtoupper($a['placa']  ?? '—'),
+            'color'   => mb_strtoupper($a['color']  ?? '—'),
+            'uso'     => mb_strtoupper($a['uso']    ?? '—'),
+            'serCar'  => mb_strtoupper($a['serial_carroceria'] ?? ($a['serialCarroceria'] ?? '—')),
+            'serMot'  => mb_strtoupper($a['serial_motor']      ?? ($a['serialMotor']      ?? '—')),
             'puestos' => $a['puestos'] ?? '—',
-            'clase'   => strtoupper($a['clase'] ?? ($a['tipo'] ?? '—')),
-            'version' => strtoupper($a['version'] ?? 'A INDICAR'),
+            'clase'   => mb_strtoupper($a['clase'] ?? ($a['tipo'] ?? '—')),
+            'version' => mb_strtoupper($a['version'] ?? 'A INDICAR'),
         ];
     };
 
     $cobertura_items = [];
     // Renglones definidos por el usuario en el producto (nombres) con el
-    // monto de la tarifa emitida (datos.coberturas_pdf = {slug: {label, suma}}).
+    // monto de la tarifa (datos.coberturas_pdf = {slug: {label, suma}}).
     // Si existen, son LA fuente del cuadro "Coberturas / Sumas Aseguradas" y
     // sustituyen tanto la cuadrícula fija de vehículo como los derivados.
-    $cobsPdf = $tarifaDatos['coberturas_pdf'] ?? [];
+    // Si la tarifa viva no los define, se buscan en las copias de la
+    // cotización y del snapshot de emisión (pólizas emitidas con renglones
+    // que la versión vigente actual perdió).
+    $cobsPdf = $tarifaDatos['coberturas_pdf']
+        ?? ($cobs['tarifa']['datos']['coberturas_pdf'] ?? null)
+        ?? ($snap['tarifario']['datos']['coberturas_pdf'] ?? []);
     if (is_array($cobsPdf) && count($cobsPdf) > 0) {
         foreach ($cobsPdf as $key => $val) {
             if (!is_array($val)) continue;
@@ -269,7 +331,7 @@
     // BCV ni equivalente en bolívares en el cuadro (no se mezcla con Bs.).
     $monedaPago     = $poliza->moneda ?? $snap['moneda'] ?? 'USD';
     $monedaLabel    = \App\Support\Moneda::etiqueta($monedaDoc);
-    $frecuenciaPago = strtoupper($poliza->frecuencia_pago ?? 'Anual');
+    $frecuenciaPago = mb_strtoupper($poliza->frecuencia_pago ?? 'Anual');
 
     $imgLogon  = 'data:image/jpeg;base64,' . base64_encode(file_get_contents(public_path('images/logon.jpg')));
     $imgIcono  = 'data:image/png;base64,'  . base64_encode(file_get_contents(public_path('images/icono.png')));
@@ -517,7 +579,7 @@
         <tr>
             @foreach($grupo as $k)
             <td style="width:13%; text-align:left; border-left:1px solid #888; padding:1.5px 3px; color:#555; font-size:9px;">{{ ucfirst(str_replace('_', ' ', $k)) }}:</td>
-            <td style="{{ $loop->last ? 'border-right:1px solid #888;' : '' }} padding:1.5px 4px;"><strong>{{ strtoupper((string) $attrsPares[$k]) }}</strong></td>
+            <td style="{{ $loop->last ? 'border-right:1px solid #888;' : '' }} padding:1.5px 4px;"><strong>{{ mb_strtoupper((string) $attrsPares[$k]) }}</strong></td>
             @endforeach
             @if(count($grupo) < 3)
                 @for($i = count($grupo); $i < 3; $i++)
@@ -618,20 +680,26 @@
     if ($cb && $cb->certificado !== null && $cb->bien) {
         $bien   = ['tipo' => $cb->bien->tipo, 'atributos' => $cb->bien->atributos ?? []];
         $attrs  = $cb->bien->atributos ?? [];
-        $marca  = strtoupper($attrs['marca']  ?? '—');
-        $modelo = strtoupper($attrs['modelo'] ?? '—');
+        $marca  = mb_strtoupper($attrs['marca']  ?? '—');
+        $modelo = mb_strtoupper($attrs['modelo'] ?? '—');
         $anio   = $attrs['anio']              ?? '—';
-        $placa  = strtoupper($attrs['placa']  ?? '—');
-        $color  = strtoupper($attrs['color']  ?? '—');
-        $serCar = strtoupper($attrs['serial_carroceria'] ?? ($attrs['serialCarroceria'] ?? '—'));
+        $placa  = mb_strtoupper($attrs['placa']  ?? '—');
+        $color  = mb_strtoupper($attrs['color']  ?? '—');
+        $serCar = mb_strtoupper($attrs['serial_carroceria'] ?? ($attrs['serialCarroceria'] ?? '—'));
     }
 @endphp
-<table width="100%" cellspacing="0" cellpadding="0" style="margin-top:20px; page-break-inside:avoid;">
+{{-- Ambos carnets (frontal y reverso) deben medir EXACTAMENTE lo mismo en
+     todos los certificados: table-layout fixed reparte columnas iguales sin
+     importar el contenido, y el div interno de alto fijo con overflow hidden
+     evita que un carnet con más datos crezca más que los demás. --}}
+<table width="100%" cellspacing="0" cellpadding="0" style="margin-top:20px; page-break-inside:avoid; table-layout:fixed;">
     <tr>
         <!-- Carnet Frontal -->
-        <td style="width:290px; height:196px; border:2px solid #127481; font-size:9px; vertical-align:top; position:relative; overflow:hidden; padding:8px 14px;">
+        <td style="width:48.7%; border:2px solid #127481; font-size:9px; vertical-align:top; padding:0;">
+            <div style="position:relative; width:100%; height:196px; overflow:hidden;">
             <img src="{{ $imgCarnet }}" style="position:absolute; z-index:-1; width:100%; height:100%; top:0; left:0; opacity:0.16;"/>
             <img src="{{ $imgIcono }}"  style="position:absolute; z-index:-1; width:1.6cm; height:1.1cm; top:2px; left:5px; opacity:0.45;"/>
+            <div style="padding:8px 14px;">
             <table style="text-align:center; width:100%; margin-top:0;">
                 <!-- N° esquina superior derecha -->
                 <tr>
@@ -685,29 +753,33 @@
                 @elseif(!empty($bien['tipo']))
                 @php $attrsCarnet = array_slice(collect($attrs)->filter(fn($v) => $v !== null && $v !== '')->all(), 0, 6, true); @endphp
                 <!-- BIEN ASEGURADO (no vehículo) -->
-                <tr><th colspan="3" style="font-size:9px; padding:2px 6px;">BIEN ASEGURADO — {{ strtoupper(str_replace('_', ' ', $bien['tipo'])) }}</th></tr>
+                <tr><th colspan="3" style="font-size:9px; padding:2px 6px;">BIEN ASEGURADO — {{ mb_strtoupper(str_replace('_', ' ', $bien['tipo'])) }}</th></tr>
                 @foreach(array_chunk(array_keys($attrsCarnet), 3) as $grupoCarnet)
                 <tr>
                     @foreach($grupoCarnet as $k)
-                    <th style="font-size:8px; padding:1px 4px;">{{ strtoupper(str_replace('_', ' ', $k)) }}</th>
+                    <th style="font-size:8px; padding:1px 4px;">{{ mb_strtoupper(str_replace('_', ' ', $k)) }}</th>
                     @endforeach
                 </tr>
                 <tr>
                     @foreach($grupoCarnet as $k)
-                    <td style="font-size:8.5px; font-weight:600; padding:1px 4px;">{{ strtoupper((string) $attrsCarnet[$k]) }}</td>
+                    <td style="font-size:8.5px; font-weight:600; padding:1px 4px;">{{ mb_strtoupper((string) $attrsCarnet[$k]) }}</td>
                     @endforeach
                 </tr>
                 @endforeach
                 @endif
             </table>
+            </div>
+            </div>
         </td>
 
-        <td style="width:14px;"></td>
+        <td style="width:2.6%;"></td>
 
         <!-- Carnet Reverso: EMISIÓN | QR | VENCIMIENTO -->
-        <td style="width:290px; height:196px; border:2px solid #127481; font-size:9px; vertical-align:middle; position:relative; overflow:hidden; padding:12px 20px;">
+        <td style="width:48.7%; border:2px solid #127481; font-size:9px; vertical-align:top; padding:0;">
+            <div style="position:relative; width:100%; height:196px; overflow:hidden;">
             <img src="{{ $imgCarnet }}" style="position:absolute; z-index:-1; width:100%; height:100%; top:0; left:0; opacity:0.16;"/>
             <img src="{{ $imgIcono }}"  style="position:absolute; z-index:-1; width:1.6cm; height:1.1cm; top:2px; left:5px; opacity:0.45;"/>
+            <div style="padding:12px 20px;">
             <table width="100%" cellspacing="0" cellpadding="0" style="margin-top:0;">
                 <!-- Providencia -->
                 <tr>
@@ -743,6 +815,8 @@
                     </td>
                 </tr>
             </table>
+            </div>
+            </div>
         </td>
     </tr>
 </table>

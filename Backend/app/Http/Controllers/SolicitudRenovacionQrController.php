@@ -137,12 +137,18 @@ class SolicitudRenovacionQrController extends Controller
                 'frecuencia_pago'   => $polizaAnterior->frecuencia_pago ?? 'Anual',
                 'moneda'            => $monedaPrincipal,
                 'tipo'              => $polizaAnterior->tipo,
+                // Igual que en la renovación interna (PolizaController@renovar):
+                // la renovada hereda asegurado y versión del tarifario para que
+                // el PDF y los listados muestren lo mismo que la emisión.
+                'asegurado_nombre'  => $polizaAnterior->asegurado_nombre,
+                'asegurado_ci'      => $polizaAnterior->asegurado_ci,
                 'fecha_emision'     => $hoy,
                 'fecha_vencimiento' => $vence,
                 'sede_poliza'       => $sede,
                 'vendedor_id'       => $polizaAnterior->vendedor_id ?? auth()->id(),
                 'status'            => 'ACTIVA',
                 'snapshot_datos'    => $polizaAnterior->snapshot_datos,
+                'tarifario_version_id' => $polizaAnterior->tarifario_version_id,
             ]);
 
             $nroContrato = CodigoPoliza::generar(

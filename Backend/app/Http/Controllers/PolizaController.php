@@ -295,11 +295,14 @@ class PolizaController extends Controller
             'status'            => $poliza->status,
             'fecha_emision'     => $poliza->fecha_emision?->format('d/m/Y'),
             'fecha_vencimiento' => $poliza->fecha_vencimiento?->format('d/m/Y'),
-            'asegurado_nombre'  => $snap['asegurado']['nombre'] ?? $poliza->asegurado_nombre ?? '—',
+            // Sin asegurado propio (es la misma persona), se muestra el
+            // tomador — igual que en el PDF de la póliza. Datos de persona y
+            // bien siempre en MAYÚSCULAS, sin importar cómo estén en la BD.
+            'asegurado_nombre'  => mb_strtoupper($snap['asegurado']['nombre'] ?? $poliza->asegurado_nombre ?? $snap['tomador']['nombre'] ?? '—'),
             'producto'          => $snap['producto']['nombre'] ?? $poliza->producto?->nombre ?? '—',
-            'placa'             => strtoupper($attrs['placa'] ?? '—'),
-            'marca'             => $attrs['marca'] ?? '—',
-            'modelo'            => $attrs['modelo'] ?? '—',
+            'placa'             => mb_strtoupper($attrs['placa'] ?? '—'),
+            'marca'             => mb_strtoupper($attrs['marca'] ?? '—'),
+            'modelo'            => mb_strtoupper($attrs['modelo'] ?? '—'),
         ]);
     }
 
@@ -382,16 +385,19 @@ class PolizaController extends Controller
             'cuota_proxima'         => $cuotaProxima,
             'fecha_emision'     => $poliza->fecha_emision?->format('d/m/Y'),
             'fecha_vencimiento' => $poliza->fecha_vencimiento?->format('d/m/Y'),
-            'asegurado_nombre'  => $snap['asegurado']['nombre'] ?? $poliza->asegurado_nombre ?? '—',
-            'asegurado_ci'      => $snap['asegurado']['ci'] ?? $poliza->asegurado_ci ?? '—',
+            // Sin asegurado propio (es la misma persona), se muestra el
+            // tomador — igual que en el PDF de la póliza. Datos de persona
+            // siempre en MAYÚSCULAS, sin importar cómo estén en la BD.
+            'asegurado_nombre'  => mb_strtoupper($snap['asegurado']['nombre'] ?? $poliza->asegurado_nombre ?? $snap['tomador']['nombre'] ?? '—'),
+            'asegurado_ci'      => mb_strtoupper($snap['asegurado']['ci'] ?? $poliza->asegurado_ci ?? $snap['tomador']['ci'] ?? '—'),
             'producto'          => $snap['producto']['nombre'] ?? $poliza->producto?->nombre ?? '—',
-            'placa'             => strtoupper($attrs['placa'] ?? '—'),
-            'marca'             => strtoupper($attrs['marca'] ?? '—'),
-            'modelo'            => strtoupper($attrs['modelo'] ?? '—'),
+            'placa'             => mb_strtoupper($attrs['placa'] ?? '—'),
+            'marca'             => mb_strtoupper($attrs['marca'] ?? '—'),
+            'modelo'            => mb_strtoupper($attrs['modelo'] ?? '—'),
             'anio'              => $attrs['anio'] ?? '—',
-            'color'             => strtoupper($attrs['color'] ?? '—'),
-            'serial_carroceria' => strtoupper($attrs['serial_carroceria'] ?? $attrs['serialCarroceria'] ?? '—'),
-            'serial_motor'      => strtoupper($attrs['serial_motor'] ?? $attrs['serialMotor'] ?? '—'),
+            'color'             => mb_strtoupper($attrs['color'] ?? '—'),
+            'serial_carroceria' => mb_strtoupper($attrs['serial_carroceria'] ?? $attrs['serialCarroceria'] ?? '—'),
+            'serial_motor'      => mb_strtoupper($attrs['serial_motor'] ?? $attrs['serialMotor'] ?? '—'),
             'moneda'            => $moneda,
             'moneda_simbolo'    => Moneda::simbolo($moneda),
             'total'             => $total,
