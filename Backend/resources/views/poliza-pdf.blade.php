@@ -33,7 +33,7 @@
     // emisión y sus renovaciones deben mostrar los mismos datos. Los campos
     // propios de esta emisión (fechas, tasas, pagos, totales) salen de las
     // columnas de la póliza, no del snapshot, así que no se contaminan.
-    if (empty($snap['bien']) && $poliza->solicitud_id) {
+    if (empty($snap['bien']['atributos']) && $poliza->solicitud_id) {
         $prevSnap = \App\Models\Poliza::where('solicitud_id', $poliza->solicitud_id)
             ->where('id', '<', $poliza->id)
             ->whereNotNull('snapshot_datos')
@@ -41,6 +41,10 @@
             ->value('snapshot_datos');
         if (is_array($prevSnap)) {
             $heredables = ['bien', 'tomador', 'asegurado', 'producto', 'coberturas', 'tarifario', 'rcv', 'apov', 'tasa_bcv'];
+            // Un 'bien' heredado sin atributos no aporta nada — no debe tapar
+            // los respaldos en vivo de más abajo.
+            if (empty($prevSnap['bien']['atributos'])) unset($prevSnap['bien']);
+            unset($snap['bien']);
             $snap += array_intersect_key($prevSnap, array_flip($heredables));
         }
     }
@@ -65,14 +69,21 @@
     // documento está acotado, cuando ese bien tiene certificado propio.
     $llevaCertificado = (bool) ($poliza->producto?->lleva_certificado ?? false)
         && ($bienScope ? $bienScope->certificado !== null : $poliza->bienes->count() > 1);
-    $bien        = $snap['bien'] ?? ($poliza->solicitud?->bien ? [
-        'tipo'          => $poliza->solicitud->bien->tipo,
-        'atributos'     => $poliza->solicitud->bien->atributos ?? [],
-        'observaciones' => $poliza->solicitud->bien->observaciones,
-    ] : []);
+    // El bien del snapshot solo vale si trae ATRIBUTOS: en migradas el
+    // vehículo se completó DESPUÉS en vivo (Editar Póliza) y el snapshot
+    // quedó con un 'bien' cascarón (tipo/atributos vacíos) que no debe tapar
+    // la data viva — mismo criterio que la landing del QR.
+    $bien = $snap['bien'] ?? [];
+    if (empty($bien['atributos']) && $poliza->solicitud?->bien) {
+        $bien = [
+            'tipo'          => $poliza->solicitud->bien->tipo,
+            'atributos'     => $poliza->solicitud->bien->atributos ?? [],
+            'observaciones' => $poliza->solicitud->bien->observaciones,
+        ];
+    }
     // Último respaldo del bien principal: el bien enlazado en poliza_bienes
     // (renovaciones cuyo origen no tiene ni snapshot ni bien en la solicitud).
-    if (empty($bien) && $bienPrincipal?->bien) {
+    if (empty($bien['atributos']) && $bienPrincipal?->bien) {
         $bien = [
             'tipo'          => $bienPrincipal->bien->tipo,
             'atributos'     => $bienPrincipal->bien->atributos ?? [],
