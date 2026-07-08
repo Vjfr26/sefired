@@ -21,6 +21,7 @@ import { fmtMonto, fmtNum, convertirMoneda, fmtTasa, pdfPage, pdfHdr, pdfSec, pd
 import { useInputLimits } from '../utils/inputLimits.js'
 import { buscarClientes, createCliente } from '../api/clientes.js'
 import { downloadPolizaPdf } from '../api/polizas.js'
+import { fetchVendedoresDisponibles } from '../api/usuarios.js'
 import { fetchTasas } from '../api/tasas.js'
 import { fetchProductos } from '../api/productos.js'
 import { fetchTarifario } from '../api/tarifario.js'
@@ -2151,6 +2152,8 @@ export default function Simulador() {
   const [fechaInicio, setFechaInicio] = useState('')
   const [fechaFin, setFechaFin] = useState('')
   const [productoFilter, setProductoFilter] = useState('')
+  const [vendedorFilter, setVendedorFilter] = useState('')
+  const [vendedores,     setVendedores]     = useState([]) // vacío si no hay permiso
   const [uwModal, setUwModal] = useState(null) // cotización para underwriting
   const [cotPage, setCotPage] = useState(0)
   const [cotPageSize, setCotPageSize] = useState(20)
@@ -2188,6 +2191,7 @@ export default function Simulador() {
       if (fechaInicio) params.fecha_inicio = fechaInicio
       if (fechaFin) params.fecha_fin = fechaFin
       if (productoFilter) params.producto_id = productoFilter
+      if (vendedorFilter) params.vendedor_id = vendedorFilter
       const res = await fetchCotizaciones(params)
       setCotizaciones(res.data ?? [])
       setCotTotal(res.total ?? 0)
@@ -2196,7 +2200,7 @@ export default function Simulador() {
     } finally {
       setLoadingCot(false)
     }
-  }, [cotPage, cotPageSize, chipActive, search, fechaInicio, fechaFin, productoFilter, showToast])
+  }, [cotPage, cotPageSize, chipActive, search, fechaInicio, fechaFin, productoFilter, vendedorFilter, showToast])
 
   useEffect(() => { loadData() }, [loadData])
   useEffect(() => { loadCots() }, [loadCots])
@@ -2217,7 +2221,14 @@ export default function Simulador() {
   }, [searchInput])
 
   // Al cambiar filtros, volver a la primera página.
-  useEffect(() => { setCotPage(0) }, [chipActive, search, fechaInicio, fechaFin, productoFilter, cotPageSize])
+  useEffect(() => { setCotPage(0) }, [chipActive, search, fechaInicio, fechaFin, productoFilter, vendedorFilter, cotPageSize])
+
+  // Filtro por vendedor: solo para quien puede ver la lista de vendedores
+  // (el endpoint exige permiso) — si falla, el select simplemente no se muestra.
+  useEffect(() => {
+    if (!canViewList) return
+    fetchVendedoresDisponibles().then(v => setVendedores(Array.isArray(v) ? v : [])).catch(() => setVendedores([]))
+  }, [canViewList])
 
   const openSim = () => {
     setSim(freshState()); setEditId(null); setStep(1)
@@ -2247,13 +2258,13 @@ export default function Simulador() {
     productos.map(p => [p.id, p.nombre])
   )].sort((a, b) => String(a[1]).localeCompare(String(b[1]), 'es'))
 
-  const hayFiltros = search.trim() || fechaInicio || fechaFin || productoFilter
+  const hayFiltros = search.trim() || fechaInicio || fechaFin || productoFilter || vendedorFilter
 
   // El servidor ya devolvió la página filtrada y ordenada: se renderiza tal cual.
   const pagedCots = cotizaciones
 
   const limpiarFiltros = () => {
-    setSearchInput(''); setSearch(''); setFechaInicio(''); setFechaFin(''); setProductoFilter(''); setCotPage(0)
+    setSearchInput(''); setSearch(''); setFechaInicio(''); setFechaFin(''); setProductoFilter(''); setVendedorFilter(''); setCotPage(0)
   }
 
   const cotTotalPages = Math.max(1, Math.ceil(cotTotal / cotPageSize))
@@ -2274,13 +2285,13 @@ export default function Simulador() {
       },
     })
 
-  // Imprime (abre en pestaña nueva) el PDF de una póliza ya emitida. Se abre la
-  // pestaña de forma síncrona ANTES del await para evitar el bloqueo de popups.
-  const handleImprimirPoliza = async (q) => {
-    if (!q.poliza_id) return
+  // Imprime (abre en pestaña nueva) el PDF de una póliza ya emitida, en la
+  // moneda elegida. Se abre la pestaña de forma síncrona ANTES del await para
+  // evitar el bloqueo de popups.
+  const imprimirPolizaEnMoneda = async (q, moneda) => {
     const win = window.open('', '_blank')
     try {
-      const blob = await downloadPolizaPdf(q.poliza_id)
+      const blob = await downloadPolizaPdf(q.poliza_id, null, moneda)
       const url  = URL.createObjectURL(blob)
       if (win) win.location = url; else window.open(url, '_blank')
       setTimeout(() => URL.revokeObjectURL(url), 60000)
@@ -2288,6 +2299,16 @@ export default function Simulador() {
       if (win) win.close()
       showToast(e.message || 'Error al generar el PDF', 'error')
     }
+  }
+
+  // Antes de generar el documento se pregunta la moneda de salida (Bs./$/€):
+  // el PDF sale con TODOS sus montos en esa moneda.
+  const handleImprimirPoliza = (q) => {
+    if (!q.poliza_id) return
+    showModal('elegirMonedaPdf', {
+      monedaNativa: q.moneda_producto,
+      onSelect: (m) => imprimirPolizaEnMoneda(q, m),
+    })
   }
 
   // Botones de acción de una cotización — reutilizados en la tabla (desktop) y
@@ -2459,7 +2480,7 @@ export default function Simulador() {
           {canViewList && (
             <div className="relative ml-auto w-full sm:w-56">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-              <input className="input-field pl-9 py-2 text-sm w-full" placeholder="Buscar…" value={searchInput} onChange={e => setSearchInput(e.target.value)} />
+              <input className="input-field pl-9 py-2 text-sm w-full" placeholder="Cliente, cédula, placa, póliza, COT-…" title="Busca por nombre o cédula del cliente/tomador, placa del vehículo, N° de póliza, N° de cotización (COT-…) o vendedor/sede" value={searchInput} onChange={e => setSearchInput(e.target.value)} />
               {searchInput && <button onClick={() => setSearchInput('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X className="w-3.5 h-3.5" /></button>}
             </div>
           )}
@@ -2486,6 +2507,16 @@ export default function Simulador() {
                 {productosEnCots.map(([id, nombre]) => <option key={id} value={id}>{nombre}</option>)}
               </select>
             </div>
+            {vendedores.length > 0 && (
+              <div className="min-w-[10rem]">
+                <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Vendedor</label>
+                <select value={vendedorFilter} onChange={e => { setVendedorFilter(e.target.value); setCotPage(0) }}
+                  className="select-field py-2 text-sm w-full">
+                  <option value="">Todos los vendedores</option>
+                  {vendedores.map(v => <option key={v.id} value={v.id}>{v.nombre}</option>)}
+                </select>
+              </div>
+            )}
             {hayFiltros && (
               <button onClick={limpiarFiltros}
                 className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-500 hover:text-rose-500 transition bg-transparent border border-slate-200 rounded-xl">
@@ -2559,7 +2590,7 @@ export default function Simulador() {
                       <th className="th-cell text-left">Cliente</th>
                       <th className="th-cell text-left hidden sm:table-cell">Vendedor</th>
                       <th className="th-cell text-left hidden xl:table-cell">Producto</th>
-                      <th className="th-cell text-right hidden sm:table-cell">Total USD</th>
+                      <th className="th-cell text-right hidden sm:table-cell">Total</th>
                       <th className="th-cell text-left hidden lg:table-cell">Fecha</th>
                       <th className="th-cell text-left">Estado</th>
                       {hasAnyAction && <th className="th-cell text-center">Acciones</th>}

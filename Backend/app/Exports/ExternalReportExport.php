@@ -266,14 +266,40 @@ class ExternalReportExport extends BaseExport
             $sheet->removeRow($rowIndex, $highestRow - $rowIndex + 1);
         }
 
+        // La plantilla oficial trae sus celdas en formato "General": los
+        // montos perdían los céntimos (5000.00 se veía "5000").
+        $this->formatearMontos($sheet);
+
         return $spreadsheet;
     }
 
+    /** Claves de columnas monetarias — llevan formato con céntimos (#,##0.00). */
+    private const MONETARIAS = ['suma_cosas', 'suma_personas', 'prima_anual'];
+
     /**
-     * Para la generación sin plantilla, aplicar la fórmula RECIBO.
+     * Formato con dos decimales a las columnas de montos. Sin esto Excel usa
+     * el formato "General" y los céntimos desaparecen (5000.00 → "5000").
+     */
+    private function formatearMontos($sheet): void
+    {
+        $highestRow = $sheet->getHighestRow();
+        if ($highestRow < 2) return;
+
+        foreach ($this->columnKeys() as $i => $key) {
+            if (!in_array($key, self::MONETARIAS, true)) continue;
+            $col = Coordinate::stringFromColumnIndex($i + 1);
+            $sheet->getStyle("{$col}2:{$col}{$highestRow}")
+                  ->getNumberFormat()->setFormatCode('#,##0.00');
+        }
+    }
+
+    /**
+     * Para la generación sin plantilla: formato de montos + fórmula RECIBO.
      */
     protected function afterSheet($sheet, $spreadsheet): void
     {
+        $this->formatearMontos($sheet);
+
         // Solo en formato completo la columna RECIBO es la fórmula =Y (col 35).
         // En formato personalizado el valor de RECIBO ya viene en los datos.
         if ($this->columns !== null) {

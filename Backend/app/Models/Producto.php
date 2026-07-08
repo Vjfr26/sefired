@@ -41,6 +41,7 @@ class Producto extends Model
         'documento_path',
         'documentos',
         'documentos_requeridos',
+        'coberturas_pdf',
         'created_by',
         'updated_by',
     ];
@@ -61,6 +62,7 @@ class Producto extends Model
             'prima'                 => 'decimal:2',
             'documentos'            => 'array',
             'documentos_requeridos' => 'array',
+            'coberturas_pdf'        => 'array',
         ];
     }
 

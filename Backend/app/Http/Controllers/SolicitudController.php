@@ -76,14 +76,46 @@ class SolicitudController extends Controller
             if ($request->filled('producto_id')) {
                 $q->where('producto_id', $request->input('producto_id'));
             }
+            if ($request->filled('vendedor_id')) {
+                $q->where('vendedor_id', $request->input('vendedor_id'));
+            }
             if ($request->filled('fecha_inicio')) $q->whereDate('fecha_solicitud', '>=', $request->input('fecha_inicio'));
             if ($request->filled('fecha_fin'))    $q->whereDate('fecha_solicitud', '<=', $request->input('fecha_fin'));
             if ($request->filled('search')) {
                 $s = trim($request->input('search'));
-                $q->where(function ($w) use ($s) {
-                    $w->whereHas('persona', fn ($p) => $p->where('nombre', 'like', "%{$s}%")->orWhere('cedula', 'like', "%{$s}%"))
-                      ->orWhereHas('bien', fn ($b) => $b->where('placa_idx', 'like', "%{$s}%"))
+                // "COT-2026-00013" (como se muestra en la tabla) codifica el ID
+                // de la solicitud — se extrae para que pegar ese número funcione.
+                $cotId = preg_match('/^cot[\s-]*\d{4}[\s-]*0*(\d+)$/i', $s, $m) ? (int) $m[1] : null;
+                // Cédulas y placas se teclean con o sin guiones/puntos/espacios
+                // ("V16478952" vs "V-16.478.952"): se compara sin separadores.
+                $limpio = preg_replace('/[\s.\-]+/', '', $s);
+                // Buscar por vendedor/sede solo para roles que ven todo: el
+                // scope del vendedor restringido se abre al buscar (detección
+                // de duplicados) y no debe servir para listar la cartera de
+                // otra sede por nombre.
+                $conVendedor = !$this->esRolRestringido();
+                $q->where(function ($w) use ($s, $limpio, $cotId, $conVendedor) {
+                    $w->whereHas('persona', function ($p) use ($s, $limpio) {
+                          $p->where('nombre', 'like', "%{$s}%")->orWhere('cedula', 'like', "%{$s}%");
+                          if ($limpio !== '') {
+                              // Siempre, no solo si el término trae separadores: la
+                              // cédula guardada "V-19876543" debe encontrarse
+                              // también tecleando "V19876543".
+                              $p->orWhereRaw("REPLACE(REPLACE(REPLACE(cedula, '-', ''), '.', ''), ' ', '') LIKE ?", ["%{$limpio}%"]);
+                          }
+                      })
+                      // Tomador manual (cuando el tomador no es el cliente registrado).
+                      ->orWhere('nombre_tomador', 'like', "%{$s}%")
+                      ->orWhere('ci_tomador', 'like', "%{$s}%");
+                    if ($limpio !== '') {
+                        $w->orWhereRaw("REPLACE(REPLACE(REPLACE(COALESCE(ci_tomador, ''), '-', ''), '.', ''), ' ', '') LIKE ?", ["%{$limpio}%"]);
+                    }
+                    $w->orWhereHas('bien', fn ($b) => $b->where('placa_idx', 'like', '%' . ($limpio !== '' ? $limpio : $s) . '%'))
                       ->orWhereHas('polizas', fn ($p) => $p->where('nro_contrato', 'like', "%{$s}%"));
+                    if ($conVendedor) {
+                        $w->orWhereHas('vendedor', fn ($v) => $v->where('nombre', 'like', "%{$s}%")->orWhere('sede', 'like', "%{$s}%"));
+                    }
+                    if ($cotId !== null) $w->orWhere('id', $cotId);
                     if (ctype_digit($s)) $w->orWhere('id', (int) $s);
                 });
             }

@@ -53,7 +53,7 @@ export default function PdfViewer() {
   return (
     // Fondo oscuro semitransparente; clic en él cierra el visor
     <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4"
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[95] flex items-center justify-center p-4"
     >
       {/* Contenedor del visor: ancho máximo y altura limitada al 90% de la pantalla */}
       <div ref={panelRef} tabIndex={-1} className="bg-[#323639] rounded-2xl shadow-2xl w-full max-w-5xl flex flex-col overflow-hidden outline-none animate-in zoom-in duration-200"

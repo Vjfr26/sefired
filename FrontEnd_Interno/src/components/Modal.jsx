@@ -33,7 +33,7 @@
  */
 import { useRef, useState, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Trash2, Pencil, Check, Lock, LockOpen, ShieldCheck, Building, UserCheck, Truck, UserCog, Car, Shield, DollarSign, RotateCcw, FileText, SlidersHorizontal, Receipt, FileCheck, Eye, Upload, ClipboardList, Search, AlertTriangle, AlertCircle, CheckCircle, Clock, User, Phone, MapPin, Briefcase, Download, RefreshCw, Users, Plus, ChevronRight, Package, MessageSquareText } from 'lucide-react'
+import { X, Trash2, Pencil, Check, Lock, LockOpen, ShieldCheck, Building, UserCheck, Truck, UserCog, Car, Shield, DollarSign, RotateCcw, FileText, SlidersHorizontal, Receipt, FileCheck, Eye, Upload, ClipboardList, Search, AlertTriangle, AlertCircle, CheckCircle, Clock, User, Phone, MapPin, Briefcase, Download, RefreshCw, Users, Plus, ChevronRight, Package, MessageSquareText, Printer } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import FormGrid from './FormGrid.jsx'
 import { useInputLimits } from '../utils/inputLimits.js'
@@ -67,8 +67,10 @@ function ModalShell({ title, children, footer, wide = false, maxW, Icon, eyebrow
 
   return (
     // Fondo oscuro — no cierra al hacer clic; solo la X o "Cancelar/Cerrar" cierran el modal
+    // z-[90]: por encima de los modales de página (z-[80]) — confirmDelete y
+    // demás modales globales se abren también desde dentro de esos modales.
     <div
-      className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4 sm:p-6 backdrop-blur-sm"
+      className="fixed inset-0 bg-black/50 z-[90] flex items-center justify-center p-4 sm:p-6 backdrop-blur-sm"
     >
       <div ref={panelRef} tabIndex={-1} className={`bg-white rounded-3xl shadow-2xl w-full ${sizeClass} max-h-[90vh] overflow-y-auto animate-in zoom-in duration-200 outline-none`}>
         <div className="p-6 sm:p-8">
@@ -93,6 +95,43 @@ function ModalShell({ title, children, footer, wide = false, maxW, Icon, eyebrow
         </div>
       </div>
     </div>
+  )
+}
+
+// ── Elegir moneda para imprimir/exportar el PDF de una póliza ────────────────
+/**
+ * Pregunta en qué moneda se quiere el documento antes de generarlo. El PDF
+ * sale con TODOS los montos convertidos a la moneda elegida (el backend usa
+ * la tasa BCV de emisión de la póliza, o la del día si no la tiene).
+ *
+ * @param {string}   monedaNativa Moneda nativa de la póliza (preseleccionada)
+ * @param {Function} onSelect     Recibe la moneda elegida ('BS'|'USD'|'EUR')
+ */
+function ElegirMonedaPdfModal({ monedaNativa = 'BS', onSelect }) {
+  const { closeModal } = useApp()
+  const nativa = (monedaNativa || 'BS').toUpperCase() === 'BS.' ? 'BS' : (monedaNativa || 'BS').toUpperCase()
+  const opciones = [
+    { m: 'BS',  label: 'Bolívares', simbolo: 'Bs.', cls: 'border-blue-500 bg-blue-50 text-blue-700 hover:bg-blue-100' },
+    { m: 'USD', label: 'Dólares',   simbolo: '$',   cls: 'border-emerald-500 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
+    { m: 'EUR', label: 'Euros',     simbolo: '€',   cls: 'border-amber-500 bg-amber-50 text-amber-700 hover:bg-amber-100' },
+  ]
+  const elegir = (m) => { closeModal(); onSelect?.(m) }
+  return (
+    <ModalShell title="¿En qué moneda imprimir?" Icon={Printer} eyebrow="Imprimir póliza">
+      <p className="text-sm text-slate-500 mb-4">
+        Todos los montos del documento saldrán en la moneda elegida.
+      </p>
+      <div className="grid grid-cols-3 gap-3">
+        {opciones.map(({ m, label, simbolo, cls }) => (
+          <button key={m} type="button" onClick={() => elegir(m)}
+            className={`flex flex-col items-center gap-1 py-4 rounded-2xl border-2 font-bold transition ${cls}`}>
+            <span className="text-2xl font-black">{simbolo}</span>
+            <span className="text-xs">{label}</span>
+            {m === nativa && <span className="text-[10px] font-semibold opacity-70">(moneda de la póliza)</span>}
+          </button>
+        ))}
+      </div>
+    </ModalShell>
   )
 }
 
@@ -4713,7 +4752,7 @@ function ClienteHistorialModal({ c, onSaved }) {
     {/* Visor PDF — renderizado fuera del ModalShell para evitar overflow:hidden */}
     {pdfVisor && createPortal(
       <div
-        className="fixed inset-0 z-[65] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 sm:p-8"
+        className="fixed inset-0 z-[95] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 sm:p-8"
       >
         <div ref={pdfVisorPanelRef} tabIndex={-1} className="flex flex-col w-full max-w-3xl rounded-xl overflow-hidden shadow-2xl outline-none animate-in zoom-in duration-200" style={{ height: '80vh' }}>
           <div className="flex items-center gap-2 px-4 h-11 bg-[#323639] shrink-0">
@@ -5512,6 +5551,7 @@ export default function Modal() {
   const { type, props } = modal
   switch (type) {
     case 'confirmDelete':   return <ConfirmDeleteModal {...props} />
+    case 'elegirMonedaPdf': return <ElegirMonedaPdfModal {...props} />
     case 'confirmTasa':     return <ConfirmTasaModal {...props} />
     case 'confirmAction':   return <ConfirmActionModal {...props} />
     case 'noteView':        return <NoteViewModal {...props} />

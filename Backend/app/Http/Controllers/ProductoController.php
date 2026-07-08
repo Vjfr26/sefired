@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\IndicadorEconomico;
+use App\Models\Poliza;
 use App\Models\Producto;
 use App\Models\Solicitud;
 use App\Rules\NoInjectionChars;
@@ -10,6 +11,7 @@ use App\Support\EnvioDocumentosProducto;
 use App\Support\Moneda;
 use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
@@ -86,6 +88,11 @@ class ProductoController extends Controller
             'documentos_requeridos'  => 'nullable|array',
             'documentos_requeridos.*.nombre'      => ['required', 'string', 'max:100', $noInjection],
             'documentos_requeridos.*.obligatorio' => 'required|boolean',
+            // Renglones de "Coberturas / Sumas Aseguradas" del cuadro póliza
+            // (PDF). Los montos de cada renglón se fijan por tarifa.
+            'coberturas_pdf'          => 'nullable|array',
+            'coberturas_pdf.*.key'    => ['required', 'string', 'max:80', $noInjection],
+            'coberturas_pdf.*.label'  => ['required', 'string', 'max:80', $noInjection],
         ]);
 
         $producto = Producto::create($data);
@@ -132,20 +139,27 @@ class ProductoController extends Controller
             'documentos_requeridos'  => 'nullable|array',
             'documentos_requeridos.*.nombre'      => ['required_with:documentos_requeridos', 'string', 'max:100', $noInjection],
             'documentos_requeridos.*.obligatorio' => 'required_with:documentos_requeridos|boolean',
+            'coberturas_pdf'          => 'sometimes|nullable|array',
+            'coberturas_pdf.*.key'    => ['required_with:coberturas_pdf', 'string', 'max:80', $noInjection],
+            'coberturas_pdf.*.label'  => ['required_with:coberturas_pdf', 'string', 'max:80', $noInjection],
         ]);
 
         $publicadoAnterior = $producto->publicado;
         $monedaAnterior    = $producto->moneda;
         $producto->update($data);
 
-        // Si cambió la moneda del producto, propagarla a las cotizaciones
-        // (pólizas por emitir) que aún no se han emitido — así no quedan con la
-        // moneda vieja al momento de emitir. Las emitidas/rechazadas son
-        // terminales (snapshot definitivo) y no se tocan.
+        // Si se envía la moneda del producto, re-etiquetar TODAS sus
+        // cotizaciones y pólizas cuya moneda difiera — incluidas las emitidas.
+        // El negocio maneja una sola moneda por producto (cero mezcla en
+        // documentos): dejar emitidas con la moneda vieja producía listados y
+        // PDFs "en bolívares". Se compara por fila (no contra la moneda
+        // anterior del producto) para que re-guardar el producto también
+        // corrija datos históricos mal etiquetados.
         $cotizacionesActualizadas = 0;
-        if (array_key_exists('moneda', $data)
-            && Moneda::normalizar($monedaAnterior) !== Moneda::normalizar($data['moneda'])) {
+        $polizasActualizadas      = 0;
+        if (array_key_exists('moneda', $data)) {
             $cotizacionesActualizadas = $this->propagarMonedaACotizaciones($producto, $data['moneda']);
+            $polizasActualizadas      = $this->propagarMonedaAPolizas($producto, $data['moneda']);
         }
 
         if (array_key_exists('publicado', $data) && (bool) $publicadoAnterior !== (bool) $data['publicado']) {
@@ -157,8 +171,8 @@ class ProductoController extends Controller
             );
         } else {
             $detalle = "Producto \"{$producto->nombre}\" actualizado";
-            if ($cotizacionesActualizadas > 0) {
-                $detalle .= " — moneda {$monedaAnterior}→{$data['moneda']} propagada a {$cotizacionesActualizadas} cotización(es) por emitir";
+            if ($cotizacionesActualizadas > 0 || $polizasActualizadas > 0) {
+                $detalle .= " — moneda {$data['moneda']} propagada a {$cotizacionesActualizadas} cotización(es) y {$polizasActualizadas} póliza(s)";
             }
             $this->logActivity('Producto Actualizado', $detalle, 'producto', auth()->id());
         }
@@ -166,54 +180,98 @@ class ProductoController extends Controller
         // fresh() recarga el modelo de la base de datos para obtener los valores actualizados
         $resp = $this->row($producto->fresh());
         $resp['cotizaciones_actualizadas'] = $cotizacionesActualizadas;
+        $resp['polizas_actualizadas']      = $polizasActualizadas;
         return response()->json($resp);
     }
 
+    /** Tasas BCV del día (USD, EUR) para recalcular equivalentes en Bs. */
+    private function tasasDelDia(): array
+    {
+        $usd = (float) (IndicadorEconomico::usd()->orderByDesc('fecha')->orderByDesc('fecha_registro')->value('valor') ?? 0);
+        $eur = (float) (IndicadorEconomico::eur()->orderByDesc('fecha')->orderByDesc('fecha_registro')->value('valor') ?? 0);
+
+        return [$usd, $eur];
+    }
+
     /**
-     * Propaga la nueva moneda del producto a sus cotizaciones por emitir.
+     * Condición SQL "la moneda de la fila NO es la moneda dada" — normaliza
+     * en la propia consulta (mayúsculas, sin puntos/espacios, sinónimos) para
+     * poder re-etiquetar con UN solo UPDATE masivo. Iterar fila por fila (como
+     * se hacía antes) moría por timeout con cientos de miles de cotizaciones
+     * en el hosting compartido → el guardar producto devolvía 500.
+     */
+    private function whereMonedaDistinta($query, string $columna, string $moneda)
+    {
+        $sinonimos = match ($moneda) {
+            'BS'    => "'BS','BOLIVAR','BOLIVARES'",
+            'EUR'   => "'EUR','EURO','EUROS'",
+            default => "'USD','DOLAR','DOLARES'",
+        };
+        // NULL normaliza a USD (igual que Moneda::normalizar).
+        $col = "UPPER(REPLACE(REPLACE(COALESCE({$columna}, 'USD'), '.', ''), ' ', ''))";
+
+        return $query->whereRaw("{$col} NOT IN ({$sinonimos})");
+    }
+
+    /** Factor moneda→Bs con las tasas del día (0 si no hay tasa registrada). */
+    private function factorABs(string $moneda): float
+    {
+        [$usd, $eur] = $this->tasasDelDia();
+
+        return $moneda === 'EUR' ? $eur : ($moneda === 'USD' ? $usd : 1.0);
+    }
+
+    /**
+     * Re-etiqueta la moneda del producto en TODAS sus cotizaciones cuya
+     * moneda difiera (incluidas emitidas/rechazadas — el producto tiene una
+     * sola moneda y los documentos no mezclan monedas). El monto en moneda
+     * nativa (total) se conserva tal cual — solo se reetiqueta la moneda,
+     * igual que la prima del producto, que tampoco cambia de número al
+     * cambiar su moneda. El total en bolívares (total_bs) sí se recalcula
+     * con la tasa BCV del día para que el equivalente quede coherente.
      *
-     * Solo se actualizan las solicitudes NO emitidas y NO rechazadas
-     * (en_revision, aprobado, pendiente). El monto en moneda nativa (total) se
-     * conserva tal cual — solo se reetiqueta la moneda, igual que la prima del
-     * producto, que tampoco cambia de número al cambiar su moneda. El total en
-     * bolívares (total_bs) sí se recalcula con la tasa BCV del día para que el
-     * equivalente mostrado quede coherente con la nueva moneda.
+     * Nota: el JSON `coberturas` de cada fila NO se toca — todo el sistema
+     * lee la moneda desde la columna moneda_producto (y las tasas desde
+     * tasa_bcv/indicadores), y editar el JSON obligaba a iterar fila por
+     * fila, que es justo lo que mataba la petición.
      *
      * @return int  Cantidad de cotizaciones actualizadas.
      */
     private function propagarMonedaACotizaciones(Producto $producto, string $monedaNueva): int
     {
         $moneda = Moneda::normalizar($monedaNueva);
+        $factor = $this->factorABs($moneda);
 
-        // Tasas BCV del día para recalcular el equivalente en Bs.
-        $usd = (float) (IndicadorEconomico::usd()->orderByDesc('fecha')->orderByDesc('fecha_registro')->value('valor') ?? 0);
-        $eur = (float) (IndicadorEconomico::eur()->orderByDesc('fecha')->orderByDesc('fecha_registro')->value('valor') ?? 0);
+        return $this->whereMonedaDistinta(Solicitud::where('producto_id', $producto->id), 'moneda_producto', $moneda)
+            ->update([
+                'moneda_producto' => $moneda,
+                'total_bs'        => DB::raw('ROUND(total * ' . $factor . ', 2)'),
+            ]);
+    }
 
-        $actualizadas = 0;
+    /**
+     * Re-etiqueta la moneda del producto en sus pólizas cuya moneda difiera.
+     *
+     * Igual que con las cotizaciones: el monto nativo (total/cobertura) no
+     * cambia de número, solo su etiqueta; los equivalentes en Bs. se
+     * recalculan con la tasa del día. snapshot_datos no se toca: los PDFs
+     * resuelven la moneda vía Poliza::monedaNativa(), que lee PRIMERO la
+     * columna moneda_producto (el snapshot es solo respaldo cuando la
+     * columna está en NULL, y acá queda siempre asignada).
+     *
+     * @return int  Cantidad de pólizas actualizadas.
+     */
+    private function propagarMonedaAPolizas(Producto $producto, string $monedaNueva): int
+    {
+        $moneda = Moneda::normalizar($monedaNueva);
+        $factor = $this->factorABs($moneda);
 
-        Solicitud::where('producto_id', $producto->id)
-            ->whereNotIn('status', ['emitida', 'rechazado'])
-            ->each(function (Solicitud $s) use ($moneda, $usd, $eur, &$actualizadas) {
-                $total   = (float) $s->total;
-                $totalBs = Moneda::aBs($total, $moneda, $usd, $eur);
-
-                // Mantener el snapshot de coberturas coherente con la nueva moneda.
-                $cobs = is_array($s->coberturas) ? $s->coberturas : [];
-                if (array_key_exists('moneda', $cobs))  $cobs['moneda']   = $moneda;
-                if (array_key_exists('total_bs', $cobs)) $cobs['total_bs'] = $totalBs;
-                if (array_key_exists('tasaBCV', $cobs)) {
-                    $cobs['tasaBCV'] = $moneda === 'EUR' ? $eur : ($moneda === 'USD' ? $usd : 0);
-                }
-
-                $s->update([
-                    'moneda_producto' => $moneda,
-                    'total_bs'        => $totalBs,
-                    'coberturas'      => $cobs,
-                ]);
-                $actualizadas++;
-            });
-
-        return $actualizadas;
+        return $this->whereMonedaDistinta(Poliza::where('producto_id', $producto->id), 'moneda_producto', $moneda)
+            ->update([
+                'moneda_producto' => $moneda,
+                'total_bs'        => DB::raw('ROUND(total * ' . $factor . ', 2)'),
+                'cobertura_bs'    => DB::raw('ROUND(cobertura_dolares * ' . $factor . ', 2)'),
+            ]);
     }
 
     /**
@@ -405,6 +463,7 @@ class ProductoController extends Controller
             'recargo_mensual_pct'   => $p->recargo_mensual_pct !== null ? (float) $p->recargo_mensual_pct : null,
             'documentos'            => $this->formatDocumentos($p->documentos ?? []),
             'documentos_requeridos' => $p->documentos_requeridos ?? [],
+            'coberturas_pdf'        => $p->coberturas_pdf ?? [],
             'beneficios'            => $p->beneficios->map(fn($b) => [
                 'id'          => $b->id,
                 'descripcion' => $b->descripcion,

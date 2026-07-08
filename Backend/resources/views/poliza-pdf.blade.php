@@ -103,9 +103,25 @@
     $tarifaDatos = $cobs['tarifa']['datos'] ?? ($snap['tarifario']['datos'] ?? []);
 
     // Todos los montos del documento (prima, sumas aseguradas, IVA, total a
-    // cobrar) van en la moneda nativa del producto — nunca mezclada con otra.
+    // cobrar) van en UNA sola moneda — nunca mezclada con otra. Por defecto
+    // es la moneda nativa de la póliza; al imprimir se puede elegir otra
+    // (?moneda=USD|BS|EUR) y TODOS los montos se convierten con la tasa BCV
+    // de emisión de la póliza (la que congeló sus montos) o, si la póliza no
+    // la tiene registrada, la tasa del día.
     $monedaProducto = $poliza->monedaNativa();
-    $monedaSimbolo  = \App\Support\Moneda::simbolo($monedaProducto);
+    $monedaDoc      = \App\Support\Moneda::normalizar($monedaSalida ?? $monedaProducto);
+    $convFactor     = 1.0;
+    if ($monedaDoc !== $monedaProducto) {
+        // tasa_emision quedó con default 1.0 en pólizas viejas = "sin tasa".
+        $tasaU = (float) $poliza->tasa_emision;
+        $tasaE = (float) $poliza->tasa_emision_eur;
+        if ($tasaU <= 1) $tasaU = (float) (\App\Models\IndicadorEconomico::usd()->orderByDesc('fecha')->orderByDesc('fecha_registro')->value('valor') ?? 0);
+        if ($tasaE <= 1) $tasaE = (float) (\App\Models\IndicadorEconomico::eur()->orderByDesc('fecha')->orderByDesc('fecha_registro')->value('valor') ?? 0);
+        $convFactor = \App\Support\Moneda::convertir(1.0, $monedaProducto, $monedaDoc, $tasaU, $tasaE);
+        if ($convFactor <= 0) { $monedaDoc = $monedaProducto; $convFactor = 1.0; } // sin tasa: quedarse en la nativa
+    }
+    $fmtM = fn($v) => number_format(((float) $v) * $convFactor, 2);
+    $monedaSimbolo = \App\Support\Moneda::simbolo($monedaDoc);
 
     $tomadorNombre = $tomador['nombre']   ?? ($poliza->asegurado_nombre ?? '—');
     $tomadorCi     = $tomador['ci']       ?? ($poliza->asegurado_ci     ?? '—');
@@ -176,12 +192,23 @@
     };
 
     $cobertura_items = [];
-    if ($tipoCal === 'por_valor') {
+    // Renglones definidos por el usuario en el producto (nombres) con el
+    // monto de la tarifa emitida (datos.coberturas_pdf = {slug: {label, suma}}).
+    // Si existen, son LA fuente del cuadro "Coberturas / Sumas Aseguradas" y
+    // sustituyen tanto la cuadrícula fija de vehículo como los derivados.
+    $cobsPdf = $tarifaDatos['coberturas_pdf'] ?? [];
+    if (is_array($cobsPdf) && count($cobsPdf) > 0) {
+        foreach ($cobsPdf as $key => $val) {
+            if (!is_array($val)) continue;
+            $label = $val['label'] ?? ucwords(str_replace('_', ' ', (string) $key));
+            $cobertura_items[] = [$label, $fmtM($val['suma'] ?? 0)];
+        }
+    } elseif ($tipoCal === 'por_valor') {
         // "por_valor" no es exclusivo de vehículos (ej. Póliza Muebles también
         // lo usa) — antes decía "Responsabilidad Civil Obligatoria" siempre,
         // aunque el bien fuera un inmueble o cualquier otro bien de valor.
         $labelPorValor = ($bien['tipo'] ?? null) === 'vehiculo' ? 'Responsabilidad Civil Obligatoria' : 'Suma Asegurada';
-        $cobertura_items[] = [$labelPorValor, number_format((float)$poliza->cobertura_dolares, 2)];
+        $cobertura_items[] = [$labelPorValor, $fmtM($poliza->cobertura_dolares)];
     } elseif ($tipoCal === 'por_plan' && is_array($tarifaDatos)) {
         // Las coberturas de un plan son un mapa de claves nombradas (ver
         // TarifarioController) — antes solo se reconocían 4 claves fijas que
@@ -190,36 +217,36 @@
         foreach ($tarifaDatos as $key => $val) {
             if (is_array($val) && isset($val['suma'])) {
                 $label = $val['label'] ?? ucwords(str_replace('_', ' ', (string) $key));
-                $cobertura_items[] = [$label, number_format((float)$val['suma'], 2)];
+                $cobertura_items[] = [$label, $fmtM($val['suma'])];
             }
         }
     } elseif ($tipoCal === 'fijo' && is_array($tarifaDatos)) {
-        if (!empty($tarifaDatos['suma_persona'])) $cobertura_items[] = ['Suma por Persona', number_format((float)$tarifaDatos['suma_persona'], 2)];
-        if (!empty($tarifaDatos['suma_cosa']))    $cobertura_items[] = ['Suma por Cosa',    number_format((float)$tarifaDatos['suma_cosa'],   2)];
+        if (!empty($tarifaDatos['suma_persona'])) $cobertura_items[] = ['Suma por Persona', $fmtM($tarifaDatos['suma_persona'])];
+        if (!empty($tarifaDatos['suma_cosa']))    $cobertura_items[] = ['Suma por Cosa',    $fmtM($tarifaDatos['suma_cosa'])];
     } elseif ($tipoCal === 'por_nivel' && is_array($tarifaDatos)) {
-        if (!empty($tarifaDatos['suma'])) $cobertura_items[] = [$tarifaDatos['nivel'] ?? 'Suma Asegurada', number_format((float)$tarifaDatos['suma'], 2)];
+        if (!empty($tarifaDatos['suma'])) $cobertura_items[] = [$tarifaDatos['nivel'] ?? 'Suma Asegurada', $fmtM($tarifaDatos['suma'])];
     }
     // Pólizas sin tarifario enlazado (anteriores a esa relación): la suma
     // asegurada se guarda directamente en la póliza, sin depender del snapshot.
     if (empty($cobertura_items) && (float) $poliza->cobertura_dolares > 0) {
-        $cobertura_items[] = ['Suma Asegurada', number_format((float) $poliza->cobertura_dolares, 2)];
+        $cobertura_items[] = ['Suma Asegurada', $fmtM($poliza->cobertura_dolares)];
     }
     // Pólizas MIGRADAS: la cobertura real quedó en el snapshot bajo 'rcv'/'apov'
     // (no en la tarifa ni en cobertura_dolares). Se muestran esas sumas reales —
     // NO se inventa nada, son los montos migrados de la póliza original.
     if (empty($cobertura_items)) {
         $rcvSnap = $snap['rcv'] ?? [];
-        if (!empty($rcvSnap['suma_persona'])) $cobertura_items[] = ['Daños a Personas', number_format((float) $rcvSnap['suma_persona'], 2)];
-        if (!empty($rcvSnap['suma_cosa']))    $cobertura_items[] = ['Daños a Cosas',    number_format((float) $rcvSnap['suma_cosa'], 2)];
+        if (!empty($rcvSnap['suma_persona'])) $cobertura_items[] = ['Daños a Personas', $fmtM($rcvSnap['suma_persona'])];
+        if (!empty($rcvSnap['suma_cosa']))    $cobertura_items[] = ['Daños a Cosas',    $fmtM($rcvSnap['suma_cosa'])];
         $apovSnap = $snap['apov'] ?? [];
-        if (!empty($apovSnap['suma_muerte_accidental'])) $cobertura_items[] = ['Muerte Accidental',  number_format((float) $apovSnap['suma_muerte_accidental'], 2)];
-        if (!empty($apovSnap['suma_invalidez']))         $cobertura_items[] = ['Invalidez',           number_format((float) $apovSnap['suma_invalidez'], 2)];
-        if (!empty($apovSnap['suma_medicos']))           $cobertura_items[] = ['Gastos Médicos',      number_format((float) $apovSnap['suma_medicos'], 2)];
-        if (!empty($apovSnap['suma_funerarios']))        $cobertura_items[] = ['Gastos Funerarios',   number_format((float) $apovSnap['suma_funerarios'], 2)];
+        if (!empty($apovSnap['suma_muerte_accidental'])) $cobertura_items[] = ['Muerte Accidental',  $fmtM($apovSnap['suma_muerte_accidental'])];
+        if (!empty($apovSnap['suma_invalidez']))         $cobertura_items[] = ['Invalidez',           $fmtM($apovSnap['suma_invalidez'])];
+        if (!empty($apovSnap['suma_medicos']))           $cobertura_items[] = ['Gastos Médicos',      $fmtM($apovSnap['suma_medicos'])];
+        if (!empty($apovSnap['suma_funerarios']))        $cobertura_items[] = ['Gastos Funerarios',   $fmtM($apovSnap['suma_funerarios'])];
     }
     // Último respaldo: la suma asegurada en Bs guardada en la propia póliza.
     if (empty($cobertura_items) && (float) $poliza->cobertura_bs > 0) {
-        $cobertura_items[] = ['Suma Asegurada', number_format((float) $poliza->cobertura_bs, 2)];
+        $cobertura_items[] = ['Suma Asegurada', $fmtM($poliza->cobertura_bs)];
     }
 
     // Para vehículos el cuadro póliza estándar (modelo La Venezolana) usa un
@@ -227,8 +254,10 @@
     // las que el producto no tenga configuradas se muestran en 0,00, igual
     // que en un cuadro póliza real cuando esa cobertura no aplica.
     $coberturaGrid = null;
-    if (($bien['tipo'] ?? null) === 'vehiculo' && $tipoCal === 'fijo' && is_array($tarifaDatos)) {
-        $g = fn($k) => number_format((float) ($tarifaDatos[$k] ?? 0), 2);
+    // La cuadrícula fija de 8 coberturas de auto solo aplica cuando el
+    // producto NO definió sus propios renglones (coberturas_pdf manda).
+    if (empty($cobsPdf) && ($bien['tipo'] ?? null) === 'vehiculo' && $tipoCal === 'fijo' && is_array($tarifaDatos)) {
+        $g = fn($k) => $fmtM($tarifaDatos[$k] ?? 0);
         $coberturaGrid = [
             ['Daños a Personas', $g('suma_persona'), 'Exceso de Límite', $g('exceso_limite'), 'Muerte e Invalidez', $g('muerte_invalidez')],
             ['Daños a Cosas',    $g('suma_cosa'),    'Defensa Penal',    $g('defensa_penal'), 'Gastos Médicos',     $g('gastos_medicos')],
@@ -239,7 +268,7 @@
     // La póliza se queda en su moneda nativa de principio a fin — sin tasa
     // BCV ni equivalente en bolívares en el cuadro (no se mezcla con Bs.).
     $monedaPago     = $poliza->moneda ?? $snap['moneda'] ?? 'USD';
-    $monedaLabel    = \App\Support\Moneda::etiqueta($monedaProducto);
+    $monedaLabel    = \App\Support\Moneda::etiqueta($monedaDoc);
     $frecuenciaPago = strtoupper($poliza->frecuencia_pago ?? 'Anual');
 
     $imgLogon  = 'data:image/jpeg;base64,' . base64_encode(file_get_contents(public_path('images/logon.jpg')));
@@ -420,7 +449,7 @@
         <th>{{ $poliza->sede_poliza }}</th>
         <th>{{ $canalVenta }}</th>
         <th>{{ $frecuenciaPago }}</th>
-        <th>{{ $monedaSimbolo }}{{ number_format((float)$poliza->total, 2) }}</th>
+        <th>{{ $monedaSimbolo }}{{ $fmtM($poliza->total) }}</th>
     </tr>
     {{-- Sin tasa BCV ni total en bolívares acá a propósito: la póliza se
          emite en una sola moneda (la del producto) y se queda en esa
@@ -438,10 +467,9 @@
     <tr><th colspan="6" class="linea">Planes Asociados</th></tr>
     <tr class="titu2">
         <td colspan="6" style="border:1px solid #888; padding:3px 5px;">
+            {{-- Solo el producto (ej. "RCV") — el nombre interno de la tarifa
+                 ("Plan: …") no debe salir en el documento. --}}
             Producto: <strong>{{ $prodSnap['nombre'] ?? $poliza->producto?->nombre ?? '—' }}</strong>
-            @if(!empty($cobs['tarifa']['nombre']))
-                &nbsp;|&nbsp; Plan: <strong>{{ $cobs['tarifa']['nombre'] }}</strong>
-            @endif
         </td>
     </tr>
 
@@ -531,7 +559,7 @@
     <tr>
         @if(($cobs['iva'] ?? 0) > 0)
         <td style="border-left:1px solid #888; border-bottom:1px solid #888; text-align:left; padding:3px 5px; color:#555; font-size:9px;">IVA:</td>
-        <td style="border-bottom:1px solid #888; padding:3px 5px;"><strong>{{ $monedaSimbolo }}{{ number_format((float)$cobs["iva"], 2) }}</strong></td>
+        <td style="border-bottom:1px solid #888; padding:3px 5px;"><strong>{{ $monedaSimbolo }}{{ $fmtM($cobs["iva"]) }}</strong></td>
         <td colspan="4" style="border-right:1px solid #888; border-bottom:1px solid #888;"></td>
         @else
         <td colspan="6" style="border-left:1px solid #888; border-right:1px solid #888; border-bottom:1px solid #888;"></td>

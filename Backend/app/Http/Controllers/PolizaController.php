@@ -251,7 +251,14 @@ class PolizaController extends Controller
             $qrCode = null; // si falla, el blade lo omite
         }
 
-        $pdf = Pdf::loadView('poliza-pdf', compact('poliza', 'qrCode', 'bienesAdicionales', 'numeroRecibo', 'esRenovacion', 'bienScope'))
+        // Moneda de salida elegida al imprimir (?moneda=USD|BS|EUR). Sin el
+        // parámetro, el documento sale en la moneda nativa de la póliza.
+        $monedaSalida = $request->query('moneda');
+        if ($monedaSalida !== null && !in_array(strtoupper($monedaSalida), ['USD', 'BS', 'EUR'], true)) {
+            return response()->json(['error' => 'Moneda inválida.'], 422);
+        }
+
+        $pdf = Pdf::loadView('poliza-pdf', compact('poliza', 'qrCode', 'bienesAdicionales', 'numeroRecibo', 'esRenovacion', 'bienScope', 'monedaSalida'))
                   ->setPaper('letter', 'portrait');
 
         $certSuffix = $bienScope && $bienScope->certificado

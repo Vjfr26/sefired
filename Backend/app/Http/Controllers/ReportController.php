@@ -288,6 +288,12 @@ class ReportController extends Controller
 
     public function exportExternalReport(Request $request)
     {
+        // El Excel se arma completo en memoria (PhpSpreadsheet): con miles de
+        // pólizas los límites por defecto del hosting (memoria/tiempo) matan
+        // la petición con 500 antes de responder.
+        ini_set('memory_limit', '1024M');
+        set_time_limit(300);
+
         $query = Poliza::with(['solicitud.persona', 'solicitud.bien', 'producto'])
             ->orderBy('fecha_emision', 'desc');
 
@@ -404,7 +410,30 @@ class ReportController extends Controller
      */
     private function totalUsd($p): float
     {
-        return Moneda::aUsd((float) $p->total, $p->monedaNativa(), (float) $p->tasa_emision, (float) $p->tasa_emision_eur);
+        // Pólizas migradas/viejas quedaron con tasa_emision en el default 1.0
+        // (= "sin tasa registrada"): convertir con 1 dejaría el monto en Bs
+        // haciéndose pasar por USD (inflación ×tasa al mostrarlo en Bs.).
+        // Para esas se usa la tasa BCV del día.
+        $tasaUsd = (float) $p->tasa_emision;
+        $tasaEur = (float) $p->tasa_emision_eur;
+        if ($tasaUsd <= 1 || $tasaEur <= 1) {
+            [$usdHoy, $eurHoy] = $this->tasasHoy();
+            if ($tasaUsd <= 1) $tasaUsd = $usdHoy;
+            if ($tasaEur <= 1) $tasaEur = $eurHoy;
+        }
+
+        return Moneda::aUsd((float) $p->total, $p->monedaNativa(), $tasaUsd, $tasaEur);
+    }
+
+    /** Tasas BCV del día (USD, EUR), memoizadas — totalUsd corre por póliza. */
+    private ?array $tasasHoy = null;
+
+    private function tasasHoy(): array
+    {
+        return $this->tasasHoy ??= [
+            (float) (IndicadorEconomico::usd()->orderByDesc('fecha')->orderByDesc('fecha_registro')->value('valor') ?? 0),
+            (float) (IndicadorEconomico::eur()->orderByDesc('fecha')->orderByDesc('fecha_registro')->value('valor') ?? 0),
+        ];
     }
 
     private function sumTotalUsd($policies): float
@@ -653,6 +682,20 @@ class ReportController extends Controller
 
     // ── OFICINAS ─────────────────────────────────────────────────────────────────
 
+    /**
+     * Usuarios afiliados por sede (sede NULL = Sede Central) — mismo criterio
+     * que el modal getOficinaUsuarios, para que la columna "Agentes" cuadre
+     * con lo que ese modal lista. Antes se contaban solo los vendedores CON
+     * pólizas en el rango, por eso la tabla decía "1" y el modal mostraba 7.
+     */
+    private function agentesPorSede(): \Illuminate\Support\Collection
+    {
+        return \App\Models\Usuario::query()
+            ->selectRaw("COALESCE(sede, 'Sede Central') as sede_n, COUNT(*) as n")
+            ->groupBy('sede_n')
+            ->pluck('n', 'sede_n');
+    }
+
     public function getOficinas(Request $request)
     {
         $request->validate([
@@ -666,11 +709,12 @@ class ReportController extends Controller
 
         $policies     = $query->get();
         $totalPremium = $this->sumTotalUsd($policies);
+        $agentes      = $this->agentesPorSede();
         $rows = [];
         $tAg = 0; $tPol = 0; $tPri = 0;
 
         foreach ($policies->groupBy(fn ($p) => $p->vendedor?->sede ?? 'Sede Central') as $sede => $pols) {
-            $ag  = count($pols->pluck('vendedor_id')->unique()->filter()->toArray());
+            $ag  = (int) ($agentes[$sede] ?? 0);
             $po  = $pols->count();
             $pr  = $this->sumTotalUsd($pols);
             $pct = $totalPremium > 0 ? round(($pr / $totalPremium) * 100, 1) . '%' : '0%';
@@ -716,11 +760,12 @@ class ReportController extends Controller
 
         $policies  = $query->get();
         $totalPrem = $this->sumTotalUsd($policies);
+        $agentes   = $this->agentesPorSede();
         $rows = collect();
         $tAg = 0; $tPol = 0; $tPri = 0;
 
         foreach ($policies->groupBy(fn ($p) => $p->vendedor?->sede ?? 'Sede Central') as $sede => $pols) {
-            $ag  = count($pols->pluck('vendedor_id')->unique()->filter()->toArray());
+            $ag  = (int) ($agentes[$sede] ?? 0);
             $po  = $pols->count();
             $pr  = $this->sumTotalUsd($pols);
             $pct = $totalPrem > 0 ? round(($pr / $totalPrem) * 100, 1) . '%' : '0%';

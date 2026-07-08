@@ -51,9 +51,15 @@ export async function updatePoliza(id, data) {
  * @param {number} [bienId] Si se indica, el documento se acota a ese bien (su
  *                          certificado) — usado en la vista de Bienes. Sin él, se
  *                          devuelve la póliza completa con todos los bienes (Clientes).
+ * @param {string} [moneda] Moneda de salida del documento (USD|BS|EUR). Sin ella,
+ *                          el PDF sale en la moneda nativa de la póliza.
  */
-export async function downloadPolizaPdf(id, bienId = null) {
-  const qs  = bienId != null ? `?bien=${encodeURIComponent(bienId)}` : ''
+export async function downloadPolizaPdf(id, bienId = null, moneda = null) {
+  const params = new URLSearchParams()
+  if (bienId != null) params.set('bien', bienId)
+  if (moneda)         params.set('moneda', moneda)
+  const str = params.toString()
+  const qs  = str ? `?${str}` : ''
   const res = await fetch(`${API}/${id}/pdf${qs}`, { headers: getAuthHeaders() })
   if (!res.ok) {
     const json = await res.json().catch(() => ({}))

@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { usd, fmtMonto, fmtMontoAbrev, fmtNum, convertirMoneda, useModalLock } from '../utils/helpers.jsx'
-import { useInputLimits } from '../utils/inputLimits.js'
+import { useInputLimits, applyInputLimits } from '../utils/inputLimits.js'
 import { Switch } from '../components/FormControls.jsx'
 import SearchBar from '../components/SearchBar.jsx'
 import DataTable from '../components/DataTable.jsx'
@@ -235,6 +235,11 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
     permite_mensualidades:  producto?.permite_mensualidades ?? false,
     recargo_mensual_pct:    producto?.recargo_mensual_pct ?? '',
     documentos_requeridos: producto?.documentos_requeridos || [],
+    // Renglones de "Coberturas / Sumas Aseguradas" del PDF de la póliza:
+    // aquí se definen los NOMBRES; los montos se fijan por tarifa en
+    // "Gestionar Tarifario". [{key, label}] — key estable para no perder los
+    // montos ya guardados en las tarifas al renombrar un renglón.
+    coberturas_pdf:        producto?.coberturas_pdf || [],
   })
   // Datos tarifarios capturados aquí mismo al CREAR un producto nuevo — se
   // usan para generar su primera tarifa automáticamente al guardar, en vez
@@ -323,15 +328,24 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
         max_beneficiarios:  form.aplica_beneficiarios     && form.max_beneficiarios !== '' ? parseInt(form.max_beneficiarios, 10) : null,
         iva_porcentaje:        form.iva_aplica            && form.iva_porcentaje !== ''      ? parseFloat(form.iva_porcentaje)      : null,
         recargo_mensual_pct:   form.permite_mensualidades && form.recargo_mensual_pct !== '' ? parseFloat(form.recargo_mensual_pct) : null,
+        // Renglones con label vacío se descartan; a los nuevos se les genera
+        // su key a partir del nombre (los existentes conservan la suya).
+        coberturas_pdf: form.coberturas_pdf
+          .map(c => ({ key: c.key || c.label.trim().toLowerCase().replace(/\s+/g, '_'), label: c.label.trim() }))
+          .filter(c => c.label),
       }
       let savedProducto
       if (isEdit) savedProducto = await updateProducto(producto.id, payload)
       else        savedProducto = await createProducto(payload)
 
-      // Si al cambiar la moneda se actualizaron cotizaciones por emitir, avisar.
+      // Si al guardar la moneda se re-etiquetaron cotizaciones/pólizas, avisar.
       const nCot = savedProducto?.cotizaciones_actualizadas || 0
-      if (isEdit && nCot > 0) {
-        showToast(`Moneda actualizada en ${nCot} cotización${nCot !== 1 ? 'es' : ''} por emitir`, 'success')
+      const nPol = savedProducto?.polizas_actualizadas || 0
+      if (isEdit && (nCot > 0 || nPol > 0)) {
+        const partes = []
+        if (nCot > 0) partes.push(`${nCot} cotización${nCot !== 1 ? 'es' : ''}`)
+        if (nPol > 0) partes.push(`${nPol} póliza${nPol !== 1 ? 's' : ''}`)
+        showToast(`Moneda actualizada en ${partes.join(' y ')}`, 'success')
       }
 
       // Crear la primera tarifa automáticamente a partir de lo capturado
@@ -341,6 +355,11 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
       if (!isEdit) {
         const nombreTarifa = requiereNombreTarifa ? tarifaNombre.trim() : 'Tarifa Base'
         const datos = serializeDatosForm(form.tipo_calculo, datosForm, nombreTarifa, form.tipo_bien)
+        // Renglones del PDF: nacen en 0 en la primera tarifa; los montos se
+        // ajustan luego desde "Gestionar Tarifario".
+        if (payload.coberturas_pdf.length) {
+          datos.coberturas_pdf = Object.fromEntries(payload.coberturas_pdf.map(c => [c.key, { label: c.label, suma: 0 }]))
+        }
         await createTarifa(savedProducto.id, {
           nombre: nombreTarifa,
           subtipo: nombreTarifa.toLowerCase().replace(/\s+/g, '_'),
@@ -583,6 +602,31 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
                     ))}
                   </div>
                   <p className="text-[10px] text-slate-400 mt-1">Todos los montos se expresan en {M}.</p>
+                </div>
+
+                {/* Renglones de Coberturas / Sumas Aseguradas del cuadro póliza (PDF).
+                    Aquí solo los NOMBRES; los montos se fijan por tarifa. */}
+                <div className="p-3 rounded-xl border border-dashed border-slate-300 bg-slate-50/50">
+                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Coberturas / Sumas Aseguradas (PDF de la póliza)</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5 mb-2">
+                    Estos renglones salen impresos en el cuadro póliza. Los montos de cada renglón se editan por tarifa en "Gestionar Tarifario".
+                  </p>
+                  <div className="space-y-2">
+                    {form.coberturas_pdf.map((c, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <input className="input-field text-sm flex-1" value={c.label} placeholder="Ej. Daños a Personas"
+                          onChange={e => set('coberturas_pdf', form.coberturas_pdf.map((x, j) => j === i ? { ...x, label: e.target.value } : x))} />
+                        <button type="button" onClick={() => set('coberturas_pdf', form.coberturas_pdf.filter((_, j) => j !== i))}
+                          className="p-2 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 transition shrink-0" title="Quitar renglón">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                    <button type="button" onClick={() => set('coberturas_pdf', [...form.coberturas_pdf, { key: '', label: '' }])}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-jm-blue bg-blue-50 hover:bg-blue-100 rounded-xl transition">
+                      <Plus className="w-3.5 h-3.5" /> Agregar renglón
+                    </button>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1052,7 +1096,7 @@ const ESTADO_TARIFA = {
   archivado: { label: 'Archivado', bg: 'bg-slate-100',   text: 'text-slate-500'  },
 }
 
-function TarifarioModal({ producto, onClose }) {
+function TarifarioModal({ producto, onClose, onProductoSaved }) {
   const { showToast, showModal, canAct } = useApp()
   const panelRef = useRef(null)
   useModalLock(panelRef)
@@ -1062,16 +1106,35 @@ function TarifarioModal({ producto, onClose }) {
   const [loading,       setLoading]       = useState(true)
   const [showForm,      setShowForm]      = useState(false)
   const [editing,       setEditing]       = useState(null)
-  const [form,          setForm]          = useState({ nombre: '', subtipo: '', datosForm: {}, activo: true })
+  const [form,          setForm]          = useState({ nombre: '', subtipo: '', datosForm: {}, activo: true, moneda: 'USD', cobsPdf: {} })
+  // Renglones de Coberturas/Sumas Aseguradas del PDF: nombres definidos en el
+  // producto; aquí se editan sus MONTOS para esta tarifa.
+  const renglonesPdf = producto.coberturas_pdf || []
+  const cobsPdfDe = (datos) => Object.fromEntries(
+    renglonesPdf.map(c => [c.key, datos?.coberturas_pdf?.[c.key]?.suma ?? ''])
+  )
+  // Serializa {key: monto} → {key: {label, suma}} (lo que guarda la tarifa y lee el PDF).
+  const serializeCobsPdf = (cobsPdf) => renglonesPdf.length === 0 ? {} : {
+    coberturas_pdf: Object.fromEntries(renglonesPdf.map(c => [c.key, { label: c.label, suma: parseFloat(cobsPdf?.[c.key]) || 0 }])),
+  }
   const [saving,        setSaving]        = useState(false)
   const [err,           setErr]           = useState('')
+  // Moneda vigente del producto: la moneda es del PRODUCTO (aplica a todas
+  // sus tarifas, cotizaciones y pólizas), pero se puede cambiar desde aquí.
+  const [monedaProd,    setMonedaProd]    = useState(producto.moneda || 'USD')
+  const formPanelRef = useRef(null)
+  useModalLock(formPanelRef, showForm)
+  // useInputLimits corre una sola vez y el panel del form monta después:
+  // se aplican los límites cada vez que el form se abre.
+  useEffect(() => { if (showForm && formPanelRef.current) applyInputLimits(formPanelRef.current) }, [showForm])
 
   // Compara usando el MISMO nombre en ambos lados — así un simple renombre
   // (que en por_nivel se reflejaría en datos.nivel) no dispara una nueva
   // versión por sí solo; solo cuenta como cambio real si suma/prima difieren.
   const datosChangedFromEditing = editing && (
     JSON.stringify(serializeDatosForm(producto.tipo_calculo, form.datosForm, form.nombre, producto.tipo_bien)) !==
-    JSON.stringify(serializeDatosForm(producto.tipo_calculo, initDatosForm(producto.tipo_calculo, editing.datos, producto.tipo_bien), form.nombre, producto.tipo_bien))
+    JSON.stringify(serializeDatosForm(producto.tipo_calculo, initDatosForm(producto.tipo_calculo, editing.datos, producto.tipo_bien), form.nombre, producto.tipo_bien)) ||
+    JSON.stringify(serializeCobsPdf(form.cobsPdf)) !== JSON.stringify(serializeCobsPdf(cobsPdfDe(editing.datos)))
   )
 
   const load = useCallback(async () => {
@@ -1090,26 +1153,41 @@ function TarifarioModal({ producto, onClose }) {
 
   const openNew = () => {
     setEditing(null)
-    setForm({ nombre: '', subtipo: '', datosForm: initDatosForm(producto.tipo_calculo, null, producto.tipo_bien), activo: true })
+    setForm({ nombre: '', subtipo: '', datosForm: initDatosForm(producto.tipo_calculo, null, producto.tipo_bien), activo: true, moneda: monedaProd, cobsPdf: cobsPdfDe(null) })
     setErr('')
     setShowForm(true)
   }
 
   const openEdit = (t) => {
     setEditing(t)
-    setForm({ nombre: t.nombre, subtipo: t.subtipo || '', datosForm: initDatosForm(producto.tipo_calculo, t.datos, producto.tipo_bien), activo: t.activo })
+    setForm({ nombre: t.nombre, subtipo: t.subtipo || '', datosForm: initDatosForm(producto.tipo_calculo, t.datos, producto.tipo_bien), activo: t.activo, moneda: monedaProd, cobsPdf: cobsPdfDe(t.datos) })
     setErr('')
     setShowForm(true)
   }
 
   const handleSave = async () => {
     if (!form.nombre.trim()) { setErr('El nombre es obligatorio.'); return }
-    const datos = serializeDatosForm(producto.tipo_calculo, form.datosForm, form.nombre, producto.tipo_bien)
+    const datos = { ...serializeDatosForm(producto.tipo_calculo, form.datosForm, form.nombre, producto.tipo_bien), ...serializeCobsPdf(form.cobsPdf) }
     setSaving(true); setErr('')
     try {
       const payload = { nombre: form.nombre, subtipo: form.subtipo, activo: form.activo, datos }
       if (editing) await updateTarifa(editing.id, payload)
       else         await createTarifa(producto.id, payload)
+
+      // Cambio de moneda: se guarda en el PRODUCTO y el backend re-etiqueta
+      // todas sus cotizaciones/pólizas que estén en otra moneda.
+      if (form.moneda && form.moneda !== monedaProd) {
+        const savedProd = await updateProducto(producto.id, { moneda: form.moneda })
+        setMonedaProd(form.moneda)
+        onProductoSaved?.(savedProd)
+        const nCot = savedProd?.cotizaciones_actualizadas || 0
+        const nPol = savedProd?.polizas_actualizadas || 0
+        const partes = []
+        if (nCot > 0) partes.push(`${nCot} cotización${nCot !== 1 ? 'es' : ''}`)
+        if (nPol > 0) partes.push(`${nPol} póliza${nPol !== 1 ? 's' : ''}`)
+        showToast(`Moneda del producto cambiada a ${form.moneda}${partes.length ? ` — actualizada en ${partes.join(' y ')}` : ''}`, 'success')
+      }
+
       setShowForm(false)
       await load()
     } catch (e) {
@@ -1143,57 +1221,10 @@ function TarifarioModal({ producto, onClose }) {
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-3">
-          {!showForm && canEdit && (
+          {canEdit && (
             <button onClick={openNew} className="btn-primary w-full justify-center">
               <Plus className="w-4 h-4" /> Agregar tarifa
             </button>
-          )}
-
-          {showForm && (
-            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
-              {err && <p className="text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2">{err}</p>}
-
-              {/* Versioning warning when editing datos */}
-              {editing && datosChangedFromEditing && (
-                <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                  Al modificar los datos tarifarios, la versión actual (<strong>v{editing.version}</strong>) será archivada automáticamente y se creará una nueva versión. Las pólizas existentes mantendrán su referencia a la versión anterior.
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="field-label">Nombre de la tarifa <span className="text-rose-500">*</span></label>
-                  <input className="input-field text-sm" value={form.nombre} onChange={e => setForm(p => ({ ...p, nombre: e.target.value }))} placeholder="Ej. Tarifa Estándar" />
-                </div>
-                <div>
-                  <label className="field-label">Clave interna</label>
-                  <input className="input-field text-sm font-mono" value={form.subtipo} onChange={e => setForm(p => ({ ...p, subtipo: e.target.value.toLowerCase() }))} placeholder="estandar" />
-                </div>
-              </div>
-              <div>
-                <label className="field-label mb-2">
-                  Valores tarifarios <span className="text-rose-500">*</span>
-                  <span className="ml-2 text-[10px] font-normal text-slate-400 normal-case tracking-normal">· {producto.tipo_calculo}</span>
-                </label>
-                <DatosForm
-                  tipoCalculo={producto.tipo_calculo}
-                  value={form.datosForm}
-                  onChange={datosForm => setForm(p => ({ ...p, datosForm }))}
-                  tipoBien={producto.tipo_bien}
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <input type="checkbox" id="tar_activo" checked={form.activo} onChange={e => setForm(p => ({ ...p, activo: e.target.checked }))} className="w-4 h-4 accent-jm-blue" />
-                <label htmlFor="tar_activo" className="text-sm text-slate-700 cursor-pointer">Activo</label>
-              </div>
-              <div className="flex gap-2 justify-end pt-1">
-                <button onClick={() => setShowForm(false)} className="btn-secondary">Cancelar</button>
-                <button onClick={handleSave} disabled={saving} className="btn-primary disabled:opacity-50">
-                  {saving ? 'Guardando…' : editing && datosChangedFromEditing ? 'Guardar nueva versión' : editing ? 'Actualizar' : 'Crear'}
-                </button>
-              </div>
-            </div>
           )}
 
           {loading ? (
@@ -1244,6 +1275,121 @@ function TarifarioModal({ producto, onClose }) {
           )}
         </div>
       </div>
+
+      {/* Modal de edición/creación de tarifa — todos los datos de la tarifa
+          seleccionada + moneda. z-[85]: sobre el tarifario (80), bajo los
+          modales globales de confirmación (90). */}
+      {showForm && (
+        <div className="fixed inset-0 bg-black/50 z-[85] flex items-center justify-center p-4 backdrop-blur-sm">
+          <div ref={formPanelRef} tabIndex={-1} className="bg-white rounded-3xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in duration-200 outline-none">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{editing ? 'Editar tarifa' : 'Nueva tarifa'}</p>
+                <h3 className="text-base font-black text-slate-800">{editing ? editing.nombre : producto.nombre}</h3>
+                {editing && <p className="text-xs text-slate-400">v{editing.version ?? 1} · {producto.nombre}</p>}
+              </div>
+              <button onClick={() => setShowForm(false)} className="p-1.5 hover:bg-slate-100 rounded-xl transition">
+                <X className="w-4 h-4 text-slate-500" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-3">
+              {err && <p className="text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2">{err}</p>}
+
+              {/* Versioning warning when editing datos */}
+              {editing && datosChangedFromEditing && (
+                <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  Al modificar los datos tarifarios, la versión actual (<strong>v{editing.version}</strong>) será archivada automáticamente y se creará una nueva versión. Las pólizas existentes mantendrán su referencia a la versión anterior.
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="field-label">Nombre de la tarifa <span className="text-rose-500">*</span></label>
+                  <input className="input-field text-sm" value={form.nombre} onChange={e => setForm(p => ({ ...p, nombre: e.target.value }))} placeholder="Ej. Tarifa Estándar" />
+                </div>
+                <div>
+                  <label className="field-label">Clave interna</label>
+                  <input className="input-field text-sm font-mono" value={form.subtipo} onChange={e => setForm(p => ({ ...p, subtipo: e.target.value.toLowerCase() }))} placeholder="estandar" />
+                </div>
+              </div>
+              <div>
+                <label className="field-label mb-2">
+                  Valores tarifarios <span className="text-rose-500">*</span>
+                  <span className="ml-2 text-[10px] font-normal text-slate-400 normal-case tracking-normal">· {producto.tipo_calculo}</span>
+                </label>
+                <DatosForm
+                  tipoCalculo={producto.tipo_calculo}
+                  value={form.datosForm}
+                  onChange={datosForm => setForm(p => ({ ...p, datosForm }))}
+                  tipoBien={producto.tipo_bien}
+                />
+              </div>
+
+              {/* Montos de los renglones de Coberturas/Sumas Aseguradas del PDF —
+                  los nombres se definen en el producto (crear/editar producto). */}
+              {renglonesPdf.length > 0 && (
+                <div className="p-3 rounded-xl border border-dashed border-slate-300 bg-slate-50/50">
+                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-2">
+                    Coberturas / Sumas Aseguradas (PDF de la póliza) · {form.moneda}
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {renglonesPdf.map(c => (
+                      <div key={c.key}>
+                        <label className="field-label">{c.label}</label>
+                        <input type="number" min="0" step="0.01" className="input-field text-sm" placeholder="0.00"
+                          value={form.cobsPdf[c.key] ?? ''}
+                          onChange={e => setForm(p => ({ ...p, cobsPdf: { ...p.cobsPdf, [c.key]: e.target.value } }))} />
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-2">Estos montos son los que imprime el cuadro "Coberturas / Sumas Aseguradas" de la póliza. Para agregar o renombrar renglones, edita el producto.</p>
+                </div>
+              )}
+
+              {/* Moneda — es la del PRODUCTO: cambiarla re-etiqueta todas sus
+                  tarifas, cotizaciones y pólizas en la nueva moneda. */}
+              <div>
+                <label className="field-label">Moneda</label>
+                <div className="flex gap-2 mt-1">
+                  {MONEDAS.map(m => (
+                    <button key={m} type="button" onClick={() => setForm(p => ({ ...p, moneda: m }))}
+                      className={`flex-1 py-1.5 rounded-xl text-xs font-bold border-2 transition-all ${
+                        form.moneda === m
+                          ? m === 'USD' ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                          : m === 'EUR' ? 'border-amber-500 bg-amber-50 text-amber-700'
+                          : 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-slate-200 text-slate-500 hover:border-slate-300'
+                      }`}>
+                      {m}
+                    </button>
+                  ))}
+                </div>
+                {form.moneda !== monedaProd ? (
+                  <p className="text-[10px] text-amber-600 mt-1">
+                    La moneda es del producto completo: al guardar, todas sus tarifas, cotizaciones y pólizas pasarán de {monedaProd} a {form.moneda} (los montos no cambian de número).
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-slate-400 mt-1">Todos los montos del producto se expresan en {monedaProd}.</p>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input type="checkbox" id="tar_activo" checked={form.activo} onChange={e => setForm(p => ({ ...p, activo: e.target.checked }))} className="w-4 h-4 accent-jm-blue" />
+                <label htmlFor="tar_activo" className="text-sm text-slate-700 cursor-pointer">Activo</label>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-slate-100 flex gap-2 justify-end shrink-0">
+              <button onClick={() => setShowForm(false)} className="btn-secondary">Cancelar</button>
+              <button onClick={handleSave} disabled={saving} className="btn-primary disabled:opacity-50">
+                {saving ? 'Guardando…' : editing && datosChangedFromEditing ? 'Guardar nueva versión' : editing ? 'Actualizar' : 'Crear'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1703,6 +1849,7 @@ export default function Productos() {
         <TarifarioModal
           producto={modalTar}
           onClose={() => setModalTar(null)}
+          onProductoSaved={upsertProducto}
         />
       )}
       {modalBenef && (
