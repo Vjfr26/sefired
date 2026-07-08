@@ -563,7 +563,6 @@
 
     @foreach($carnetList as $cb)
     @php $D = $datosBien($cb); $multi = count($carnetList) > 1; @endphp
-    @if($D['tipo'] === 'vehiculo')
     <tr><th colspan="6" class="linea">Datos del Vehículo{{ $multi ? ' — '.$tipoPolizaLabel.' N° '.$D['cert'] : '' }}</th></tr>
     <tr>
         <td style="width:13%; text-align:left; border-left:1px solid #888; padding:1.5px 3px; color:#555; font-size:9px;">Marca:</td>
@@ -597,7 +596,7 @@
         <td style="width:14%; text-align:left; padding:1.5px 3px; color:#555; font-size:9px; border-bottom:1px solid #888;">Otros:</td>
         <td style="border-right:1px solid #888; padding:3px 5px; border-bottom:1px solid #888;"><strong>{{ $D['obs'] ?: '—' }}</strong></td>
     </tr>
-    @elseif(!empty($D['tipo']))
+    @if(!empty($D['tipo']))
     <tr><th colspan="6" class="linea">Datos del Bien Asegurado — {{ ucfirst(str_replace('_', ' ', $D['tipo'])) }}{{ $multi ? ' (N° '.$D['cert'].')' : '' }}</th></tr>
     @php $attrsPares = collect($D['attrs'])->filter(fn($v) => $v !== null && $v !== '')->all(); @endphp
     @if(count($attrsPares) > 0)
@@ -753,7 +752,6 @@
                     <td style="width:33.3%; font-size:8.5px; font-weight:600; padding:1px 4px; vertical-align:top;">{{ $asegCi }}</td>
                     <td style="width:33.3%; font-size:8.5px; font-weight:600; padding:1px 4px; vertical-align:top;">{{ $asegTel }}</td>
                 </tr>
-                @if(($bien['tipo'] ?? null) === 'vehiculo')
                 <!-- VEHÍCULO ASEGURADO -->
                 <tr><th colspan="3" style="font-size:9px; padding:2px 6px;">VEHÍCULO ASEGURADO</th></tr>
                 <tr>
@@ -776,7 +774,7 @@
                     <td style="font-size:8.5px; font-weight:600; padding:1px 4px;">{{ $serCar }}</td>
                     <td style="font-size:8.5px; font-weight:600; padding:1px 4px;">{{ $anio }}</td>
                 </tr>
-                @elseif(!empty($bien['tipo']))
+                @if(!empty($bien['tipo']))
                 @php $attrsCarnet = array_slice(collect($attrs)->filter(fn($v) => $v !== null && $v !== '')->all(), 0, 6, true); @endphp
                 <!-- BIEN ASEGURADO (no vehículo) -->
                 <tr><th colspan="3" style="font-size:9px; padding:2px 6px;">BIEN ASEGURADO — {{ mb_strtoupper(str_replace('_', ' ', $bien['tipo'])) }}</th></tr>
