@@ -150,6 +150,16 @@
         }
         if ($tv && $tv->estado === 'vigente' && is_array($tv->datos)) $tarifaViva = $tv;
     }
+    // Póliza sin NINGUNA referencia de tarifa (migradas): si el producto tiene
+    // UNA SOLA tarifa vigente no hay ambigüedad — se usa esa. Con varias (p.ej.
+    // RCV por clase de vehículo) no se adivina: habría que enlazarle su tarifa.
+    if (!$tarifaViva && $poliza->producto_id) {
+        $vigentes = \App\Models\Tarifario::where('producto_id', $poliza->producto_id)
+            ->where('estado', 'vigente')->where('activo', true)->limit(2)->get();
+        if ($vigentes->count() === 1 && is_array($vigentes->first()->datos)) {
+            $tarifaViva = $vigentes->first();
+        }
+    }
     $tarifaDatos = $tarifaViva?->datos ?? ($cobs['tarifa']['datos'] ?? ($snap['tarifario']['datos'] ?? []));
     // La estructura de los datos de la tarifa viva la define el tipo de
     // cálculo ACTUAL del producto (pudo cambiar desde la emisión).
