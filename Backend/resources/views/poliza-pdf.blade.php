@@ -288,14 +288,10 @@
     } elseif ($tipoCal === 'por_nivel' && is_array($tarifaDatos)) {
         if (!empty($tarifaDatos['suma'])) $cobertura_items[] = [$tarifaDatos['nivel'] ?? 'Suma Asegurada', $fmtM($tarifaDatos['suma'])];
     }
-    // Pólizas sin tarifario enlazado (anteriores a esa relación): la suma
-    // asegurada se guarda directamente en la póliza, sin depender del snapshot.
-    if (empty($cobertura_items) && (float) $poliza->cobertura_dolares > 0) {
-        $cobertura_items[] = ['Suma Asegurada', $fmtM($poliza->cobertura_dolares)];
-    }
     // Pólizas MIGRADAS: la cobertura real quedó en el snapshot bajo 'rcv'/'apov'
-    // (no en la tarifa ni en cobertura_dolares). Se muestran esas sumas reales —
-    // NO se inventa nada, son los montos migrados de la póliza original.
+    // (no en la tarifa). Se muestran esas sumas reales ANTES de caer al
+    // genérico cobertura_dolares — una migrada suele tener ambos, y los
+    // renglones por cobertura son el dato bueno; NO se inventa nada.
     if (empty($cobertura_items)) {
         $rcvSnap = $snap['rcv'] ?? [];
         if (!empty($rcvSnap['suma_persona'])) $cobertura_items[] = ['Daños a Personas', $fmtM($rcvSnap['suma_persona'])];
@@ -305,6 +301,11 @@
         if (!empty($apovSnap['suma_invalidez']))         $cobertura_items[] = ['Invalidez',           $fmtM($apovSnap['suma_invalidez'])];
         if (!empty($apovSnap['suma_medicos']))           $cobertura_items[] = ['Gastos Médicos',      $fmtM($apovSnap['suma_medicos'])];
         if (!empty($apovSnap['suma_funerarios']))        $cobertura_items[] = ['Gastos Funerarios',   $fmtM($apovSnap['suma_funerarios'])];
+    }
+    // Pólizas sin tarifario enlazado ni sumas migradas: la suma asegurada
+    // guardada directamente en la póliza, sin depender del snapshot.
+    if (empty($cobertura_items) && (float) $poliza->cobertura_dolares > 0) {
+        $cobertura_items[] = ['Suma Asegurada', $fmtM($poliza->cobertura_dolares)];
     }
     // Último respaldo: la suma asegurada en Bs guardada en la propia póliza.
     if (empty($cobertura_items) && (float) $poliza->cobertura_bs > 0) {
@@ -317,8 +318,11 @@
     // que en un cuadro póliza real cuando esa cobertura no aplica.
     $coberturaGrid = null;
     // La cuadrícula fija de 8 coberturas de auto solo aplica cuando el
-    // producto NO definió sus propios renglones (coberturas_pdf manda).
-    if (empty($cobsPdf) && ($bien['tipo'] ?? null) === 'vehiculo' && $tipoCal === 'fijo' && is_array($tarifaDatos)) {
+    // producto NO definió sus propios renglones (coberturas_pdf manda) y la
+    // tarifa aportó datos de verdad — sin tarifa (migradas/renovadas viejas)
+    // la cuadrícula saldría toda en 0,00 tapando las sumas reales del
+    // snapshot (rcv/apov) o la suma asegurada de la póliza.
+    if (empty($cobsPdf) && ($bien['tipo'] ?? null) === 'vehiculo' && $tipoCal === 'fijo' && is_array($tarifaDatos) && count($tarifaDatos) > 0) {
         $g = fn($k) => $fmtM($tarifaDatos[$k] ?? 0);
         $coberturaGrid = [
             ['Daños a Personas', $g('suma_persona'), 'Exceso de Límite', $g('exceso_limite'), 'Muerte e Invalidez', $g('muerte_invalidez')],
@@ -394,7 +398,8 @@
         </td>
         <td style="text-align:center; vertical-align:middle; padding:0 12px;">
             <strong style="font-size:17px; color:#127481;">Cuadro Póliza — Recibo de Prima</strong><br/>
-            <span style="font-size:12px; color:#444;">{{ $ramoLabel }} · {{ $poliza->tipo ?? 'Individual' }}</span>
+            {{-- tipo "N/D" viene de pólizas migradas — cae a Individual --}}
+            <span style="font-size:12px; color:#444;">{{ $ramoLabel }} · {{ in_array($poliza->tipo, [null, '', 'N/D'], true) ? 'Individual' : $poliza->tipo }}</span>
         </td>
         <td style="width:280px; vertical-align:top;">
             <table width="100%" cellspacing="0" cellpadding="0">
