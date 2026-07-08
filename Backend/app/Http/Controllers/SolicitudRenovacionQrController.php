@@ -110,15 +110,36 @@ class SolicitudRenovacionQrController extends Controller
         $hoy        = now()->toDateString();
         $vence      = now()->addYear()->toDateString();
         $monedaNativa = $polizaAnterior->monedaNativa();
-        $totalBs    = round(Moneda::aBs((float) $polizaAnterior->total, $monedaNativa, $tasaBcv, $tasaEur), 2);
+        // Igual que la renovación interna: se RECOTIZA con la tarifa vigente
+        // (prima + IVA + derecho); sin tarifa determinable, el total anterior.
+        $reprecio    = $polizaAnterior->totalRenovacion();
+        $totalPoliza = $reprecio['total'] ?? (float) $polizaAnterior->total;
+        $totalBs    = round(Moneda::aBs($totalPoliza, $monedaNativa, $tasaBcv, $tasaEur), 2);
         $cobBs      = round(Moneda::aBs((float) $polizaAnterior->cobertura_dolares, $monedaNativa, $tasaBcv, $tasaEur), 2);
         $pagos       = $solicitud->pagos ?? [];
         $pagoResumen = collect($pagos)->map(fn($p) => $p['metodo'] . ' ' . $p['moneda'])->join(' / ');
         $monedaPrincipal = $pagos[0]['moneda'] ?? 'USD';
 
+        // El snapshot heredado congela la tarifa con la que SE COBRÓ esta
+        // renovación (no la copia vieja) — igual que en PolizaController@renovar.
+        $snapshotNuevo = $polizaAnterior->snapshot_datos ?? [];
+        if ($reprecio) {
+            $snapshotNuevo['tarifario'] = [
+                'id'      => $reprecio['tarifa']->id,
+                'nombre'  => $reprecio['tarifa']->nombre,
+                'version' => $reprecio['tarifa']->version,
+                'datos'   => $reprecio['tarifa']->datos,
+            ];
+            $snapshotNuevo['total_usd'] = $totalPoliza;
+            $snapshotNuevo['total_bs']  = $totalBs;
+            if ($reprecio['iva'] > 0) {
+                $snapshotNuevo['coberturas'] = array_merge($snapshotNuevo['coberturas'] ?? [], ['iva' => $reprecio['iva']]);
+            }
+        }
+
         $result = DB::transaction(function () use (
-            $polizaAnterior, $solicitud, $pagos, $hoy, $vence,
-            $sede, $pagoResumen, $monedaPrincipal, $monedaNativa, $tasaBcv, $tasaEur, $totalBs, $cobBs
+            $polizaAnterior, $solicitud, $pagos, $hoy, $vence, $sede, $pagoResumen,
+            $monedaPrincipal, $monedaNativa, $tasaBcv, $tasaEur, $totalPoliza, $totalBs, $cobBs, $snapshotNuevo, $reprecio
         ) {
             $polizaAnterior->update(['status' => 'RENOVADA']);
 
@@ -126,7 +147,7 @@ class SolicitudRenovacionQrController extends Controller
                 'nro_contrato'      => 'TMP-' . uniqid(),
                 'solicitud_id'      => $polizaAnterior->solicitud_id,
                 'producto_id'       => $polizaAnterior->producto_id,
-                'total'             => $polizaAnterior->total,
+                'total'             => $totalPoliza,
                 'total_bs'          => $totalBs,
                 'moneda_producto'   => $monedaNativa,
                 'tasa_emision'      => $tasaBcv,
@@ -147,8 +168,8 @@ class SolicitudRenovacionQrController extends Controller
                 'sede_poliza'       => $sede,
                 'vendedor_id'       => $polizaAnterior->vendedor_id ?? auth()->id(),
                 'status'            => 'ACTIVA',
-                'snapshot_datos'    => $polizaAnterior->snapshot_datos,
-                'tarifario_version_id' => $polizaAnterior->tarifario_version_id,
+                'snapshot_datos'    => $snapshotNuevo ?: null,
+                'tarifario_version_id' => $reprecio['tarifa']->id ?? $polizaAnterior->tarifario_version_id,
             ]);
 
             $nroContrato = CodigoPoliza::generar(
@@ -163,7 +184,7 @@ class SolicitudRenovacionQrController extends Controller
             $nueva->update(['nro_contrato' => $nroContrato]);
 
             if ($nueva->vendedor_id) {
-                $baseUsd = Moneda::aUsd((float) $polizaAnterior->total, $monedaNativa, $tasaBcv, $tasaEur);
+                $baseUsd = Moneda::aUsd($totalPoliza, $monedaNativa, $tasaBcv, $tasaEur);
                 $tasaPct = Comision::tasaParaUsuario($nueva->vendedor) * 100;
                 Comision::create([
                     'poliza_id'      => $nueva->id,
@@ -195,7 +216,7 @@ class SolicitudRenovacionQrController extends Controller
                 'sede'          => $sede,
                 'fecha_factura' => $hoy,
                 'poliza_id'     => $nueva->id,
-                'valor'         => $polizaAnterior->total,
+                'valor'         => $totalPoliza,
                 'valor_bs'      => $totalBs,
                 'forma_pago'    => $pagoResumen,
                 'moneda'        => $monedaPrincipal,

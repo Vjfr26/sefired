@@ -687,6 +687,30 @@ class PolizaController extends Controller
      * Renueva una póliza: marca la actual como VENCIDA y crea una nueva
      * póliza + factura con los mismos datos de cobertura por un año más.
      */
+    /**
+     * Monto real a cobrar al renovar: el total recotizado con la tarifa
+     * vigente (prima + IVA + derecho). Lo consume el modal de Renovar Póliza
+     * para mostrar y validar el pago — el total viejo de la póliza puede
+     * venir de un tarifario ya actualizado o de la migración.
+     */
+    public function renovacionInfo($id)
+    {
+        $poliza = Poliza::with(['solicitud.bien', 'producto'])->findOrFail($id);
+        $this->assertAccesoVendedorId($poliza->solicitud?->vendedor_id, 'No tienes acceso a esta póliza.');
+
+        $r = $poliza->totalRenovacion();
+
+        return response()->json([
+            'recotizada' => (bool) $r,
+            'total'      => $r['total']   ?? (float) $poliza->total,
+            'prima'      => $r['prima']   ?? (float) $poliza->total,
+            'iva'        => $r['iva']     ?? 0.0,
+            'derecho'    => $r['derecho'] ?? 0.0,
+            'tarifa'     => $r ? $r['tarifa']->nombre : null,
+            'moneda'     => $poliza->monedaNativa(),
+        ]);
+    }
+
     public function renovar(Request $request, $id)
     {
         $polizaAnterior = Poliza::with('solicitud', 'producto', 'cuotas')->findOrFail($id);
@@ -722,12 +746,19 @@ class PolizaController extends Controller
         $pagoResumen    = collect($data['pagos'])->map(fn($p) => $p['forma'] . ' ' . $p['moneda'])->join(' / ');
         $moneda         = $data['pagos'][0]['moneda'] ?? 'USD';
         $monedaNativa   = $polizaAnterior->monedaNativa();
-        $totalBsNuevo   = round(Moneda::aBs((float) $polizaAnterior->total, $monedaNativa, $tasaBcv, $tasaEur), 2);
+
+        // La renovación se RECOTIZA con la tarifa vigente (prima + IVA +
+        // derecho, igual que una emisión nueva) — el total de la póliza
+        // anterior puede venir de un tarifario ya actualizado (o de la
+        // migración). Solo si la tarifa no se puede determinar se cobra el
+        // total anterior, como antes.
+        $reprecio       = $polizaAnterior->totalRenovacion();
+        $totalPoliza    = $reprecio['total'] ?? (float) $polizaAnterior->total;
+        $totalBsNuevo   = round(Moneda::aBs($totalPoliza, $monedaNativa, $tasaBcv, $tasaEur), 2);
         $coberturaBsNew = round(Moneda::aBs((float) $polizaAnterior->cobertura_dolares, $monedaNativa, $tasaBcv, $tasaEur), 2);
 
         // Mismo criterio que al emitir: el pago puede ir desde la primera cuota
         // (Mensual, si el producto admite mensualidades) hasta el total anual.
-        $totalPoliza    = (float) $polizaAnterior->total;
         $totalPagado    = collect($data['pagos'])->sum(
             fn($p) => Moneda::convertir((float) $p['monto'], $p['moneda'], $monedaNativa, $tasaBcv, $tasaEur)
         );
@@ -773,7 +804,7 @@ class PolizaController extends Controller
         // el PDF del cuadro póliza sale de ahí. Solo se refrescan los datos
         // propios de esta emisión (fecha, tasas, pagos).
         $snapshotNuevo = $polizaAnterior->snapshot_datos ?? [];
-        if (!empty($snapshotNuevo)) {
+        if (!empty($snapshotNuevo) || $reprecio) {
             $snapshotNuevo['fecha_emision']    = $inicio;
             $snapshotNuevo['tasa_emision']     = $tasaBcv;
             $snapshotNuevo['tasa_emision_eur'] = $tasaEur;
@@ -781,8 +812,22 @@ class PolizaController extends Controller
             $snapshotNuevo['pagos']            = $data['pagos'];
             $snapshotNuevo['total_bs']         = $totalBsNuevo;
         }
+        // Recotizada: el snapshot congela la tarifa con la que SE COBRÓ esta
+        // renovación (no la copia vieja heredada) y su IVA/total.
+        if ($reprecio) {
+            $snapshotNuevo['tarifario'] = [
+                'id'      => $reprecio['tarifa']->id,
+                'nombre'  => $reprecio['tarifa']->nombre,
+                'version' => $reprecio['tarifa']->version,
+                'datos'   => $reprecio['tarifa']->datos,
+            ];
+            $snapshotNuevo['total_usd'] = $totalPoliza;
+            if ($reprecio['iva'] > 0) {
+                $snapshotNuevo['coberturas'] = array_merge($snapshotNuevo['coberturas'] ?? [], ['iva' => $reprecio['iva']]);
+            }
+        }
 
-        $result = DB::transaction(function () use ($polizaAnterior, $data, $hoy, $inicio, $vence, $sede, $pagoResumen, $moneda, $monedaNativa, $frecuencia, $tasaBcv, $tasaEur, $totalBsNuevo, $coberturaBsNew, $esMensual, $recargoPct, $totalPagado, $snapshotNuevo) {
+        $result = DB::transaction(function () use ($polizaAnterior, $data, $hoy, $inicio, $vence, $sede, $pagoResumen, $moneda, $monedaNativa, $frecuencia, $tasaBcv, $tasaEur, $totalPoliza, $totalBsNuevo, $coberturaBsNew, $esMensual, $recargoPct, $totalPagado, $snapshotNuevo, $reprecio) {
             $polizaAnterior->update(['status' => 'RENOVADA']);
 
             // La cotización refleja el estado de su póliza vigente: si quedó
@@ -795,7 +840,7 @@ class PolizaController extends Controller
                 'nro_contrato'      => 'TMP-' . uniqid(),
                 'solicitud_id'      => $polizaAnterior->solicitud_id,
                 'producto_id'       => $polizaAnterior->producto_id,
-                'total'             => $polizaAnterior->total,
+                'total'             => $totalPoliza,
                 'total_bs'          => $totalBsNuevo,
                 'moneda_producto'   => $monedaNativa,
                 'tasa_emision'      => $tasaBcv,
@@ -814,7 +859,9 @@ class PolizaController extends Controller
                 'vendedor_id'       => $polizaAnterior->vendedor_id ?? auth()->id(),
                 'status'            => 'ACTIVA',
                 'snapshot_datos'    => $snapshotNuevo ?: null,
-                'tarifario_version_id' => $polizaAnterior->tarifario_version_id,
+                // Recotizada: la renovada queda enlazada a la tarifa vigente
+                // con la que se cobró (las migradas no traían enlace).
+                'tarifario_version_id' => $reprecio['tarifa']->id ?? $polizaAnterior->tarifario_version_id,
             ]);
 
             $nroContrato = CodigoPoliza::generar(
@@ -829,7 +876,7 @@ class PolizaController extends Controller
             $nueva->update(['nro_contrato' => $nroContrato]);
 
             if ($nueva->vendedor_id) {
-                $baseUsd = Moneda::aUsd((float) $polizaAnterior->total, $monedaNativa, $tasaBcv, $tasaEur);
+                $baseUsd = Moneda::aUsd($totalPoliza, $monedaNativa, $tasaBcv, $tasaEur);
                 $tasaPct = Comision::tasaParaUsuario($nueva->vendedor) * 100;
                 Comision::create([
                     'poliza_id'      => $nueva->id,
@@ -862,7 +909,7 @@ class PolizaController extends Controller
             if ($esMensual) {
                 // Renovación mensual: 12 cuotas nuevas + cobro inicial (emite recibo).
                 // Las cuotas se calendarizan desde el inicio de la nueva vigencia.
-                Mensualidades::generarCuotas($nueva, (float) $polizaAnterior->total, $recargoPct, $inicio);
+                Mensualidades::generarCuotas($nueva, $totalPoliza, $recargoPct, $inicio);
                 $factura = Mensualidades::aplicarPago(
                     $nueva, (float) $totalPagado, $pagoResumen, $moneda,
                     $data['pagos'][0]['referencia'] ?? null, $tasaBcv, $tasaEur, auth()->id(), $sede
@@ -874,7 +921,7 @@ class PolizaController extends Controller
                     'sede'          => $sede,
                     'fecha_factura' => $hoy,
                     'poliza_id'     => $nueva->id,
-                    'valor'         => $polizaAnterior->total,
+                    'valor'         => $totalPoliza,
                     'valor_bs'      => $totalBsNuevo,
                     'forma_pago'    => $pagoResumen,
                     'moneda'        => $moneda,
