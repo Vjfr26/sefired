@@ -722,36 +722,51 @@ class PolizaController extends Controller
         $poliza = Poliza::with(['solicitud.bien', 'producto'])->findOrFail($id);
         $this->assertAccesoVendedorId($poliza->solicitud?->vendedor_id, 'No tienes acceso a esta póliza.');
 
-        $r = $poliza->totalRenovacion();
+        $tipoCalculo = $poliza->producto?->tipo_calculo ?? 'fijo';
 
-        if ($r) {
-            return response()->json([
-                'valido'     => true,
-                'recotizada' => true,
-                'total'      => $r['total'],
-                'prima'      => $r['prima'],
-                'iva'        => $r['iva'],
-                'derecho'    => $r['derecho'],
-                'tarifa'     => $r['tarifa']->nombre,
-                'moneda'     => $poliza->monedaNativa(),
-                'tarifario'  => [
-                    'id'          => $r['tarifa']->id,
-                    'nombre'      => $r['tarifa']->nombre,
-                    'subtipo'     => $r['tarifa']->subtipo,
-                    'prima_anual' => $r['prima'],
-                    'moneda'      => $poliza->monedaNativa(),
-                ]
-            ]);
+        // Renovación directa SOLO si la póliza está vinculada a su propio
+        // tarifario (tarifario_version_id o snapshot) y ese linaje sigue
+        // vigente con prima > 0. Las pólizas viejas sin vínculo NO se adivinan:
+        // pasan al modal de selección de tarifa (igual que al emitir).
+        $snap = $poliza->snapshot_datos ?? [];
+        $ref  = $poliza->tarifario_version_id
+            ?? ($snap['coberturas']['tarifa']['id'] ?? null)
+            ?? ($snap['tarifario']['id'] ?? null);
+
+        $tarifa = null;
+        if ($ref) {
+            $tarifa = Tarifario::find($ref);
+            $hops = 0;
+            while ($tarifa && $tarifa->estado !== 'vigente' && $hops++ < 20) {
+                $child = Tarifario::where('parent_id', $tarifa->id)->orderByDesc('version')->first();
+                if (!$child) break;
+                $tarifa = $child;
+            }
         }
 
-        // Si no se puede determinar la tarifa automáticamente, buscar todas las tarifas activas y vigentes de este producto
-        $tipoCalculo = $poliza->producto?->tipo_calculo ?? 'fijo';
+        if ($tarifa && $tarifa->activo && $tarifa->estado === 'vigente') {
+            $prima = $this->calcularPrimaTarifa($tarifa, $tipoCalculo);
+            if ($prima > 0) {
+                return response()->json([
+                    'valido'    => true,
+                    'moneda'    => $poliza->monedaNativa(),
+                    'tarifario' => [
+                        'id'          => $tarifa->id,
+                        'nombre'      => $tarifa->nombre,
+                        'subtipo'     => $tarifa->subtipo,
+                        'prima_anual' => $prima,
+                        'moneda'      => $poliza->monedaNativa(),
+                    ],
+                ]);
+            }
+        }
+
+        // Sin vínculo vigente: listar las tarifas activas del producto a elegir.
+        $tarifariosDisponibles = [];
         $tarifas = Tarifario::where('producto_id', $poliza->producto_id)
             ->where('estado', 'vigente')
             ->where('activo', true)
             ->get();
-
-        $tarifariosDisponibles = [];
         foreach ($tarifas as $t) {
             $prima = $this->calcularPrimaTarifa($t, $tipoCalculo);
             if ($prima > 0) {
@@ -766,12 +781,6 @@ class PolizaController extends Controller
 
         return response()->json([
             'valido'     => false,
-            'recotizada' => false,
-            'total'      => (float) $poliza->total,
-            'prima'      => (float) $poliza->total,
-            'iva'        => 0.0,
-            'derecho'    => 0.0,
-            'tarifa'     => null,
             'moneda'     => $poliza->monedaNativa(),
             'tarifarios' => $tarifariosDisponibles,
         ]);
