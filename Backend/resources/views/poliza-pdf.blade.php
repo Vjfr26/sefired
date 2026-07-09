@@ -645,7 +645,18 @@
     </tr>
 
     @foreach($carnetList as $cb)
-    @php $D = $datosBien($cb); $multi = count($carnetList) > 1; @endphp
+    @php
+        $D = $datosBien($cb); $multi = count($carnetList) > 1;
+        $attrsPares = collect($D['attrs'])->filter(fn($v) => $v !== null && $v !== '')->all();
+        // Bienes viejos quedaron sin 'tipo' pero con sus atributos completos: se
+        // reconocen como vehículo por las claves propias de uno. Las dos secciones
+        // son EXCLUYENTES — un vehículo no debe salir también como bien genérico.
+        $esVehiculo = ($D['tipo'] ?? null) === 'vehiculo' || (empty($D['tipo']) && array_intersect(
+            ['placa', 'marca', 'serial_carroceria', 'serialCarroceria', 'serial_motor', 'serialMotor'],
+            array_keys($attrsPares)
+        ));
+    @endphp
+    @if($esVehiculo)
     <tr><th colspan="6" class="linea">Datos del Vehículo{{ $multi ? ' — '.$tipoPolizaLabel.' N° '.$D['cert'] : '' }}</th></tr>
     <tr>
         <td style="width:13%; text-align:left; border-left:1px solid #888; padding:1.5px 3px; color:#555; font-size:9px;">Marca:</td>
@@ -679,10 +690,8 @@
         <td style="width:14%; text-align:left; padding:1.5px 3px; color:#555; font-size:9px; border-bottom:1px solid #888;">Otros:</td>
         <td style="border-right:1px solid #888; padding:3px 5px; border-bottom:1px solid #888;"><strong>{{ $D['obs'] ?: '—' }}</strong></td>
     </tr>
-    @if(!empty($D['tipo']))
-    <tr><th colspan="6" class="linea">Datos del Bien Asegurado — {{ ucfirst(str_replace('_', ' ', $D['tipo'])) }}{{ $multi ? ' (N° '.$D['cert'].')' : '' }}</th></tr>
-    @php $attrsPares = collect($D['attrs'])->filter(fn($v) => $v !== null && $v !== '')->all(); @endphp
-    @if(count($attrsPares) > 0)
+    @elseif(count($attrsPares) > 0)
+    <tr><th colspan="6" class="linea">Datos del Bien Asegurado{{ $D['tipo'] ? ' — '.ucfirst(str_replace('_', ' ', $D['tipo'])) : '' }}{{ $multi ? ' (N° '.$D['cert'].')' : '' }}</th></tr>
         @foreach(array_chunk(array_keys($attrsPares), 3) as $grupo)
         <tr>
             @foreach($grupo as $k)
@@ -696,7 +705,6 @@
             @endif
         </tr>
         @endforeach
-    @endif
     @endif
     @endforeach
 
