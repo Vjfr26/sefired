@@ -16,3 +16,4 @@ build/
 # Logs y caché
 *.log
 .cache/
+BD/*.sql
