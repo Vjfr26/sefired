@@ -20,7 +20,7 @@ import { useApp } from '../context/AppContext.jsx'
 import { fmtMonto, fmtNum, convertirMoneda, fmtTasa, pdfPage, pdfHdr, pdfSec, pdfRow, pdfTotal, pdfFooterSimple, useModalLock, filtrarCedula, filtrarTelefono } from '../utils/helpers.jsx'
 import { useInputLimits } from '../utils/inputLimits.js'
 import { buscarClientes, createCliente } from '../api/clientes.js'
-import { downloadPolizaPdf } from '../api/polizas.js'
+import { downloadPolizaPdf, fetchRenovacionInfo } from '../api/polizas.js'
 import { fetchVendedoresDisponibles } from '../api/usuarios.js'
 import { fetchTasas } from '../api/tasas.js'
 import { fetchProductos } from '../api/productos.js'
@@ -2147,6 +2147,7 @@ export default function Simulador() {
 
   const [cotizaciones, setCotizaciones] = useState([])
   const [loadingCot, setLoadingCot] = useState(true)
+  const [renewLoadingId, setRenewLoadingId] = useState(null)
   const [chipActive, setChipActive] = useState(0)
   const [search, setSearch] = useState('')
   const [fechaInicio, setFechaInicio] = useState('')
@@ -2351,24 +2352,56 @@ export default function Simulador() {
         </button>
       )}
       {canRenewPoliza && q.poliza_id && (q.poliza_renovable || q.poliza_renovable_anticipada) && (
-        <button onClick={() => {
-          const prod = productos.find(p => p.id === q.producto_id)
-          showModal('renovar', {
-            client: {
-              poliza_id: q.poliza_id,
-              nom: q.nombre,
-              pol: q.poliza_nro || q.nro,
-              vig: q.vig || '—',
-              prima: fmtMonto(q.total, q.moneda_producto),
-              moneda_producto: q.moneda_producto,
-              producto_permite_mensualidades: prod?.permite_mensualidades,
-              producto_recargo_mensual_pct: prod?.recargo_mensual_pct
-            },
-            diasVencimiento: q.dias_vencimiento,
-            onSaved: refrescarCots
-          })
-        }} className="p-2.5 rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 transition" title="Renovar póliza">
-          <RefreshCw className="w-[18px] h-[18px]" />
+        <button
+          onClick={async () => {
+            if (renewLoadingId) return
+            setRenewLoadingId(q.poliza_id)
+            try {
+              const info = await fetchRenovacionInfo(q.poliza_id)
+              const prod = productos.find(p => p.id === q.producto_id)
+              const clientPayload = {
+                poliza_id: q.poliza_id,
+                nom: q.nombre,
+                pol: q.poliza_nro || q.nro,
+                vig: q.vig || '—',
+                moneda_producto: q.moneda_producto,
+                producto_permite_mensualidades: prod?.permite_mensualidades,
+                producto_recargo_mensual_pct: prod?.recargo_mensual_pct
+              }
+
+              if (info.valido) {
+                showModal('renovar', {
+                  client: {
+                    ...clientPayload,
+                    prima: fmtMonto(info.tarifario.prima_anual, q.moneda_producto),
+                    tarifario_id: info.tarifario.id,
+                  },
+                  diasVencimiento: q.dias_vencimiento,
+                  onSaved: refrescarCots
+                })
+              } else {
+                showModal('seleccionarTarifaRenovacion', {
+                  client: clientPayload,
+                  diasVencimiento: q.dias_vencimiento,
+                  tarifarios: info.tarifarios,
+                  onSaved: refrescarCots
+                })
+              }
+            } catch (err) {
+              showToast(err.message || 'Error al iniciar renovación', 'error')
+            } finally {
+              setRenewLoadingId(null)
+            }
+          }}
+          disabled={renewLoadingId === q.poliza_id}
+          className="p-2.5 rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 transition disabled:opacity-50"
+          title="Renovar póliza"
+        >
+          {renewLoadingId === q.poliza_id ? (
+            <div className="w-[18px] h-[18px] border-2 border-orange-400 border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <RefreshCw className="w-[18px] h-[18px]" />
+          )}
         </button>
       )}
       {canPrintPoliza && (q.status === 'emitida' || q.status === 'vencida') && q.poliza_id && (

@@ -33,6 +33,13 @@ export async function renovarPoliza(id, data) {
   return json
 }
 
+export async function fetchRenovacionInfo(id) {
+  const res = await fetch(`${API}/${id}/renovacion-info`, { headers: getAuthHeaders() })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json.error || json.message || 'Error al obtener datos de renovación')
+  return json
+}
+
 export async function updatePoliza(id, data) {
   const res = await fetch(`${API}/${id}`, {
     method: 'PUT',

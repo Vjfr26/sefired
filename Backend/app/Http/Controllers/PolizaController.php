@@ -13,6 +13,7 @@ use App\Models\PolizaBien;
 use App\Models\Factura;
 use App\Models\Solicitud;
 use App\Models\SolicitudRenovacionQr;
+use App\Models\Tarifario;
 use App\Models\IndicadorEconomico;
 use App\Models\Venta;
 use App\Models\Beneficiario;
@@ -708,6 +709,7 @@ class PolizaController extends Controller
             'tasa_eur'          => 'nullable|numeric|min:0.0001',
             'anticipada'        => 'sometimes|boolean',
             'frecuencia_pago'   => 'nullable|string|in:Mensual,Anual',
+            'tarifario_id'      => 'nullable|integer|exists:tarifario,id',
             'pagos'             => 'required|array|min:1',
             'pagos.*.forma'     => ['required', 'string', 'max:30', $noInjection],
             'pagos.*.moneda'    => 'required|string|in:USD,EUR,Bs.',
@@ -722,12 +724,38 @@ class PolizaController extends Controller
         $pagoResumen    = collect($data['pagos'])->map(fn($p) => $p['forma'] . ' ' . $p['moneda'])->join(' / ');
         $moneda         = $data['pagos'][0]['moneda'] ?? 'USD';
         $monedaNativa   = $polizaAnterior->monedaNativa();
-        $totalBsNuevo   = round(Moneda::aBs((float) $polizaAnterior->total, $monedaNativa, $tasaBcv, $tasaEur), 2);
+
+        // Resolve tarifario and calculate new premium ($totalPoliza)
+        $tarifarioId = $data['tarifario_id'] ?? null;
+        $tarifario = null;
+        if ($tarifarioId) {
+            $tarifario = Tarifario::findOrFail($tarifarioId);
+        } else {
+            // Fallback to tracing active tarifario version from policy
+            $tarifario = Tarifario::find($polizaAnterior->tarifario_version_id);
+            if ($tarifario) {
+                $hops = 0;
+                while ($tarifario && $tarifario->estado !== 'vigente' && $hops++ < 20) {
+                    $child = Tarifario::where('parent_id', $tarifario->id)->orderByDesc('version')->first();
+                    if (!$child) break;
+                    $tarifario = $child;
+                }
+            }
+        }
+
+        $tipoCalculo = $polizaAnterior->producto?->tipo_calculo ?? 'fijo';
+        if ($tarifario) {
+            $totalPoliza = $this->calcularPrimaTarifa($tarifario, $tipoCalculo);
+            if ($totalPoliza <= 0) {
+                $totalPoliza = (float) $polizaAnterior->total;
+            }
+        } else {
+            $totalPoliza = (float) $polizaAnterior->total;
+        }
+
+        $totalBsNuevo   = round(Moneda::aBs((float) $totalPoliza, $monedaNativa, $tasaBcv, $tasaEur), 2);
         $coberturaBsNew = round(Moneda::aBs((float) $polizaAnterior->cobertura_dolares, $monedaNativa, $tasaBcv, $tasaEur), 2);
 
-        // Mismo criterio que al emitir: el pago puede ir desde la primera cuota
-        // (Mensual, si el producto admite mensualidades) hasta el total anual.
-        $totalPoliza    = (float) $polizaAnterior->total;
         $totalPagado    = collect($data['pagos'])->sum(
             fn($p) => Moneda::convertir((float) $p['monto'], $p['moneda'], $monedaNativa, $tasaBcv, $tasaEur)
         );
@@ -780,9 +808,17 @@ class PolizaController extends Controller
             $snapshotNuevo['moneda']           = $moneda;
             $snapshotNuevo['pagos']            = $data['pagos'];
             $snapshotNuevo['total_bs']         = $totalBsNuevo;
+            if ($tarifario) {
+                $snapshotNuevo['tarifario'] = [
+                    'id'      => $tarifario->id,
+                    'nombre'  => $tarifario->nombre,
+                    'version' => $tarifario->version,
+                    'datos'   => $tarifario->datos,
+                ];
+            }
         }
 
-        $result = DB::transaction(function () use ($polizaAnterior, $data, $hoy, $inicio, $vence, $sede, $pagoResumen, $moneda, $monedaNativa, $frecuencia, $tasaBcv, $tasaEur, $totalBsNuevo, $coberturaBsNew, $esMensual, $recargoPct, $totalPagado, $snapshotNuevo) {
+        $result = DB::transaction(function () use ($polizaAnterior, $data, $hoy, $inicio, $vence, $sede, $pagoResumen, $moneda, $monedaNativa, $frecuencia, $tasaBcv, $tasaEur, $totalBsNuevo, $coberturaBsNew, $esMensual, $recargoPct, $totalPagado, $snapshotNuevo, $totalPoliza, $tarifario) {
             $polizaAnterior->update(['status' => 'RENOVADA']);
 
             // La cotización refleja el estado de su póliza vigente: si quedó
@@ -795,7 +831,7 @@ class PolizaController extends Controller
                 'nro_contrato'      => 'TMP-' . uniqid(),
                 'solicitud_id'      => $polizaAnterior->solicitud_id,
                 'producto_id'       => $polizaAnterior->producto_id,
-                'total'             => $polizaAnterior->total,
+                'total'             => $totalPoliza,
                 'total_bs'          => $totalBsNuevo,
                 'moneda_producto'   => $monedaNativa,
                 'tasa_emision'      => $tasaBcv,
@@ -814,7 +850,7 @@ class PolizaController extends Controller
                 'vendedor_id'       => $polizaAnterior->vendedor_id ?? auth()->id(),
                 'status'            => 'ACTIVA',
                 'snapshot_datos'    => $snapshotNuevo ?: null,
-                'tarifario_version_id' => $polizaAnterior->tarifario_version_id,
+                'tarifario_version_id' => $tarifario ? $tarifario->id : $polizaAnterior->tarifario_version_id,
             ]);
 
             $nroContrato = CodigoPoliza::generar(
@@ -829,7 +865,7 @@ class PolizaController extends Controller
             $nueva->update(['nro_contrato' => $nroContrato]);
 
             if ($nueva->vendedor_id) {
-                $baseUsd = Moneda::aUsd((float) $polizaAnterior->total, $monedaNativa, $tasaBcv, $tasaEur);
+                $baseUsd = Moneda::aUsd((float) $totalPoliza, $monedaNativa, $tasaBcv, $tasaEur);
                 $tasaPct = Comision::tasaParaUsuario($nueva->vendedor) * 100;
                 Comision::create([
                     'poliza_id'      => $nueva->id,
@@ -862,7 +898,7 @@ class PolizaController extends Controller
             if ($esMensual) {
                 // Renovación mensual: 12 cuotas nuevas + cobro inicial (emite recibo).
                 // Las cuotas se calendarizan desde el inicio de la nueva vigencia.
-                Mensualidades::generarCuotas($nueva, (float) $polizaAnterior->total, $recargoPct, $inicio);
+                Mensualidades::generarCuotas($nueva, (float) $totalPoliza, $recargoPct, $inicio);
                 $factura = Mensualidades::aplicarPago(
                     $nueva, (float) $totalPagado, $pagoResumen, $moneda,
                     $data['pagos'][0]['referencia'] ?? null, $tasaBcv, $tasaEur, auth()->id(), $sede
@@ -874,7 +910,7 @@ class PolizaController extends Controller
                     'sede'          => $sede,
                     'fecha_factura' => $hoy,
                     'poliza_id'     => $nueva->id,
-                    'valor'         => $polizaAnterior->total,
+                    'valor'         => $totalPoliza,
                     'valor_bs'      => $totalBsNuevo,
                     'forma_pago'    => $pagoResumen,
                     'moneda'        => $moneda,
@@ -1276,5 +1312,99 @@ class PolizaController extends Controller
         $this->logActivity('Beneficiario Eliminado', "Póliza {$poliza->nro_contrato} — {$nombre}", 'beneficiario', auth()->id());
 
         return response()->json(null, 204);
+    }
+
+    public function renovacionInfo($id)
+    {
+        $poliza = Poliza::with(['producto', 'solicitud'])->findOrFail($id);
+        $this->assertAccesoVendedorId($poliza->solicitud?->vendedor_id, 'No tienes acceso a esta póliza.');
+
+        $tarifarioId = $poliza->tarifario_version_id;
+        $tarifa = null;
+        if ($tarifarioId) {
+            $tarifa = Tarifario::find($tarifarioId);
+            if ($tarifa) {
+                $hops = 0;
+                while ($tarifa && $tarifa->estado !== 'vigente' && $hops++ < 20) {
+                    $child = Tarifario::where('parent_id', $tarifa->id)->orderByDesc('version')->first();
+                    if (!$child) break;
+                    $tarifa = $child;
+                }
+            }
+        }
+
+        $tipoCalculo = $poliza->producto?->tipo_calculo ?? 'fijo';
+        $valido = false;
+        $tarifarioInfo = null;
+
+        if ($tarifa && $tarifa->activo && $tarifa->estado === 'vigente') {
+            $primaAnual = $this->calcularPrimaTarifa($tarifa, $tipoCalculo);
+            if ($primaAnual > 0) {
+                $valido = true;
+                $tarifarioInfo = [
+                    'id'          => $tarifa->id,
+                    'nombre'      => $tarifa->nombre,
+                    'subtipo'     => $tarifa->subtipo,
+                    'prima_anual' => $primaAnual,
+                    'moneda'      => $poliza->monedaNativa(),
+                ];
+            }
+        }
+
+        if ($valido) {
+            return response()->json([
+                'valido'    => true,
+                'tarifario' => $tarifarioInfo,
+            ]);
+        }
+
+        // Si no es válido, buscar todas las tarifas activas y vigentes de este producto para que el usuario seleccione una
+        $tarifas = Tarifario::where('producto_id', $poliza->producto_id)
+            ->where('estado', 'vigente')
+            ->where('activo', true)
+            ->get();
+
+        $tarifariosDisponibles = [];
+        foreach ($tarifas as $t) {
+            $prima = $this->calcularPrimaTarifa($t, $tipoCalculo);
+            if ($prima > 0) {
+                $tarifariosDisponibles[] = [
+                    'id'          => $t->id,
+                    'nombre'      => $t->nombre,
+                    'subtipo'     => $t->subtipo,
+                    'prima_anual' => $prima,
+                ];
+            }
+        }
+
+        return response()->json([
+            'valido'     => false,
+            'tarifarios' => $tarifariosDisponibles,
+        ]);
+    }
+
+    private function calcularPrimaTarifa(Tarifario $tarifa, string $tipoCalculo): float
+    {
+        if ($tipoCalculo === 'fijo') {
+            return (float) ($tarifa->datos['prima_anual'] ?? $tarifa->datos['primaanual'] ?? $tarifa->datos['prima'] ?? 0);
+        }
+        if ($tipoCalculo === 'por_nivel') {
+            return (float) ($tarifa->datos['prima'] ?? $tarifa->datos['prima_anual'] ?? $tarifa->datos['primaanual'] ?? 0);
+        }
+        if ($tipoCalculo === 'por_plan') {
+            $suma = 0;
+            if (is_array($tarifa->datos)) {
+                if (isset($tarifa->datos['prima'])) {
+                    return (float) $tarifa->datos['prima'];
+                }
+                foreach ($tarifa->datos as $k => $v) {
+                    if (is_array($v) && isset($v['prima'])) {
+                        $suma += (float) $v['prima'];
+                    }
+                }
+            }
+            return $suma;
+        }
+        return 0.0;
     }
 }

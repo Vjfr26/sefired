@@ -46,7 +46,7 @@ import { fetchPolizasCliente, fetchFacturasCliente, fetchSolicitudesCliente } fr
 import { fetchDocumentosCliente, uploadDocumentoCliente, deleteDocumentoCliente } from '../api/clienteDocumentos.js'
 import { fetchProductos } from '../api/productos.js'
 import { ciudadesDe } from '../utils/venezuela.js'
-import { updatePoliza, renovarPoliza, downloadPolizaPdf, fetchBeneficiarios, createBeneficiario, updateBeneficiario, deleteBeneficiario, fetchBienesPoliza, agregarBienPoliza, quitarBienPoliza, fetchCuotas, pagarCuota } from '../api/polizas.js'
+import { updatePoliza, renovarPoliza, fetchRenovacionInfo, downloadPolizaPdf, fetchBeneficiarios, createBeneficiario, updateBeneficiario, deleteBeneficiario, fetchBienesPoliza, agregarBienPoliza, quitarBienPoliza, fetchCuotas, pagarCuota } from '../api/polizas.js'
 import { fetchBienes, createBien } from '../api/bienes.js'
 import { fetchVehiculosCatalogo } from '../api/vehiculosCatalogo.js'
 import { BIEN_TIPO_PRESETS } from '../utils/bienPresets.js'
@@ -639,6 +639,60 @@ function EditFormModal({ title, fields, onSave, wide = false }) {
   )
 }
 
+function SeleccionarTarifaRenovacionModal({ client, diasVencimiento, tarifarios, onSaved, onCancel }) {
+  const { closeModal, showModal } = useApp()
+  const [selectedId, setSelectedId] = useState('')
+
+  const handleContinuar = () => {
+    const selected = tarifarios.find(t => t.id === parseInt(selectedId))
+    if (!selected) return
+
+    closeModal()
+    setTimeout(() => {
+      showModal('renovar', {
+        client: {
+          ...client,
+          prima: fmtMonto(selected.prima_anual, client.moneda_producto),
+          tarifario_id: selected.id
+        },
+        diasVencimiento,
+        onSaved
+      })
+    }, 100)
+  }
+
+  return (
+    <ModalShell title="Seleccionar Tarifa para Renovación" maxW="max-w-md" footer={
+      <>
+        <button onClick={onCancel || closeModal} className="btn-secondary">Cancelar</button>
+        <button onClick={handleContinuar} disabled={!selectedId} className="btn-primary">Continuar</button>
+      </>
+    }>
+      <div className="space-y-4">
+        <p className="text-sm text-slate-650 leading-relaxed">
+          No se pudo encontrar una tarifa vigente automática para esta póliza. Por favor, seleccione una tarifa activa del producto para calcular el nuevo monto de renovación:
+        </p>
+
+        <div className="space-y-2">
+          <label className="block text-xs font-semibold text-slate-500 uppercase">Tarifas Disponibles</label>
+          <select
+            value={selectedId}
+            onChange={(e) => setSelectedId(e.target.value)}
+            className="w-full rounded-lg border border-slate-200 p-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="">-- Seleccione una tarifa --</option>
+            {tarifarios.map(t => (
+              <option key={t.id} value={t.id}>
+                {t.nombre} {t.subtipo ? `(${t.subtipo})` : ''} - {fmtMonto(t.prima_anual, client.moneda_producto)}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+    </ModalShell>
+  )
+}
+
 // ── Renovar póliza ───────────────────────────────────────────────────────────
 /**
  * Muestra un resumen de la póliza actual del cliente y un formulario
@@ -736,6 +790,7 @@ function RenovarModal({ client, diasVencimiento, onSaved, onCancel }) {
         tasa_bcv: tasas.usd ?? 1,
         tasa_eur: tasas.eur ?? 0,
         frecuencia_pago: frecuencia,
+        tarifario_id: client.tarifario_id,
         // La póliza aún no venció: el usuario ya confirmó en este modal que
         // quiere renovarla igual (el backend exige este flag fuera de la
         // ventana de renovación).
@@ -4500,6 +4555,7 @@ function ClienteHistorialModal({ c, onSaved }) {
   const [search, setSearch]           = useState('')
   const [showRechazadas, setShowRechazadas] = useState(false)
   const [pdfLoading, setPdfLoading]   = useState(null)
+  const [renewLoadingId, setRenewLoadingId] = useState(null)
   const [pdfVisor, setPdfVisor]       = useState(null) // { url, title, nro }
   const pdfVisorPanelRef = useRef(null)
   useModalLock(pdfVisorPanelRef, !!pdfVisor)
@@ -4652,19 +4708,58 @@ function ClienteHistorialModal({ c, onSaved }) {
                       )}
                       {(pol.renovable || pol.renovable_anticipada) && pol.id && canRenew && (
                         <button
-                          onClick={() => {
-                            const dias = pol.fecha_vencimiento_iso
-                              ? Math.round((new Date(pol.fecha_vencimiento_iso) - new Date()) / 86400000)
-                              : null
-                            showModal('renovar', {
-                              client: { ...c, poliza_id: pol.id },
-                              diasVencimiento: dias,
-                              onSaved: () => { loadPolizas(); onSaved?.() },
-                            })
+                          onClick={async () => {
+                            if (renewLoadingId) return
+                            setRenewLoadingId(pol.id)
+                            try {
+                              const info = await fetchRenovacionInfo(pol.id)
+                              const dias = pol.fecha_vencimiento_iso
+                                ? Math.round((new Date(pol.fecha_vencimiento_iso) - new Date()) / 86400000)
+                                : null
+
+                              const clientPayload = {
+                                ...c,
+                                poliza_id: pol.id,
+                                nom: c.nombre,
+                                pol: pol.nro_contrato,
+                                vig: `${pol.fecha_emision} – ${pol.fecha_vencimiento}`,
+                                moneda_producto: pol.moneda_producto,
+                                producto_permite_mensualidades: pol.producto_permite_mensualidades,
+                                producto_recargo_mensual_pct: pol.producto_recargo_mensual_pct,
+                              }
+
+                              if (info.valido) {
+                                showModal('renovar', {
+                                  client: {
+                                    ...clientPayload,
+                                    prima: fmtMonto(info.tarifario.prima_anual, pol.moneda_producto),
+                                    tarifario_id: info.tarifario.id,
+                                  },
+                                  diasVencimiento: dias,
+                                  onSaved: () => { loadPolizas(); onSaved?.() },
+                                })
+                              } else {
+                                showModal('seleccionarTarifaRenovacion', {
+                                  client: clientPayload,
+                                  diasVencimiento: dias,
+                                  tarifarios: info.tarifarios,
+                                  onSaved: () => { loadPolizas(); onSaved?.() },
+                                })
+                              }
+                            } catch (err) {
+                              showToast(err.message || 'Error al iniciar renovación', 'error')
+                            } finally {
+                              setRenewLoadingId(null)
+                            }
                           }}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-xs font-semibold text-emerald-600 hover:bg-emerald-100 transition whitespace-nowrap"
+                          disabled={renewLoadingId === pol.id}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-xs font-semibold text-emerald-600 hover:bg-emerald-100 transition whitespace-nowrap disabled:opacity-50"
                         >
-                          <RefreshCw className="w-4 h-4 shrink-0" /> Renovar
+                          {renewLoadingId === pol.id ? (
+                            <><div className="w-4 h-4 border border-emerald-400 border-t-transparent rounded-full animate-spin" /> Cargando…</>
+                          ) : (
+                            <><RefreshCw className="w-4 h-4 shrink-0" /> Renovar</>
+                          )}
                         </button>
                       )}
                       {pol.id && canAdjust && (
@@ -5560,6 +5655,7 @@ export default function Modal() {
     case 'actionMenu':      return <ActionMenuModal {...props} />
     case 'editForm':        return <EditFormModal {...props} />
     case 'renovar':              return <RenovarModal {...props} />
+    case 'seleccionarTarifaRenovacion': return <SeleccionarTarifaRenovacionModal {...props} />
     case 'emitirCotizacion':     return <EmitirCotizacionModal {...props} />
     case 'vehiculoForm':    return <VehiculoFormModal {...props} />
     case 'vehiculoDetail':  return <VehiculoDetailModal {...props} />

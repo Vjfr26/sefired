@@ -101,6 +101,7 @@ Route::middleware([\App\Http\Middleware\ApiTokenMiddleware::class, 'throttle:120
     // ── Escritura — throttle adicional: 40 req/min por usuario ───────────────
     Route::middleware('throttle:api_write')->group(function () {
         Route::get('/polizas/{id}/pdf',            [PolizaController::class,          'pdf'])->middleware('perm:cotizaciones,view');
+        Route::get('/polizas/{id}/renovacion-info',[PolizaController::class,          'renovacionInfo'])->middleware('perm:cotizaciones,view');
         Route::put('/polizas/{id}',                [PolizaController::class,          'update'])->middleware('perm:cotizaciones,edit');
         Route::post('/polizas/{id}/renovar',       [PolizaController::class,          'renovar'])->middleware('perm:cotizaciones,emit');
         Route::get('/polizas/{id}/cuotas',         [PolizaController::class,          'cuotas'])->middleware('perm:cotizaciones,view');

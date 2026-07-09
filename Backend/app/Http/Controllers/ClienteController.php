@@ -437,6 +437,8 @@ class ClienteController extends Controller
                     return [
                         'id'                    => $poliza->id,
                         'nro_contrato'          => $poliza->nro_contrato,
+                        'producto_id'           => $poliza->producto_id,
+                        'tarifario_version_id'  => $poliza->tarifario_version_id,
                         'bien_tipo'             => $bien?->tipo ?? '—',
                         'bien_ref'              => $attr['placa'] ?? $attr['descripcion'] ?? '—',
                         'producto'              => $poliza->producto?->nombre ?? '—',
