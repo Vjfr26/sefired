@@ -58,45 +58,45 @@ class PolizaController extends Controller
         $noInjection = new NoInjectionChars();
 
         $data = $request->validate([
-            'status'            => 'sometimes|in:ACTIVA,VENCIDA,ANULADA,SUSPENDIDA,RENOVADA',
+            'status' => 'sometimes|in:ACTIVA,VENCIDA,ANULADA,SUSPENDIDA,RENOVADA',
             'fecha_vencimiento' => 'sometimes|date',
-            'fecha_emision'     => 'sometimes|date',
-            'pago'              => ['sometimes', 'string', 'max:255', $noInjection],
-            'total'             => 'sometimes|numeric|min:0',
-            'total_bs'          => 'sometimes|numeric|min:0',
+            'fecha_emision' => 'sometimes|date',
+            'pago' => ['sometimes', 'string', 'max:255', $noInjection],
+            'total' => 'sometimes|numeric|min:0',
+            'total_bs' => 'sometimes|numeric|min:0',
             'cobertura_dolares' => 'sometimes|numeric|min:0',
-            'cobertura_bs'      => 'sometimes|numeric|min:0',
-            'nro_venezolana'    => ['nullable', 'string', 'max:20', $noInjection],
-            'papeleria'         => ['nullable', 'string', 'max:80', $noInjection],
-            'vendedor_id'       => 'sometimes|nullable|integer|exists:usuarios,id',
+            'cobertura_bs' => 'sometimes|numeric|min:0',
+            'nro_venezolana' => ['nullable', 'string', 'max:20', $noInjection],
+            'papeleria' => ['nullable', 'string', 'max:80', $noInjection],
+            'vendedor_id' => 'sometimes|nullable|integer|exists:usuarios,id',
             // Columnas adicionales del PDF
-            'tipo'              => ['sometimes', 'nullable', 'string', 'max:40', $noInjection],
-            'sede_poliza'       => ['sometimes', 'nullable', 'string', 'max:60', $noInjection],
-            'frecuencia_pago'   => ['sometimes', 'nullable', 'string', 'max:20', $noInjection],
-            'asegurado_nombre'  => ['sometimes', 'nullable', 'string', 'max:120', $noInjection],
-            'asegurado_ci'      => ['sometimes', 'nullable', 'string', 'max:20', $noInjection],
+            'tipo' => ['sometimes', 'nullable', 'string', 'max:40', $noInjection],
+            'sede_poliza' => ['sometimes', 'nullable', 'string', 'max:60', $noInjection],
+            'frecuencia_pago' => ['sometimes', 'nullable', 'string', 'max:20', $noInjection],
+            'asegurado_nombre' => ['sometimes', 'nullable', 'string', 'max:120', $noInjection],
+            'asegurado_ci' => ['sometimes', 'nullable', 'string', 'max:20', $noInjection],
             // Datos del PDF que viven en snapshot_datos (no son columnas)
             'asegurado_direccion' => ['sometimes', 'nullable', 'string', 'max:255', $noInjection],
-            'asegurado_telefono'  => ['sometimes', 'nullable', 'string', 'max:30', $noInjection],
-            'tomador_nombre'    => ['sometimes', 'nullable', 'string', 'max:120', $noInjection],
-            'tomador_ci'        => ['sometimes', 'nullable', 'string', 'max:20', $noInjection],
+            'asegurado_telefono' => ['sometimes', 'nullable', 'string', 'max:30', $noInjection],
+            'tomador_nombre' => ['sometimes', 'nullable', 'string', 'max:120', $noInjection],
+            'tomador_ci' => ['sometimes', 'nullable', 'string', 'max:20', $noInjection],
             'tomador_direccion' => ['sometimes', 'nullable', 'string', 'max:255', $noInjection],
-            'tomador_telefono'  => ['sometimes', 'nullable', 'string', 'max:30', $noInjection],
-            'bien_marca'        => ['sometimes', 'nullable', 'string', 'max:40', $noInjection],
-            'bien_modelo'       => ['sometimes', 'nullable', 'string', 'max:40', $noInjection],
-            'bien_anio'         => ['sometimes', 'nullable', 'string', 'max:8', $noInjection],
-            'bien_placa'        => ['sometimes', 'nullable', 'string', 'max:15', $noInjection],
-            'bien_color'        => ['sometimes', 'nullable', 'string', 'max:30', $noInjection],
-            'bien_version'      => ['sometimes', 'nullable', 'string', 'max:40', $noInjection],
-            'bien_puestos'      => ['sometimes', 'nullable', 'string', 'max:5', $noInjection],
-            'bien_uso'               => ['sometimes', 'nullable', 'string', 'max:40', $noInjection],
+            'tomador_telefono' => ['sometimes', 'nullable', 'string', 'max:30', $noInjection],
+            'bien_marca' => ['sometimes', 'nullable', 'string', 'max:40', $noInjection],
+            'bien_modelo' => ['sometimes', 'nullable', 'string', 'max:40', $noInjection],
+            'bien_anio' => ['sometimes', 'nullable', 'string', 'max:8', $noInjection],
+            'bien_placa' => ['sometimes', 'nullable', 'string', 'max:15', $noInjection],
+            'bien_color' => ['sometimes', 'nullable', 'string', 'max:30', $noInjection],
+            'bien_version' => ['sometimes', 'nullable', 'string', 'max:40', $noInjection],
+            'bien_puestos' => ['sometimes', 'nullable', 'string', 'max:5', $noInjection],
+            'bien_uso' => ['sometimes', 'nullable', 'string', 'max:40', $noInjection],
             'bien_serial_carroceria' => ['sometimes', 'nullable', 'string', 'max:30', $noInjection],
-            'bien_serial_motor'      => ['sometimes', 'nullable', 'string', 'max:30', $noInjection],
+            'bien_serial_motor' => ['sometimes', 'nullable', 'string', 'max:30', $noInjection],
         ]);
 
         // Coherencia de fechas: el vencimiento debe ser posterior a la emisión.
-        $emisionFinal = $data['fecha_emision']     ?? $poliza->fecha_emision?->toDateString();
-        $vencFinal    = $data['fecha_vencimiento'] ?? $poliza->fecha_vencimiento?->toDateString();
+        $emisionFinal = $data['fecha_emision'] ?? $poliza->fecha_emision?->toDateString();
+        $vencFinal = $data['fecha_vencimiento'] ?? $poliza->fecha_vencimiento?->toDateString();
         if ($emisionFinal && $vencFinal && $vencFinal <= $emisionFinal) {
             return response()->json(['error' => 'La fecha de vencimiento debe ser posterior a la de emisión.'], 422);
         }
@@ -106,22 +106,30 @@ class PolizaController extends Controller
         // para que $poliza->update() solo reciba columnas reales.
         $snap = $poliza->snapshot_datos ?? [];
         $snapAntes = $snap;
-        if (array_key_exists('asegurado_nombre', $data)) $snap['asegurado']['nombre'] = $data['asegurado_nombre'];
-        if (array_key_exists('asegurado_ci', $data))     $snap['asegurado']['ci']     = $data['asegurado_ci'];
+        if (array_key_exists('asegurado_nombre', $data))
+            $snap['asegurado']['nombre'] = $data['asegurado_nombre'];
+        if (array_key_exists('asegurado_ci', $data))
+            $snap['asegurado']['ci'] = $data['asegurado_ci'];
         $snapMap = [
             'asegurado_direccion' => ['asegurado', 'direccion'],
-            'asegurado_telefono'  => ['asegurado', 'telefono'],
-            'tomador_nombre'      => ['tomador', 'nombre'],
-            'tomador_ci'          => ['tomador', 'ci'],
-            'tomador_direccion'   => ['tomador', 'direccion'],
-            'tomador_telefono'    => ['tomador', 'telefono'],
+            'asegurado_telefono' => ['asegurado', 'telefono'],
+            'tomador_nombre' => ['tomador', 'nombre'],
+            'tomador_ci' => ['tomador', 'ci'],
+            'tomador_direccion' => ['tomador', 'direccion'],
+            'tomador_telefono' => ['tomador', 'telefono'],
         ];
         foreach ($snapMap as $field => [$grp, $key]) {
-            if (array_key_exists($field, $data)) { $snap[$grp][$key] = $data[$field]; unset($data[$field]); }
+            if (array_key_exists($field, $data)) {
+                $snap[$grp][$key] = $data[$field];
+                unset($data[$field]);
+            }
         }
-        $bienMap = ['bien_marca'=>'marca','bien_modelo'=>'modelo','bien_anio'=>'anio','bien_placa'=>'placa','bien_color'=>'color','bien_version'=>'version','bien_puestos'=>'puestos','bien_uso'=>'uso','bien_serial_carroceria'=>'serial_carroceria','bien_serial_motor'=>'serial_motor'];
+        $bienMap = ['bien_marca' => 'marca', 'bien_modelo' => 'modelo', 'bien_anio' => 'anio', 'bien_placa' => 'placa', 'bien_color' => 'color', 'bien_version' => 'version', 'bien_puestos' => 'puestos', 'bien_uso' => 'uso', 'bien_serial_carroceria' => 'serial_carroceria', 'bien_serial_motor' => 'serial_motor'];
         foreach ($bienMap as $field => $key) {
-            if (array_key_exists($field, $data)) { $snap['bien']['atributos'][$key] = $data[$field]; unset($data[$field]); }
+            if (array_key_exists($field, $data)) {
+                $snap['bien']['atributos'][$key] = $data[$field];
+                unset($data[$field]);
+            }
         }
         if ($snap !== $snapAntes) {
             $poliza->snapshot_datos = $snap;
@@ -153,33 +161,34 @@ class PolizaController extends Controller
         // Registrar qué cambió para el correo. vendedor_id se excluye a propósito:
         // es una reasignación interna de cartera, no algo que deba notificarse al cliente.
         $etiquetas = [
-            'status'            => 'Estado',
+            'status' => 'Estado',
             'fecha_vencimiento' => 'Fecha de vencimiento',
-            'fecha_emision'     => 'Fecha de emisión',
-            'pago'              => 'Forma de pago',
-            'total'             => 'Prima (USD)',
-            'total_bs'          => 'Prima (Bs.)',
+            'fecha_emision' => 'Fecha de emisión',
+            'pago' => 'Forma de pago',
+            'total' => 'Prima (USD)',
+            'total_bs' => 'Prima (Bs.)',
             'cobertura_dolares' => 'Cobertura (USD)',
-            'cobertura_bs'      => 'Cobertura (Bs.)',
-            'nro_venezolana'    => 'N° Póliza (La Venezolana)',
-            'papeleria'         => 'Papelería',
-            'tipo'              => 'Tipo de póliza',
-            'sede_poliza'       => 'Oficina / Sede',
-            'frecuencia_pago'   => 'Frecuencia de pago',
-            'asegurado_nombre'  => 'Asegurado (nombre)',
-            'asegurado_ci'      => 'Asegurado (cédula)',
+            'cobertura_bs' => 'Cobertura (Bs.)',
+            'nro_venezolana' => 'N° Póliza (La Venezolana)',
+            'papeleria' => 'Papelería',
+            'tipo' => 'Tipo de póliza',
+            'sede_poliza' => 'Oficina / Sede',
+            'frecuencia_pago' => 'Frecuencia de pago',
+            'asegurado_nombre' => 'Asegurado (nombre)',
+            'asegurado_ci' => 'Asegurado (cédula)',
         ];
         $cambios = [];
         if (isset($poliza->snapshot_datos) && $poliza->isDirty('snapshot_datos')) {
             $cambios['Datos del asegurado/tomador/bien'] = ['anterior' => '(varios)', 'nuevo' => 'actualizados'];
         }
         foreach ($data as $campo => $nuevo) {
-            if ($campo === 'vendedor_id') continue;
+            if ($campo === 'vendedor_id')
+                continue;
             $anterior = $poliza->getAttribute($campo);
             if ((string) $anterior !== (string) $nuevo) {
                 $cambios[$etiquetas[$campo] ?? $campo] = [
                     'anterior' => (string) ($anterior ?? ''),
-                    'nuevo'    => (string) ($nuevo ?? ''),
+                    'nuevo' => (string) ($nuevo ?? ''),
                 ];
             }
         }
@@ -196,7 +205,8 @@ class PolizaController extends Controller
         if (!empty($cambios)) {
             $detalle = implode('; ', array_map(
                 fn($campo, $c) => "{$campo}: '{$c['anterior']}' → '{$c['nuevo']}'",
-                array_keys($cambios), $cambios
+                array_keys($cambios),
+                $cambios
             ));
             $this->logActivity('Póliza Actualizada', "Póliza {$poliza->nro_contrato} — {$detalle}", 'poliza', auth()->id());
         }
@@ -213,7 +223,8 @@ class PolizaController extends Controller
                         auth()->user()?->nombre ?? 'LA VENEZOLANA DE SEGUROS Y VIDA C.A.',
                     ));
                     EmailLog::registrar('cambio_poliza', $correo, 'Póliza ajustada ' . $poliza->nro_contrato, $poliza->solicitud?->persona_id);
-                } catch (\Throwable) {}
+                } catch (\Throwable) {
+                }
             }
         }
 
@@ -238,15 +249,15 @@ class PolizaController extends Controller
         // Bienes adicionales (más allá del original de la solicitud, que no
         // tiene certificado propio) — solo cuando NO se acota a un bien.
         $bienesAdicionales = $bienScope ? collect() : $poliza->bienesAdicionales();
-        $numeroRecibo      = $poliza->numeroRecibo();
-        $esRenovacion      = $poliza->esRenovacion();
+        $numeroRecibo = $poliza->numeroRecibo();
+        $esRenovacion = $poliza->esRenovacion();
 
         $qrUrl = url('/ver/' . urlencode($poliza->nro_contrato));
 
         // app('qrcode') fuerza instancia fresca (bind, no singleton) evitando
         // el cache de la facade que puede contaminar el format entre requests.
         try {
-            $qrSvg  = app('qrcode')->format('svg')->size(150)->errorCorrection('H')->generate($qrUrl);
+            $qrSvg = app('qrcode')->format('svg')->size(150)->errorCorrection('H')->generate($qrUrl);
             $qrCode = 'data:image/svg+xml;base64,' . base64_encode((string) $qrSvg);
         } catch (\Throwable $e) {
             $qrCode = null; // si falla, el blade lo omite
@@ -260,7 +271,7 @@ class PolizaController extends Controller
         }
 
         $pdf = Pdf::loadView('poliza-pdf', compact('poliza', 'qrCode', 'bienesAdicionales', 'numeroRecibo', 'esRenovacion', 'bienScope', 'monedaSalida'))
-                  ->setPaper('letter', 'portrait');
+            ->setPaper('letter', 'portrait');
 
         $certSuffix = $bienScope && $bienScope->certificado
             ? '-' . str_replace(['/', ' '], '-', $bienScope->certificado)
@@ -277,33 +288,33 @@ class PolizaController extends Controller
     public function verificar($nroContrato)
     {
         $poliza = Poliza::with(['solicitud.bien', 'producto'])
-                        ->where('nro_contrato', $nroContrato)
-                        ->whereNull('deleted_at')
-                        ->first();
+            ->where('nro_contrato', $nroContrato)
+            ->whereNull('deleted_at')
+            ->first();
 
         if (!$poliza) {
             return response()->view('verificar-poliza', ['poliza' => null, 'encontrada' => false]);
         }
 
-        $snap  = $poliza->snapshot_datos ?? [];
+        $snap = $poliza->snapshot_datos ?? [];
         // Pólizas anteriores al snapshot enriquecido no tienen 'bien' dentro
         // de snapshot_datos — se cae a la relación en vivo, igual que en landing().
         $attrs = $snap['bien']['atributos'] ?? $poliza->solicitud?->bien?->atributos ?? [];
 
         return response()->view('verificar-poliza', [
-            'encontrada'        => true,
-            'nro_contrato'      => $poliza->nro_contrato,
-            'status'            => $poliza->status,
-            'fecha_emision'     => $poliza->fecha_emision?->format('d/m/Y'),
+            'encontrada' => true,
+            'nro_contrato' => $poliza->nro_contrato,
+            'status' => $poliza->status,
+            'fecha_emision' => $poliza->fecha_emision?->format('d/m/Y'),
             'fecha_vencimiento' => $poliza->fecha_vencimiento?->format('d/m/Y'),
             // Sin asegurado propio (es la misma persona), se muestra el
             // tomador — igual que en el PDF de la póliza. Datos de persona y
             // bien siempre en MAYÚSCULAS, sin importar cómo estén en la BD.
-            'asegurado_nombre'  => mb_strtoupper($snap['asegurado']['nombre'] ?? $poliza->asegurado_nombre ?? $snap['tomador']['nombre'] ?? '—'),
-            'producto'          => $snap['producto']['nombre'] ?? $poliza->producto?->nombre ?? '—',
-            'placa'             => mb_strtoupper($attrs['placa'] ?? '—'),
-            'marca'             => mb_strtoupper($attrs['marca'] ?? '—'),
-            'modelo'            => mb_strtoupper($attrs['modelo'] ?? '—'),
+            'asegurado_nombre' => mb_strtoupper($snap['asegurado']['nombre'] ?? $poliza->asegurado_nombre ?? $snap['tomador']['nombre'] ?? '—'),
+            'producto' => $snap['producto']['nombre'] ?? $poliza->producto?->nombre ?? '—',
+            'placa' => mb_strtoupper($attrs['placa'] ?? '—'),
+            'marca' => mb_strtoupper($attrs['marca'] ?? '—'),
+            'modelo' => mb_strtoupper($attrs['modelo'] ?? '—'),
         ]);
     }
 
@@ -314,26 +325,26 @@ class PolizaController extends Controller
     public function landing($nroContrato)
     {
         $poliza = Poliza::with(['solicitud.bien', 'solicitud.persona', 'producto'])
-                        ->where('nro_contrato', $nroContrato)
-                        ->whereNull('deleted_at')
-                        ->first();
+            ->where('nro_contrato', $nroContrato)
+            ->whereNull('deleted_at')
+            ->first();
 
         if (!$poliza) {
             return response()->view('poliza-landing', [
-                'encontrada'   => false,
+                'encontrada' => false,
                 'nro_contrato' => $nroContrato,
             ]);
         }
 
-        $snap  = $poliza->snapshot_datos ?? [];
+        $snap = $poliza->snapshot_datos ?? [];
         $attrs = $snap['bien']['atributos'] ?? $poliza->solicitud?->bien?->atributos ?? [];
 
         // Tasas del día más recientes
         $tasaUsd = (float) (IndicadorEconomico::usd()->orderBy('fecha', 'desc')->value('valor') ?? 0);
         $tasaEur = (float) (IndicadorEconomico::eur()->orderBy('fecha', 'desc')->value('valor') ?? 0);
-        $moneda  = $poliza->monedaNativa();
-        $total   = (float) ($poliza->total ?? 0);
-        $totalBs  = $tasaUsd > 0 ? round(Moneda::aBs($total, $moneda, $tasaUsd, $tasaEur), 2) : null;
+        $moneda = $poliza->monedaNativa();
+        $total = (float) ($poliza->total ?? 0);
+        $totalBs = $tasaUsd > 0 ? round(Moneda::aBs($total, $moneda, $tasaUsd, $tasaEur), 2) : null;
         $totalEur = $tasaEur > 0 ? round(Moneda::convertir($total, $moneda, 'EUR', $tasaUsd, $tasaEur), 2) : null;
         $totalUsdEquiv = $tasaUsd > 0 ? round(Moneda::aUsd($total, $moneda, $tasaUsd, $tasaEur), 2) : $total;
 
@@ -341,8 +352,8 @@ class PolizaController extends Controller
         // mensual, la primera cuota es el mínimo a cubrir; el cliente puede
         // adelantar hasta el total anual.
         $permiteMensual = (bool) ($poliza->producto?->permite_mensualidades);
-        $recargoPct     = (float) ($poliza->producto?->recargo_mensual_pct ?? 0);
-        $cuotaMensual   = $permiteMensual && $total > 0
+        $recargoPct = (float) ($poliza->producto?->recargo_mensual_pct ?? 0);
+        $cuotaMensual = $permiteMensual && $total > 0
             ? round(($total / 12) * (1 + $recargoPct / 100), 2)
             : null;
 
@@ -353,10 +364,10 @@ class PolizaController extends Controller
         // Renovar: solo "por vencer" (30 días anual / 7 mensual) o ya vencida;
         // las mensuales además sin cuotas pendientes. Ver Poliza::motivoNoRenovable().
         $renovableMotivo = $poliza->motivoNoRenovable();
-        $renovable       = $renovableMotivo === null;
+        $renovable = $renovableMotivo === null;
 
         // Pago de cuota en línea: solo pólizas mensuales con saldo pendiente.
-        $cuotaSaldo   = 0.0;
+        $cuotaSaldo = 0.0;
         $cuotaProxima = null;
         if ($poliza->frecuencia_pago === 'Mensual' && $operable) {
             $cuotas = $poliza->cuotas()->orderBy('numero')->get();
@@ -364,8 +375,8 @@ class PolizaController extends Controller
             $prox = $cuotas->first(fn($c) => $c->status !== 'PAGADA');
             if ($prox) {
                 $cuotaProxima = [
-                    'numero'      => $prox->numero,
-                    'monto'       => round(max(0, (float) $prox->monto - (float) $prox->monto_pagado), 2),
+                    'numero' => $prox->numero,
+                    'monto' => round(max(0, (float) $prox->monto - (float) $prox->monto_pagado), 2),
                     'vencimiento' => $prox->fecha_vencimiento?->format('d/m/Y'),
                 ];
             }
@@ -373,40 +384,40 @@ class PolizaController extends Controller
         $puedePagarCuota = $cuotaSaldo > 0 && $cuotaProxima !== null;
 
         return response()->view('poliza-landing', [
-            'encontrada'        => true,
-            'nro_contrato'      => $poliza->nro_contrato,
-            'status'            => $poliza->status,
-            'renovable'             => $renovable,
-            'renovable_motivo'      => $renovableMotivo,
+            'encontrada' => true,
+            'nro_contrato' => $poliza->nro_contrato,
+            'status' => $poliza->status,
+            'renovable' => $renovable,
+            'renovable_motivo' => $renovableMotivo,
             'permite_mensualidades' => $permiteMensual,
-            'recargo_mensual_pct'   => $recargoPct,
-            'cuota_mensual'         => $cuotaMensual,
-            'puede_pagar_cuota'     => $puedePagarCuota,
-            'cuota_saldo'           => $cuotaSaldo,
-            'cuota_proxima'         => $cuotaProxima,
-            'fecha_emision'     => $poliza->fecha_emision?->format('d/m/Y'),
+            'recargo_mensual_pct' => $recargoPct,
+            'cuota_mensual' => $cuotaMensual,
+            'puede_pagar_cuota' => $puedePagarCuota,
+            'cuota_saldo' => $cuotaSaldo,
+            'cuota_proxima' => $cuotaProxima,
+            'fecha_emision' => $poliza->fecha_emision?->format('d/m/Y'),
             'fecha_vencimiento' => $poliza->fecha_vencimiento?->format('d/m/Y'),
             // Sin asegurado propio (es la misma persona), se muestra el
             // tomador — igual que en el PDF de la póliza. Datos de persona
             // siempre en MAYÚSCULAS, sin importar cómo estén en la BD.
-            'asegurado_nombre'  => mb_strtoupper($snap['asegurado']['nombre'] ?? $poliza->asegurado_nombre ?? $snap['tomador']['nombre'] ?? '—'),
-            'asegurado_ci'      => mb_strtoupper($snap['asegurado']['ci'] ?? $poliza->asegurado_ci ?? $snap['tomador']['ci'] ?? '—'),
-            'producto'          => $snap['producto']['nombre'] ?? $poliza->producto?->nombre ?? '—',
-            'placa'             => mb_strtoupper($attrs['placa'] ?? '—'),
-            'marca'             => mb_strtoupper($attrs['marca'] ?? '—'),
-            'modelo'            => mb_strtoupper($attrs['modelo'] ?? '—'),
-            'anio'              => $attrs['anio'] ?? '—',
-            'color'             => mb_strtoupper($attrs['color'] ?? '—'),
+            'asegurado_nombre' => mb_strtoupper($snap['asegurado']['nombre'] ?? $poliza->asegurado_nombre ?? $snap['tomador']['nombre'] ?? '—'),
+            'asegurado_ci' => mb_strtoupper($snap['asegurado']['ci'] ?? $poliza->asegurado_ci ?? $snap['tomador']['ci'] ?? '—'),
+            'producto' => $snap['producto']['nombre'] ?? $poliza->producto?->nombre ?? '—',
+            'placa' => mb_strtoupper($attrs['placa'] ?? '—'),
+            'marca' => mb_strtoupper($attrs['marca'] ?? '—'),
+            'modelo' => mb_strtoupper($attrs['modelo'] ?? '—'),
+            'anio' => $attrs['anio'] ?? '—',
+            'color' => mb_strtoupper($attrs['color'] ?? '—'),
             'serial_carroceria' => mb_strtoupper($attrs['serial_carroceria'] ?? $attrs['serialCarroceria'] ?? '—'),
-            'serial_motor'      => mb_strtoupper($attrs['serial_motor'] ?? $attrs['serialMotor'] ?? '—'),
-            'moneda'            => $moneda,
-            'moneda_simbolo'    => Moneda::simbolo($moneda),
-            'total'             => $total,
-            'total_bs'          => $totalBs,
-            'total_eur'         => $totalEur,
-            'total_usd_equiv'   => $totalUsdEquiv,
-            'tasa_usd'          => $tasaUsd,
-            'tasa_eur'          => $tasaEur,
+            'serial_motor' => mb_strtoupper($attrs['serial_motor'] ?? $attrs['serialMotor'] ?? '—'),
+            'moneda' => $moneda,
+            'moneda_simbolo' => Moneda::simbolo($moneda),
+            'total' => $total,
+            'total_bs' => $totalBs,
+            'total_eur' => $totalEur,
+            'total_usd_equiv' => $totalUsdEquiv,
+            'tasa_usd' => $tasaUsd,
+            'tasa_eur' => $tasaEur,
         ]);
     }
 
@@ -416,25 +427,25 @@ class PolizaController extends Controller
     public function pdfPublico($nroContrato)
     {
         $poliza = Poliza::with(['solicitud.bien', 'solicitud.persona', 'producto', 'vendedor', 'bienes.bien', 'facturas'])
-                        ->where('nro_contrato', $nroContrato)
-                        ->whereNull('deleted_at')
-                        ->firstOrFail();
+            ->where('nro_contrato', $nroContrato)
+            ->whereNull('deleted_at')
+            ->firstOrFail();
 
         $bienesAdicionales = $poliza->bienesAdicionales();
-        $numeroRecibo      = $poliza->numeroRecibo();
-        $esRenovacion      = $poliza->esRenovacion();
+        $numeroRecibo = $poliza->numeroRecibo();
+        $esRenovacion = $poliza->esRenovacion();
 
         $qrUrl = url('/ver/' . urlencode($poliza->nro_contrato));
 
         try {
-            $qrSvg  = app('qrcode')->format('svg')->size(150)->errorCorrection('H')->generate($qrUrl);
+            $qrSvg = app('qrcode')->format('svg')->size(150)->errorCorrection('H')->generate($qrUrl);
             $qrCode = 'data:image/svg+xml;base64,' . base64_encode((string) $qrSvg);
         } catch (\Throwable $e) {
             $qrCode = null;
         }
 
         $pdf = Pdf::loadView('poliza-pdf', compact('poliza', 'qrCode', 'bienesAdicionales', 'numeroRecibo', 'esRenovacion'))
-                  ->setPaper('letter', 'portrait');
+            ->setPaper('letter', 'portrait');
 
         $filename = 'poliza-' . str_replace(['/', ' '], '-', $poliza->nro_contrato) . '.pdf';
 
@@ -449,8 +460,8 @@ class PolizaController extends Controller
     public function solicitarRenovacion(Request $request, $nroContrato)
     {
         $poliza = Poliza::where('nro_contrato', $nroContrato)
-                        ->whereNull('deleted_at')
-                        ->firstOrFail();
+            ->whereNull('deleted_at')
+            ->firstOrFail();
 
         // Solo pólizas vigentes o vencidas admiten renovación en línea.
         if (!in_array($poliza->status, ['ACTIVA', 'VENCIDA'], true)) {
@@ -468,43 +479,46 @@ class PolizaController extends Controller
         }
 
         $metodosPermitidos = [
-            'Transferencia Bancaria', 'Pago Móvil', 'Zelle', 'Binance / Cripto',
+            'Transferencia Bancaria',
+            'Pago Móvil',
+            'Zelle',
+            'Binance / Cripto',
         ];
 
         $data = $request->validate([
-            'pagos'                => 'required|array|min:1|max:5',
-            'pagos.*.metodo'       => 'required|string|in:' . implode(',', $metodosPermitidos),
-            'pagos.*.banco'        => 'nullable|string|max:80|regex:/^[\w\s\-\.áéíóúÁÉÍÓÚñÑ]+$/u',
-            'pagos.*.referencia'   => ['required', 'string', 'max:100', 'regex:/^[\w\s\-\/]+$/'],
-            'pagos.*.monto'        => 'required|numeric|min:0.01|max:9999999',
-            'pagos.*.moneda'       => 'required|string|in:USD,EUR,Bs.',
+            'pagos' => 'required|array|min:1|max:5',
+            'pagos.*.metodo' => 'required|string|in:' . implode(',', $metodosPermitidos),
+            'pagos.*.banco' => 'nullable|string|max:80|regex:/^[\w\s\-\.áéíóúÁÉÍÓÚñÑ]+$/u',
+            'pagos.*.referencia' => ['required', 'string', 'max:100', 'regex:/^[\w\s\-\/]+$/'],
+            'pagos.*.monto' => 'required|numeric|min:0.01|max:9999999',
+            'pagos.*.moneda' => 'required|string|in:USD,EUR,Bs.',
         ]);
 
         // Sanitizar cada referencia (quitar caracteres que no sean alfanuméricos, guión, barra, espacio)
         $pagosLimpios = collect($data['pagos'])->map(fn($p) => [
-            'metodo'     => $p['metodo'],
-            'banco'      => isset($p['banco']) ? strip_tags(trim($p['banco'])) : null,
+            'metodo' => $p['metodo'],
+            'banco' => isset($p['banco']) ? strip_tags(trim($p['banco'])) : null,
             'referencia' => preg_replace('/[^\w\s\-\/]/', '', trim($p['referencia'])),
-            'monto'      => round((float) $p['monto'], 2),
-            'moneda'     => $p['moneda'],
+            'monto' => round((float) $p['monto'], 2),
+            'moneda' => $p['moneda'],
         ])->values()->all();
 
         // Datos personales desde el snapshot de la póliza — no del cliente
-        $snap     = $poliza->snapshot_datos ?? [];
-        $persona  = $poliza->solicitud?->persona;
-        $nombre   = $snap['asegurado']['nombre'] ?? $poliza->asegurado_nombre ?? $persona?->nombre ?? null;
+        $snap = $poliza->snapshot_datos ?? [];
+        $persona = $poliza->solicitud?->persona;
+        $nombre = $snap['asegurado']['nombre'] ?? $poliza->asegurado_nombre ?? $persona?->nombre ?? null;
         $telefono = $snap['tomador']['telefono'] ?? $persona?->celular ?? $persona?->telefono ?? null;
-        $correo   = $persona?->correo ?? null;
+        $correo = $persona?->correo ?? null;
 
         SolicitudRenovacionQr::create([
-            'poliza_id'           => $poliza->id,
-            'nro_contrato'        => $poliza->nro_contrato,
-            'nombre'              => $nombre,
-            'telefono'            => $telefono,
-            'correo'              => $correo,
-            'pagos'               => $pagosLimpios,
-            'total_usd_estimado'  => null, // El asesor verifica el monto real
-            'status'              => 'PENDIENTE',
+            'poliza_id' => $poliza->id,
+            'nro_contrato' => $poliza->nro_contrato,
+            'nombre' => $nombre,
+            'telefono' => $telefono,
+            'correo' => $correo,
+            'pagos' => $pagosLimpios,
+            'total_usd_estimado' => null, // El asesor verifica el monto real
+            'status' => 'PENDIENTE',
         ]);
 
         return response()->json(['ok' => true]);
@@ -518,8 +532,8 @@ class PolizaController extends Controller
     public function solicitarPagoCuota(Request $request, $nroContrato)
     {
         $poliza = Poliza::where('nro_contrato', $nroContrato)
-                        ->whereNull('deleted_at')
-                        ->firstOrFail();
+            ->whereNull('deleted_at')
+            ->firstOrFail();
 
         if ($poliza->frecuencia_pago !== 'Mensual' || !in_array($poliza->status, ['ACTIVA', 'VENCIDA'], true)) {
             return response()->json(['message' => 'Esta póliza no admite pago de cuota en línea.'], 422);
@@ -536,35 +550,35 @@ class PolizaController extends Controller
 
         $metodosPermitidos = ['Transferencia Bancaria', 'Pago Móvil', 'Zelle', 'Binance / Cripto'];
         $data = $request->validate([
-            'pagos'              => 'required|array|min:1|max:5',
-            'pagos.*.metodo'     => 'required|string|in:' . implode(',', $metodosPermitidos),
-            'pagos.*.banco'      => 'nullable|string|max:80|regex:/^[\w\s\-\.áéíóúÁÉÍÓÚñÑ]+$/u',
+            'pagos' => 'required|array|min:1|max:5',
+            'pagos.*.metodo' => 'required|string|in:' . implode(',', $metodosPermitidos),
+            'pagos.*.banco' => 'nullable|string|max:80|regex:/^[\w\s\-\.áéíóúÁÉÍÓÚñÑ]+$/u',
             'pagos.*.referencia' => ['required', 'string', 'max:100', 'regex:/^[\w\s\-\/]+$/'],
-            'pagos.*.monto'      => 'required|numeric|min:0.01|max:9999999',
-            'pagos.*.moneda'     => 'required|string|in:USD,EUR,Bs.',
+            'pagos.*.monto' => 'required|numeric|min:0.01|max:9999999',
+            'pagos.*.moneda' => 'required|string|in:USD,EUR,Bs.',
         ]);
 
         $pagosLimpios = collect($data['pagos'])->map(fn($p) => [
-            'metodo'     => $p['metodo'],
-            'banco'      => isset($p['banco']) ? strip_tags(trim($p['banco'])) : null,
+            'metodo' => $p['metodo'],
+            'banco' => isset($p['banco']) ? strip_tags(trim($p['banco'])) : null,
             'referencia' => preg_replace('/[^\w\s\-\/]/', '', trim($p['referencia'])),
-            'monto'      => round((float) $p['monto'], 2),
-            'moneda'     => $p['moneda'],
+            'monto' => round((float) $p['monto'], 2),
+            'moneda' => $p['moneda'],
         ])->values()->all();
 
-        $snap     = $poliza->snapshot_datos ?? [];
-        $persona  = $poliza->solicitud?->persona;
+        $snap = $poliza->snapshot_datos ?? [];
+        $persona = $poliza->solicitud?->persona;
 
         SolicitudRenovacionQr::create([
-            'poliza_id'          => $poliza->id,
-            'nro_contrato'       => $poliza->nro_contrato,
-            'concepto'           => 'cuota',
-            'nombre'             => $snap['asegurado']['nombre'] ?? $poliza->asegurado_nombre ?? $persona?->nombre ?? null,
-            'telefono'           => $snap['tomador']['telefono'] ?? $persona?->celular ?? $persona?->telefono ?? null,
-            'correo'             => $persona?->correo ?? null,
-            'pagos'              => $pagosLimpios,
+            'poliza_id' => $poliza->id,
+            'nro_contrato' => $poliza->nro_contrato,
+            'concepto' => 'cuota',
+            'nombre' => $snap['asegurado']['nombre'] ?? $poliza->asegurado_nombre ?? $persona?->nombre ?? null,
+            'telefono' => $snap['tomador']['telefono'] ?? $persona?->celular ?? $persona?->telefono ?? null,
+            'correo' => $persona?->correo ?? null,
+            'pagos' => $pagosLimpios,
             'total_usd_estimado' => null,
-            'status'             => 'PENDIENTE',
+            'status' => 'PENDIENTE',
         ]);
 
         return response()->json(['ok' => true]);
@@ -580,26 +594,26 @@ class PolizaController extends Controller
 
         $monedaNativa = $poliza->monedaNativa();
         $cuotas = $poliza->cuotas->map(fn($c) => [
-            'id'                => $c->id,
-            'numero'            => $c->numero,
-            'monto'             => (float) $c->monto,
-            'monto_pagado'      => (float) $c->monto_pagado,
-            'saldo'             => $c->saldo(),
+            'id' => $c->id,
+            'numero' => $c->numero,
+            'monto' => (float) $c->monto,
+            'monto_pagado' => (float) $c->monto_pagado,
+            'saldo' => $c->saldo(),
             'fecha_vencimiento' => $c->fecha_vencimiento?->format('Y-m-d'),
-            'status'            => $c->status,
+            'status' => $c->status,
         ])->values();
 
-        $total  = round($poliza->cuotas->sum('monto'), 2);
+        $total = round($poliza->cuotas->sum('monto'), 2);
         $pagado = round($poliza->cuotas->sum('monto_pagado'), 2);
 
         return response()->json([
-            'frecuencia'     => $poliza->frecuencia_pago,
-            'moneda'         => $monedaNativa,
+            'frecuencia' => $poliza->frecuencia_pago,
+            'moneda' => $monedaNativa,
             'moneda_simbolo' => Moneda::simbolo($monedaNativa),
-            'cuotas'         => $cuotas,
-            'total'          => $total,
-            'pagado'         => $pagado,
-            'saldo'          => round($total - $pagado, 2),
+            'cuotas' => $cuotas,
+            'total' => $total,
+            'pagado' => $pagado,
+            'saldo' => round($total - $pagado, 2),
         ]);
     }
 
@@ -621,19 +635,19 @@ class PolizaController extends Controller
 
         $noInjection = new NoInjectionChars();
         $data = $request->validate([
-            'tasa_bcv'           => 'required|numeric|min:0.0001',
-            'tasa_eur'           => 'nullable|numeric|min:0.0001',
-            'pagos'              => 'required|array|min:1',
-            'pagos.*.forma'      => ['required', 'string', 'max:30', $noInjection],
-            'pagos.*.moneda'     => 'required|string|in:USD,EUR,Bs.',
-            'pagos.*.monto'      => 'required|numeric|min:0.01',
+            'tasa_bcv' => 'required|numeric|min:0.0001',
+            'tasa_eur' => 'nullable|numeric|min:0.0001',
+            'pagos' => 'required|array|min:1',
+            'pagos.*.forma' => ['required', 'string', 'max:30', $noInjection],
+            'pagos.*.moneda' => 'required|string|in:USD,EUR,Bs.',
+            'pagos.*.monto' => 'required|numeric|min:0.01',
             'pagos.*.referencia' => ['nullable', 'string', 'max:100', $noInjection],
         ]);
 
-        $tasaBcv      = (float) $data['tasa_bcv'];
-        $tasaEur      = isset($data['tasa_eur']) && $data['tasa_eur'] > 0 ? (float) $data['tasa_eur'] : $tasaBcv;
+        $tasaBcv = (float) $data['tasa_bcv'];
+        $tasaEur = isset($data['tasa_eur']) && $data['tasa_eur'] > 0 ? (float) $data['tasa_eur'] : $tasaBcv;
         $monedaNativa = $poliza->monedaNativa();
-        $montoNativo  = collect($data['pagos'])->sum(
+        $montoNativo = collect($data['pagos'])->sum(
             fn($p) => Moneda::convertir((float) $p['monto'], $p['moneda'], $monedaNativa, $tasaBcv, $tasaEur)
         );
 
@@ -646,18 +660,26 @@ class PolizaController extends Controller
             return response()->json([
                 'error' => sprintf(
                     'El pago (%s%.2f) supera el saldo pendiente (%s%.2f).',
-                    Moneda::simbolo($monedaNativa), round($montoNativo, 2),
-                    Moneda::simbolo($monedaNativa), $saldo
+                    Moneda::simbolo($monedaNativa),
+                    round($montoNativo, 2),
+                    Moneda::simbolo($monedaNativa),
+                    $saldo
                 ),
             ], 422);
         }
 
         $pagoResumen = collect($data['pagos'])->map(fn($p) => $p['forma'] . ' ' . $p['moneda'])->join(' / ');
-        $moneda      = $data['pagos'][0]['moneda'] ?? 'USD';
+        $moneda = $data['pagos'][0]['moneda'] ?? 'USD';
 
         $factura = DB::transaction(fn() => Mensualidades::aplicarPago(
-            $poliza, (float) $montoNativo, $pagoResumen, $moneda,
-            $data['pagos'][0]['referencia'] ?? null, $tasaBcv, $tasaEur, auth()->id()
+            $poliza,
+            (float) $montoNativo,
+            $pagoResumen,
+            $moneda,
+            $data['pagos'][0]['referencia'] ?? null,
+            $tasaBcv,
+            $tasaEur,
+            auth()->id()
         ));
 
         $correo = $poliza->solicitud?->persona?->correo;
@@ -671,7 +693,8 @@ class PolizaController extends Controller
                     personaId: $poliza->solicitud?->persona_id,
                     polizaId: $poliza->id,
                 );
-            } catch (\Throwable) {}
+            } catch (\Throwable) {
+            }
         }
 
         $this->logActivity(
@@ -688,6 +711,30 @@ class PolizaController extends Controller
      * Renueva una póliza: marca la actual como VENCIDA y crea una nueva
      * póliza + factura con los mismos datos de cobertura por un año más.
      */
+    /**
+     * Monto real a cobrar al renovar: el total recotizado con la tarifa
+     * vigente (prima + IVA + derecho). Lo consume el modal de Renovar Póliza
+     * para mostrar y validar el pago — el total viejo de la póliza puede
+     * venir de un tarifario ya actualizado o de la migración.
+     */
+    public function renovacionInfo($id)
+    {
+        $poliza = Poliza::with(['solicitud.bien', 'producto'])->findOrFail($id);
+        $this->assertAccesoVendedorId($poliza->solicitud?->vendedor_id, 'No tienes acceso a esta póliza.');
+
+        $r = $poliza->totalRenovacion();
+
+        return response()->json([
+            'recotizada' => (bool) $r,
+            'total' => $r['total'] ?? (float) $poliza->total,
+            'prima' => $r['prima'] ?? (float) $poliza->total,
+            'iva' => $r['iva'] ?? 0.0,
+            'derecho' => $r['derecho'] ?? 0.0,
+            'tarifa' => $r ? $r['tarifa']->nombre : null,
+            'moneda' => $poliza->monedaNativa(),
+        ]);
+    }
+
     public function renovar(Request $request, $id)
     {
         $polizaAnterior = Poliza::with('solicitud', 'producto', 'cuotas')->findOrFail($id);
@@ -705,25 +752,25 @@ class PolizaController extends Controller
         $noInjection = new NoInjectionChars();
 
         $data = $request->validate([
-            'tasa_bcv'          => 'required|numeric|min:0.0001',
-            'tasa_eur'          => 'nullable|numeric|min:0.0001',
-            'anticipada'        => 'sometimes|boolean',
-            'frecuencia_pago'   => 'nullable|string|in:Mensual,Anual',
-            'tarifario_id'      => 'nullable|integer|exists:tarifario,id',
-            'pagos'             => 'required|array|min:1',
-            'pagos.*.forma'     => ['required', 'string', 'max:30', $noInjection],
-            'pagos.*.moneda'    => 'required|string|in:USD,EUR,Bs.',
-            'pagos.*.monto'     => 'required|numeric|min:0.01',
-            'pagos.*.referencia'=> ['nullable', 'string', 'max:100', $noInjection],
+            'tasa_bcv' => 'required|numeric|min:0.0001',
+            'tasa_eur' => 'nullable|numeric|min:0.0001',
+            'anticipada' => 'sometimes|boolean',
+            'frecuencia_pago' => 'nullable|string|in:Mensual,Anual',
+            'tarifario_id' => 'nullable|integer|exists:tarifario,id',
+            'pagos' => 'required|array|min:1',
+            'pagos.*.forma' => ['required', 'string', 'max:30', $noInjection],
+            'pagos.*.moneda' => 'required|string|in:USD,EUR,Bs.',
+            'pagos.*.monto' => 'required|numeric|min:0.01',
+            'pagos.*.referencia' => ['nullable', 'string', 'max:100', $noInjection],
         ]);
 
-        $tasaBcv        = (float) $data['tasa_bcv'];
-        $tasaEur        = isset($data['tasa_eur']) && $data['tasa_eur'] > 0 ? (float) $data['tasa_eur'] : $tasaBcv;
-        $frecuencia     = $data['frecuencia_pago'] ?? 'Anual';
-        $sede           = auth()->user()?->sede ?? 'Principal';
-        $pagoResumen    = collect($data['pagos'])->map(fn($p) => $p['forma'] . ' ' . $p['moneda'])->join(' / ');
-        $moneda         = $data['pagos'][0]['moneda'] ?? 'USD';
-        $monedaNativa   = $polizaAnterior->monedaNativa();
+        $tasaBcv = (float) $data['tasa_bcv'];
+        $tasaEur = isset($data['tasa_eur']) && $data['tasa_eur'] > 0 ? (float) $data['tasa_eur'] : $tasaBcv;
+        $frecuencia = $data['frecuencia_pago'] ?? 'Anual';
+        $sede = auth()->user()?->sede ?? 'Principal';
+        $pagoResumen = collect($data['pagos'])->map(fn($p) => $p['forma'] . ' ' . $p['moneda'])->join(' / ');
+        $moneda = $data['pagos'][0]['moneda'] ?? 'USD';
+        $monedaNativa = $polizaAnterior->monedaNativa();
 
         // Resolve tarifario and calculate new premium ($totalPoliza)
         $tarifarioId = $data['tarifario_id'] ?? null;
@@ -737,7 +784,8 @@ class PolizaController extends Controller
                 $hops = 0;
                 while ($tarifario && $tarifario->estado !== 'vigente' && $hops++ < 20) {
                     $child = Tarifario::where('parent_id', $tarifario->id)->orderByDesc('version')->first();
-                    if (!$child) break;
+                    if (!$child)
+                        break;
                     $tarifario = $child;
                 }
             }
@@ -753,18 +801,18 @@ class PolizaController extends Controller
             $totalPoliza = (float) $polizaAnterior->total;
         }
 
-        $totalBsNuevo   = round(Moneda::aBs((float) $totalPoliza, $monedaNativa, $tasaBcv, $tasaEur), 2);
+        $totalBsNuevo = round(Moneda::aBs((float) $totalPoliza, $monedaNativa, $tasaBcv, $tasaEur), 2);
         $coberturaBsNew = round(Moneda::aBs((float) $polizaAnterior->cobertura_dolares, $monedaNativa, $tasaBcv, $tasaEur), 2);
 
-        $totalPagado    = collect($data['pagos'])->sum(
+        $totalPagado = collect($data['pagos'])->sum(
             fn($p) => Moneda::convertir((float) $p['monto'], $p['moneda'], $monedaNativa, $tasaBcv, $tasaEur)
         );
 
         $permiteMensual = (bool) ($polizaAnterior->producto?->permite_mensualidades);
-        $recargoPct     = (float) ($polizaAnterior->producto?->recargo_mensual_pct ?? 0);
-        $esMensual      = $frecuencia === 'Mensual' && $permiteMensual;
-        $montoMinimo    = $esMensual ? Mensualidades::montoCuota($totalPoliza, $recargoPct) : $totalPoliza;
-        $montoMaximo    = $esMensual ? Mensualidades::totalFinanciado($totalPoliza, $recargoPct) : $totalPoliza;
+        $recargoPct = (float) ($polizaAnterior->producto?->recargo_mensual_pct ?? 0);
+        $esMensual = $frecuencia === 'Mensual' && $permiteMensual;
+        $montoMinimo = $esMensual ? Mensualidades::montoCuota($totalPoliza, $recargoPct) : $totalPoliza;
+        $montoMaximo = $esMensual ? Mensualidades::totalFinanciado($totalPoliza, $recargoPct) : $totalPoliza;
 
         $pagCents = (int) floor($totalPagado * 100 + 1e-6);
         $minCents = (int) round($montoMinimo * 100);
@@ -774,20 +822,28 @@ class PolizaController extends Controller
                 'error' => $pagCents < $minCents
                     ? sprintf(
                         'El pago (%s%.2f %s) es menor a %s (%s%.2f %s).',
-                        Moneda::simbolo($monedaNativa), round($totalPagado, 2), Moneda::etiqueta($monedaNativa),
+                        Moneda::simbolo($monedaNativa),
+                        round($totalPagado, 2),
+                        Moneda::etiqueta($monedaNativa),
                         $esMensual ? 'la primera cuota mensual' : 'el total de la póliza',
-                        Moneda::simbolo($monedaNativa), $montoMinimo, Moneda::etiqueta($monedaNativa)
+                        Moneda::simbolo($monedaNativa),
+                        $montoMinimo,
+                        Moneda::etiqueta($monedaNativa)
                     )
                     : sprintf(
                         'El pago (%s%.2f %s) supera el %s (%s%.2f %s).',
-                        Moneda::simbolo($monedaNativa), round($totalPagado, 2), Moneda::etiqueta($monedaNativa),
+                        Moneda::simbolo($monedaNativa),
+                        round($totalPagado, 2),
+                        Moneda::etiqueta($monedaNativa),
                         $esMensual ? 'total financiado de las 12 cuotas' : 'total anual de la póliza',
-                        Moneda::simbolo($monedaNativa), $montoMaximo, Moneda::etiqueta($monedaNativa)
+                        Moneda::simbolo($monedaNativa),
+                        $montoMaximo,
+                        Moneda::etiqueta($monedaNativa)
                     ),
             ], 422);
         }
 
-        $hoy  = now()->toDateString();
+        $hoy = now()->toDateString();
         // La nueva vigencia encadena con la anterior: arranca al vencer la
         // póliza vigente (renovar anticipado no pierde la cobertura restante).
         // Si ya venció, arranca hoy.
@@ -801,19 +857,19 @@ class PolizaController extends Controller
         // el PDF del cuadro póliza sale de ahí. Solo se refrescan los datos
         // propios de esta emisión (fecha, tasas, pagos).
         $snapshotNuevo = $polizaAnterior->snapshot_datos ?? [];
-        if (!empty($snapshotNuevo)) {
-            $snapshotNuevo['fecha_emision']    = $inicio;
-            $snapshotNuevo['tasa_emision']     = $tasaBcv;
+        if (!empty($snapshotNuevo) || $reprecio) {
+            $snapshotNuevo['fecha_emision'] = $inicio;
+            $snapshotNuevo['tasa_emision'] = $tasaBcv;
             $snapshotNuevo['tasa_emision_eur'] = $tasaEur;
-            $snapshotNuevo['moneda']           = $moneda;
-            $snapshotNuevo['pagos']            = $data['pagos'];
-            $snapshotNuevo['total_bs']         = $totalBsNuevo;
+            $snapshotNuevo['moneda'] = $moneda;
+            $snapshotNuevo['pagos'] = $data['pagos'];
+            $snapshotNuevo['total_bs'] = $totalBsNuevo;
             if ($tarifario) {
                 $snapshotNuevo['tarifario'] = [
-                    'id'      => $tarifario->id,
-                    'nombre'  => $tarifario->nombre,
+                    'id' => $tarifario->id,
+                    'nombre' => $tarifario->nombre,
                     'version' => $tarifario->version,
-                    'datos'   => $tarifario->datos,
+                    'datos' => $tarifario->datos,
                 ];
             }
         }
@@ -828,28 +884,29 @@ class PolizaController extends Controller
             }
 
             $nueva = Poliza::create([
-                'nro_contrato'      => 'TMP-' . uniqid(),
-                'solicitud_id'      => $polizaAnterior->solicitud_id,
-                'producto_id'       => $polizaAnterior->producto_id,
-                'total'             => $totalPoliza,
-                'total_bs'          => $totalBsNuevo,
-                'moneda_producto'   => $monedaNativa,
-                'tasa_emision'      => $tasaBcv,
-                'tasa_emision_eur'  => $tasaEur,
+                'nro_contrato' => 'TMP-' . uniqid(),
+                'solicitud_id' => $polizaAnterior->solicitud_id,
+                'producto_id' => $polizaAnterior->producto_id,
+                'total' => $totalPoliza,
+                'total' => $totalPoliza,
+                'total_bs' => $totalBsNuevo,
+                'moneda_producto' => $monedaNativa,
+                'tasa_emision' => $tasaBcv,
+                'tasa_emision_eur' => $tasaEur,
                 'cobertura_dolares' => $polizaAnterior->cobertura_dolares,
-                'cobertura_bs'      => $coberturaBsNew,
-                'pago'              => $pagoResumen,
-                'frecuencia_pago'   => $frecuencia,
-                'moneda'            => $moneda,
-                'tipo'              => $polizaAnterior->tipo,
-                'asegurado_nombre'  => $polizaAnterior->asegurado_nombre,
-                'asegurado_ci'      => $polizaAnterior->asegurado_ci,
-                'fecha_emision'     => $inicio,
+                'cobertura_bs' => $coberturaBsNew,
+                'pago' => $pagoResumen,
+                'frecuencia_pago' => $frecuencia,
+                'moneda' => $moneda,
+                'tipo' => $polizaAnterior->tipo,
+                'asegurado_nombre' => $polizaAnterior->asegurado_nombre,
+                'asegurado_ci' => $polizaAnterior->asegurado_ci,
+                'fecha_emision' => $inicio,
                 'fecha_vencimiento' => $vence,
-                'sede_poliza'       => $sede,
-                'vendedor_id'       => $polizaAnterior->vendedor_id ?? auth()->id(),
-                'status'            => 'ACTIVA',
-                'snapshot_datos'    => $snapshotNuevo ?: null,
+                'sede_poliza' => $sede,
+                'vendedor_id' => $polizaAnterior->vendedor_id ?? auth()->id(),
+                'status' => 'ACTIVA',
+                'snapshot_datos' => $snapshotNuevo ?: null,
                 'tarifario_version_id' => $tarifario ? $tarifario->id : $polizaAnterior->tarifario_version_id,
             ]);
 
@@ -860,7 +917,7 @@ class PolizaController extends Controller
                 CodigoPoliza::INDICADOR_RENOVACION,
                 $nueva->id
             );
-            $nroFactura  = CodigoPoliza::codigoRecibo($nroContrato);
+            $nroFactura = CodigoPoliza::codigoRecibo($nroContrato);
 
             $nueva->update(['nro_contrato' => $nroContrato]);
 
@@ -868,11 +925,11 @@ class PolizaController extends Controller
                 $baseUsd = Moneda::aUsd((float) $totalPoliza, $monedaNativa, $tasaBcv, $tasaEur);
                 $tasaPct = Comision::tasaParaUsuario($nueva->vendedor) * 100;
                 Comision::create([
-                    'poliza_id'      => $nueva->id,
-                    'vendedor_id'    => $nueva->vendedor_id,
-                    'base_usd'       => round($baseUsd, 2),
-                    'tasa_pct'       => $tasaPct,
-                    'monto'          => round($baseUsd * $tasaPct / 100, 2),
+                    'poliza_id' => $nueva->id,
+                    'vendedor_id' => $nueva->vendedor_id,
+                    'base_usd' => round($baseUsd, 2),
+                    'tasa_pct' => $tasaPct,
+                    'monto' => round($baseUsd * $tasaPct / 100, 2),
                     'fecha_generada' => $hoy,
                 ]);
             }
@@ -886,12 +943,12 @@ class PolizaController extends Controller
                     $nuevoCertificado = $nroContrato . '-' . $m[1];
                 }
                 PolizaBien::create([
-                    'poliza_id'         => $nueva->id,
+                    'poliza_id' => $nueva->id,
                     'bien_asegurado_id' => $pb->bien_asegurado_id,
-                    'certificado'       => $nuevoCertificado,
+                    'certificado' => $nuevoCertificado,
                     'cobertura_dolares' => $pb->cobertura_dolares,
-                    'cobertura_bs'      => $pb->cobertura_bs,
-                    'created_by'        => auth()->id(),
+                    'cobertura_bs' => $pb->cobertura_bs,
+                    'created_by' => auth()->id(),
                 ]);
             }
 
@@ -900,27 +957,35 @@ class PolizaController extends Controller
                 // Las cuotas se calendarizan desde el inicio de la nueva vigencia.
                 Mensualidades::generarCuotas($nueva, (float) $totalPoliza, $recargoPct, $inicio);
                 $factura = Mensualidades::aplicarPago(
-                    $nueva, (float) $totalPagado, $pagoResumen, $moneda,
-                    $data['pagos'][0]['referencia'] ?? null, $tasaBcv, $tasaEur, auth()->id(), $sede
+                    $nueva,
+                    (float) $totalPagado,
+                    $pagoResumen,
+                    $moneda,
+                    $data['pagos'][0]['referencia'] ?? null,
+                    $tasaBcv,
+                    $tasaEur,
+                    auth()->id(),
+                    $sede
                 );
                 $nroFactura = $factura?->numero ?? $nroFactura;
             } else {
                 Factura::create([
-                    'numero'        => $nroFactura,
-                    'sede'          => $sede,
+                    'numero' => $nroFactura,
+                    'sede' => $sede,
                     'fecha_factura' => $hoy,
-                    'poliza_id'     => $nueva->id,
-                    'valor'         => $totalPoliza,
-                    'valor_bs'      => $totalBsNuevo,
-                    'forma_pago'    => $pagoResumen,
-                    'moneda'        => $moneda,
-                    'referencia'    => $data['pagos'][0]['referencia'] ?? null,
-                    'usuario_id'    => auth()->id(),
+                    'poliza_id' => $nueva->id,
+                    'valor' => $totalPoliza,
+                    'valor' => $totalPoliza,
+                    'valor_bs' => $totalBsNuevo,
+                    'forma_pago' => $pagoResumen,
+                    'moneda' => $moneda,
+                    'referencia' => $data['pagos'][0]['referencia'] ?? null,
+                    'usuario_id' => auth()->id(),
                 ]);
             }
 
             Venta::create([
-                'usuario_id'  => $nueva->vendedor_id,
+                'usuario_id' => $nueva->vendedor_id,
                 'producto_id' => $nueva->producto_id,
                 'fecha_venta' => $hoy,
             ]);
@@ -955,13 +1020,14 @@ class PolizaController extends Controller
                         );
                     }
                 }
-            } catch (\Throwable) {}
+            } catch (\Throwable) {
+            }
         }
 
         return response()->json([
-            'message'      => 'Póliza renovada correctamente',
+            'message' => 'Póliza renovada correctamente',
             'nro_contrato' => $result['nro_contrato'],
-            'nro_factura'  => $result['nro_factura'],
+            'nro_factura' => $result['nro_factura'],
         ], 201);
     }
 
@@ -977,33 +1043,33 @@ class PolizaController extends Controller
         $poliza = Poliza::with('solicitud', 'producto', 'cuotas')->findOrFail($id);
         $this->assertAccesoVendedorId($poliza->solicitud?->vendedor_id, 'No tienes acceso a esta póliza.');
 
-        $bienes   = $poliza->bienes()->with('bien')->orderBy('certificado')->get()->map(fn($pb) => $this->formatPolizaBien($pb, $poliza));
+        $bienes = $poliza->bienes()->with('bien')->orderBy('certificado')->get()->map(fn($pb) => $this->formatPolizaBien($pb, $poliza));
         $producto = $poliza->producto;
 
         // Contexto para recalcular prima al agregar un bien: moneda nativa, si
         // es mensual cuántas cuotas quedan por cobrar, y una prima sugerida
         // (prorrateo de la prima actual entre los bienes ya cubiertos).
-        $monedaNativa  = $poliza->monedaNativa();
-        $cuotasRest    = $poliza->frecuencia_pago === 'Mensual'
+        $monedaNativa = $poliza->monedaNativa();
+        $cuotasRest = $poliza->frecuencia_pago === 'Mensual'
             ? $poliza->cuotas->where('status', '!=', 'PAGADA')->count()
             : 0;
-        $nBienes       = max(1, $bienes->count());
+        $nBienes = max(1, $bienes->count());
         $primaSugerida = round((float) $poliza->total / $nBienes, 2);
 
         return response()->json([
-            'items'  => $bienes,
+            'items' => $bienes,
             'config' => [
                 'permite_multiples_bienes' => (bool) $producto?->permite_multiples_bienes,
-                'lleva_certificado'        => (bool) $producto?->lleva_certificado,
-                'max_bienes'               => $producto?->max_bienes,
-                'frecuencia_pago'          => $poliza->frecuencia_pago,
-                'moneda_nativa'            => $monedaNativa,
-                'moneda_simbolo'           => Moneda::simbolo($monedaNativa),
-                'usa_eur'                  => $monedaNativa === 'EUR',
-                'recargo_mensual_pct'      => (float) ($producto?->recargo_mensual_pct ?? 0),
-                'cuotas_restantes'         => $cuotasRest,
-                'prima_actual'             => (float) $poliza->total,
-                'prima_sugerida'           => $primaSugerida,
+                'lleva_certificado' => (bool) $producto?->lleva_certificado,
+                'max_bienes' => $producto?->max_bienes,
+                'frecuencia_pago' => $poliza->frecuencia_pago,
+                'moneda_nativa' => $monedaNativa,
+                'moneda_simbolo' => Moneda::simbolo($monedaNativa),
+                'usa_eur' => $monedaNativa === 'EUR',
+                'recargo_mensual_pct' => (float) ($producto?->recargo_mensual_pct ?? 0),
+                'cuotas_restantes' => $cuotasRest,
+                'prima_actual' => (float) $poliza->total,
+                'prima_sugerida' => $primaSugerida,
             ],
         ]);
     }
@@ -1021,14 +1087,14 @@ class PolizaController extends Controller
         $data = $request->validate([
             'bien_asegurado_id' => 'required|integer|exists:bien_asegurado,id',
             'cobertura_dolares' => 'nullable|numeric|min:0',
-            'cobertura_bs'      => 'nullable|numeric|min:0',
+            'cobertura_bs' => 'nullable|numeric|min:0',
             // Recálculo de prima al agregar el bien (opcional). Si se envía una
             // prima adicional > 0, se exige la tasa para la conversión a Bs.
-            'prima_adicional'   => 'nullable|numeric|min:0',
-            'tasa_bcv'          => 'required_with:prima_adicional|nullable|numeric|min:0.0001',
-            'tasa_eur'          => 'nullable|numeric|min:0.0001',
-            'forma_pago'        => ['nullable', 'string', 'max:30', new NoInjectionChars()],
-            'referencia'        => ['nullable', 'string', 'max:100', new NoInjectionChars()],
+            'prima_adicional' => 'nullable|numeric|min:0',
+            'tasa_bcv' => 'required_with:prima_adicional|nullable|numeric|min:0.0001',
+            'tasa_eur' => 'nullable|numeric|min:0.0001',
+            'forma_pago' => ['nullable', 'string', 'max:30', new NoInjectionChars()],
+            'referencia' => ['nullable', 'string', 'max:100', new NoInjectionChars()],
         ]);
 
         $bien = \App\Models\BienAsegurado::findOrFail($data['bien_asegurado_id']);
@@ -1043,7 +1109,7 @@ class PolizaController extends Controller
         // El tipo de póliza (producto) define si admite más de un bien y, si
         // aplica, hasta cuántos — sin esto, cualquier póliza podía acumular
         // bienes sin límite aunque su tipo no estuviera pensado para eso.
-        $producto      = $poliza->producto;
+        $producto = $poliza->producto;
         $bienesActuales = $poliza->bienes()->count();
         if ($bienesActuales >= 1 && !$producto?->permite_multiples_bienes) {
             return response()->json(['error' => "El tipo de póliza \"{$producto?->nombre}\" no admite más de un bien cubierto."], 422);
@@ -1063,17 +1129,17 @@ class PolizaController extends Controller
             }
         }
 
-        $siguiente    = $bienesActuales + 1;
-        $certificado  = $poliza->nro_contrato . '-' . str_pad($siguiente, 2, '0', STR_PAD_LEFT);
+        $siguiente = $bienesActuales + 1;
+        $certificado = $poliza->nro_contrato . '-' . str_pad($siguiente, 2, '0', STR_PAD_LEFT);
 
         $resultado = DB::transaction(function () use ($poliza, $bien, $certificado, $data, $primaAdic, $producto) {
             $polizaBien = PolizaBien::create([
-                'poliza_id'         => $poliza->id,
+                'poliza_id' => $poliza->id,
                 'bien_asegurado_id' => $bien->id,
-                'certificado'       => $certificado,
+                'certificado' => $certificado,
                 'cobertura_dolares' => $data['cobertura_dolares'] ?? null,
-                'cobertura_bs'      => $data['cobertura_bs'] ?? null,
-                'created_by'        => auth()->id(),
+                'cobertura_bs' => $data['cobertura_bs'] ?? null,
+                'created_by' => auth()->id(),
             ]);
 
             $recibo = null;
@@ -1101,7 +1167,7 @@ class PolizaController extends Controller
         $out = $this->formatPolizaBien($polizaBien->load('bien'), $poliza);
         if ($primaAdic > 0) {
             $out['prima_aplicada'] = $primaAdic;
-            $out['recibo']         = $recibo; // null en mensual (se cobra por cuota)
+            $out['recibo'] = $recibo; // null en mensual (se cobra por cuota)
         }
         return response()->json($out, 201);
     }
@@ -1118,26 +1184,26 @@ class PolizaController extends Controller
     private function recalcularPrimaPorBien(Poliza $poliza, float $primaAdic, array $data, $producto): ?string
     {
         $monedaNativa = $poliza->monedaNativa();
-        $tasaBcv      = (float) $data['tasa_bcv'];
-        $tasaEur      = isset($data['tasa_eur']) && $data['tasa_eur'] > 0 ? (float) $data['tasa_eur'] : $tasaBcv;
-        $primaBs      = round(Moneda::aBs($primaAdic, $monedaNativa, $tasaBcv, $tasaEur), 2);
+        $tasaBcv = (float) $data['tasa_bcv'];
+        $tasaEur = isset($data['tasa_eur']) && $data['tasa_eur'] > 0 ? (float) $data['tasa_eur'] : $tasaBcv;
+        $primaBs = round(Moneda::aBs($primaAdic, $monedaNativa, $tasaBcv, $tasaEur), 2);
 
-        $poliza->total    = round((float) $poliza->total + $primaAdic, 2);
+        $poliza->total = round((float) $poliza->total + $primaAdic, 2);
         $poliza->total_bs = round((float) $poliza->total_bs + $primaBs, 2);
         $poliza->save();
 
         if ($poliza->frecuencia_pago === 'Mensual') {
             // Repartir el adicional financiado (con el mismo recargo del producto)
             // entre las cuotas vivas; la última absorbe el redondeo.
-            $recargo        = (float) ($producto?->recargo_mensual_pct ?? 0);
+            $recargo = (float) ($producto?->recargo_mensual_pct ?? 0);
             $financiadoAdic = round($primaAdic * (1 + $recargo / 100), 2);
-            $cuotas         = $poliza->cuotas()->where('status', '!=', 'PAGADA')->orderBy('numero')->get();
-            $n              = $cuotas->count();
-            $base           = round($financiadoAdic / $n, 2);
-            $acum           = 0.0;
+            $cuotas = $poliza->cuotas()->where('status', '!=', 'PAGADA')->orderBy('numero')->get();
+            $n = $cuotas->count();
+            $base = round($financiadoAdic / $n, 2);
+            $acum = 0.0;
             foreach ($cuotas->values() as $i => $cuota) {
                 $delta = $i < $n - 1 ? $base : round($financiadoAdic - $acum, 2);
-                $acum  = round($acum + $delta, 2);
+                $acum = round($acum + $delta, 2);
                 $cuota->monto = round((float) $cuota->monto + $delta, 2);
                 $cuota->save();
             }
@@ -1145,22 +1211,22 @@ class PolizaController extends Controller
         }
 
         // Anual: recibo por el cobro adicional, numerado tras los recibos previos.
-        $seq    = Factura::where('poliza_id', $poliza->id)->count() + 1;
-        $base   = CodigoPoliza::codigoRecibo($poliza->nro_contrato);
+        $seq = Factura::where('poliza_id', $poliza->id)->count() + 1;
+        $base = CodigoPoliza::codigoRecibo($poliza->nro_contrato);
         $numero = $seq === 1 ? $base : $base . '-' . $seq;
         $monedaLabel = $monedaNativa === 'BS' ? 'Bs.' : $monedaNativa;
 
         $factura = Factura::create([
-            'numero'        => $numero,
-            'sede'          => $poliza->sede_poliza ?? 'Principal',
+            'numero' => $numero,
+            'sede' => $poliza->sede_poliza ?? 'Principal',
             'fecha_factura' => now()->toDateString(),
-            'poliza_id'     => $poliza->id,
-            'valor'         => $primaAdic,
-            'valor_bs'      => $primaBs,
-            'forma_pago'    => $data['forma_pago'] ?? 'Transferencia',
-            'moneda'        => $monedaLabel,
-            'referencia'    => $data['referencia'] ?? null,
-            'usuario_id'    => auth()->id(),
+            'poliza_id' => $poliza->id,
+            'valor' => $primaAdic,
+            'valor_bs' => $primaBs,
+            'forma_pago' => $data['forma_pago'] ?? 'Transferencia',
+            'moneda' => $monedaLabel,
+            'referencia' => $data['referencia'] ?? null,
+            'usuario_id' => auth()->id(),
         ]);
 
         return $factura->numero;
@@ -1185,14 +1251,14 @@ class PolizaController extends Controller
     {
         $attr = $pb->bien?->atributos ?? [];
         return [
-            'id'                => $pb->id,
+            'id' => $pb->id,
             'bien_asegurado_id' => $pb->bien_asegurado_id,
-            'tipo'              => $pb->bien?->tipo ?? '—',
-            'referencia'        => $attr['placa'] ?? $attr['descripcion'] ?? $pb->bien?->descripcion ?? '—',
-            'certificado'       => $pb->certificado ?? $poliza->nro_contrato,
-            'es_original'       => $pb->certificado === null,
+            'tipo' => $pb->bien?->tipo ?? '—',
+            'referencia' => $attr['placa'] ?? $attr['descripcion'] ?? $pb->bien?->descripcion ?? '—',
+            'certificado' => $pb->certificado ?? $poliza->nro_contrato,
+            'es_original' => $pb->certificado === null,
             'cobertura_dolares' => $pb->cobertura_dolares !== null ? (float) $pb->cobertura_dolares : null,
-            'cobertura_bs'      => $pb->cobertura_bs !== null ? (float) $pb->cobertura_bs : null,
+            'cobertura_bs' => $pb->cobertura_bs !== null ? (float) $pb->cobertura_bs : null,
         ];
     }
 
@@ -1207,11 +1273,11 @@ class PolizaController extends Controller
         $producto = $poliza->producto;
 
         return response()->json([
-            'items'  => $poliza->beneficiarios()->orderBy('id')->get(),
+            'items' => $poliza->beneficiarios()->orderBy('id')->get(),
             'config' => [
                 'aplica_beneficiarios' => (bool) $producto?->aplica_beneficiarios,
-                'min_beneficiarios'    => $producto?->min_beneficiarios,
-                'max_beneficiarios'    => $producto?->max_beneficiarios,
+                'min_beneficiarios' => $producto?->min_beneficiarios,
+                'max_beneficiarios' => $producto?->max_beneficiarios,
             ],
         ]);
     }
@@ -1230,12 +1296,13 @@ class PolizaController extends Controller
             return response()->json(['error' => "Esta póliza ya alcanzó el máximo de {$producto->max_beneficiarios} beneficiarios para el tipo \"{$producto->nombre}\"."], 422);
         }
 
-        if ($request->filled('cedula')) $request->merge(['cedula' => Documento::normalizarCedula($request->input('cedula'))]);
+        if ($request->filled('cedula'))
+            $request->merge(['cedula' => Documento::normalizarCedula($request->input('cedula'))]);
 
         $noInjection = new NoInjectionChars();
         $data = $request->validate([
-            'nombre'     => ['required', 'string', 'max:120', $noInjection],
-            'cedula'     => ['nullable', 'string', 'max:20', new CedulaValida()],
+            'nombre' => ['required', 'string', 'max:120', $noInjection],
+            'cedula' => ['nullable', 'string', 'max:20', new CedulaValida()],
             'parentesco' => ['nullable', 'string', 'max:50', $noInjection],
             'porcentaje' => 'required|numeric|min:0.01|max:100',
         ]);
@@ -1245,7 +1312,8 @@ class PolizaController extends Controller
             return response()->json([
                 'error' => sprintf(
                     'El porcentaje excede el 100%% — ya hay %.2f%% asignado, disponible %.2f%%.',
-                    $totalActual, 100 - $totalActual
+                    $totalActual,
+                    100 - $totalActual
                 ),
             ], 422);
         }
@@ -1270,12 +1338,13 @@ class PolizaController extends Controller
 
         $beneficiario = $poliza->beneficiarios()->findOrFail($benId);
 
-        if ($request->filled('cedula')) $request->merge(['cedula' => Documento::normalizarCedula($request->input('cedula'))]);
+        if ($request->filled('cedula'))
+            $request->merge(['cedula' => Documento::normalizarCedula($request->input('cedula'))]);
 
         $noInjection = new NoInjectionChars();
         $data = $request->validate([
-            'nombre'     => ['sometimes', 'string', 'max:120', $noInjection],
-            'cedula'     => ['nullable', 'string', 'max:20', new CedulaValida()],
+            'nombre' => ['sometimes', 'string', 'max:120', $noInjection],
+            'cedula' => ['nullable', 'string', 'max:20', new CedulaValida()],
             'parentesco' => ['nullable', 'string', 'max:50', $noInjection],
             'porcentaje' => 'sometimes|numeric|min:0.01|max:100',
         ]);
@@ -1327,7 +1396,8 @@ class PolizaController extends Controller
                 $hops = 0;
                 while ($tarifa && $tarifa->estado !== 'vigente' && $hops++ < 20) {
                     $child = Tarifario::where('parent_id', $tarifa->id)->orderByDesc('version')->first();
-                    if (!$child) break;
+                    if (!$child)
+                        break;
                     $tarifa = $child;
                 }
             }
@@ -1342,18 +1412,18 @@ class PolizaController extends Controller
             if ($primaAnual > 0) {
                 $valido = true;
                 $tarifarioInfo = [
-                    'id'          => $tarifa->id,
-                    'nombre'      => $tarifa->nombre,
-                    'subtipo'     => $tarifa->subtipo,
+                    'id' => $tarifa->id,
+                    'nombre' => $tarifa->nombre,
+                    'subtipo' => $tarifa->subtipo,
                     'prima_anual' => $primaAnual,
-                    'moneda'      => $poliza->monedaNativa(),
+                    'moneda' => $poliza->monedaNativa(),
                 ];
             }
         }
 
         if ($valido) {
             return response()->json([
-                'valido'    => true,
+                'valido' => true,
                 'tarifario' => $tarifarioInfo,
             ]);
         }
@@ -1369,16 +1439,16 @@ class PolizaController extends Controller
             $prima = $this->calcularPrimaTarifa($t, $tipoCalculo);
             if ($prima > 0) {
                 $tarifariosDisponibles[] = [
-                    'id'          => $t->id,
-                    'nombre'      => $t->nombre,
-                    'subtipo'     => $t->subtipo,
+                    'id' => $t->id,
+                    'nombre' => $t->nombre,
+                    'subtipo' => $t->subtipo,
                     'prima_anual' => $prima,
                 ];
             }
         }
 
         return response()->json([
-            'valido'     => false,
+            'valido' => false,
             'tarifarios' => $tarifariosDisponibles,
         ]);
     }

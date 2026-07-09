@@ -171,6 +171,20 @@
             $tarifaViva = $vigentes->first();
         }
     }
+    // Migradas con VARIAS tarifas vigentes (RCV por clase): el bien asegurado
+    // trae tipo ("Hasta 800 Kg de Peso") y clase ("Particular y Rusticos"), y
+    // las tarifas por nivel se llaman exactamente "tipo / clase" — si hay UNA
+    // vigente con ese nombre, es la de esta póliza. Sin match no se adivina.
+    if (!$tarifaViva && $poliza->producto_id && !empty($attrs['tipo']) && !empty($attrs['clase'])) {
+        $nivelRef  = mb_strtolower(trim($attrs['tipo']) . ' / ' . trim($attrs['clase']));
+        $porNombre = \App\Models\Tarifario::where('producto_id', $poliza->producto_id)
+            ->where('estado', 'vigente')->where('activo', true)
+            ->whereRaw('LOWER(nombre) = ?', [$nivelRef])
+            ->limit(2)->get();
+        if ($porNombre->count() === 1 && is_array($porNombre->first()->datos)) {
+            $tarifaViva = $porNombre->first();
+        }
+    }
     $tarifaDatos = $tarifaViva?->datos ?? ($cobs['tarifa']['datos'] ?? ($snap['tarifario']['datos'] ?? []));
     // La estructura de los datos de la tarifa viva la define el tipo de
     // cálculo ACTUAL del producto (pudo cambiar desde la emisión).
@@ -196,6 +210,22 @@
     }
     $fmtM = fn($v) => number_format(((float) $v) * $convFactor, 2);
     $monedaSimbolo = \App\Support\Moneda::simbolo($monedaDoc);
+
+    // Los montos de la tarifa VIVA están cargados HOY en la moneda del
+    // producto: al verlos en otra moneda se convierten con la TASA DEL DÍA —
+    // la tasa de emisión congelada solo aplica a los montos congelados de la
+    // póliza (prima, total, recibo). En la moneda base no hay conversión.
+    $convFactorTarifa = $convFactor;
+    if ($tarifaViva && $monedaDoc !== $monedaProducto) {
+        $tasaDiaU = (float) (\App\Models\IndicadorEconomico::usd()->orderByDesc('fecha')->orderByDesc('fecha_registro')->value('valor') ?? 0);
+        $tasaDiaE = (float) (\App\Models\IndicadorEconomico::eur()->orderByDesc('fecha')->orderByDesc('fecha_registro')->value('valor') ?? 0);
+        $f = \App\Support\Moneda::convertir(1.0, $monedaProducto, $monedaDoc, $tasaDiaU, $tasaDiaE);
+        if ($f > 0) $convFactorTarifa = $f; // sin tasa del día: se queda con la de la póliza
+    }
+    $fmtT = fn($v) => number_format(((float) $v) * $convFactorTarifa, 2);
+    // Formateador del cuadro de coberturas: tasa del día si los montos salen
+    // de la tarifa viva; tasa de la póliza si salen de copias congeladas.
+    $fmtC = $tarifaViva ? $fmtT : $fmtM;
 
     // Todos los datos de personas del documento van en MAYÚSCULAS sin importar
     // cómo estén guardados en la BD (mb_ para que Á/É/Ñ también suban).
@@ -279,35 +309,86 @@
     // que la versión vigente actual perdió).
     $cobsPdf = $tarifaDatos['coberturas_pdf']
         ?? ($cobs['tarifa']['datos']['coberturas_pdf'] ?? null)
-        ?? ($snap['tarifario']['datos']['coberturas_pdf'] ?? []);
+        ?? ($snap['tarifario']['datos']['coberturas_pdf'] ?? null)
+        ?? $poliza->producto?->coberturas_pdf
+        ?? [];
     if (is_array($cobsPdf) && count($cobsPdf) > 0) {
+        $renglones  = [];
+        $algunMonto = false;
         foreach ($cobsPdf as $key => $val) {
             if (!is_array($val)) continue;
-            $label = $val['label'] ?? ucwords(str_replace('_', ' ', (string) $key));
-            $cobertura_items[] = [$label, $fmtM($val['suma'] ?? 0)];
-        }
-    } elseif ($tipoCal === 'por_valor') {
-        // "por_valor" no es exclusivo de vehículos (ej. Póliza Muebles también
-        // lo usa) — antes decía "Responsabilidad Civil Obligatoria" siempre,
-        // aunque el bien fuera un inmueble o cualquier otro bien de valor.
-        $labelPorValor = ($bien['tipo'] ?? null) === 'vehiculo' ? 'Responsabilidad Civil Obligatoria' : 'Suma Asegurada';
-        $cobertura_items[] = [$labelPorValor, $fmtM($poliza->cobertura_dolares)];
-    } elseif ($tipoCal === 'por_plan' && is_array($tarifaDatos)) {
-        // Las coberturas de un plan son un mapa de claves nombradas (ver
-        // TarifarioController) — antes solo se reconocían 4 claves fijas que
-        // no coincidían con los datos reales (p.ej. "invalidez_total" vs
-        // "invalidez"), así que la mayoría de las coberturas no aparecían.
-        foreach ($tarifaDatos as $key => $val) {
-            if (is_array($val) && isset($val['suma'])) {
+
+            if (isset($val['key']) && isset($val['label'])) {
+                // Renglón del PRODUCTO (solo define el nombre): su monto hay
+                // que buscarlo en los datos de la tarifa — por clave exacta,
+                // con el prefijo suma_ (key="persona" → suma_persona), o el
+                // que el propio renglón traiga. En por_nivel NO se mira la
+                // raíz: suma_persona/suma_cosa ahí son residuos del seeding
+                // legacy que el formulario de por_nivel no edita (mostrarían
+                // montos viejos); sus montos por cobertura viven únicamente
+                // en coberturas_pdf de la tarifa.
+                $k = $val['key'];
+                $label = $val['label'];
+                $suma = 0;
+                if ($tipoCal !== 'por_nivel' && isset($tarifaDatos[$k]) && is_array($tarifaDatos[$k]) && isset($tarifaDatos[$k]['suma'])) {
+                    $suma = $tarifaDatos[$k]['suma'];
+                } elseif ($tipoCal !== 'por_nivel' && isset($tarifaDatos[$k]) && is_numeric($tarifaDatos[$k])) {
+                    $suma = $tarifaDatos[$k];
+                } elseif ($tipoCal !== 'por_nivel' && isset($tarifaDatos['suma_'.$k]) && is_numeric($tarifaDatos['suma_'.$k])) {
+                    $suma = $tarifaDatos['suma_'.$k];
+                } elseif (isset($val['suma']) && is_numeric($val['suma'])) {
+                    $suma = $val['suma'];
+                }
+            } else {
+                // Renglón de la TARIFA ({slug: {label, suma}}): el monto es el
+                // asignado en "editar coberturas" del tarifario — la fuente
+                // buena del cuadro.
                 $label = $val['label'] ?? ucwords(str_replace('_', ' ', (string) $key));
-                $cobertura_items[] = [$label, $fmtM($val['suma'])];
+                $suma  = $val['suma'] ?? 0;
             }
+            if ((float) $suma > 0) $algunMonto = true;
+            $renglones[] = [$label, $suma];
         }
-    } elseif ($tipoCal === 'fijo' && is_array($tarifaDatos)) {
-        if (!empty($tarifaDatos['suma_persona'])) $cobertura_items[] = ['Suma por Persona', $fmtM($tarifaDatos['suma_persona'])];
-        if (!empty($tarifaDatos['suma_cosa']))    $cobertura_items[] = ['Suma por Cosa',    $fmtM($tarifaDatos['suma_cosa'])];
-    } elseif ($tipoCal === 'por_nivel' && is_array($tarifaDatos)) {
-        if (!empty($tarifaDatos['suma'])) $cobertura_items[] = [$tarifaDatos['nivel'] ?? 'Suma Asegurada', $fmtM($tarifaDatos['suma'])];
+        // Renglones sin NINGÚN monto (nombres del producto sin una tarifa que
+        // los cotice, o tarifa con todo en 0 porque nunca se le asignaron los
+        // montos): no pintan un cuadro en 0,00 tapando los datos reales — se
+        // cae a los derivados por tipo de cálculo / snapshot de abajo.
+        if ($algunMonto) {
+            foreach ($renglones as [$label, $suma]) $cobertura_items[] = [$label, $fmtC($suma)];
+        }
+    }
+    // Sin renglones con monto: el cuadro se deriva de los datos de la tarifa
+    // según el tipo de cálculo del producto.
+    if (empty($cobertura_items)) {
+        if ($tipoCal === 'por_valor') {
+            // "por_valor" no es exclusivo de vehículos (ej. Póliza Muebles también
+            // lo usa) — antes decía "Responsabilidad Civil Obligatoria" siempre,
+            // aunque el bien fuera un inmueble o cualquier otro bien de valor.
+            $labelPorValor = ($bien['tipo'] ?? null) === 'vehiculo' ? 'Responsabilidad Civil Obligatoria' : 'Suma Asegurada';
+            $cobertura_items[] = [$labelPorValor, $fmtM($poliza->cobertura_dolares)];
+        } elseif ($tipoCal === 'por_plan' && is_array($tarifaDatos)) {
+            // Las coberturas de un plan son un mapa de claves nombradas (ver
+            // TarifarioController) — antes solo se reconocían 4 claves fijas que
+            // no coincidían con los datos reales (p.ej. "invalidez_total" vs
+            // "invalidez"), así que la mayoría de las coberturas no aparecían.
+            foreach ($tarifaDatos as $key => $val) {
+                if ($key === 'coberturas_pdf') continue; // renglones, no coberturas del plan
+                if (is_array($val) && isset($val['suma'])) {
+                    $label = $val['label'] ?? ucwords(str_replace('_', ' ', (string) $key));
+                    $cobertura_items[] = [$label, $fmtC($val['suma'])];
+                }
+            }
+        } elseif ($tipoCal === 'fijo' && is_array($tarifaDatos)) {
+            // Extraer las sumas dinámicamente usando las claves del tarifario
+            foreach ($tarifaDatos as $key => $val) {
+                if (is_numeric($val) && (str_starts_with($key, 'suma_') || in_array($key, ['exceso_limite', 'muerte_invalidez', 'defensa_penal', 'gastos_medicos', 'asistencia_vial', 'gastos_funerarios']))) {
+                    $label = ucwords(str_replace('_', ' ', str_replace('suma_', 'suma ', $key)));
+                    $cobertura_items[] = [$label, $fmtC($val)];
+                }
+            }
+        } elseif ($tipoCal === 'por_nivel' && is_array($tarifaDatos)) {
+            if (!empty($tarifaDatos['suma'])) $cobertura_items[] = [$tarifaDatos['nivel'] ?? 'Suma Asegurada', $fmtC($tarifaDatos['suma'])];
+        }
     }
     // Pólizas MIGRADAS: la cobertura real quedó en el snapshot bajo 'rcv'/'apov'
     // (no en la tarifa). Se muestran esas sumas reales ANTES de caer al
@@ -333,23 +414,25 @@
         $cobertura_items[] = ['Suma Asegurada', $fmtM($poliza->cobertura_bs)];
     }
 
-    // Para vehículos el cuadro póliza estándar (modelo La Venezolana) usa un
-    // grid fijo de 8 coberturas típicas de auto en vez de una lista simple —
-    // las que el producto no tenga configuradas se muestran en 0,00, igual
-    // que en un cuadro póliza real cuando esa cobertura no aplica.
+    // Para vehículos el cuadro póliza se armará usando una cuadrícula de 3 columnas
+    // para conservar el diseño, pero usando los nombres y montos dinámicos extraídos arriba.
     $coberturaGrid = null;
-    // La cuadrícula fija de 8 coberturas de auto solo aplica cuando el
-    // producto NO definió sus propios renglones (coberturas_pdf manda) y la
-    // tarifa aportó datos de verdad — sin tarifa (migradas/renovadas viejas)
-    // la cuadrícula saldría toda en 0,00 tapando las sumas reales del
-    // snapshot (rcv/apov) o la suma asegurada de la póliza.
-    if (empty($cobsPdf) && ($bien['tipo'] ?? null) === 'vehiculo' && $tipoCal === 'fijo' && is_array($tarifaDatos) && count($tarifaDatos) > 0) {
-        $g = fn($k) => $fmtM($tarifaDatos[$k] ?? 0);
-        $coberturaGrid = [
-            ['Daños a Personas', $g('suma_persona'), 'Exceso de Límite', $g('exceso_limite'), 'Muerte e Invalidez', $g('muerte_invalidez')],
-            ['Daños a Cosas',    $g('suma_cosa'),    'Defensa Penal',    $g('defensa_penal'), 'Gastos Médicos',     $g('gastos_medicos')],
-            ['Asistencia Vial',  $g('asistencia_vial'), null, null,     'Gastos Funerarios',  $g('gastos_funerarios')],
-        ];
+    if (($bien['tipo'] ?? null) === 'vehiculo' && count($cobertura_items) > 1) {
+        $chunks = array_chunk($cobertura_items, 3);
+        $coberturaGrid = [];
+        foreach ($chunks as $chunk) {
+            $fila = [];
+            for ($i = 0; $i < 3; $i++) {
+                if (isset($chunk[$i])) {
+                    $fila[] = $chunk[$i][0];
+                    $fila[] = $chunk[$i][1];
+                } else {
+                    $fila[] = null;
+                    $fila[] = null;
+                }
+            }
+            $coberturaGrid[] = $fila;
+        }
     }
 
     // La póliza se queda en su moneda nativa de principio a fin — sin tasa

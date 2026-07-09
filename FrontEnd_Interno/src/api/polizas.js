@@ -22,6 +22,18 @@ function getAuthHeaders(extra = {}) {
  * @param {number} id    ID de la póliza
  * @param {Object} data  Campos a modificar: status, fecha_vencimiento, pago, total, total_bs, etc.
  */
+/**
+ * Monto real a cobrar al renovar: total recotizado con la tarifa vigente
+ * (prima + IVA + derecho). Si la tarifa no se puede determinar, el backend
+ * devuelve el total anterior de la póliza (recotizada: false).
+ */
+export async function fetchRenovacionInfo(id) {
+  const res = await fetch(`${API}/${id}/renovacion`, { headers: getAuthHeaders() })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json.error || json.message || 'Error al consultar la renovación')
+  return json
+}
+
 export async function renovarPoliza(id, data) {
   const res = await fetch(`${API}/${id}/renovar`, {
     method: 'POST',

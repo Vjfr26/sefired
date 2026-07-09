@@ -172,6 +172,89 @@ class Poliza extends Model
     }
 
     /**
+     * Tarifa VIGENTE que le aplica a esta póliza (misma resolución que el
+     * cuadro de coberturas del PDF): sigue el linaje de versiones desde la
+     * referencia guardada; sin referencia (migradas) usa la única vigente del
+     * producto, o el match por nombre de nivel "tipo / clase" del bien
+     * asegurado (así se nombran las tarifas por nivel). Null si no se puede
+     * determinar sin ambigüedad — con varias tarifas vigentes no se adivina.
+     */
+    public function tarifaVigente(): ?Tarifario
+    {
+        $snap = $this->snapshot_datos ?? [];
+        $ref  = $this->tarifario_version_id
+            ?? ($snap['coberturas']['tarifa']['id'] ?? null)
+            ?? ($snap['tarifario']['id'] ?? null);
+        if ($ref) {
+            $tv   = Tarifario::find($ref);
+            $hops = 0;
+            while ($tv && $tv->estado !== 'vigente' && $hops++ < 20) {
+                $tv = Tarifario::where('parent_id', $tv->id)->orderByDesc('version')->first();
+            }
+            if ($tv && $tv->estado === 'vigente' && is_array($tv->datos)) return $tv;
+        }
+        if (!$this->producto_id) return null;
+
+        $vigentes = Tarifario::where('producto_id', $this->producto_id)
+            ->where('estado', 'vigente')->where('activo', true)->limit(2)->get();
+        if ($vigentes->count() === 1 && is_array($vigentes->first()->datos)) {
+            return $vigentes->first();
+        }
+
+        $attrs = $this->solicitud?->bien?->atributos ?? ($snap['bien']['atributos'] ?? []);
+        if (!empty($attrs['tipo']) && !empty($attrs['clase'])) {
+            $nivel = mb_strtolower(trim($attrs['tipo']) . ' / ' . trim($attrs['clase']));
+            $match = Tarifario::where('producto_id', $this->producto_id)
+                ->where('estado', 'vigente')->where('activo', true)
+                ->whereRaw('LOWER(nombre) = ?', [$nivel])
+                ->limit(2)->get();
+            if ($match->count() === 1 && is_array($match->first()->datos)) {
+                return $match->first();
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Total de RENOVACIÓN recotizado con la tarifa vigente: prima + IVA +
+     * derecho de póliza — la misma fórmula con la que el Simulador cotiza una
+     * emisión nueva. Null si la tarifa no se puede determinar o no tiene
+     * prima cargada: en ese caso la renovación cobra el total anterior.
+     */
+    public function totalRenovacion(): ?array
+    {
+        $tarifa   = $this->tarifaVigente();
+        $producto = $this->producto;
+        if (!$tarifa || !$producto) return null;
+
+        $d = $tarifa->datos;
+        $prima = match ($producto->tipo_calculo) {
+            'fijo'      => (float) ($d['prima_anual'] ?? 0),
+            // Suma las primas de las coberturas nombradas del plan; las demás
+            // entradas-array de datos (coberturas_pdf, _legacy) no traen 'prima'.
+            'por_plan'  => collect($d)->reduce(fn ($s, $v) => $s + ((is_array($v) && isset($v['prima'])) ? (float) $v['prima'] : 0), 0.0),
+            'por_nivel' => (float) ($d['prima'] ?? 0),
+            // El valor declarado del bien quedó en cobertura_dolares al emitir.
+            'por_valor' => round(((float) $this->cobertura_dolares) * ((float) ($d['tasa_pct'] ?? 0)) / 100, 2),
+            default     => 0.0,
+        };
+        if ($prima <= 0) return null;
+
+        $ivaPct  = $producto->iva_aplica ? (float) ($producto->iva_porcentaje ?? 0) : 0.0;
+        $iva     = round($prima * $ivaPct / 100, 2);
+        $derecho = (float) ($producto->derecho_poliza ?? 0);
+
+        return [
+            'tarifa'  => $tarifa,
+            'prima'   => round($prima, 2),
+            'iva'     => $iva,
+            'derecho' => $derecho,
+            'total'   => round($prima + $iva + $derecho, 2),
+        ];
+    }
+
+    /**
      * Moneda en la que está denominado total/cobertura_dolares. Pólizas
      * emitidas antes de moneda_producto caen al snapshot, luego al producto
      * en vivo, y por último a USD (correcto: históricamente todo se forzó a USD).
