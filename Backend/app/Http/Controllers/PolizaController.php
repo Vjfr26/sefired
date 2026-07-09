@@ -724,14 +724,56 @@ class PolizaController extends Controller
 
         $r = $poliza->totalRenovacion();
 
+        if ($r) {
+            return response()->json([
+                'valido'     => true,
+                'recotizada' => true,
+                'total'      => $r['total'],
+                'prima'      => $r['prima'],
+                'iva'        => $r['iva'],
+                'derecho'    => $r['derecho'],
+                'tarifa'     => $r['tarifa']->nombre,
+                'moneda'     => $poliza->monedaNativa(),
+                'tarifario'  => [
+                    'id'          => $r['tarifa']->id,
+                    'nombre'      => $r['tarifa']->nombre,
+                    'subtipo'     => $r['tarifa']->subtipo,
+                    'prima_anual' => $r['prima'],
+                    'moneda'      => $poliza->monedaNativa(),
+                ]
+            ]);
+        }
+
+        // Si no se puede determinar la tarifa automáticamente, buscar todas las tarifas activas y vigentes de este producto
+        $tipoCalculo = $poliza->producto?->tipo_calculo ?? 'fijo';
+        $tarifas = Tarifario::where('producto_id', $poliza->producto_id)
+            ->where('estado', 'vigente')
+            ->where('activo', true)
+            ->get();
+
+        $tarifariosDisponibles = [];
+        foreach ($tarifas as $t) {
+            $prima = $this->calcularPrimaTarifa($t, $tipoCalculo);
+            if ($prima > 0) {
+                $tarifariosDisponibles[] = [
+                    'id'          => $t->id,
+                    'nombre'      => $t->nombre,
+                    'subtipo'     => $t->subtipo,
+                    'prima_anual' => $prima,
+                ];
+            }
+        }
+
         return response()->json([
-            'recotizada' => (bool) $r,
-            'total' => $r['total'] ?? (float) $poliza->total,
-            'prima' => $r['prima'] ?? (float) $poliza->total,
-            'iva' => $r['iva'] ?? 0.0,
-            'derecho' => $r['derecho'] ?? 0.0,
-            'tarifa' => $r ? $r['tarifa']->nombre : null,
-            'moneda' => $poliza->monedaNativa(),
+            'valido'     => false,
+            'recotizada' => false,
+            'total'      => (float) $poliza->total,
+            'prima'      => (float) $poliza->total,
+            'iva'        => 0.0,
+            'derecho'    => 0.0,
+            'tarifa'     => null,
+            'moneda'     => $poliza->monedaNativa(),
+            'tarifarios' => $tarifariosDisponibles,
         ]);
     }
 
@@ -1383,75 +1425,6 @@ class PolizaController extends Controller
         return response()->json(null, 204);
     }
 
-    public function renovacionInfo($id)
-    {
-        $poliza = Poliza::with(['producto', 'solicitud'])->findOrFail($id);
-        $this->assertAccesoVendedorId($poliza->solicitud?->vendedor_id, 'No tienes acceso a esta póliza.');
-
-        $tarifarioId = $poliza->tarifario_version_id;
-        $tarifa = null;
-        if ($tarifarioId) {
-            $tarifa = Tarifario::find($tarifarioId);
-            if ($tarifa) {
-                $hops = 0;
-                while ($tarifa && $tarifa->estado !== 'vigente' && $hops++ < 20) {
-                    $child = Tarifario::where('parent_id', $tarifa->id)->orderByDesc('version')->first();
-                    if (!$child)
-                        break;
-                    $tarifa = $child;
-                }
-            }
-        }
-
-        $tipoCalculo = $poliza->producto?->tipo_calculo ?? 'fijo';
-        $valido = false;
-        $tarifarioInfo = null;
-
-        if ($tarifa && $tarifa->activo && $tarifa->estado === 'vigente') {
-            $primaAnual = $this->calcularPrimaTarifa($tarifa, $tipoCalculo);
-            if ($primaAnual > 0) {
-                $valido = true;
-                $tarifarioInfo = [
-                    'id' => $tarifa->id,
-                    'nombre' => $tarifa->nombre,
-                    'subtipo' => $tarifa->subtipo,
-                    'prima_anual' => $primaAnual,
-                    'moneda' => $poliza->monedaNativa(),
-                ];
-            }
-        }
-
-        if ($valido) {
-            return response()->json([
-                'valido' => true,
-                'tarifario' => $tarifarioInfo,
-            ]);
-        }
-
-        // Si no es válido, buscar todas las tarifas activas y vigentes de este producto para que el usuario seleccione una
-        $tarifas = Tarifario::where('producto_id', $poliza->producto_id)
-            ->where('estado', 'vigente')
-            ->where('activo', true)
-            ->get();
-
-        $tarifariosDisponibles = [];
-        foreach ($tarifas as $t) {
-            $prima = $this->calcularPrimaTarifa($t, $tipoCalculo);
-            if ($prima > 0) {
-                $tarifariosDisponibles[] = [
-                    'id' => $t->id,
-                    'nombre' => $t->nombre,
-                    'subtipo' => $t->subtipo,
-                    'prima_anual' => $prima,
-                ];
-            }
-        }
-
-        return response()->json([
-            'valido' => false,
-            'tarifarios' => $tarifariosDisponibles,
-        ]);
-    }
 
     private function calcularPrimaTarifa(Tarifario $tarifa, string $tipoCalculo): float
     {

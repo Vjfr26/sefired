@@ -230,11 +230,11 @@ class Poliza extends Model
 
         $d = $tarifa->datos;
         $prima = match ($producto->tipo_calculo) {
-            'fijo'      => (float) ($d['prima_anual'] ?? 0),
+            'fijo'      => (float) ($d['prima_anual'] ?? $d['primaanual'] ?? $d['prima'] ?? 0),
             // Suma las primas de las coberturas nombradas del plan; las demás
             // entradas-array de datos (coberturas_pdf, _legacy) no traen 'prima'.
             'por_plan'  => collect($d)->reduce(fn ($s, $v) => $s + ((is_array($v) && isset($v['prima'])) ? (float) $v['prima'] : 0), 0.0),
-            'por_nivel' => (float) ($d['prima'] ?? 0),
+            'por_nivel' => (float) ($d['prima'] ?? $d['prima_anual'] ?? $d['primaanual'] ?? 0),
             // El valor declarado del bien quedó en cobertura_dolares al emitir.
             'por_valor' => round(((float) $this->cobertura_dolares) * ((float) ($d['tasa_pct'] ?? 0)) / 100, 2),
             default     => 0.0,
