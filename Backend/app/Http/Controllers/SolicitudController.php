@@ -81,6 +81,12 @@ class SolicitudController extends Controller
             }
             if ($request->filled('fecha_inicio')) $q->whereDate('fecha_solicitud', '>=', $request->input('fecha_inicio'));
             if ($request->filled('fecha_fin'))    $q->whereDate('fecha_solicitud', '<=', $request->input('fecha_fin'));
+            // Solo renovaciones: la solicitud acumula una póliza por cada
+            // renovación y la reemplazada queda en RENOVADA — si existe una,
+            // la póliza vigente de esta solicitud es una renovación.
+            if ($request->boolean('renovadas')) {
+                $q->whereHas('polizas', fn ($p) => $p->where('status', 'RENOVADA'));
+            }
             if ($request->filled('search')) {
                 $s = trim($request->input('search'));
                 // "COT-2026-00013" (como se muestra en la tabla) codifica el ID
@@ -133,6 +139,7 @@ class SolicitudController extends Controller
                 'emitida'     => (clone $base)->where('status', 'emitida')->count(),
                 'vencida'     => (clone $base)->where('status', 'vencida')->count(),
                 'rechazado'   => (clone $base)->where('status', 'rechazado')->count(),
+                'renovadas'   => (clone $base)->whereHas('polizas', fn ($p) => $p->where('status', 'RENOVADA'))->count(),
             ]);
         }
 
@@ -931,6 +938,11 @@ class SolicitudController extends Controller
             'poliza_id'         => $poliza?->id,
             'poliza_nro'        => $poliza?->nro_contrato,
             'poliza_status'     => $poliza?->status,
+            // La vigente es una renovación si quedó una póliza anterior de la
+            // misma solicitud en RENOVADA (colección ya cargada, sin queries).
+            'poliza_es_renovacion' => $poliza
+                ? $s->polizas->contains(fn ($p) => $p->id < $poliza->id && $p->status === 'RENOVADA')
+                : false,
             'poliza_renovable'            => $poliza?->esRenovable() ?? false,
             'poliza_renovable_anticipada' => $poliza?->esRenovableAnticipada() ?? false,
             'poliza_frecuencia_pago'      => $poliza?->frecuencia_pago,

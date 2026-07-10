@@ -59,6 +59,16 @@ function StatusBadge({ status }) {
   )
 }
 
+// Marca las cotizaciones cuya póliza vigente es una renovación (no una
+// emisión nueva) — mismo índigo que el status RENOVADA de la póliza anterior.
+function RenovacionBadge() {
+  return (
+    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap bg-indigo-100 text-indigo-700">
+      RENOVACIÓN
+    </span>
+  )
+}
+
 function freshState() {
   return {
     // Paso 1
@@ -2159,7 +2169,7 @@ export default function Simulador() {
   const [cotPage, setCotPage] = useState(0)
   const [cotPageSize, setCotPageSize] = useState(20)
   const [cotTotal, setCotTotal] = useState(0)
-  const [cotResumen, setCotResumen] = useState({ total: 0, pendiente: 0, en_revision: 0, aprobado: 0, emitida: 0, vencida: 0, rechazado: 0 })
+  const [cotResumen, setCotResumen] = useState({ total: 0, pendiente: 0, en_revision: 0, aprobado: 0, emitida: 0, vencida: 0, rechazado: 0, renovadas: 0 })
   const [searchInput, setSearchInput] = useState('') // lo que se teclea (inmediato)
 
   // Datos base del simulador (tasas/productos/catálogo): una sola vez. NO incluye
@@ -2185,9 +2195,12 @@ export default function Simulador() {
   const loadCots = useCallback(async () => {
     setLoadingCot(true)
     try {
-      const STATUS_KEYS = ['Todos', 'pendiente', 'en_revision', 'aprobado', 'emitida', 'vencida', 'rechazado']
+      const STATUS_KEYS = ['Todos', 'pendiente', 'en_revision', 'aprobado', 'emitida', 'vencida', 'rechazado', 'renovadas']
       const params = { page: cotPage + 1, per_page: cotPageSize }
-      if (chipActive > 0) params.status = STATUS_KEYS[chipActive]
+      // "Renovadas" no es un status de la cotización: filtra las solicitudes
+      // cuya póliza vigente es una renovación (tiene una anterior RENOVADA).
+      if (STATUS_KEYS[chipActive] === 'renovadas') params.renovadas = 1
+      else if (chipActive > 0) params.status = STATUS_KEYS[chipActive]
       if (search) params.search = search
       if (fechaInicio) params.fecha_inicio = fechaInicio
       if (fechaFin) params.fecha_fin = fechaFin
@@ -2244,8 +2257,8 @@ export default function Simulador() {
 
   const closeStep = () => { setStep(0); setEditId(null) }
 
-  const statuses = ['Todos', 'pendiente', 'en_revision', 'aprobado', 'emitida', 'vencida', 'rechazado']
-  const statusLabels = ['Todos', 'Pendiente', 'En Revisión', 'Aprobado', 'Emitida', 'Vencida', 'Rechazado']
+  const statuses = ['Todos', 'pendiente', 'en_revision', 'aprobado', 'emitida', 'vencida', 'rechazado', 'renovadas']
+  const statusLabels = ['Todos', 'Pendiente', 'En Revisión', 'Aprobado', 'Emitida', 'Vencida', 'Rechazado', 'Renovadas']
 
   // Convierte "dd/mm/yyyy" → "yyyy-mm-dd" para comparar contra los <input type=date>.
   // Se usa solo como respaldo cuando el backend no envía fecha_iso.
@@ -2598,7 +2611,10 @@ export default function Simulador() {
                         <p className="text-sm font-bold text-slate-800 break-words">{q.nombre}</p>
                         <p className="text-xs text-slate-400 font-mono">{q.ci} · {q.nro}</p>
                       </div>
-                      <StatusBadge status={q.status} />
+                      <div className="flex flex-col items-end gap-1">
+                        <StatusBadge status={q.status} />
+                        {q.poliza_es_renovacion && <RenovacionBadge />}
+                      </div>
                     </div>
                     <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5">
                       <div className="min-w-0"><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Vendedor</dt><dd className="text-sm text-slate-700 truncate">{q.vendedor_nombre || '—'}</dd></div>
@@ -2655,7 +2671,12 @@ export default function Simulador() {
                         <td className="td-cell text-xs sm:text-sm text-slate-600 hidden xl:table-cell">{q.producto || '—'}</td>
                         <td className="td-cell text-right font-bold text-xs sm:text-sm text-slate-800 hidden sm:table-cell">{fmtMonto(q.total, q.moneda_producto)}</td>
                         <td className="td-cell text-xs sm:text-sm text-slate-500 hidden lg:table-cell">{q.fecha}</td>
-                        <td className="td-cell"><StatusBadge status={q.status} /></td>
+                        <td className="td-cell">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <StatusBadge status={q.status} />
+                            {q.poliza_es_renovacion && <RenovacionBadge />}
+                          </div>
+                        </td>
                         {hasAnyAction && (
                           <td className="px-2 sm:px-3 py-2">
                             <div className="flex flex-wrap gap-1.5 justify-center">

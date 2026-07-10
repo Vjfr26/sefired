@@ -434,9 +434,14 @@ class ClienteController extends Controller
 
                 return $solicitud->polizas->map(function ($poliza) use ($solicitud, $bien, $attr) {
                     [$tasaUsd, $tasaEur] = $this->tasasParaPoliza($poliza);
+                    // Renovación = existe una póliza anterior de la misma
+                    // solicitud que quedó en RENOVADA (colección ya cargada).
+                    $esRenovacion = $solicitud->polizas
+                        ->contains(fn ($p) => $p->id < $poliza->id && $p->status === 'RENOVADA');
                     return [
                         'id'                    => $poliza->id,
                         'nro_contrato'          => $poliza->nro_contrato,
+                        'es_renovacion'         => $esRenovacion,
                         'producto_id'           => $poliza->producto_id,
                         'tarifario_version_id'  => $poliza->tarifario_version_id,
                         'bien_tipo'             => $bien?->tipo ?? '—',
