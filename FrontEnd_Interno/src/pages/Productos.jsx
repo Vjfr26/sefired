@@ -597,7 +597,7 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
                         <p className="text-[10px] text-slate-400 mt-1">Podrás agregar más {form.tipo_calculo === 'por_plan' ? 'planes' : 'niveles'} luego desde "Gestionar Tarifario".</p>
                       </div>
                     )}
-                    <DatosForm tipoCalculo={form.tipo_calculo} value={datosForm} onChange={setDatosForm} tipoBien={form.tipo_bien} />
+                    <DatosForm tipoCalculo={form.tipo_calculo} value={datosForm} onChange={setDatosForm} tipoBien={form.tipo_bien} moneda={form.moneda} />
                     {errors.datosForm && <p className="text-[10px] text-rose-500 mt-1">{errors.datosForm}</p>}
                   </div>
                 )}
@@ -868,7 +868,9 @@ function serializeDatosForm(tipoCalculo, datosForm, nombreFila, tipoBien) {
 }
 
 // ── Formulario dinámico de datos tarifarios ───────────────────────────────────
-function DatosForm({ tipoCalculo, value, onChange, tipoBien }) {
+// `moneda` es la moneda base del producto: las etiquetas de montos la reflejan
+// (antes decían "(USD)" fijo aunque el producto fuera EUR/BS).
+function DatosForm({ tipoCalculo, value, onChange, tipoBien, moneda = 'USD' }) {
   const inp = 'input-field text-sm'
   const lbl = 'field-label'
   const numInput = (field, placeholder = '0.00') => (
@@ -881,11 +883,11 @@ function DatosForm({ tipoCalculo, value, onChange, tipoBien }) {
     <div className="space-y-3">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className={lbl}>Prima anual (USD) <span className="text-rose-500">*</span></label>
+          <label className={lbl}>Prima anual ({moneda}) <span className="text-rose-500">*</span></label>
           {numInput('prima_anual', '180.00')}
         </div>
         <div>
-          <label className={lbl}>Deducible (USD)</label>
+          <label className={lbl}>Deducible ({moneda})</label>
           {numInput('deducible', '0.00')}
         </div>
       </div>
@@ -932,15 +934,15 @@ function DatosForm({ tipoCalculo, value, onChange, tipoBien }) {
   if (tipoCalculo === 'fijo') return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <div>
-        <label className={lbl}>Prima anual (USD) <span className="text-rose-500">*</span></label>
+        <label className={lbl}>Prima anual ({moneda}) <span className="text-rose-500">*</span></label>
         {numInput('prima_anual', '180.00')}
       </div>
       <div>
-        <label className={lbl}>Suma asegurada (USD)</label>
+        <label className={lbl}>Suma asegurada ({moneda})</label>
         {numInput('suma_asegurada', '15000.00')}
       </div>
       <div>
-        <label className={lbl}>Deducible (USD)</label>
+        <label className={lbl}>Deducible ({moneda})</label>
         {numInput('deducible', '0.00')}
       </div>
     </div>
@@ -951,11 +953,11 @@ function DatosForm({ tipoCalculo, value, onChange, tipoBien }) {
   if (tipoCalculo === 'por_nivel') return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <div>
-        <label className={lbl}>Suma asegurada ($) <span className="text-rose-500">*</span></label>
+        <label className={lbl}>Suma asegurada ({moneda}) <span className="text-rose-500">*</span></label>
         {numInput('suma', '30000.00')}
       </div>
       <div>
-        <label className={lbl}>Prima anual ($) <span className="text-rose-500">*</span></label>
+        <label className={lbl}>Prima anual ({moneda}) <span className="text-rose-500">*</span></label>
         {numInput('prima', '800.00')}
       </div>
     </div>
@@ -990,12 +992,12 @@ function DatosForm({ tipoCalculo, value, onChange, tipoBien }) {
                   onChange={e => update(i, 'label', e.target.value)} />
               </div>
               <div>
-                <label className={lbl}>Suma asegurada ($)</label>
+                <label className={lbl}>Suma asegurada ({moneda})</label>
                 <input type="number" min="0" step="0.01" className={inp} value={c.suma || ''}
                   onChange={e => update(i, 'suma', e.target.value)} />
               </div>
               <div>
-                <label className={lbl}>Prima anual ($)</label>
+                <label className={lbl}>Prima anual ({moneda})</label>
                 <input type="number" min="0" step="0.01" className={inp} value={c.prima || ''}
                   onChange={e => update(i, 'prima', e.target.value)} />
               </div>
@@ -1019,11 +1021,11 @@ function DatosForm({ tipoCalculo, value, onChange, tipoBien }) {
           onChange={e => onChange({ ...value, tasa_pct: e.target.value })} />
       </div>
       <div>
-        <label className={lbl}>Prima mínima ($)</label>
+        <label className={lbl}>Prima mínima ({moneda})</label>
         {numInput('prima_minima', '50.00')}
       </div>
       <div>
-        <label className={lbl}>Cobertura máxima ($)</label>
+        <label className={lbl}>Cobertura máxima ({moneda})</label>
         {numInput('cobertura_max', '100000.00')}
       </div>
     </div>
@@ -1033,9 +1035,9 @@ function DatosForm({ tipoCalculo, value, onChange, tipoBien }) {
 }
 
 // ── Vista compacta de datos tarifarios en la lista ────────────────────────────
-function DatosDisplay({ tipoCalculo, datos }) {
+function DatosDisplay({ tipoCalculo, datos, moneda = 'USD' }) {
   const d = datos || {}
-  const fmt  = v => v > 0 ? `$${Number(v).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '$0.00'
+  const fmt  = v => fmtMonto(v > 0 ? v : 0, moneda)
   const fmtP = v => `${Number(v)}%`
   const Tag = ({ label, val }) => (
     <span className="inline-flex items-center gap-1 text-xs text-slate-600">
@@ -1285,7 +1287,7 @@ function TarifarioModal({ producto, onClose, onProductoSaved }) {
                         </div>
                       )}
                     </div>
-                    <DatosDisplay tipoCalculo={producto.tipo_calculo} datos={t.datos} />
+                    <DatosDisplay tipoCalculo={producto.tipo_calculo} datos={t.datos} moneda={monedaProd} />
                   </div>
                 )
               })}
@@ -1342,6 +1344,7 @@ function TarifarioModal({ producto, onClose, onProductoSaved }) {
                   value={form.datosForm}
                   onChange={datosForm => setForm(p => ({ ...p, datosForm }))}
                   tipoBien={producto.tipo_bien}
+                  moneda={form.moneda}
                 />
               </div>
 
