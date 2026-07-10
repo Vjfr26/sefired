@@ -160,7 +160,7 @@ const ToggleCard = ({ Icon, title, desc, checked, onChange, children, className 
 )
 
 // ── ComboField: input con sugerencias filtradas ──────────────────────────────
-function ComboField({ value, onChange, suggestions, placeholder, className = '' }) {
+function ComboField({ value, onChange, suggestions, placeholder, className = '', maxLength }) {
   const [open, setOpen]   = useState(false)
   const [query, setQuery] = useState(value)
   const ref = useRef(null)
@@ -182,6 +182,7 @@ function ComboField({ value, onChange, suggestions, placeholder, className = '' 
         className={`input-field text-sm ${className}`}
         value={query}
         placeholder={placeholder}
+        maxLength={maxLength}
         onChange={e => { setQuery(e.target.value); onChange(e.target.value); setOpen(true) }}
         onFocus={() => setOpen(true)}
       />
@@ -264,9 +265,11 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
   // ocultos pero guardados por error al enviar.
   const setTipoBien = (val) => { set('tipo_bien', val); if (!isEdit) setDatosForm(initDatosForm(form.tipo_calculo, null, val)) }
 
-  // Sugerencias únicas de productos existentes
+  // Sugerencias únicas: catálogo base + valores de productos existentes.
+  // El ramo es texto libre ("Nuevo tipo de póliza" permite escribir uno
+  // nuevo); las sugerencias solo ayudan a reusar los ya conocidos.
   const sugerencias = {
-    tipo:      [...new Set(productos.map(p => p.tipo).filter(Boolean))],
+    tipo:      [...new Set([...TIPOS_PRODUCTO.map(t => t.val), ...productos.map(p => p.tipo).filter(Boolean)])],
     categoria: [...new Set([...CATEGORIAS, ...productos.map(p => p.categoria).filter(Boolean)])],
     tipo_bien: [...new Set(['vehiculo', 'inmueble', 'vida', 'bien', 'ninguno', 'bicicleta', 'mascota', 'embarcacion', 'equipo_electronico', 'joya', ...productos.map(p => p.tipo_bien).filter(Boolean)])],
   }
@@ -499,10 +502,14 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
                     </div>
                   ) : (
                     <>
-                      <select className={`select-field text-sm ${errors.tipo ? 'border-rose-400' : ''}`} value={form.tipo} onChange={e => set('tipo', e.target.value)}>
-                        <option value="">— Selecciona el ramo —</option>
-                        {sugerencias.tipo.map(t => <option key={t} value={t}>{t}</option>)}
-                      </select>
+                      <ComboField
+                        value={form.tipo}
+                        onChange={v => set('tipo', v)}
+                        suggestions={sugerencias.tipo}
+                        placeholder="Escribe el ramo o elige uno (ej. rcv, vida, grua…)"
+                        maxLength={20}
+                        className={errors.tipo ? 'border-rose-400 focus:ring-rose-300' : ''}
+                      />
                       {errors.tipo && <p className="text-[10px] text-rose-500 mt-0.5">{errors.tipo}</p>}
                     </>
                   )}
@@ -515,10 +522,14 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
                     </div>
                   ) : (
                     <>
-                      <select className={`select-field text-sm ${errors.categoria ? 'border-rose-400' : ''}`} value={form.categoria} onChange={e => set('categoria', e.target.value)}>
-                        <option value="">— Selecciona la categoría —</option>
-                        {sugerencias.categoria.map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
-                      </select>
+                      <ComboField
+                        value={form.categoria}
+                        onChange={v => set('categoria', v)}
+                        suggestions={sugerencias.categoria}
+                        placeholder="Escribe o elige (ej. vehicular…)"
+                        maxLength={30}
+                        className={errors.categoria ? 'border-rose-400 focus:ring-rose-300' : ''}
+                      />
                       {errors.categoria && <p className="text-[10px] text-rose-500 mt-0.5">{errors.categoria}</p>}
                     </>
                   )}
@@ -531,10 +542,17 @@ function ProductoModal({ producto, productos = [], onClose, onSaved }) {
                     </div>
                   ) : (
                     <>
-                      <select className={`select-field text-sm ${errors.tipo_bien ? 'border-rose-400' : ''}`} value={form.tipo_bien} onChange={e => setTipoBien(e.target.value)}>
-                        <option value="">— Selecciona el tipo —</option>
-                        {sugerencias.tipo_bien.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
-                      </select>
+                      <ComboField
+                        value={form.tipo_bien}
+                        onChange={setTipoBien}
+                        suggestions={sugerencias.tipo_bien}
+                        placeholder="Escribe o elige (ej. vehiculo, mascota…)"
+                        maxLength={30}
+                        className={errors.tipo_bien ? 'border-rose-400 focus:ring-rose-300' : ''}
+                      />
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        "vehiculo" activa el flujo vehicular (placa, coberturas por persona/cosa); otros valores usan el flujo genérico.
+                      </p>
                       {errors.tipo_bien && <p className="text-[10px] text-rose-500 mt-0.5">{errors.tipo_bien}</p>}
                     </>
                   )}
@@ -1597,10 +1615,18 @@ export default function Productos() {
   const canViewCards  = canAct('productos', 'view_cards')
   const canViewList   = canAct('productos', 'view_list')
 
-  const conteosPorTipo = TIPOS_PRODUCTO.reduce((acc, t) => {
-    acc[t.val] = productos.filter(p => p.tipo === t.val).length
+  const conteosPorTipo = productos.reduce((acc, p) => {
+    if (p.tipo) acc[p.tipo] = (acc[p.tipo] || 0) + 1
     return acc
   }, {})
+  // Chips de conteo por ramo: los del catálogo con su color; los ramos
+  // escritos a mano (texto libre) en gris, igual que su badge.
+  const tiposConProductos = [
+    ...TIPOS_PRODUCTO.filter(t => conteosPorTipo[t.val] > 0),
+    ...Object.keys(conteosPorTipo)
+      .filter(v => !TIPOS_PRODUCTO.some(t => t.val === v))
+      .map(v => ({ val: v, label: v, bg: 'bg-slate-100', text: 'text-slate-500' })),
+  ]
 
   const tasaUsd = tasas.usd ? Number(tasas.usd.valor) : null
   const tasaEur = tasas.eur ? Number(tasas.eur.valor) : null
@@ -1762,8 +1788,8 @@ export default function Productos() {
               <div className="min-w-0 flex-1">
                 <p className="text-xs text-slate-500 font-medium leading-tight mb-2">Por Tipo</p>
                 <div className="flex flex-wrap gap-1">
-                  {TIPOS_PRODUCTO.filter(t => conteosPorTipo[t.val] > 0).map(t => (
-                    <span key={t.val} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${t.bg} ${t.text}`}>
+                  {tiposConProductos.map(t => (
+                    <span key={t.val} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold capitalize ${t.bg} ${t.text}`}>
                       {t.label} <span className="opacity-70">{conteosPorTipo[t.val]}</span>
                     </span>
                   ))}

@@ -53,6 +53,21 @@ class ProductoController extends Controller
     }
 
     /**
+     * El ramo (`tipo`), la categoría y el tipo de bien son texto libre pero
+     * se guardan normalizados en minúsculas y sin espacios sobrantes — si
+     * no, "GRUA" y "grua" serían valores distintos en filtros, agrupaciones
+     * y variantes.
+     */
+    private function normalizarTipo(Request $request): void
+    {
+        foreach (['tipo', 'categoria', 'tipo_bien'] as $campo) {
+            if ($request->filled($campo)) {
+                $request->merge([$campo => mb_strtolower(trim($request->input($campo)))]);
+            }
+        }
+    }
+
+    /**
      * Crea un nuevo producto en el catálogo de coberturas.
      * Todos los campos son obligatorios al crear un producto.
      * La moneda puede ser 'USD', 'BS' o 'EUR'.
@@ -60,15 +75,16 @@ class ProductoController extends Controller
     public function store(Request $request)
     {
         $noInjection = new NoInjectionChars();
+        $this->normalizarTipo($request);
 
         $data = $request->validate([
             'parent_id'              => 'nullable|integer|exists:producto,id',
             'nombre'                 => ['required', 'string', 'max:150', $noInjection],
             'publicado'              => 'boolean',
             'codigo'                 => ['nullable', 'string', 'max:20', $noInjection],
-            'tipo'                   => 'required|string|in:rcv,apov,alpd,ec,ep,vida,salud,hogar,accidentes,funeraria,otro',
-            'categoria'              => 'nullable|string|in:vehicular,bienes,personas',
-            'tipo_bien'              => 'nullable|string|in:vehiculo,inmueble,vida,bien,ninguno,bicicleta,mascota,embarcacion,equipo_electronico,joya',
+            'tipo'                   => ['required', 'string', 'max:20', $noInjection],
+            'categoria'              => ['nullable', 'string', 'max:30', $noInjection],
+            'tipo_bien'              => ['nullable', 'string', 'max:30', $noInjection],
             'permite_multiples_bienes' => 'boolean',
             'max_bienes'             => 'nullable|integer|min:1',
             'aplica_beneficiarios'   => 'boolean',
@@ -111,15 +127,16 @@ class ProductoController extends Controller
         $producto = Producto::findOrFail($id);
 
         $noInjection = new NoInjectionChars();
+        $this->normalizarTipo($request);
 
         $data = $request->validate([
             'parent_id'              => 'sometimes|nullable|integer|exists:producto,id',
             'nombre'                 => ['sometimes', 'required', 'string', 'max:150', $noInjection],
             'publicado'              => 'sometimes|boolean',
             'codigo'                 => ['nullable', 'string', 'max:20', $noInjection],
-            'tipo'                   => 'sometimes|required|string|in:rcv,apov,alpd,ec,ep,vida,salud,hogar,accidentes,funeraria,otro',
-            'categoria'              => 'nullable|string|in:vehicular,bienes,personas',
-            'tipo_bien'              => 'sometimes|nullable|string|in:vehiculo,inmueble,vida,bien,ninguno,bicicleta,mascota,embarcacion,equipo_electronico,joya',
+            'tipo'                   => ['sometimes', 'required', 'string', 'max:20', $noInjection],
+            'categoria'              => ['nullable', 'string', 'max:30', $noInjection],
+            'tipo_bien'              => ['sometimes', 'nullable', 'string', 'max:30', $noInjection],
             'permite_multiples_bienes' => 'sometimes|boolean',
             'max_bienes'             => 'sometimes|nullable|integer|min:1',
             'aplica_beneficiarios'   => 'sometimes|boolean',
