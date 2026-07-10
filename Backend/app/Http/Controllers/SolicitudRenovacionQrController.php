@@ -108,7 +108,14 @@ class SolicitudRenovacionQrController extends Controller
         $tasaEur    = isset($data['tasa_eur']) && $data['tasa_eur'] > 0 ? (float) $data['tasa_eur'] : $tasaBcv;
         $sede       = auth()->user()?->sede ?? 'Principal';
         $hoy        = now()->toDateString();
-        $vence      = now()->addYear()->toDateString();
+        // Igual que la renovación interna: la nueva vigencia encadena con la
+        // actual (arranca al vencer la póliza vigente, no hoy) — renovar
+        // anticipado no debe recortar la cobertura restante. Si ya venció,
+        // arranca hoy.
+        $inicio     = $polizaAnterior->fecha_vencimiento?->isFuture()
+            ? $polizaAnterior->fecha_vencimiento->toDateString()
+            : $hoy;
+        $vence      = \Illuminate\Support\Carbon::parse($inicio)->addYear()->toDateString();
         $monedaNativa = $polizaAnterior->monedaNativa();
         // Igual que la renovación interna: se RECOTIZA con la tarifa vigente
         // (prima + IVA + derecho); sin tarifa determinable, el total anterior.
@@ -138,10 +145,16 @@ class SolicitudRenovacionQrController extends Controller
         }
 
         $result = DB::transaction(function () use (
-            $polizaAnterior, $solicitud, $pagos, $hoy, $vence, $sede, $pagoResumen,
+            $polizaAnterior, $solicitud, $pagos, $hoy, $inicio, $vence, $sede, $pagoResumen,
             $monedaPrincipal, $monedaNativa, $tasaBcv, $tasaEur, $totalPoliza, $totalBs, $cobBs, $snapshotNuevo, $reprecio
         ) {
             $polizaAnterior->update(['status' => 'RENOVADA']);
+
+            // La cotización refleja el estado de su póliza vigente — igual
+            // que en la renovación interna (PolizaController@renovar).
+            if (in_array($polizaAnterior->solicitud?->status, ['emitida', 'vencida'], true)) {
+                $polizaAnterior->solicitud->update(['status' => 'emitida']);
+            }
 
             $nueva = Poliza::create([
                 'nro_contrato'      => 'TMP-' . uniqid(),
@@ -163,7 +176,7 @@ class SolicitudRenovacionQrController extends Controller
                 // el PDF y los listados muestren lo mismo que la emisión.
                 'asegurado_nombre'  => $polizaAnterior->asegurado_nombre,
                 'asegurado_ci'      => $polizaAnterior->asegurado_ci,
-                'fecha_emision'     => $hoy,
+                'fecha_emision'     => $inicio,
                 'fecha_vencimiento' => $vence,
                 'sede_poliza'       => $sede,
                 'vendedor_id'       => $polizaAnterior->vendedor_id ?? auth()->id(),

@@ -365,6 +365,13 @@ class PolizaController extends Controller
         // las mensuales además sin cuotas pendientes. Ver Poliza::motivoNoRenovable().
         $renovableMotivo = $poliza->motivoNoRenovable();
         $renovable = $renovableMotivo === null;
+        // Fuera de la ventana también se puede SOLICITAR la renovación
+        // (anticipada, igual que interno): queda pendiente y el asesor la
+        // aprueba; la nueva vigencia arranca al vencer la actual.
+        $renovableAnticipada = !$renovable && $poliza->esRenovableAnticipada();
+        $diasVencimiento = $poliza->fecha_vencimiento
+            ? (int) now()->startOfDay()->diffInDays($poliza->fecha_vencimiento->copy()->startOfDay(), false)
+            : null;
 
         // Pago de cuota en línea: solo pólizas mensuales con saldo pendiente.
         $cuotaSaldo = 0.0;
@@ -389,6 +396,8 @@ class PolizaController extends Controller
             'status' => $poliza->status,
             'renovable' => $renovable,
             'renovable_motivo' => $renovableMotivo,
+            'renovable_anticipada' => $renovableAnticipada,
+            'dias_vencimiento' => $diasVencimiento,
             'permite_mensualidades' => $permiteMensual,
             'recargo_mensual_pct' => $recargoPct,
             'cuota_mensual' => $cuotaMensual,

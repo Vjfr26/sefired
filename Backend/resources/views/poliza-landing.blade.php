@@ -313,7 +313,7 @@
         @if($puede_pagar_cuota ?? false)
         <button class="tab-btn"        onclick="showTab('cuota', this)">&#128179; Pagar Cuota</button>
         @endif
-        @if($renovable ?? false)
+        @if(($renovable ?? false) || ($renovable_anticipada ?? false))
         <button class="tab-btn"        onclick="showTab('renov', this)">&#128260; Renovar</button>
         @endif
     </div>
@@ -445,6 +445,17 @@
 
         {{-- ══ TAB 3: RENOVAR ══ --}}
         <div id="pane-renov" class="pane">
+
+            {{-- Renovación anticipada (fuera de la ventana): mismo aviso que
+                 interno — la nueva vigencia encadena con la actual. --}}
+            @if(($renovable_anticipada ?? false) && !($renovable ?? false))
+            <div style="background:#fffbeb; border:1px solid #fcd34d; border-radius:8px; padding:10px 14px; margin-bottom:14px; font-size:12px; color:#92400e;">
+                ⚠️ Su póliza aún está vigente{{ ($dias_vencimiento ?? null) !== null ? ' ('.$dias_vencimiento.' días restantes)' : '' }}.
+                Puede solicitar la renovación desde ya: la nueva vigencia comenzará
+                al vencer la actual, así que <strong>no pierde cobertura</strong>.
+                Un asesor revisará y confirmará su solicitud.
+            </div>
+            @endif
 
             {{-- Resumen de la póliza --}}
             <div class="renew-summary">
