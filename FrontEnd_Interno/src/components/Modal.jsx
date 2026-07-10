@@ -41,6 +41,7 @@ import { Switch, Segmented, PasswordInput } from './FormControls.jsx'
 import { fmtMonto, fmtTasa, convertirMoneda, monedaOpcion, badge, PERMISOS_POR_ROL, getEffectivePerms, getEffectivePermsObj, PERMS_CATALOG, PERMS_ORDER, LOCKED_PERMS, pdfPage, pdfHdr, pdfSec, pdfRow, pdfTotal, pdfFooterSimple, useModalLock, filtrarCedula, filtrarTelefono, filtrarSoloDigitos } from '../utils/helpers.jsx'
 import { TIPOS_PRODUCTO, TIPOS_CALCULO, tipoBadge } from '../utils/productos.jsx'
 import { storeUsuario, updateUsuario, verifyPassword, fetchVendedoresDisponibles } from '../api/usuarios.js'
+import { fetchOficinas, storeOficina } from '../api/oficinas.js'
 import { uploadDocumentoProducto, deleteDocumentoProducto } from '../api/productos.js'
 import { fetchPolizasCliente, fetchFacturasCliente, fetchSolicitudesCliente } from '../api/clientes.js'
 import { fetchDocumentosCliente, uploadDocumentoCliente, deleteDocumentoCliente } from '../api/clienteDocumentos.js'
@@ -1249,7 +1250,83 @@ function EmitirCotizacionModal({ cot, onSaved, mode = 'registrar' }) {
 
 // ── Nuevo usuario ────────────────────────────────────────────────────────────
 const USER_ROLES = ['Admin', 'Oficina', 'Vendedor Sucursal', 'Vendedor Calle']
-const USER_SEDES = ['Caracas Principal', 'Valencia', 'Maracaibo']
+
+// Respaldo si el catálogo de oficinas no carga — mismos códigos que llevan
+// las pólizas emitidas (CodigoPoliza::OFICINAS en el backend).
+const OFICINAS_FALLBACK = [
+  { id: null, nombre: 'Caracas Principal', codigo: 1 },
+  { id: null, nombre: 'Maracaibo',         codigo: 2 },
+  { id: null, nombre: 'Valencia',          codigo: 3 },
+]
+
+// Catálogo de oficinas desde la API (tabla `oficina`), para los selects de
+// sede de los modales de usuario.
+function useOficinas() {
+  const [oficinas, setOficinas] = useState(OFICINAS_FALLBACK)
+  useEffect(() => {
+    fetchOficinas().then(list => { if (list.length) setOficinas(list) }).catch(() => {})
+  }, [])
+  return [oficinas, setOficinas]
+}
+
+// Select de oficina/sede con creación en línea: el botón + abre un campo para
+// registrar una sede nueva (queda en el catálogo y se selecciona de una vez).
+function SedeField({ value, onChange, oficinas, onCreated, required }) {
+  const { showToast } = useApp()
+  const [creando, setCreando] = useState(false)
+  const [nombre, setNombre] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const crear = async () => {
+    const n = nombre.trim()
+    if (!n) { showToast('Escribe el nombre de la nueva oficina', 'error'); return }
+    setSaving(true)
+    try {
+      const oficina = await storeOficina({ nombre: n })
+      onCreated(oficina)
+      setCreando(false); setNombre('')
+      showToast(`Oficina "${oficina.nombre}" creada`, 'success')
+    } catch (err) { showToast(err.message || 'Error al crear la oficina', 'error') }
+    finally { setSaving(false) }
+  }
+
+  // Sedes históricas que no están en el catálogo (usuarios viejos) siguen
+  // visibles en el select para no mostrarlo en blanco al editar.
+  const opciones = oficinas.some(o => o.nombre === value) || !value
+    ? oficinas
+    : [...oficinas, { id: 'legacy', nombre: value, codigo: null }]
+
+  return (
+    <div>
+      <label className="field-label">Oficina / Sede {required && <span className="text-rose-500">*</span>}</label>
+      {creando ? (
+        <div className="flex items-center gap-1.5">
+          <input
+            className="input-field flex-1" autoFocus placeholder="Nombre de la nueva oficina"
+            value={nombre} onChange={e => setNombre(e.target.value)} maxLength={60}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); crear() } }}
+            disabled={saving}
+          />
+          <button type="button" onClick={crear} disabled={saving} className="btn-primary !px-2.5" title="Guardar oficina">
+            {saving ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Check className="w-4 h-4" />}
+          </button>
+          <button type="button" onClick={() => { setCreando(false); setNombre('') }} disabled={saving} className="btn-secondary !px-2.5" title="Cancelar">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-1.5">
+          <select className="select-field flex-1" value={value} onChange={onChange}>
+            {opciones.map(o => <option key={o.nombre}>{o.nombre}</option>)}
+          </select>
+          <button type="button" onClick={() => setCreando(true)} className="btn-secondary !px-2.5" title="Crear nueva oficina">
+            <Plus className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
 
 const SecHdr = ({ Icon, children }) => (
   <div className="flex items-center gap-2 mb-4">
@@ -1280,6 +1357,7 @@ function NewUserModal({ onSave }) {
     password: '', password_confirmation: '',
     temp: false, temp_expira_en: '',
   })
+  const [oficinas, setOficinas] = useOficinas()
   const [saving, setSaving] = useState(false)
   const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }))
 
@@ -1294,7 +1372,7 @@ function NewUserModal({ onSave }) {
     if (form.temp && !form.temp_expira_en) { showToast('Indica hasta cuándo dura el acceso temporal', 'error'); return }
     setSaving(true)
     try {
-      await storeUsuario({ ...form, cargo: form.tipo, nro_sede: 1 })
+      await storeUsuario({ ...form, cargo: form.tipo, nro_sede: oficinas.find(o => o.nombre === form.sede)?.codigo ?? 1 })
       closeModal()
       showToast('Usuario creado correctamente', 'success')
       onSave?.()
@@ -1339,12 +1417,10 @@ function NewUserModal({ onSave }) {
                 {USER_ROLES.map(r => <option key={r}>{r}</option>)}
               </select>
             </div>
-            <div>
-              <label className="field-label">Oficina / Sede <span className="text-rose-500">*</span></label>
-              <select className="select-field" value={form.sede} onChange={f('sede')}>
-                {USER_SEDES.map(s => <option key={s}>{s}</option>)}
-              </select>
-            </div>
+            <SedeField
+              required value={form.sede} onChange={f('sede')} oficinas={oficinas}
+              onCreated={o => { setOficinas(p => [...p, o]); setForm(p => ({ ...p, sede: o.nombre })) }}
+            />
             <div>
               <label className="field-label">Comisión (%)</label>
               <input type="number" min="0" max="100" step="0.01" className="input-field" value={form.comision_pct} onChange={f('comision_pct')} placeholder="Ej. 5" />
@@ -1394,6 +1470,7 @@ function EditUserModal({ user, onSave }) {
     sede: user.sede || '', comision_pct: user.comision_pct ?? '', password: '',
     temp: !!user.temp, temp_expira_en: user.temp_expira_en?.slice(0,10) || '',
   })
+  const [oficinas, setOficinas] = useOficinas()
   const [saving, setSaving] = useState(false)
   const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }))
 
@@ -1407,7 +1484,7 @@ function EditUserModal({ user, onSave }) {
     }
     if (form.temp && !form.temp_expira_en) { showToast('Indica hasta cuándo dura el acceso temporal', 'error'); return }
     setSaving(true)
-    const payload = { ...form, cargo: form.tipo, nro_sede: 1 }
+    const payload = { ...form, cargo: form.tipo, nro_sede: oficinas.find(o => o.nombre === form.sede)?.codigo ?? 1 }
     if (!payload.password) delete payload.password
     try {
       await updateUsuario(user.id, payload)
@@ -1455,12 +1532,10 @@ function EditUserModal({ user, onSave }) {
                 {USER_ROLES.map(r => <option key={r}>{r}</option>)}
               </select>
             </div>
-            <div>
-              <label className="field-label">Oficina / Sede</label>
-              <select className="select-field" value={form.sede} onChange={f('sede')}>
-                {USER_SEDES.map(s => <option key={s}>{s}</option>)}
-              </select>
-            </div>
+            <SedeField
+              value={form.sede} onChange={f('sede')} oficinas={oficinas}
+              onCreated={o => { setOficinas(p => [...p, o]); setForm(p => ({ ...p, sede: o.nombre })) }}
+            />
             <div>
               <label className="field-label">Comisión (%)</label>
               <input type="number" min="0" max="100" step="0.01" className="input-field" value={form.comision_pct} onChange={f('comision_pct')} placeholder="Ej. 5" />

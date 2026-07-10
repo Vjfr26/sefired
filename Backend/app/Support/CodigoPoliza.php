@@ -18,8 +18,10 @@ class CodigoPoliza
     public const INDICADOR_RENOVACION = 2;
 
     /**
-     * Sede -> dígito de oficina. Asignado manualmente (no hay catálogo de
-     * oficinas en la base de datos) — agregar aquí cuando se abra una sede nueva.
+     * Sede -> dígito de oficina. Desde 2026-07-10 la fuente de verdad es la
+     * tabla `oficina` (las nuevas sedes se crean desde la app); este mapa
+     * queda como respaldo para nombres históricos ('CARACAS') y para cuando
+     * la tabla aún no existe (tests/migraciones a medias).
      */
     private const OFICINAS = [
         'CARACAS PRINCIPAL' => 1,
@@ -44,7 +46,7 @@ class CodigoPoliza
     ];
 
     /** Quita acentos y normaliza a mayúsculas para que el catálogo no dependa de cómo se escribió el texto libre. */
-    private static function normalizar(?string $texto): string
+    public static function normalizar(?string $texto): string
     {
         $t = mb_strtoupper(trim((string) $texto));
         return strtr($t, [
@@ -55,7 +57,25 @@ class CodigoPoliza
     /** 0 = oficina no reconocida (no debería pasar con datos completos, pero no debe romper la emisión). */
     public static function oficinaCodigo(?string $sede): int
     {
-        return self::OFICINAS[self::normalizar($sede)] ?? 0;
+        // Catálogo en BD primero (oficinas creadas desde la app); cache
+        // estático por proceso, recargado si aparece una sede que no estaba
+        // — en procesos largos (queue worker) el catálogo puede crecer
+        // después de la primera consulta.
+        $clave = self::normalizar($sede);
+
+        static $catalogo = null;
+        if ($catalogo === null || (!isset($catalogo[$clave]) && !isset(self::OFICINAS[$clave]))) {
+            try {
+                $catalogo = \App\Models\Oficina::query()
+                    ->pluck('codigo', 'nombre')
+                    ->mapWithKeys(fn ($codigo, $nombre) => [self::normalizar($nombre) => (int) $codigo])
+                    ->all();
+            } catch (\Throwable) {
+                $catalogo = []; // tabla aún no migrada — cae al mapa fijo
+            }
+        }
+
+        return $catalogo[$clave] ?? self::OFICINAS[$clave] ?? 0;
     }
 
     /** 0 = estado no reconocido o tomador sin estado registrado. */

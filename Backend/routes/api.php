@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\BienAseguradoController;
 use App\Http\Controllers\ClienteController;
 use App\Http\Controllers\ClienteDocumentoController;
+use App\Http\Controllers\OficinaController;
 use App\Http\Controllers\ProductoController;
 use App\Http\Controllers\SolicitudController;
 use App\Http\Controllers\TarifarioController;
@@ -176,6 +177,10 @@ Route::middleware([\App\Http\Middleware\ApiTokenMiddleware::class, 'throttle:120
         Route::delete('/usuarios/{id}',                [UsuarioController::class, 'destroy'])->middleware('perm:usuarios,delete');
         Route::post('/usuarios/{id}/toggle-status',    [UsuarioController::class, 'toggleStatus'])->middleware('perm:usuarios,block');
         Route::post('/usuarios/{id}/forzar-logout',    [SesionController::class, 'forzarLogout'])->middleware('perm:usuarios,block');
+
+        // Catálogo de oficinas/sedes (pobla el select de los modales de usuario)
+        Route::get('/oficinas',                        [OficinaController::class, 'index'])->middleware('perm:usuarios,view');
+        Route::post('/oficinas',                       [OficinaController::class, 'store'])->middleware('perm:usuarios,create');
 
         // Logs del sistema (auditoría)
         Route::get('/reports/logs', [ReportController::class, 'getLogs'])->middleware('perm:config,view_audit');
