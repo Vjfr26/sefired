@@ -270,7 +270,9 @@
     // Datos de presentación de un bien (principal o adicional) para las secciones
     // que se repiten por vehículo. El principal usa el snapshot ya calculado; los
     // adicionales, su propio BienAsegurado. No muta variables globales.
-    $datosBien = function ($cb) use ($bien, $attrs, $poliza) {
+    // Con el producto sin certificado ('cert' cae al nro de contrato), los
+    // datos del bien igual salen de su BienAsegurado — solo se oculta el número.
+    $datosBien = function ($cb) use ($bien, $attrs, $poliza, $llevaCertificado) {
         if ($cb && $cb->certificado !== null && $cb->bien) {
             $a = $cb->bien->atributos ?? [];
             $t = $cb->bien->tipo;
@@ -281,7 +283,7 @@
             $obs = $bien['observaciones'] ?? '—';
         }
         return [
-            'cert'    => ($cb?->certificado) ?: $poliza->nro_contrato,
+            'cert'    => ($llevaCertificado ? $cb?->certificado : null) ?: $poliza->nro_contrato,
             'tipo'    => $t,
             'attrs'   => $a,
             'obs'     => $obs ? mb_strtoupper(trim((string) $obs)) : '—',
@@ -657,7 +659,7 @@
         ));
     @endphp
     @if($esVehiculo)
-    <tr><th colspan="6" class="linea">Datos del Vehículo{{ $multi ? ' — '.$tipoPolizaLabel.' N° '.$D['cert'] : '' }}</th></tr>
+    <tr><th colspan="6" class="linea">Datos del Vehículo{{ ($multi && $llevaCertificado) ? ' — '.$tipoPolizaLabel.' N° '.$D['cert'] : '' }}</th></tr>
     <tr>
         <td style="width:13%; text-align:left; border-left:1px solid #888; padding:1.5px 3px; color:#555; font-size:9px;">Marca:</td>
         <td style="padding:1.5px 4px;"><strong>{{ $D['marca'] }}</strong></td>
@@ -691,7 +693,7 @@
         <td style="border-right:1px solid #888; padding:3px 5px; border-bottom:1px solid #888;"><strong>{{ $D['obs'] ?: '—' }}</strong></td>
     </tr>
     @elseif(count($attrsPares) > 0)
-    <tr><th colspan="6" class="linea">Datos del Bien Asegurado{{ $D['tipo'] ? ' — '.ucfirst(str_replace('_', ' ', $D['tipo'])) : '' }}{{ $multi ? ' (N° '.$D['cert'].')' : '' }}</th></tr>
+    <tr><th colspan="6" class="linea">Datos del Bien Asegurado{{ $D['tipo'] ? ' — '.ucfirst(str_replace('_', ' ', $D['tipo'])) : '' }}{{ ($multi && $llevaCertificado) ? ' (N° '.$D['cert'].')' : '' }}</th></tr>
         @foreach(array_chunk(array_keys($attrsPares), 3) as $grupo)
         <tr>
             @foreach($grupo as $k)
@@ -791,8 +793,9 @@
 @php
     // Datos del bien de este carnet. El principal conserva los datos ya
     // calculados arriba (snapshot/acotado); los adicionales derivan de su
-    // propio BienAsegurado y muestran su número de certificado.
-    $carnetNro = ($cb?->certificado) ?: $poliza->nro_contrato;
+    // propio BienAsegurado y muestran su número de certificado — salvo que
+    // el producto ya no lleve certificado: ahí todos usan el nro de contrato.
+    $carnetNro = ($llevaCertificado ? $cb?->certificado : null) ?: $poliza->nro_contrato;
     if ($cb && $cb->certificado !== null && $cb->bien) {
         $bien   = ['tipo' => $cb->bien->tipo, 'atributos' => $cb->bien->atributos ?? []];
         $attrs  = $cb->bien->atributos ?? [];
