@@ -172,10 +172,11 @@ class Poliza extends Model
     }
 
     /**
-     * Tarifa VIGENTE que le aplica a esta póliza (misma resolución que el
-     * cuadro de coberturas del PDF): sigue el linaje de versiones desde la
-     * referencia guardada; sin referencia (migradas) usa la única vigente del
-     * producto, o el match por nombre de nivel "tipo / clase" del bien
+     * Tarifa VIGENTE que le aplica a esta póliza — para RECOTIZAR la
+     * renovación con los montos de hoy (el PDF, en cambio, imprime la copia
+     * congelada del snapshot de emisión): sigue el linaje de versiones desde
+     * la referencia guardada; sin referencia (migradas) usa la única vigente
+     * del producto, o el match por nombre de nivel "tipo / clase" del bien
      * asegurado (así se nombran las tarifas por nivel). Null si no se puede
      * determinar sin ambigüedad — con varias tarifas vigentes no se adivina.
      */

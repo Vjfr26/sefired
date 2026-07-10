@@ -141,19 +141,22 @@
     $cobs        = $snap['coberturas'] ?? [];
     $tipoCal     = $prodSnap['tipo_calculo'] ?? $poliza->producto?->tipo_calculo ?? 'fijo';
 
-    // El cuadro "Coberturas / Sumas Aseguradas" refleja la versión VIGENTE de
-    // la tarifa de la póliza (las coberturas cargadas hoy — p.ej. montos RCV
-    // LEY actualizados), no la copia congelada en el snapshot: al actualizar
-    // el tarifario, las pólizas ya emitidas deben mostrar las sumas nuevas.
-    // El snapshot sigue mandando en primas/totales/recibo; aquí solo se
-    // refresca la presentación de las sumas. Si la tarifa fue re-versionada
-    // (editar datos archiva y crea hija), se sigue el linaje parent_id hasta
-    // la versión vigente actual; si el linaje ya no existe, se cae al snapshot.
-    $tarifaViva  = null;
+    // El cuadro "Coberturas / Sumas Aseguradas" refleja la tarifa CONGELADA en
+    // el snapshot de emisión: la póliza es un documento histórico y se
+    // reimprime con las sumas del día en que se emitió, aunque el tarifario
+    // haya cambiado después (los montos nuevos aplican a emisiones y
+    // renovaciones futuras, que congelan su propia copia al emitirse). Solo
+    // las pólizas SIN copia congelada (migradas / snapshots viejos sin tarifa)
+    // caen a la versión VIGENTE de su tarifa: se sigue el linaje parent_id
+    // desde la referencia guardada; sin referencia, la única vigente del
+    // producto o el match por nombre de nivel "tipo / clase" del bien.
+    $tarifaViva = null;
+    $tarifaSnap = $cobs['tarifa']['datos'] ?? ($snap['tarifario']['datos'] ?? null);
+    if (!is_array($tarifaSnap) || count($tarifaSnap) === 0) $tarifaSnap = null;
     $tarifaIdRef = $poliza->tarifario_version_id
         ?? ($cobs['tarifa']['id'] ?? null)
         ?? ($snap['tarifario']['id'] ?? null);
-    if ($tarifaIdRef) {
+    if (!$tarifaSnap && $tarifaIdRef) {
         $tv   = \App\Models\Tarifario::find($tarifaIdRef);
         $hops = 0;
         while ($tv && $tv->estado !== 'vigente' && $hops++ < 20) {
@@ -164,7 +167,7 @@
     // Póliza sin NINGUNA referencia de tarifa (migradas): si el producto tiene
     // UNA SOLA tarifa vigente no hay ambigüedad — se usa esa. Con varias (p.ej.
     // RCV por clase de vehículo) no se adivina: habría que enlazarle su tarifa.
-    if (!$tarifaViva && $poliza->producto_id) {
+    if (!$tarifaSnap && !$tarifaViva && $poliza->producto_id) {
         $vigentes = \App\Models\Tarifario::where('producto_id', $poliza->producto_id)
             ->where('estado', 'vigente')->where('activo', true)->limit(2)->get();
         if ($vigentes->count() === 1 && is_array($vigentes->first()->datos)) {
@@ -175,7 +178,7 @@
     // trae tipo ("Hasta 800 Kg de Peso") y clase ("Particular y Rusticos"), y
     // las tarifas por nivel se llaman exactamente "tipo / clase" — si hay UNA
     // vigente con ese nombre, es la de esta póliza. Sin match no se adivina.
-    if (!$tarifaViva && $poliza->producto_id && !empty($attrs['tipo']) && !empty($attrs['clase'])) {
+    if (!$tarifaSnap && !$tarifaViva && $poliza->producto_id && !empty($attrs['tipo']) && !empty($attrs['clase'])) {
         $nivelRef  = mb_strtolower(trim($attrs['tipo']) . ' / ' . trim($attrs['clase']));
         $porNombre = \App\Models\Tarifario::where('producto_id', $poliza->producto_id)
             ->where('estado', 'vigente')->where('activo', true)
@@ -185,7 +188,7 @@
             $tarifaViva = $porNombre->first();
         }
     }
-    $tarifaDatos = $tarifaViva?->datos ?? ($cobs['tarifa']['datos'] ?? ($snap['tarifario']['datos'] ?? []));
+    $tarifaDatos = $tarifaSnap ?? $tarifaViva?->datos ?? [];
     // La estructura de los datos de la tarifa viva la define el tipo de
     // cálculo ACTUAL del producto (pudo cambiar desde la emisión).
     if ($tarifaViva) $tipoCal = $poliza->producto?->tipo_calculo ?? $tipoCal;
@@ -306,9 +309,9 @@
     // monto de la tarifa (datos.coberturas_pdf = {slug: {label, suma}}).
     // Si existen, son LA fuente del cuadro "Coberturas / Sumas Aseguradas" y
     // sustituyen tanto la cuadrícula fija de vehículo como los derivados.
-    // Si la tarifa viva no los define, se buscan en las copias de la
-    // cotización y del snapshot de emisión (pólizas emitidas con renglones
-    // que la versión vigente actual perdió).
+    // Se buscan primero en la tarifa resuelta arriba (la congelada del
+    // snapshot o, en migradas, la vigente), luego en las copias de la
+    // cotización/snapshot y por último en los renglones del producto.
     $cobsPdf = $tarifaDatos['coberturas_pdf']
         ?? ($cobs['tarifa']['datos']['coberturas_pdf'] ?? null)
         ?? ($snap['tarifario']['datos']['coberturas_pdf'] ?? null)
