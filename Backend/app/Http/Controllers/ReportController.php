@@ -873,6 +873,141 @@ class ReportController extends Controller
         ]);
     }
 
+    private function queryPolizasEfectivoOficina(string $sede)
+    {
+        $query = Poliza::with(['vendedor'])
+            ->where(function ($q) {
+                $q->where('pago', 'like', '%efectivo%')
+                  ->orWhere('pago', 'like', '%divisas%');
+            })
+            ->whereNull('retiro_caja_id');
+
+        if ($sede === 'Sede Central') {
+            $query->where(function ($q) {
+                $q->whereNull('vendedor_id')
+                  ->orWhereHas('vendedor', function ($qv) {
+                      $qv->whereNull('sede')->orWhere('sede', 'Sede Central');
+                  });
+            });
+        } else {
+            $query->whereHas('vendedor', function ($qv) use ($sede) {
+                $qv->where('sede', $sede);
+            });
+        }
+
+        return $query;
+    }
+
+    private function polizaMontoPagoCurrency($p): float
+    {
+        $monedaPago = Moneda::normalizar($p->moneda);
+        if ($monedaPago === 'BS') {
+            return (float) $p->total_bs;
+        }
+
+        $tasaUsd = (float) $p->tasa_emision;
+        $tasaEur = (float) $p->tasa_emision_eur;
+        if ($tasaUsd <= 1 || $tasaEur <= 1) {
+            [$usdHoy, $eurHoy] = $this->tasasHoy();
+            if ($tasaUsd <= 1) $tasaUsd = $usdHoy;
+            if ($tasaEur <= 1) $tasaEur = $eurHoy;
+        }
+
+        return Moneda::convertir((float) $p->total, $p->monedaNativa(), $monedaPago, $tasaUsd, $tasaEur);
+    }
+
+    public function getRetirosCaja(string $sede)
+    {
+        $policies = $this->queryPolizasEfectivoOficina($sede)->get();
+
+        $cajaActual = [
+            'Bs'  => 0.0,
+            'USD' => 0.0,
+            'EUR' => 0.0,
+        ];
+
+        foreach ($policies as $p) {
+            $monedaPago = Moneda::normalizar($p->moneda);
+            $monto = $this->polizaMontoPagoCurrency($p);
+            if ($monedaPago === 'BS') {
+                $cajaActual['Bs'] += $monto;
+            } elseif ($monedaPago === 'EUR') {
+                $cajaActual['EUR'] += $monto;
+            } else {
+                $cajaActual['USD'] += $monto;
+            }
+        }
+
+        $cajaActual['Bs'] = round($cajaActual['Bs'], 2);
+        $cajaActual['USD'] = round($cajaActual['USD'], 2);
+        $cajaActual['EUR'] = round($cajaActual['EUR'], 2);
+
+        $historial = \App\Models\OficinaRetiroCaja::with(['usuario:id,nombre'])
+            ->where('sede', $sede)
+            ->orderByDesc('created_at')
+            ->get();
+
+        return response()->json([
+            'caja_actual' => $cajaActual,
+            'historial' => $historial->map(fn ($h) => [
+                'id' => $h->id,
+                'created_at' => $h->created_at->format('d/m/Y H:i'),
+                'monto_bs' => (float) $h->monto_bs,
+                'monto_usd' => (float) $h->monto_usd,
+                'monto_eur' => (float) $h->monto_eur,
+                'observaciones' => $h->observaciones,
+                'usuario' => $h->usuario ? [
+                    'id' => $h->usuario->id,
+                    'nombre' => $h->usuario->nombre,
+                ] : null,
+            ]),
+        ]);
+    }
+
+    public function retirarCaja(Request $request, string $sede)
+    {
+        $noInjection = new NoInjectionChars();
+        $data = $request->validate([
+            'observaciones' => ['nullable', 'string', 'max:1000', $noInjection],
+        ]);
+
+        return DB::transaction(function () use ($sede, $data) {
+            $policies = $this->queryPolizasEfectivoOficina($sede)->lockForUpdate()->get();
+
+            $montoBs = 0.0;
+            $montoUsd = 0.0;
+            $montoEur = 0.0;
+
+            foreach ($policies as $p) {
+                $monedaPago = Moneda::normalizar($p->moneda);
+                $monto = $this->polizaMontoPagoCurrency($p);
+                if ($monedaPago === 'BS') {
+                    $montoBs += $monto;
+                } elseif ($monedaPago === 'EUR') {
+                    $montoEur += $monto;
+                } else {
+                    $montoUsd += $monto;
+                }
+            }
+
+            $withdrawal = \App\Models\OficinaRetiroCaja::create([
+                'sede' => $sede,
+                'monto_bs' => round($montoBs, 2),
+                'monto_usd' => round($montoUsd, 2),
+                'monto_eur' => round($montoEur, 2),
+                'observaciones' => $data['observaciones'] ?? null,
+                'usuario_id' => auth()->id(),
+            ]);
+
+            if ($policies->isNotEmpty()) {
+                Poliza::whereIn('id', $policies->pluck('id'))
+                    ->update(['retiro_caja_id' => $withdrawal->id]);
+            }
+
+            return response()->json($withdrawal);
+        });
+    }
+
     public function getOficinasPagos(Request $request)
     {
         return response()->json($this->oficinasPagosRows($request));

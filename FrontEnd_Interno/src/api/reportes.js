@@ -277,3 +277,25 @@ export async function uploadReporteAdjunto(file) {
   if (!res.ok) throw new Error(json.message || 'Error al subir el adjunto')
   return json
 }
+
+export async function fetchRetirosCaja(sede) {
+  const res = await fetch(`${API_BASE_URL}/api/reports/oficinas/${encodeURIComponent(sede)}/retiros-caja`, { headers: getAuthHeaders() })
+  if (!res.ok) throw new Error('Error al cargar historial de retiros')
+  return res.json()
+}
+
+export async function retirarCaja(sede, { observaciones }) {
+  const token = localStorage.getItem('auth_token')
+  const res = await fetch(`${API_BASE_URL}/api/reports/oficinas/${encodeURIComponent(sede)}/retirar-caja`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ observaciones })
+  })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json.message || 'Error al procesar el retiro de caja')
+  return json
+}

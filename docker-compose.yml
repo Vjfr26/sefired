@@ -86,6 +86,7 @@ services:
     ports:
       - "${BACKEND_PORT}:8000"
     volumes:
+      - ./Backend:/var/www
       - backend_storage:/var/www/storage/app
     depends_on:
       db:
@@ -141,6 +142,7 @@ services:
           --memory=256
       "
     volumes:
+      - ./Backend:/var/www
       - backend_storage:/var/www/storage/app
     depends_on:
       db:
@@ -191,6 +193,7 @@ services:
         done
       "
     volumes:
+      - ./Backend:/var/www
       - backend_storage:/var/www/storage/app
     depends_on:
       db:

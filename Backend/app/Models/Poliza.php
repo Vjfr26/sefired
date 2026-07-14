@@ -63,6 +63,7 @@ class Poliza extends Model
         'updated_by',
         'snapshot_datos',
         'tarifario_version_id',
+        'retiro_caja_id',
     ];
 
     protected function casts(): array
@@ -81,6 +82,7 @@ class Poliza extends Model
             'fecha_vencimiento'    => 'date',
             'snapshot_datos'       => 'array',
             'tarifario_version_id' => 'integer',
+            'retiro_caja_id'       => 'integer',
         ];
     }
 
@@ -100,6 +102,12 @@ class Poliza extends Model
     public function vendedor(): BelongsTo
     {
         return $this->belongsTo(Usuario::class, 'vendedor_id');
+    }
+
+    /** Retiro de caja de la oficina */
+    public function retiroCaja(): BelongsTo
+    {
+        return $this->belongsTo(OficinaRetiroCaja::class, 'retiro_caja_id');
     }
 
     /** Facturas emitidas contra esta póliza */
