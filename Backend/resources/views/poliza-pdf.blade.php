@@ -809,134 +809,157 @@
         $color  = mb_strtoupper($attrs['color']  ?? '—');
         $serCar = mb_strtoupper($attrs['serial_carroceria'] ?? ($attrs['serialCarroceria'] ?? '—'));
     }
+    // Vehículo y bien genérico son EXCLUYENTES en el carnet (mismo criterio
+    // que "Datos del Vehículo" del cuadro): bienes viejos sin 'tipo' se
+    // reconocen como vehículo por sus claves propias.
+    $attrsCarnet = array_slice(collect($attrs)->filter(fn($v) => $v !== null && $v !== '')->all(), 0, 6, true);
+    $esVehiculoCarnet = ($bien['tipo'] ?? null) === 'vehiculo' || (empty($bien['tipo']) && array_intersect(
+        ['placa', 'marca', 'serial_carroceria', 'serialCarroceria', 'serial_motor', 'serialMotor'],
+        array_keys($attrsCarnet)
+    ));
 @endphp
 {{-- Ambos carnets (frontal y reverso) deben medir EXACTAMENTE lo mismo en
      todos los certificados: table-layout fixed reparte columnas iguales sin
      importar el contenido, y el div interno de alto fijo con overflow hidden
-     evita que un carnet con más datos crezca más que los demás. --}}
-<table width="100%" cellspacing="0" cellpadding="0" style="margin-top:20px; page-break-inside:avoid; table-layout:fixed;">
+     evita que un carnet con más datos crezca más que los demás.
+     Tamaño tarjeta de cartera (ancho de tarjeta de crédito, algo más baja):
+     8.56cm x 4.7cm por cara — se recorta por el borde turquesa. --}}
+<table align="center" cellspacing="0" cellpadding="0" style="width:17.72cm; margin-top:20px; page-break-inside:avoid; table-layout:fixed;">
     <tr>
         <!-- Carnet Frontal -->
-        <td style="width:48.7%; border:2px solid #127481; font-size:9px; vertical-align:top; padding:0;">
-            <div style="position:relative; width:100%; height:196px; overflow:hidden;">
-            <img src="{{ $imgCarnet }}" style="position:absolute; z-index:-1; width:100%; height:100%; top:0; left:0; opacity:0.16;"/>
-            <img src="{{ $imgIcono }}"  style="position:absolute; z-index:-1; width:1.6cm; height:1.1cm; top:2px; left:5px; opacity:0.45;"/>
-            <div style="padding:8px 14px;">
-            <table style="text-align:center; width:100%; margin-top:0;">
-                <!-- N° esquina superior derecha -->
-                <tr>
-                    <th colspan="3" style="text-align:right; padding:4px 8px 0 0; white-space:nowrap; font-weight:normal;">
-                        <strong style="font-size:9px;">N° {{ $carnetNro }}</strong>
-                    </th>
-                </tr>
-                <!-- Tipo de póliza centrado -->
-                <tr>
-                    <th colspan="3" style="text-align:center; padding:3px 0 5px;">
-                        <strong style="font-size:15px;">{{ $tipoPolizaLabel }}</strong>
-                    </th>
-                </tr>
+        {{-- dompdf ignora anchos en cm con table-layout:fixed — van en % del
+             ancho total de la tabla (17.72cm): 8.56cm = 48.3%, hueco = 3.4% --}}
+        <td style="width:48.3%; border:1px solid #0a6070; font-size:9px; vertical-align:top; padding:0;">
+            <div style="position:relative; width:100%; height:4.7cm; overflow:hidden;">
+            <img src="{{ $imgCarnet }}" style="position:absolute; z-index:-1; width:100%; height:100%; top:0; left:0; opacity:0.6;"/>
+            <img src="{{ $imgIcono }}"  style="position:absolute; z-index:-1; width:0.95cm; height:0.9cm; top:5px; left:7px; opacity:0.5;"/>
+            {{-- dompdf no soporta flex: tabla de una celda con vertical-align:middle
+                 centra el bloque; mismo margen mínimo en los cuatro lados --}}
+            <table width="100%" cellspacing="0" cellpadding="0" style="height:4.7cm; margin-top:0;">
+            <tr><td style="height:4.0cm; vertical-align:middle; padding:11px 13px;">
+            <table style="text-align:center; width:100%; margin-top:0;" cellspacing="0" cellpadding="0">
+                {{-- Título con el N° a su nivel, como el carnet físico. Va en
+                     tabla anidada con colspan: si fuera una fila más, dompdf
+                     tomaría sus anchos (25/50/25) para TODA la tabla y las
+                     columnas de datos quedarían desiguales. --}}
+                <tr><td colspan="3" style="padding:0;">
+                    <table width="100%" cellspacing="0" cellpadding="0" style="margin-top:0;">
+                        <tr>
+                            <td style="width:25%;"></td>
+                            <td style="width:50%; text-align:center; vertical-align:bottom; padding:0 0 3px;">
+                                <strong style="font-size:13.5px;">{{ mb_strtoupper($tipoPolizaLabel) }}</strong>
+                            </td>
+                            <td style="width:25%; text-align:right; vertical-align:bottom; padding:0 2px 4px 0; white-space:nowrap;">
+                                <strong style="font-size:8px;">N° {{ $carnetNro }}</strong>
+                            </td>
+                        </tr>
+                    </table>
+                </td></tr>
                 <!-- DATOS DEL ASEGURADO -->
-                <tr><th colspan="3" style="font-size:9px; padding:2px 6px;">DATOS DEL ASEGURADO</th></tr>
+                <tr><th colspan="3" style="font-size:8.5px; padding:1px 4px;">DATOS DEL ASEGURADO</th></tr>
                 <tr>
-                    <th style="width:33.3%; font-size:8px; padding:1px 4px;">Nombres / Apellidos</th>
-                    <th style="width:33.3%; font-size:8px; padding:1px 4px;">C.I / RIF</th>
-                    <th style="width:33.3%; font-size:8px; padding:1px 4px;">Teléfono</th>
+                    <th style="width:33.3%; font-size:7.5px; padding:1px 3px;">NOMBRES / APELLIDOS</th>
+                    <th style="width:33.3%; font-size:7.5px; padding:1px 3px;">C.I / RIF</th>
+                    <th style="width:33.3%; font-size:7.5px; padding:1px 3px;">TELÉFONO</th>
                 </tr>
                 <tr>
-                    <td style="width:33.3%; font-size:8.5px; font-weight:600; padding:1px 4px; vertical-align:top;">
+                    <td style="width:33.3%; font-size:8.5px; font-weight:600; padding:0 3px; vertical-align:top;">
                         {{ $asegPartes['nombres'] ?: '—' }}<br/>{{ $asegPartes['apellidos'] ?: '—' }}
                     </td>
-                    <td style="width:33.3%; font-size:8.5px; font-weight:600; padding:1px 4px; vertical-align:top;">{{ $asegCi }}</td>
-                    <td style="width:33.3%; font-size:8.5px; font-weight:600; padding:1px 4px; vertical-align:top;">{{ $asegTel }}</td>
+                    <td style="width:33.3%; font-size:8.5px; font-weight:600; padding:0 3px; vertical-align:top;">{{ $asegCi }}</td>
+                    <td style="width:33.3%; font-size:8.5px; font-weight:600; padding:0 3px; vertical-align:top;">{{ $asegTel }}</td>
                 </tr>
+                @if($esVehiculoCarnet)
                 <!-- VEHÍCULO ASEGURADO -->
-                <tr><th colspan="3" style="font-size:9px; padding:2px 6px;">VEHÍCULO ASEGURADO</th></tr>
+                <tr><th colspan="3" style="font-size:8.5px; padding:2px 4px 1px;">VEHÍCULO ASEGURADO</th></tr>
                 <tr>
-                    <th style="font-size:8px; padding:1px 4px;">MARCA</th>
-                    <th style="font-size:8px; padding:1px 4px;">MODELO</th>
-                    <th style="font-size:8px; padding:1px 4px;">PLACA</th>
+                    <th style="font-size:7.5px; padding:1px 3px;">MARCA</th>
+                    <th style="font-size:7.5px; padding:1px 3px;">MODELO</th>
+                    <th style="font-size:7.5px; padding:1px 3px;">PLACA</th>
                 </tr>
                 <tr>
-                    <td style="font-size:8.5px; font-weight:600; padding:1px 4px;">{{ $marca }}</td>
-                    <td style="font-size:8.5px; font-weight:600; padding:1px 4px;">{{ $modelo }}</td>
-                    <td style="font-size:8.5px; font-weight:600; padding:1px 4px;">{{ $placa }}</td>
+                    <td style="font-size:8.5px; font-weight:600; padding:0 3px;">{{ $marca }}</td>
+                    <td style="font-size:8.5px; font-weight:600; padding:0 3px;">{{ $modelo }}</td>
+                    <td style="font-size:8.5px; font-weight:600; padding:0 3px;">{{ $placa }}</td>
                 </tr>
                 <tr>
-                    <th style="font-size:8px; padding:1px 4px;">COLOR</th>
-                    <th style="font-size:8px; padding:1px 4px;">SERIAL CARROCERÍA</th>
-                    <th style="font-size:8px; padding:1px 4px;">AÑO</th>
+                    <th style="font-size:7.5px; padding:1px 3px;">COLOR</th>
+                    <th style="font-size:7.5px; padding:1px 3px;">SERIAL CARROCERÍA</th>
+                    <th style="font-size:7.5px; padding:1px 3px;">AÑO</th>
                 </tr>
                 <tr>
-                    <td style="font-size:8.5px; font-weight:600; padding:1px 4px;">{{ $color }}</td>
-                    <td style="font-size:8.5px; font-weight:600; padding:1px 4px;">{{ $serCar }}</td>
-                    <td style="font-size:8.5px; font-weight:600; padding:1px 4px;">{{ $anio }}</td>
+                    <td style="font-size:8.5px; font-weight:600; padding:0 3px;">{{ $color }}</td>
+                    <td style="font-size:8.5px; font-weight:600; padding:0 3px;">{{ $serCar }}</td>
+                    <td style="font-size:8.5px; font-weight:600; padding:0 3px;">{{ $anio }}</td>
                 </tr>
-                @if(!empty($bien['tipo']))
-                @php $attrsCarnet = array_slice(collect($attrs)->filter(fn($v) => $v !== null && $v !== '')->all(), 0, 6, true); @endphp
+                @elseif(count($attrsCarnet))
                 <!-- BIEN ASEGURADO (no vehículo) -->
-                <tr><th colspan="3" style="font-size:9px; padding:2px 6px;">BIEN ASEGURADO — {{ mb_strtoupper(str_replace('_', ' ', $bien['tipo'])) }}</th></tr>
+                <tr><th colspan="3" style="font-size:8.5px; padding:2px 4px 1px;">BIEN ASEGURADO{{ !empty($bien['tipo']) ? ' — '.mb_strtoupper(str_replace('_', ' ', $bien['tipo'])) : '' }}</th></tr>
                 @foreach(array_chunk(array_keys($attrsCarnet), 3) as $grupoCarnet)
                 <tr>
                     @foreach($grupoCarnet as $k)
-                    <th style="font-size:8px; padding:1px 4px;">{{ mb_strtoupper(str_replace('_', ' ', $k)) }}</th>
+                    <th style="font-size:7.5px; padding:1px 3px;">{{ mb_strtoupper(str_replace('_', ' ', $k)) }}</th>
                     @endforeach
                 </tr>
                 <tr>
                     @foreach($grupoCarnet as $k)
-                    <td style="font-size:8.5px; font-weight:600; padding:1px 4px;">{{ mb_strtoupper((string) $attrsCarnet[$k]) }}</td>
+                    <td style="font-size:8.5px; font-weight:600; padding:0 3px;">{{ mb_strtoupper((string) $attrsCarnet[$k]) }}</td>
                     @endforeach
                 </tr>
                 @endforeach
                 @endif
             </table>
-            </div>
+            </td></tr></table>
             </div>
         </td>
 
-        <td style="width:2.6%;"></td>
+        <td style="width:3.4%;"></td>
 
         <!-- Carnet Reverso: EMISIÓN | QR | VENCIMIENTO -->
-        <td style="width:48.7%; border:2px solid #127481; font-size:9px; vertical-align:top; padding:0;">
-            <div style="position:relative; width:100%; height:196px; overflow:hidden;">
-            <img src="{{ $imgCarnet }}" style="position:absolute; z-index:-1; width:100%; height:100%; top:0; left:0; opacity:0.16;"/>
-            <img src="{{ $imgIcono }}"  style="position:absolute; z-index:-1; width:1.6cm; height:1.1cm; top:2px; left:5px; opacity:0.45;"/>
-            <div style="padding:12px 20px;">
+        <td style="width:48.3%; border:1px solid #0a6070; font-size:9px; vertical-align:top; padding:0;">
+            <div style="position:relative; width:100%; height:4.7cm; overflow:hidden;">
+            <img src="{{ $imgCarnet }}" style="position:absolute; z-index:-1; width:100%; height:100%; top:0; left:0; opacity:0.6;"/>
+            <img src="{{ $imgIcono }}"  style="position:absolute; z-index:-1; width:0.95cm; height:0.9cm; top:5px; left:7px; opacity:0.5;"/>
+            {{-- dompdf no soporta flex: tabla de una celda con vertical-align:middle
+                 centra el bloque; mismo margen mínimo en los cuatro lados --}}
+            <table width="100%" cellspacing="0" cellpadding="0" style="height:4.7cm; margin-top:0;">
+            <tr><td style="height:4.0cm; vertical-align:middle; padding:11px 13px;">
             <table width="100%" cellspacing="0" cellpadding="0" style="margin-top:0;">
                 <!-- Providencia -->
                 <tr>
-                    <td colspan="3" style="font-size:7px; padding:4px 6px 8px; line-height:1.35; text-align:center;">
+                    <td colspan="3" style="font-size:7px; padding:0 2px 5px; line-height:1.35; text-align:center;">
                         <strong>Aprobado por la Superintendencia de la Actividad Aseguradora mediante PROVIDENCIA ADMINISTRATIVA N° SAA-09-0138-2025 de fecha 21/02/2025.</strong>
                     </td>
                 </tr>
                 <!-- EMISIÓN | QR | VENCIMIENTO -->
                 <tr>
-                    <td style="width:80px; text-align:center; vertical-align:middle; padding:6px 6px;">
-                        <div style="font-size:8.5px; font-weight:bold;">EMISIÓN</div>
-                        <div style="font-size:9px; font-weight:600; white-space:nowrap;">{{ $poliza->fecha_emision?->format('d-m-Y') }}</div>
+                    <td style="width:30%; text-align:center; vertical-align:middle; padding:2px 4px;">
+                        <div style="font-size:8px; font-weight:bold;">EMISIÓN</div>
+                        <div style="font-size:8.5px; font-weight:600; white-space:nowrap;">{{ $poliza->fecha_emision?->format('d-m-Y') }}</div>
                     </td>
-                    <td style="width:130px; text-align:center; vertical-align:middle; padding:6px 12px;">
+                    <td style="width:40%; text-align:center; vertical-align:middle; padding:2px 8px;">
                         @if($qrCode)
-                        <img src="{{ $qrCode }}" style="width:78px; height:78px; display:block; margin:0 auto;" alt="QR"/>
+                        <img src="{{ $qrCode }}" style="width:62px; height:62px; display:block; margin:0 auto;" alt="QR"/>
                         @else
-                        <div style="width:78px; height:78px; border:1px dashed #aaa; margin:0 auto; display:flex; align-items:center; justify-content:center;">
+                        <div style="width:62px; height:62px; border:1px dashed #aaa; margin:0 auto;">
                             <span style="font-size:7px; color:#888; word-break:break-all; padding:4px;">Verificar póliza</span>
                         </div>
                         @endif
                     </td>
-                    <td style="width:80px; text-align:center; vertical-align:middle; padding:6px 6px;">
-                        <div style="font-size:8.5px; font-weight:bold;">VENCIMIENTO</div>
-                        <div style="font-size:9px; font-weight:600; white-space:nowrap;">{{ $poliza->fecha_vencimiento?->format('d-m-Y') }}</div>
+                    <td style="width:30%; text-align:center; vertical-align:middle; padding:2px 4px;">
+                        <div style="font-size:8px; font-weight:bold;">VENCIMIENTO</div>
+                        <div style="font-size:8.5px; font-weight:600; white-space:nowrap;">{{ $poliza->fecha_vencimiento?->format('d-m-Y') }}</div>
                     </td>
                 </tr>
                 <!-- Contacto siniestros -->
                 <tr>
-                    <td colspan="3" style="text-align:center; padding:8px 4px 4px;">
-                        <div style="font-weight:bold; font-size:8.5px;">Reportes y/o Siniestros</div>
-                        <div style="font-weight:bold; font-size:8.5px;">0414-8299562 / 0414-3169371</div>
+                    <td colspan="3" style="text-align:center; padding:5px 4px 0;">
+                        <div style="font-weight:bold; font-size:8px;">REPORTES Y/O SINIESTROS</div>
+                        <div style="font-weight:bold; font-size:8px;">0414-8299562 / 0414-3169371</div>
                     </td>
                 </tr>
             </table>
-            </div>
+            </td></tr></table>
             </div>
         </td>
     </tr>
