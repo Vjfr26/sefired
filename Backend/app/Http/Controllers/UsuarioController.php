@@ -269,6 +269,7 @@ class UsuarioController extends Controller
         }
 
         $antes = $this->snapshotAntes($usuario);
+        $sedeAnterior = $usuario->sede;
         $usuario->update($data);
 
         $this->logActivity(
@@ -277,6 +278,17 @@ class UsuarioController extends Controller
             'usuarios',
             auth()->id()
         );
+
+        // Si el usuario cambió de sede y la anterior quedó sin nadie (y sin
+        // pólizas emitidas), la oficina se elimina sola del catálogo.
+        if (isset($data['sede']) && \App\Models\Oficina::eliminarSiHuerfana($sedeAnterior)) {
+            $this->logActivity(
+                'Eliminación de Oficina',
+                "La oficina {$sedeAnterior} quedó sin usuarios y se eliminó del catálogo",
+                'oficina',
+                auth()->id()
+            );
+        }
 
         return response()->json([
             'status' => 'success',
@@ -306,6 +318,7 @@ class UsuarioController extends Controller
         }
 
         $nick = $usuario->nick;
+        $sede = $usuario->sede;
         $usuario->delete();
 
         $this->logActivity(
@@ -314,6 +327,17 @@ class UsuarioController extends Controller
             'usuarios',
             auth()->id()
         );
+
+        // Si era el último usuario de su sede (y no hay pólizas emitidas con
+        // ella), la oficina se elimina sola del catálogo.
+        if (\App\Models\Oficina::eliminarSiHuerfana($sede)) {
+            $this->logActivity(
+                'Eliminación de Oficina',
+                "La oficina {$sede} quedó sin usuarios y se eliminó del catálogo",
+                'oficina',
+                auth()->id()
+            );
+        }
 
         return response()->json([
             'status' => 'success',

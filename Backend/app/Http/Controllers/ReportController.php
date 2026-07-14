@@ -9,6 +9,7 @@ use App\Models\EmailLog;
 use App\Models\IndicadorEconomico;
 use App\Models\IpBloqueada;
 use App\Models\Log;
+use App\Models\Oficina;
 use App\Models\Usuario;
 use App\Models\Persona;
 use App\Models\BienAsegurado;
@@ -21,6 +22,7 @@ use App\Models\UnderwritingEvaluacion;
 use App\Models\Venta;
 use App\Rules\NoInjectionChars;
 use App\Services\ReporteGeneratorService;
+use App\Support\CodigoPoliza;
 use App\Support\Moneda;
 use App\Support\PermisosPorRol;
 use Illuminate\Http\Request;
@@ -696,7 +698,13 @@ class ReportController extends Controller
             ->pluck('n', 'sede_n');
     }
 
-    public function getOficinas(Request $request)
+    /**
+     * Filas del reporte de oficinas: pólizas del período agrupadas por la
+     * sede del vendedor, MÁS las oficinas del catálogo (tabla `oficina`) que
+     * aún no tienen pólizas — una sede recién creada aparece de una vez con
+     * sus agentes y todo en cero. Compartido por getOficinas y exportOficinas.
+     */
+    private function oficinasReportRows(Request $request): array
     {
         $request->validate([
             'fecha_inicio' => 'nullable|date',
@@ -712,6 +720,7 @@ class ReportController extends Controller
         $agentes      = $this->agentesPorSede();
         $rows = [];
         $tAg = 0; $tPol = 0; $tPri = 0;
+        $sedesConPolizas = [];
 
         foreach ($policies->groupBy(fn ($p) => $p->vendedor?->sede ?? 'Sede Central') as $sede => $pols) {
             $ag  = (int) ($agentes[$sede] ?? 0);
@@ -721,13 +730,26 @@ class ReportController extends Controller
 
             $rows[] = ['ofi' => $sede, 'ag' => $ag, 'pol' => $po, 'prima' => $pr, 'pct' => $pct, 'est' => 'Activa'];
             $tAg += $ag; $tPol += $po; $tPri += $pr;
+            $sedesConPolizas[CodigoPoliza::normalizar($sede)] = true;
         }
 
-        if ($tPol > 0) {
-            $rows[] = ['ofi' => 'TOTAL', 'ag' => $tAg, 'pol' => $tPol, 'prima' => $tPri, 'pct' => '100%', 'est' => ''];
+        foreach (Oficina::orderBy('nombre')->get() as $oficina) {
+            if (isset($sedesConPolizas[CodigoPoliza::normalizar($oficina->nombre)])) continue;
+            $ag = (int) ($agentes[$oficina->nombre] ?? 0);
+            $rows[] = ['ofi' => $oficina->nombre, 'ag' => $ag, 'pol' => 0, 'prima' => 0, 'pct' => '0%', 'est' => 'Activa'];
+            $tAg += $ag;
         }
 
-        return response()->json($rows);
+        if (!empty($rows)) {
+            $rows[] = ['ofi' => 'TOTAL', 'ag' => $tAg, 'pol' => $tPol, 'prima' => $tPri, 'pct' => $tPol > 0 ? '100%' : '0%', 'est' => ''];
+        }
+
+        return $rows;
+    }
+
+    public function getOficinas(Request $request)
+    {
+        return response()->json($this->oficinasReportRows($request));
     }
 
     /** Usuarios afiliados a una oficina/sede — para el modal del reporte de oficinas. */
@@ -754,29 +776,7 @@ class ReportController extends Controller
 
     public function exportOficinas(Request $request)
     {
-        $query = Poliza::with(['vendedor']);
-        if ($request->filled('fecha_inicio')) $query->whereDate('fecha_emision', '>=', $request->fecha_inicio);
-        if ($request->filled('fecha_fin'))    $query->whereDate('fecha_emision', '<=', $request->fecha_fin);
-
-        $policies  = $query->get();
-        $totalPrem = $this->sumTotalUsd($policies);
-        $agentes   = $this->agentesPorSede();
-        $rows = collect();
-        $tAg = 0; $tPol = 0; $tPri = 0;
-
-        foreach ($policies->groupBy(fn ($p) => $p->vendedor?->sede ?? 'Sede Central') as $sede => $pols) {
-            $ag  = (int) ($agentes[$sede] ?? 0);
-            $po  = $pols->count();
-            $pr  = $this->sumTotalUsd($pols);
-            $pct = $totalPrem > 0 ? round(($pr / $totalPrem) * 100, 1) . '%' : '0%';
-            $rows->push(['ofi' => $sede, 'ag' => $ag, 'pol' => $po, 'prima' => $pr, 'pct' => $pct, 'est' => 'Activa']);
-            $tAg += $ag; $tPol += $po; $tPri += $pr;
-        }
-        if ($tPol > 0) {
-            $rows->push(['ofi' => 'TOTAL', 'ag' => $tAg, 'pol' => $tPol, 'prima' => $tPri, 'pct' => '100%', 'est' => '']);
-        }
-
-        return (new OficinasExport($rows, $request->input('columnas')))
+        return (new OficinasExport(collect($this->oficinasReportRows($request)), $request->input('columnas')))
             ->download('reporte_oficinas_' . now()->format('Ymd_His') . '.xlsx');
     }
 

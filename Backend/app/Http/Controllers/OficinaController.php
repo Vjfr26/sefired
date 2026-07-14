@@ -15,7 +15,7 @@ class OficinaController extends Controller
     public function index()
     {
         return response()->json(
-            Oficina::orderBy('codigo')->get(['id', 'nombre', 'codigo'])
+            Oficina::orderBy('nombre')->get(['id', 'nombre', 'codigo'])
         );
     }
 
@@ -45,20 +45,16 @@ class OficinaController extends Controller
             ], 422);
         }
 
-        // El código de póliza reserva un solo dígito para la oficina.
-        $codigo = ((int) Oficina::max('codigo')) + 1;
-        if ($codigo > 9) {
-            return response()->json([
-                'status'  => 'error',
-                'message' => 'Se alcanzó el máximo de 9 oficinas (el código de póliza usa un solo dígito de oficina).',
-            ], 422);
-        }
-
-        $oficina = Oficina::create(['nombre' => $nombre, 'codigo' => $codigo]);
+        // Sin dígito de oficina: el código de póliza solo reserva 1 dígito y
+        // hay más sedes que dígitos, así que las oficinas nuevas emiten con 0
+        // — igual que producción desde siempre. Los dígitos existentes
+        // (sedes históricas) se conservan; asignar uno nuevo es acción manual
+        // en la BD si algún día se quiere.
+        $oficina = Oficina::create(['nombre' => $nombre, 'codigo' => null]);
 
         $this->logActivity(
             'Creación de Oficina',
-            "Se creó la oficina {$oficina->nombre} (código {$oficina->codigo})",
+            "Se creó la oficina {$oficina->nombre}",
             'oficina',
             auth()->id()
         );

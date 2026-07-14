@@ -66,7 +66,10 @@ class CodigoPoliza
         static $catalogo = null;
         if ($catalogo === null || (!isset($catalogo[$clave]) && !isset(self::OFICINAS[$clave]))) {
             try {
+                // Solo las oficinas CON dígito asignado: las demás caen al
+                // mapa fijo o a 0, igual que una sede desconocida.
                 $catalogo = \App\Models\Oficina::query()
+                    ->whereNotNull('codigo')
                     ->pluck('codigo', 'nombre')
                     ->mapWithKeys(fn ($codigo, $nombre) => [self::normalizar($nombre) => (int) $codigo])
                     ->all();
