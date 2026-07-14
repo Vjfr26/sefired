@@ -94,6 +94,7 @@ Route::middleware([\App\Http\Middleware\ApiTokenMiddleware::class, 'throttle:120
     Route::get('/reports/oficinas',                  [ReportController::class, 'getOficinas'])->middleware('perm:reportes,view_oficinas');
     Route::get('/reports/oficinas/usuarios',         [ReportController::class, 'getOficinaUsuarios'])->middleware('perm:reportes,view_oficinas');
     Route::get('/reports/oficinas/pagos',             [ReportController::class, 'getOficinasPagos'])->middleware('perm:reportes,view_oficinas');
+    Route::get('/reports/oficinas/{sede}/retiros-caja', [ReportController::class, 'getRetirosCaja'])->middleware('perm:reportes,view_oficinas');
     Route::get('/reports/usuarios',                  [ReportController::class, 'getUsuariosReport'])->middleware('perm:reportes,view_metrics_personal');
     Route::get('/reports/clientes',                  [ReportController::class, 'getClientesReport'])->middleware('perm:reportes,view_metrics_clientes');
     Route::get('/reports/vehiculos',                 [ReportController::class, 'getVehiculosReport'])->middleware('perm:reportes,view_metrics_vehiculos');
@@ -154,6 +155,7 @@ Route::middleware([\App\Http\Middleware\ApiTokenMiddleware::class, 'throttle:120
         Route::post('/reports/oficinas/exportar',             [ReportController::class, 'exportOficinas'])->middleware('perm:reportes,export');
         Route::post('/reports/oficinas/pagos/exportar',       [ReportController::class, 'exportOficinasPagos'])->middleware('perm:reportes,export');
         Route::post('/reports/oficinas/retiro-efectivo',      [ReportController::class, 'marcarRetiroEfectivo'])->middleware('perm:reportes,manage_oficinas');
+        Route::post('/reports/oficinas/{sede}/retirar-caja',  [ReportController::class, 'retirarCaja'])->middleware('perm:reportes,manage_oficinas');
         Route::post('/reports/usuarios/exportar',             [ReportController::class, 'exportUsuariosReport'])->middleware('perm:reportes,export');
         Route::post('/reports/clientes/exportar',             [ReportController::class, 'exportClientesReport'])->middleware('perm:reportes,export');
         Route::patch('/reports/comisiones/{id}',              [ReportController::class, 'marcarComision'])->middleware('perm:reportes,manage_comisiones');

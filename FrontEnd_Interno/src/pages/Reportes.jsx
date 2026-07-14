@@ -28,7 +28,7 @@ const agruparPagosPorOficina = (rows) => {
     .map(g => ({ ...g, formas: g.formas.slice().sort((a, b) => (b.prima || 0) - (a.prima || 0)) }))
     .sort((a, b) => a.ofi.localeCompare(b.ofi))
 }
-import { TrendingUp, Building2, Users, Search, Download, Check, Calendar, Loader2, Play, CheckCircle2, Car, Package, Filter, ChevronDown, ChevronUp, AlertTriangle, X, Clock, Bookmark, Trash2 } from 'lucide-react'
+import { TrendingUp, Building2, Users, Search, Download, Check, Calendar, Loader2, Play, CheckCircle2, Car, Package, Filter, ChevronDown, ChevronUp, AlertTriangle, X, Clock, Bookmark, Trash2, Banknote } from 'lucide-react'
 import {
   fetchExternalReportPolicies,
   exportExternalReport,
@@ -52,7 +52,9 @@ import {
   fetchClientesReport,
   exportClientesReport,
   fetchVehiculosReport,
-  uploadReporteAdjunto
+  uploadReporteAdjunto,
+  fetchRetirosCaja,
+  retirarCaja
 } from '../api/reportes.js'
 import { fetchClientes } from '../api/clientes.js'
 import { fetchDocumentosCliente } from '../api/clienteDocumentos.js'
@@ -585,6 +587,7 @@ function TabOficinas() {
   const [pagosExporting, setPagosExporting] = useState(false)
   const [retiroEdit, setRetiroEdit] = useState(null)
   const [oficinaSel, setOficinaSel] = useState(null)   // oficina cuyo modal de usuarios está abierto
+  const [retiroCajaSede, setRetiroCajaSede] = useState(null)
 
   const canExport = canAct('reportes', 'export')
   const canManageOficinas = canAct('reportes', 'manage_oficinas')
@@ -705,6 +708,7 @@ function TabOficinas() {
             { k: 'pol',   l: 'Pólizas',     r: true, hide: 'sm' },
             { k: 'prima', l: 'Prima Neta (Bs.)',  r: true },
             { k: 'pct',   l: '% del Total', r: true, hide: 'md' },
+            { k: 'efectivo', l: 'Efectivo', r: true },
             { k: 'est',   l: 'Estado',      hide: 'md', s: 'est_sort' },
             { k: 'acc',   l: '',            acc: true },
           ]}
@@ -714,6 +718,15 @@ function TabOficinas() {
             est_sort: r.est ?? '',
             prima: enBs(r.prima),
             est: r.est ? rsbadge(r.est) : '',
+            efectivo: r.ofi !== 'TOTAL' ? (
+              <button
+                onClick={() => setRetiroCajaSede(r.ofi)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition text-xs font-semibold whitespace-nowrap"
+                title="Gestionar efectivo de la oficina"
+              >
+                <Banknote className="w-3.5 h-3.5" /> Efectivo
+              </button>
+            ) : '',
             acc: r.ofi !== 'TOTAL' ? (
               <button
                 onClick={() => setOficinaSel(r.ofi)}
@@ -799,6 +812,10 @@ function TabOficinas() {
       {oficinaSel && (
         <OficinaUsuariosModal sede={oficinaSel} onClose={() => setOficinaSel(null)} />
       )}
+
+      {retiroCajaSede && (
+        <RetiroCajaModal sede={retiroCajaSede} onClose={() => setRetiroCajaSede(null)} />
+      )}
     </div>
   )
 }
@@ -860,6 +877,225 @@ function OficinaUsuariosModal({ sede, onClose }) {
               ))}
             </div>
           )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function RetiroCajaModal({ sede, onClose }) {
+  const { showToast, canAct } = useApp()
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [confirming, setConfirming] = useState(false)
+  const [observaciones, setObservaciones] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const canManage = canAct('reportes', 'manage_oficinas')
+
+  const loadData = async () => {
+    setLoading(true)
+    try {
+      const d = await fetchRetirosCaja(sede)
+      setData(d)
+    } catch (err) {
+      showToast('Error al cargar historial de retiros', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadData()
+  }, [sede])
+
+  const handleRetirar = async () => {
+    if (!observaciones.trim()) {
+      showToast('Por favor ingrese las observaciones del retiro', 'error')
+      return
+    }
+    setSaving(true)
+    try {
+      await retirarCaja(sede, { observaciones })
+      showToast('Retiro de caja realizado con éxito', 'success')
+      setConfirming(false)
+      setObservaciones('')
+      loadData()
+    } catch (err) {
+      showToast(err.message || 'Error al procesar el retiro', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const hasCash = data && (data.caja_actual.Bs > 0 || data.caja_actual.USD > 0 || data.caja_actual.EUR > 0)
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-[80] flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl flex flex-col overflow-hidden animate-in zoom-in duration-200 max-h-[85vh]" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+              <Banknote className="w-5 h-5" />
+            </span>
+            <div className="min-w-0">
+              <h3 className="text-base font-black text-slate-800 truncate">Caja de Efectivo: {sede}</h3>
+              <p className="text-[11px] text-slate-400">Historial y retiros de caja</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-xl transition">
+            <X className="w-4 h-4 text-slate-500" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 overflow-y-auto flex-1 space-y-6">
+          {loading ? (
+            <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 text-emerald-600 animate-spin" /></div>
+          ) : !data ? (
+            <div className="py-8 text-center text-rose-600 font-semibold bg-rose-50 rounded-2xl border border-rose-100 text-sm">
+              Error al cargar la información de la caja. Por favor, intente nuevamente.
+            </div>
+          ) : (
+            <>
+              {/* Confirm form inline */}
+              {confirming && (
+                <div className="p-5 rounded-2xl bg-amber-50/50 border border-amber-200/60 space-y-4 animate-in fade-in slide-in-from-top-4 duration-200">
+                  <h4 className="text-sm font-bold text-amber-800 flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4 shrink-0" /> Confirmar Retiro de Caja
+                  </h4>
+                  <p className="text-xs text-amber-700">
+                    Se retirará todo el efectivo acumulado en la oficina en este momento:
+                    <strong className="ml-1 font-semibold">
+                      {fmtMonto(data.caja_actual.Bs, 'BS')} · {fmtMonto(data.caja_actual.USD, 'USD')} · {fmtMonto(data.caja_actual.EUR, 'EUR')}
+                    </strong>.
+                    Esta acción registrará su usuario y pondrá el saldo de caja actual a cero.
+                  </p>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 mb-1 block">Observaciones / Notas del Retiro</label>
+                    <textarea
+                      value={observaciones}
+                      onChange={e => setObservaciones(e.target.value)}
+                      placeholder="Indique quién retira el dinero, número de recibo, observaciones..."
+                      className="w-full text-sm bg-white border border-slate-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-amber-500 min-h-[80px]"
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => { setConfirming(false); setObservaciones(''); }}
+                      className="px-3.5 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 transition text-xs font-semibold text-slate-500"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleRetirar}
+                      disabled={saving}
+                      className="px-3.5 py-2 rounded-xl bg-amber-600 text-white hover:bg-amber-700 transition text-xs font-semibold flex items-center gap-1.5"
+                    >
+                      {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Confirmar Retiro'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Caja Actual Table */}
+              <div>
+                <h4 className="text-sm font-black text-slate-800 mb-3">Efectivo en Oficina</h4>
+                <div className="overflow-x-auto border border-slate-100 rounded-2xl">
+                  <table className="w-full text-sm border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                        <th className="text-right px-4 py-2.5 font-bold">Bolívares (Bs.)</th>
+                        <th className="text-right px-4 py-2.5 font-bold">Dólares ($)</th>
+                        <th className="text-right px-4 py-2.5 font-bold">Euros (€)</th>
+                        <th className="text-center px-4 py-2.5 font-bold">Estado</th>
+                        <th className="text-left px-4 py-2.5 font-bold">Observaciones</th>
+                        <th className="text-center px-4 py-2.5 font-bold">Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="hover:bg-slate-50/40">
+                        <td className="px-4 py-3 text-right font-semibold text-slate-800 tabular-nums">{fmtMonto(data.caja_actual.Bs, 'BS')}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-slate-800 tabular-nums">{fmtMonto(data.caja_actual.USD, 'USD')}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-slate-800 tabular-nums">{fmtMonto(data.caja_actual.EUR, 'EUR')}</td>
+                        <td className="px-4 py-3 text-center">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-600">
+                            En oficina
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-400 text-xs">—</td>
+                        <td className="px-4 py-3 text-center">
+                          {canManage && (
+                            <button
+                              onClick={() => setConfirming(true)}
+                              disabled={!hasCash || confirming}
+                              className={`px-3 py-1.5 rounded-xl font-bold text-xs transition ${
+                                hasCash && !confirming
+                                  ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                                  : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                              }`}
+                            >
+                              Retirar
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Historial Table */}
+              <div>
+                <h4 className="text-sm font-black text-slate-800 mb-3">Historial de Retiros</h4>
+                {data.historial.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-2xl">
+                    No se han registrado retiros en esta oficina.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto border border-slate-100 rounded-2xl">
+                    <table className="w-full text-sm border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                          <th className="text-left px-4 py-2.5 font-bold">Fecha / Hora</th>
+                          <th className="text-right px-4 py-2.5 font-bold">Bolívares (Bs.)</th>
+                          <th className="text-right px-4 py-2.5 font-bold">Dólares ($)</th>
+                          <th className="text-right px-4 py-2.5 font-bold">Euros (€)</th>
+                          <th className="text-center px-4 py-2.5 font-bold">Estado</th>
+                          <th className="text-left px-4 py-2.5 font-bold">Observaciones</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.historial.map(h => (
+                          <tr key={h.id} className="border-b border-slate-50 hover:bg-slate-50/30">
+                            <td className="px-4 py-3 text-slate-600 text-xs tabular-nums">{h.created_at}</td>
+                            <td className="px-4 py-3 text-right text-slate-700 tabular-nums">{fmtMonto(h.monto_bs, 'BS')}</td>
+                            <td className="px-4 py-3 text-right text-slate-700 tabular-nums">{fmtMonto(h.monto_usd, 'USD')}</td>
+                            <td className="px-4 py-3 text-right text-slate-700 tabular-nums">{fmtMonto(h.monto_eur, 'EUR')}</td>
+                            <td className="px-4 py-3 text-center">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-600">
+                                Retirado
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-xs max-w-xs break-words">
+                              <span className="font-semibold text-slate-800">{h.usuario?.nombre || 'Desconocido'}</span>
+                              {h.observaciones && <p className="text-slate-500 mt-0.5">{h.observaciones}</p>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-slate-100 flex justify-end shrink-0">
+          <button onClick={onClose} className="btn-secondary">Cerrar</button>
         </div>
       </div>
     </div>
