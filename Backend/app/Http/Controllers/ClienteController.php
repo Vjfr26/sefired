@@ -697,8 +697,6 @@ class ClienteController extends Controller
             } catch (\Throwable) {}
         }
 
-        $this->logActivity('eliminar_cliente', "Cliente {$persona->nombre} (CI {$persona->cedula}) eliminado", 'persona', auth()->id());
-
         $persona->delete();
 
         return response()->json(['message' => 'Cliente eliminado correctamente']);

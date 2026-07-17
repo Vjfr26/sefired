@@ -321,13 +321,6 @@ class UsuarioController extends Controller
         $sede = $usuario->sede;
         $usuario->delete();
 
-        $this->logActivity(
-            'Eliminación de Usuario',
-            "Se eliminó el usuario {$nick}",
-            'usuarios',
-            auth()->id()
-        );
-
         // Si era el último usuario de su sede (y no hay pólizas emitidas con
         // ella), la oficina se elimina sola del catálogo.
         if (\App\Models\Oficina::eliminarSiHuerfana($sede)) {

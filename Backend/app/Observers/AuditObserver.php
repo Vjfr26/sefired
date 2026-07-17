@@ -61,6 +61,61 @@ class AuditObserver
     public function deleted(Model $model): void
     {
         $this->record($model, 'deleted', []);
+        $this->logActivityForDeleted($model);
+    }
+
+    private function logActivityForDeleted(Model $model): void
+    {
+        $class = class_basename($model);
+        $accion = null;
+        $descripcion = null;
+        $tabla = $model->getTable();
+
+        switch ($class) {
+            case 'Usuario':
+                $accion = 'Eliminación de Usuario';
+                $descripcion = "Se eliminó el usuario {$model->nick}";
+                break;
+            case 'Persona':
+                $accion = 'eliminar_cliente';
+                $descripcion = "Cliente {$model->nombre} (CI {$model->cedula}) eliminado";
+                break;
+            case 'Solicitud':
+                $accion = 'eliminar_cotizacion';
+                $descripcion = "Cotización #{$model->id} eliminada";
+                break;
+            case 'Poliza':
+                $accion = 'eliminar_poliza';
+                $descripcion = "Póliza {$model->nro_contrato} eliminada";
+                break;
+            case 'Producto':
+                $accion = 'Producto Eliminado';
+                $descripcion = "Producto \"{$model->nombre}\" eliminado";
+                break;
+        }
+
+        if ($accion && $descripcion) {
+            try {
+                $fingerprint = null;
+                $raw = request()?->header('X-Device-Fingerprint');
+                if ($raw) {
+                    $decoded = json_decode($raw, true);
+                    $fingerprint = is_array($decoded) ? $decoded : null;
+                }
+
+                \App\Models\Log::create([
+                    'usuario_id'         => auth()->id(),
+                    'accion'             => $accion,
+                    'tabla'              => $tabla,
+                    'descripcion'        => $descripcion,
+                    'ip'                 => request()?->ip(),
+                    'user_agent'         => request()?->header('User-Agent'),
+                    'device_fingerprint' => $fingerprint,
+                ]);
+            } catch (\Throwable) {
+                // La auditoría nunca debe interrumpir la operación principal
+            }
+        }
     }
 
     private function record(Model $model, string $accion, array $cambios): void

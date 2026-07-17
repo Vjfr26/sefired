@@ -842,13 +842,6 @@ class SolicitudController extends Controller
             foreach ($solicitud->polizas as $p) {
                 $p->delete();
             }
-            $this->logActivity(
-                'eliminar_cotizacion',
-                "Cotización #{$solicitud->id} eliminada con {$solicitud->polizas->count()} póliza(s): "
-                    . $solicitud->polizas->pluck('nro_contrato')->join(', '),
-                'solicitud',
-                auth()->id()
-            );
         }
 
         $bien = $solicitud->bien;

@@ -3,9 +3,11 @@
 namespace App\Providers;
 
 use App\Models\Factura;
+use App\Models\Persona;
 use App\Models\Poliza;
 use App\Models\Producto;
 use App\Models\Solicitud;
+use App\Models\Usuario;
 use App\Observers\AuditObserver;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -30,6 +32,8 @@ class AppServiceProvider extends ServiceProvider
         Poliza::observe($observer);
         Factura::observe($observer);
         Producto::observe($observer);
+        Usuario::observe($observer);
+        Persona::observe($observer);
     }
 
     private function configureRateLimiters(): void

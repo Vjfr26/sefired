@@ -309,10 +309,7 @@ class ProductoController extends Controller
             );
         }
 
-        $nombre = $producto->nombre;
         $producto->delete();
-
-        $this->logActivity('Producto Eliminado', "Producto \"{$nombre}\" eliminado", 'producto', auth()->id());
 
         return response()->json(['message' => 'Producto eliminado correctamente']);
     }
