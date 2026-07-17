@@ -22,7 +22,7 @@ RUN { \
     echo 'opcache.validate_timestamps=0'; \
     echo 'opcache.save_comments=1'; \
     echo 'opcache.fast_shutdown=1'; \
-} > /usr/local/etc/php/conf.d/opcache.ini
+    } > /usr/local/etc/php/conf.d/opcache.ini
 
 # ── Límites PHP ────────────────────────────────────────────────────────────────
 RUN { \
@@ -30,7 +30,7 @@ RUN { \
     echo 'max_execution_time=60'; \
     echo 'upload_max_filesize=20M'; \
     echo 'post_max_size=20M'; \
-} > /usr/local/etc/php/conf.d/app.ini
+    } > /usr/local/etc/php/conf.d/app.ini
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
@@ -44,8 +44,8 @@ COPY . .
 # falle si tras los reintentos sigue incompleto.
 RUN set -e; \
     for i in 1 2 3 4 5; do \
-      composer install --no-interaction --prefer-dist --optimize-autoloader && break; \
-      echo "composer install falló, reintento $i…"; sleep 8; \
+    composer install --no-interaction --prefer-dist --optimize-autoloader && break; \
+    echo "composer install falló, reintento $i…"; sleep 8; \
     done; \
     composer install --no-interaction --prefer-dist --optimize-autoloader; \
     chmod -R 775 storage bootstrap/cache

@@ -2155,7 +2155,7 @@ function ProductoTasasModal({ p }) {
  * @param {Function} onSaved  Callback para refrescar la tabla de productos
  */
 function ProductoDocumentosModal({ p, onSaved }) {
-  const { closeModal, showToast, canAct } = useApp()
+  const { closeModal, showToast, showModal, canAct } = useApp()
   const [docs, setDocs]             = useState(p?.documentos ?? [])
   const [nombre, setNombre]         = useState('')
   const [file, setFile]             = useState(null)
@@ -2247,15 +2247,14 @@ function ProductoDocumentosModal({ p, onSaved }) {
                 </div>
                 <p className="flex-1 min-w-0 text-sm font-semibold text-slate-700 truncate">{d.nombre}</p>
                 <div className="flex gap-1.5 shrink-0">
-                  <a
-                    href={d.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-2 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition inline-flex items-center justify-center"
+                  <button
+                    type="button"
+                    onClick={() => showModal('verPolizaPdf', { url: d.url, title: d.nombre, nro: d.nombre })}
+                    className="p-2 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition inline-flex items-center justify-center cursor-pointer"
                     title="Ver documento"
                   >
                     <Eye className="w-4 h-4" />
-                  </a>
+                  </button>
                   {canManageDocs && (
                     <>
                       <button
@@ -2661,7 +2660,7 @@ function BlockUserModal({ nom, est, onConfirm }) {
  * y la abre en el PdfViewer sin cerrar el modal.
  */
 function ClienteDocsModal({ c }) {
-  const { closeModal, showPdfViewer, currentUser } = useApp()
+  const { closeModal, showPdfViewer, showModal, currentUser } = useApp()
   const [polizas, setPolizas]   = useState([])
   const [loading, setLoading]   = useState(true)
 
@@ -2850,16 +2849,15 @@ function ClienteDocsModal({ c }) {
                       Ver póliza
                     </button>
                     {pol.producto_documentos?.map((d, i) => (
-                      <a
+                      <button
                         key={i}
-                        href={d.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-violet-600 hover:text-violet-800 hover:underline"
+                        type="button"
+                        onClick={() => showModal('verPolizaPdf', { url: d.url, title: d.nombre, nro: d.nombre })}
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-violet-600 hover:text-violet-800 hover:underline cursor-pointer"
                       >
                         <FileText className="w-3.5 h-3.5 shrink-0" />
                         {d.nombre}
-                      </a>
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -4882,11 +4880,14 @@ function ClienteHistorialModal({ c, onSaved }) {
                       )}
                     </div>
                   {pol.producto_documentos?.map((d, i) => (
-                    <a key={i} href={d.url} target="_blank" rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-violet-600 hover:text-violet-800 hover:underline justify-end mt-1.5"
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => showModal('verPolizaPdf', { url: d.url, title: d.nombre, nro: d.nombre })}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-violet-600 hover:text-violet-800 hover:underline justify-end mt-1.5 cursor-pointer"
                     >
                       <FileText className="w-3.5 h-3.5 shrink-0" /> {d.nombre}
-                    </a>
+                    </button>
                   ))}
                 </div>
               ))}
@@ -4952,6 +4953,45 @@ function ClienteHistorialModal({ c, onSaved }) {
       document.body
     )}
     </>
+  )
+}
+
+// ── Visor de PDF para Pólizas (utilizado en el Cotizador) ─────────────────────
+function VerPolizaPdfModal({ url, title, nro }) {
+  const { closeModal } = useApp()
+  const pdfVisorPanelRef = useRef(null)
+
+  useModalLock(pdfVisorPanelRef, true)
+
+  return (
+    <div
+      className="fixed inset-0 z-[95] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 sm:p-8"
+      onClick={closeModal}
+    >
+      <div
+        ref={pdfVisorPanelRef}
+        tabIndex={-1}
+        className="flex flex-col w-full max-w-3xl rounded-xl overflow-hidden shadow-2xl outline-none animate-in zoom-in duration-200"
+        style={{ height: '80vh' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-2 px-4 h-11 bg-[#323639] shrink-0">
+          <button onClick={closeModal} className="p-1.5 hover:bg-white/10 rounded-lg transition text-white" title="Cerrar">
+            <X className="w-4 h-4" />
+          </button>
+          <p className="flex-1 text-sm font-semibold text-white truncate">{title}</p>
+          <a
+            href={url}
+            download={`poliza-${nro}.pdf`}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-sm text-white transition"
+          >
+            <Download className="w-4 h-4" />
+            <span className="hidden sm:inline font-medium">Descargar</span>
+          </a>
+        </div>
+        <iframe src={url} className="flex-1 w-full border-0 bg-[#525659]" title={title} />
+      </div>
+    </div>
   )
 }
 
@@ -5151,7 +5191,7 @@ function VehiculoFormModal({ v = {}, clienteOpts = [], onSave }) {
  * @param {Function} onSaved  Callback para notificar al padre tras subir/eliminar
  */
 function ClienteDocumentosPanel({ c, onSaved }) {
-  const { closeModal, showToast, canAct } = useApp()
+  const { closeModal, showToast, showModal, canAct } = useApp()
   const canManage = canAct('clientes', 'view_docs')
   const [docs, setDocs]             = useState([])
   const [solicitudes, setSolicitudes] = useState([])
@@ -5306,15 +5346,14 @@ function ClienteDocumentosPanel({ c, onSaved }) {
                       {d.mime && <p className="text-[10px] text-slate-400 mt-0.5">{d.mime}</p>}
                     </div>
                     <div className="flex gap-1 shrink-0">
-                      <a
-                        href={d.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-2.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition inline-flex items-center justify-center"
+                      <button
+                        type="button"
+                        onClick={() => showModal('verPolizaPdf', { url: d.url, title: d.nombre, nro: d.nombre })}
+                        className="p-2.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition inline-flex items-center justify-center cursor-pointer"
                         title="Ver documento"
                       >
                         <Eye className="w-[18px] h-[18px]" />
-                      </a>
+                      </button>
                       {canManage && (
                         <button
                           onClick={() => handleDelete(d.id)}
@@ -5761,6 +5800,7 @@ export default function Modal() {
     case 'clienteSolicitudes':  return <ClienteSolicitudesModal {...props} />
     case 'clienteHistorial':      return <ClienteHistorialModal {...props} />
     case 'clienteDocumentos':     return <ClienteDocumentosPanel {...props} />
+    case 'verPolizaPdf':          return <VerPolizaPdfModal {...props} />
     default:                      return null
   }
 }

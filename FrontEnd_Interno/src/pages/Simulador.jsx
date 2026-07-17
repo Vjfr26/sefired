@@ -1702,6 +1702,7 @@ function freshUwForm() {
 }
 
 function UnderwritingModal({ cot, productos = [], onClose, onStatusChanged, showToast }) {
+  const { showModal } = useApp()
   const panelRef = useRef(null)
   useModalLock(panelRef)
   useInputLimits(panelRef)
@@ -2046,10 +2047,14 @@ function UnderwritingModal({ cot, productos = [], onClose, onStatusChanged, show
                           {r.obligatorio && <span className="text-[8px] font-bold ml-1 align-middle opacity-60">OBL</span>}
                         </span>
                         {present ? (
-                          <a href={up.url} target="_blank" rel="noopener noreferrer" title="Ver documento"
-                            className="p-1.5 rounded-lg text-indigo-500 hover:bg-indigo-50 transition shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => showModal('verPolizaPdf', { url: up.url, title: up.nombre, nro: up.nombre })}
+                            className="p-1.5 rounded-lg text-indigo-500 hover:bg-indigo-50 transition shrink-0 cursor-pointer"
+                            title="Ver documento"
+                          >
                             <Eye className="w-3.5 h-3.5" />
-                          </a>
+                          </button>
                         ) : (
                           <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 whitespace-nowrap ${r.obligatorio ? 'bg-rose-100 text-rose-600' : 'bg-slate-100 text-slate-400'}`}>
                             {r.obligatorio ? 'Falta' : 'Opcional'}
@@ -2068,10 +2073,14 @@ function UnderwritingModal({ cot, productos = [], onClose, onStatusChanged, show
                           <div key={d.id} className="flex items-center gap-2 px-2.5 py-2 rounded-xl border border-slate-100 bg-slate-50">
                             <FileText className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                             <span className="flex-1 min-w-0 text-[11px] font-medium text-slate-600 truncate">{d.nombre}</span>
-                            <a href={d.url} target="_blank" rel="noopener noreferrer" title="Ver documento"
-                              className="p-1.5 rounded-lg text-indigo-500 hover:bg-indigo-50 transition shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => showModal('verPolizaPdf', { url: d.url, title: d.nombre, nro: d.nombre })}
+                              className="p-1.5 rounded-lg text-indigo-500 hover:bg-indigo-50 transition shrink-0 cursor-pointer"
+                              title="Ver documento"
+                            >
                               <Eye className="w-3.5 h-3.5" />
-                            </a>
+                            </button>
                           </div>
                         ))}
                       </div>
@@ -2158,6 +2167,7 @@ export default function Simulador() {
   const [cotizaciones, setCotizaciones] = useState([])
   const [loadingCot, setLoadingCot] = useState(true)
   const [renewLoadingId, setRenewLoadingId] = useState(null)
+  const [pdfLoadingId, setPdfLoadingId] = useState(null)
   const [chipActive, setChipActive] = useState(0)
   const [search, setSearch] = useState('')
   const [fechaInicio, setFechaInicio] = useState('')
@@ -2299,19 +2309,23 @@ export default function Simulador() {
       },
     })
 
-  // Imprime (abre en pestaña nueva) el PDF de una póliza ya emitida, en la
-  // moneda elegida. Se abre la pestaña de forma síncrona ANTES del await para
-  // evitar el bloqueo de popups.
+  // Obtiene el PDF de una póliza ya emitida en la moneda elegida,
+  // y abre un modal interno para previsualizarlo e imprimirlo/descargarlo.
   const imprimirPolizaEnMoneda = async (q, moneda) => {
-    const win = window.open('', '_blank')
+    if (!q.poliza_id) return
+    setPdfLoadingId(q.poliza_id)
     try {
       const blob = await downloadPolizaPdf(q.poliza_id, null, moneda)
       const url  = URL.createObjectURL(blob)
-      if (win) win.location = url; else window.open(url, '_blank')
-      setTimeout(() => URL.revokeObjectURL(url), 60000)
+      showModal('verPolizaPdf', {
+        url,
+        title: `Póliza — ${q.poliza_nro || q.nro}`,
+        nro: q.poliza_nro || q.nro
+      })
     } catch (e) {
-      if (win) win.close()
       showToast(e.message || 'Error al generar el PDF', 'error')
+    } finally {
+      setPdfLoadingId(null)
     }
   }
 
@@ -2418,8 +2432,17 @@ export default function Simulador() {
         </button>
       )}
       {canPrintPoliza && (q.status === 'emitida' || q.status === 'vencida') && q.poliza_id && (
-        <button onClick={() => handleImprimirPoliza(q)} className="p-2.5 rounded-lg bg-sky-50 text-sky-600 hover:bg-sky-100 transition" title="Imprimir póliza">
-          <Printer className="w-[18px] h-[18px]" />
+        <button
+          onClick={() => handleImprimirPoliza(q)}
+          disabled={pdfLoadingId === q.poliza_id}
+          className="p-2.5 rounded-lg bg-sky-50 text-sky-600 hover:bg-sky-100 transition disabled:opacity-50"
+          title="Imprimir póliza"
+        >
+          {pdfLoadingId === q.poliza_id ? (
+            <div className="w-[18px] h-[18px] border-2 border-sky-400 border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <Printer className="w-[18px] h-[18px]" />
+          )}
         </button>
       )}
       {canAdjust && (q.status === 'emitida' || q.status === 'vencida') && q.poliza_id && (

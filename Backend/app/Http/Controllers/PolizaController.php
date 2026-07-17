@@ -738,7 +738,7 @@ class PolizaController extends Controller
         // vigente con prima > 0. Las pólizas viejas sin vínculo NO se adivinan:
         // pasan al modal de selección de tarifa (igual que al emitir).
         $snap = $poliza->snapshot_datos ?? [];
-        $ref  = $poliza->tarifario_version_id
+        $ref = $poliza->tarifario_version_id
             ?? ($snap['coberturas']['tarifa']['id'] ?? null)
             ?? ($snap['tarifario']['id'] ?? null);
 
@@ -748,7 +748,8 @@ class PolizaController extends Controller
             $hops = 0;
             while ($tarifa && $tarifa->estado !== 'vigente' && $hops++ < 20) {
                 $child = Tarifario::where('parent_id', $tarifa->id)->orderByDesc('version')->first();
-                if (!$child) break;
+                if (!$child)
+                    break;
                 $tarifa = $child;
             }
         }
@@ -757,14 +758,14 @@ class PolizaController extends Controller
             $prima = $this->calcularPrimaTarifa($tarifa, $tipoCalculo);
             if ($prima > 0) {
                 return response()->json([
-                    'valido'    => true,
-                    'moneda'    => $poliza->monedaNativa(),
+                    'valido' => true,
+                    'moneda' => $poliza->monedaNativa(),
                     'tarifario' => [
-                        'id'          => $tarifa->id,
-                        'nombre'      => $tarifa->nombre,
-                        'subtipo'     => $tarifa->subtipo,
+                        'id' => $tarifa->id,
+                        'nombre' => $tarifa->nombre,
+                        'subtipo' => $tarifa->subtipo,
                         'prima_anual' => $prima,
-                        'moneda'      => $poliza->monedaNativa(),
+                        'moneda' => $poliza->monedaNativa(),
                     ],
                 ]);
             }
@@ -780,17 +781,17 @@ class PolizaController extends Controller
             $prima = $this->calcularPrimaTarifa($t, $tipoCalculo);
             if ($prima > 0) {
                 $tarifariosDisponibles[] = [
-                    'id'          => $t->id,
-                    'nombre'      => $t->nombre,
-                    'subtipo'     => $t->subtipo,
+                    'id' => $t->id,
+                    'nombre' => $t->nombre,
+                    'subtipo' => $t->subtipo,
                     'prima_anual' => $prima,
                 ];
             }
         }
 
         return response()->json([
-            'valido'     => false,
-            'moneda'     => $poliza->monedaNativa(),
+            'valido' => false,
+            'moneda' => $poliza->monedaNativa(),
             'tarifarios' => $tarifariosDisponibles,
         ]);
     }
