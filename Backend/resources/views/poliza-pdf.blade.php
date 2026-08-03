@@ -24,30 +24,9 @@
         ? collect([$bienScope])
         : ($poliza->bienes->isNotEmpty() ? $poliza->bienes : collect([null]));
 
-    $snap        = $poliza->snapshot_datos ?? [];
-
-    // RENOVACIONES VIEJAS: antes el snapshot no se heredaba al renovar, así
-    // que esas pólizas quedaron sin datos de vehículo/tomador/coberturas en
-    // su propio snapshot. Las secciones que falten se completan con el
-    // snapshot de la póliza predecesora (misma solicitud, id anterior) — la
-    // emisión y sus renovaciones deben mostrar los mismos datos. Los campos
-    // propios de esta emisión (fechas, tasas, pagos, totales) salen de las
-    // columnas de la póliza, no del snapshot, así que no se contaminan.
-    if (empty($snap['bien']['atributos']) && $poliza->solicitud_id) {
-        $prevSnap = \App\Models\Poliza::where('solicitud_id', $poliza->solicitud_id)
-            ->where('id', '<', $poliza->id)
-            ->whereNotNull('snapshot_datos')
-            ->orderByDesc('id')
-            ->value('snapshot_datos');
-        if (is_array($prevSnap)) {
-            $heredables = ['bien', 'tomador', 'asegurado', 'producto', 'coberturas', 'tarifario', 'rcv', 'apov', 'tasa_bcv'];
-            // Un 'bien' heredado sin atributos no aporta nada — no debe tapar
-            // los respaldos en vivo de más abajo.
-            if (empty($prevSnap['bien']['atributos'])) unset($prevSnap['bien']);
-            unset($snap['bien']);
-            $snap += array_intersect_key($prevSnap, array_flip($heredables));
-        }
-    }
+    // Snapshot con lo heredado de la póliza predecesora en renovaciones
+    // viejas (ver CuadroCoberturas::snapshot, compartido con el reporte).
+    $snap        = \App\Support\CuadroCoberturas::snapshot($poliza);
 
     $tomador     = $snap['tomador']    ?? [];
     $asegurado   = $snap['asegurado']  ?? [];
@@ -69,36 +48,12 @@
     // documento está acotado, cuando ese bien tiene certificado propio.
     $llevaCertificado = (bool) ($poliza->producto?->lleva_certificado ?? false)
         && ($bienScope ? $bienScope->certificado !== null : $poliza->bienes->count() > 1);
-    // El bien del snapshot solo vale si trae ATRIBUTOS: en migradas el
-    // vehículo se completó DESPUÉS en vivo (Editar Póliza) y el snapshot
-    // quedó con un 'bien' cascarón (tipo/atributos vacíos) que no debe tapar
-    // la data viva — mismo criterio que la landing del QR.
-    $bien = $snap['bien'] ?? [];
-    if (empty($bien['atributos']) && $poliza->solicitud?->bien) {
-        $bien = [
-            'tipo'          => $poliza->solicitud->bien->tipo,
-            'atributos'     => $poliza->solicitud->bien->atributos ?? [],
-            'observaciones' => $poliza->solicitud->bien->observaciones,
-        ];
-    }
-    // Último respaldo del bien principal: el bien enlazado en poliza_bienes
-    // (renovaciones cuyo origen no tiene ni snapshot ni bien en la solicitud).
-    if (empty($bien['atributos']) && $bienPrincipal?->bien) {
-        $bien = [
-            'tipo'          => $bienPrincipal->bien->tipo,
-            'atributos'     => $bienPrincipal->bien->atributos ?? [],
-            'observaciones' => $bienPrincipal->bien->observaciones,
-        ];
-    }
-    // Documento acotado a un bien adicional: sus datos vienen del propio bien
-    // (el snapshot solo guarda el bien original de la solicitud).
-    if ($bienScope && $bienScope->certificado !== null && $bienScope->bien) {
-        $bien = [
-            'tipo'          => $bienScope->bien->tipo,
-            'atributos'     => $bienScope->bien->atributos ?? [],
-            'observaciones' => $bienScope->bien->observaciones,
-        ];
-    }
+    // Datos del bien: la corrección del snapshot manda campo por campo y el
+    // bien vivo rellena el resto (ver BienPoliza::datos, compartido con el
+    // reporte externo). Antes era todo o nada: corregir SOLO la placa desde
+    // "Editar Póliza" dejaba el snapshot en {placa: X} y el resto del
+    // vehículo se imprimía vacío.
+    $bien             = \App\Support\BienPoliza::datos($poliza, $snap, $bienScope);
     $attrs            = $bien['atributos'] ?? [];
     $bienObservaciones = $bien['observaciones'] ?? $poliza->solicitud?->bien?->observaciones ?? '—';
     // Antes el encabezado decía "Automóvil" siempre, sin importar el tipo de
@@ -150,45 +105,11 @@
     // caen a la versión VIGENTE de su tarifa: se sigue el linaje parent_id
     // desde la referencia guardada; sin referencia, la única vigente del
     // producto o el match por nombre de nivel "tipo / clase" del bien.
-    $tarifaViva = null;
-    $tarifaSnap = $cobs['tarifa']['datos'] ?? ($snap['tarifario']['datos'] ?? null);
-    if (!is_array($tarifaSnap) || count($tarifaSnap) === 0) $tarifaSnap = null;
-    $tarifaIdRef = $poliza->tarifario_version_id
-        ?? ($cobs['tarifa']['id'] ?? null)
-        ?? ($snap['tarifario']['id'] ?? null);
-    if (!$tarifaSnap && $tarifaIdRef) {
-        $tv   = \App\Models\Tarifario::find($tarifaIdRef);
-        $hops = 0;
-        while ($tv && $tv->estado !== 'vigente' && $hops++ < 20) {
-            $tv = \App\Models\Tarifario::where('parent_id', $tv->id)->orderByDesc('version')->first();
-        }
-        if ($tv && $tv->estado === 'vigente' && is_array($tv->datos)) $tarifaViva = $tv;
-    }
-    // Póliza sin NINGUNA referencia de tarifa (migradas): si el producto tiene
-    // UNA SOLA tarifa vigente no hay ambigüedad — se usa esa. Con varias (p.ej.
-    // RCV por clase de vehículo) no se adivina: habría que enlazarle su tarifa.
-    if (!$tarifaSnap && !$tarifaViva && $poliza->producto_id) {
-        $vigentes = \App\Models\Tarifario::where('producto_id', $poliza->producto_id)
-            ->where('estado', 'vigente')->where('activo', true)->limit(2)->get();
-        if ($vigentes->count() === 1 && is_array($vigentes->first()->datos)) {
-            $tarifaViva = $vigentes->first();
-        }
-    }
-    // Migradas con VARIAS tarifas vigentes (RCV por clase): el bien asegurado
-    // trae tipo ("Hasta 800 Kg de Peso") y clase ("Particular y Rusticos"), y
-    // las tarifas por nivel se llaman exactamente "tipo / clase" — si hay UNA
-    // vigente con ese nombre, es la de esta póliza. Sin match no se adivina.
-    if (!$tarifaSnap && !$tarifaViva && $poliza->producto_id && !empty($attrs['tipo']) && !empty($attrs['clase'])) {
-        $nivelRef  = mb_strtolower(trim($attrs['tipo']) . ' / ' . trim($attrs['clase']));
-        $porNombre = \App\Models\Tarifario::where('producto_id', $poliza->producto_id)
-            ->where('estado', 'vigente')->where('activo', true)
-            ->whereRaw('LOWER(nombre) = ?', [$nivelRef])
-            ->limit(2)->get();
-        if ($porNombre->count() === 1 && is_array($porNombre->first()->datos)) {
-            $tarifaViva = $porNombre->first();
-        }
-    }
-    $tarifaDatos = $tarifaSnap ?? $tarifaViva?->datos ?? [];
+    // La cascada vive en CuadroCoberturas: la comparte con el reporte externo
+    // para que las sumas del Excel sean las mismas que imprime este cuadro.
+    $tarifaResuelta = \App\Support\CuadroCoberturas::tarifa($poliza, $snap, $cobs, $attrs);
+    $tarifaViva  = $tarifaResuelta['viva'];
+    $tarifaDatos = $tarifaResuelta['datos'];
     // La estructura de los datos de la tarifa viva la define el tipo de
     // cálculo ACTUAL del producto (pudo cambiar desde la emisión).
     if ($tarifaViva) $tipoCal = $poliza->producto?->tipo_calculo ?? $tipoCal;
@@ -264,7 +185,10 @@
     $placa   = mb_strtoupper($attrs['placa']  ?? '—');
     $color   = mb_strtoupper($attrs['color']  ?? '—');
     $uso     = mb_strtoupper($attrs['uso']    ?? '—');
-    $serCar  = mb_strtoupper($attrs['serial_carroceria'] ?? ($attrs['serialCarroceria'] ?? '—'));
+    // El serial puede faltar en la fila del bien y estar en su gemelo: la
+    // migración duplicó cada vehículo por renovación y solo la primera fila
+    // se quedó con el serial (índice único). Ver BienPoliza.
+    $serCar  = mb_strtoupper(\App\Support\BienPoliza::serialCarroceria($attrs, $poliza->solicitud?->bien) ?: '—');
     $serMot  = mb_strtoupper($attrs['serial_motor']      ?? ($attrs['serialMotor']      ?? '—'));
     $puestos = $attrs['puestos'] ?? '—';
     $clase   = mb_strtoupper($attrs['clase']  ?? ($attrs['tipo'] ?? '—'));
@@ -296,7 +220,7 @@
             'placa'   => mb_strtoupper($a['placa']  ?? '—'),
             'color'   => mb_strtoupper($a['color']  ?? '—'),
             'uso'     => mb_strtoupper($a['uso']    ?? '—'),
-            'serCar'  => mb_strtoupper($a['serial_carroceria'] ?? ($a['serialCarroceria'] ?? '—')),
+            'serCar'  => mb_strtoupper(\App\Support\BienPoliza::serialCarroceria($a, $cb?->bien ?? $poliza->solicitud?->bien) ?: '—'),
             'serMot'  => mb_strtoupper($a['serial_motor']      ?? ($a['serialMotor']      ?? '—')),
             'puestos' => $a['puestos'] ?? '—',
             'clase'   => mb_strtoupper($a['clase'] ?? ($a['tipo'] ?? '—')),
@@ -304,120 +228,15 @@
         ];
     };
 
-    $cobertura_items = [];
-    // Renglones definidos por el usuario en el producto (nombres) con el
-    // monto de la tarifa (datos.coberturas_pdf = {slug: {label, suma}}).
-    // Si existen, son LA fuente del cuadro "Coberturas / Sumas Aseguradas" y
-    // sustituyen tanto la cuadrícula fija de vehículo como los derivados.
-    // Se buscan primero en la tarifa resuelta arriba (la congelada del
-    // snapshot o, en migradas, la vigente), luego en las copias de la
-    // cotización/snapshot y por último en los renglones del producto.
-    $cobsPdf = $tarifaDatos['coberturas_pdf']
-        ?? ($cobs['tarifa']['datos']['coberturas_pdf'] ?? null)
-        ?? ($snap['tarifario']['datos']['coberturas_pdf'] ?? null)
-        ?? $poliza->producto?->coberturas_pdf
-        ?? [];
-    if (is_array($cobsPdf) && count($cobsPdf) > 0) {
-        $renglones  = [];
-        $algunMonto = false;
-        foreach ($cobsPdf as $key => $val) {
-            if (!is_array($val)) continue;
-
-            if (isset($val['key']) && isset($val['label'])) {
-                // Renglón del PRODUCTO (solo define el nombre): su monto hay
-                // que buscarlo en los datos de la tarifa — por clave exacta,
-                // con el prefijo suma_ (key="persona" → suma_persona), o el
-                // que el propio renglón traiga. En por_nivel NO se mira la
-                // raíz: suma_persona/suma_cosa ahí son residuos del seeding
-                // legacy que el formulario de por_nivel no edita (mostrarían
-                // montos viejos); sus montos por cobertura viven únicamente
-                // en coberturas_pdf de la tarifa.
-                $k = $val['key'];
-                $label = $val['label'];
-                $suma = 0;
-                if ($tipoCal !== 'por_nivel' && isset($tarifaDatos[$k]) && is_array($tarifaDatos[$k]) && isset($tarifaDatos[$k]['suma'])) {
-                    $suma = $tarifaDatos[$k]['suma'];
-                } elseif ($tipoCal !== 'por_nivel' && isset($tarifaDatos[$k]) && is_numeric($tarifaDatos[$k])) {
-                    $suma = $tarifaDatos[$k];
-                } elseif ($tipoCal !== 'por_nivel' && isset($tarifaDatos['suma_'.$k]) && is_numeric($tarifaDatos['suma_'.$k])) {
-                    $suma = $tarifaDatos['suma_'.$k];
-                } elseif (isset($val['suma']) && is_numeric($val['suma'])) {
-                    $suma = $val['suma'];
-                }
-            } else {
-                // Renglón de la TARIFA ({slug: {label, suma}}): el monto es el
-                // asignado en "editar coberturas" del tarifario — la fuente
-                // buena del cuadro.
-                $label = $val['label'] ?? ucwords(str_replace('_', ' ', (string) $key));
-                $suma  = $val['suma'] ?? 0;
-            }
-            if ((float) $suma > 0) $algunMonto = true;
-            $renglones[] = [$label, $suma];
-        }
-        // Renglones sin NINGÚN monto (nombres del producto sin una tarifa que
-        // los cotice, o tarifa con todo en 0 porque nunca se le asignaron los
-        // montos): no pintan un cuadro en 0,00 tapando los datos reales — se
-        // cae a los derivados por tipo de cálculo / snapshot de abajo.
-        if ($algunMonto) {
-            foreach ($renglones as [$label, $suma]) $cobertura_items[] = [$label, $fmtC($suma)];
-        }
-    }
-    // Sin renglones con monto: el cuadro se deriva de los datos de la tarifa
-    // según el tipo de cálculo del producto.
-    if (empty($cobertura_items)) {
-        if ($tipoCal === 'por_valor') {
-            // "por_valor" no es exclusivo de vehículos (ej. Póliza Muebles también
-            // lo usa) — antes decía "Responsabilidad Civil Obligatoria" siempre,
-            // aunque el bien fuera un inmueble o cualquier otro bien de valor.
-            $labelPorValor = ($bien['tipo'] ?? null) === 'vehiculo' ? 'Responsabilidad Civil Obligatoria' : 'Suma Asegurada';
-            $cobertura_items[] = [$labelPorValor, $fmtM($poliza->cobertura_dolares)];
-        } elseif ($tipoCal === 'por_plan' && is_array($tarifaDatos)) {
-            // Las coberturas de un plan son un mapa de claves nombradas (ver
-            // TarifarioController) — antes solo se reconocían 4 claves fijas que
-            // no coincidían con los datos reales (p.ej. "invalidez_total" vs
-            // "invalidez"), así que la mayoría de las coberturas no aparecían.
-            foreach ($tarifaDatos as $key => $val) {
-                if ($key === 'coberturas_pdf') continue; // renglones, no coberturas del plan
-                if (is_array($val) && isset($val['suma'])) {
-                    $label = $val['label'] ?? ucwords(str_replace('_', ' ', (string) $key));
-                    $cobertura_items[] = [$label, $fmtC($val['suma'])];
-                }
-            }
-        } elseif ($tipoCal === 'fijo' && is_array($tarifaDatos)) {
-            // Extraer las sumas dinámicamente usando las claves del tarifario
-            foreach ($tarifaDatos as $key => $val) {
-                if (is_numeric($val) && (str_starts_with($key, 'suma_') || in_array($key, ['exceso_limite', 'muerte_invalidez', 'defensa_penal', 'gastos_medicos', 'asistencia_vial', 'gastos_funerarios']))) {
-                    $label = ucwords(str_replace('_', ' ', str_replace('suma_', 'suma ', $key)));
-                    $cobertura_items[] = [$label, $fmtC($val)];
-                }
-            }
-        } elseif ($tipoCal === 'por_nivel' && is_array($tarifaDatos)) {
-            if (!empty($tarifaDatos['suma'])) $cobertura_items[] = [$tarifaDatos['nivel'] ?? 'Suma Asegurada', $fmtC($tarifaDatos['suma'])];
-        }
-    }
-    // Pólizas MIGRADAS: la cobertura real quedó en el snapshot bajo 'rcv'/'apov'
-    // (no en la tarifa). Se muestran esas sumas reales ANTES de caer al
-    // genérico cobertura_dolares — una migrada suele tener ambos, y los
-    // renglones por cobertura son el dato bueno; NO se inventa nada.
-    if (empty($cobertura_items)) {
-        $rcvSnap = $snap['rcv'] ?? [];
-        if (!empty($rcvSnap['suma_persona'])) $cobertura_items[] = ['Daños a Personas', $fmtM($rcvSnap['suma_persona'])];
-        if (!empty($rcvSnap['suma_cosa']))    $cobertura_items[] = ['Daños a Cosas',    $fmtM($rcvSnap['suma_cosa'])];
-        $apovSnap = $snap['apov'] ?? [];
-        if (!empty($apovSnap['suma_muerte_accidental'])) $cobertura_items[] = ['Muerte Accidental',  $fmtM($apovSnap['suma_muerte_accidental'])];
-        if (!empty($apovSnap['suma_invalidez']))         $cobertura_items[] = ['Invalidez',           $fmtM($apovSnap['suma_invalidez'])];
-        if (!empty($apovSnap['suma_medicos']))           $cobertura_items[] = ['Gastos Médicos',      $fmtM($apovSnap['suma_medicos'])];
-        if (!empty($apovSnap['suma_funerarios']))        $cobertura_items[] = ['Gastos Funerarios',   $fmtM($apovSnap['suma_funerarios'])];
-    }
-    // Pólizas sin tarifario enlazado ni sumas migradas: la suma asegurada
-    // guardada directamente en la póliza, sin depender del snapshot.
-    if (empty($cobertura_items) && (float) $poliza->cobertura_dolares > 0) {
-        $cobertura_items[] = ['Suma Asegurada', $fmtM($poliza->cobertura_dolares)];
-    }
-    // Último respaldo: la suma asegurada en Bs guardada en la propia póliza.
-    if (empty($cobertura_items) && (float) $poliza->cobertura_bs > 0) {
-        $cobertura_items[] = ['Suma Asegurada', $fmtM($poliza->cobertura_bs)];
-    }
+    // Renglones del cuadro (nombre + monto sin formato) desde la cascada que
+    // comparte con el reporte externo — así el Excel de carga masiva declara
+    // exactamente las sumas que imprime este documento. Los montos que salen
+    // de una tarifa cargada HOY se convierten con la tasa del día ($fmtC);
+    // los congelados en la póliza, con la de emisión ($fmtM).
+    $cobertura_items = array_map(
+        fn ($r) => [$r['label'], $r['de_tarifa'] ? $fmtC($r['monto']) : $fmtM($r['monto'])],
+        \App\Support\CuadroCoberturas::renglones($poliza, $snap, $cobs, $tarifaDatos, $tipoCal, $bien['tipo'] ?? null)
+    );
 
     // Para vehículos el cuadro póliza se armará usando una cuadrícula de 3 columnas
     // para conservar el diseño, pero usando los nombres y montos dinámicos extraídos arriba.
@@ -807,7 +626,7 @@
         $anio   = $attrs['anio']              ?? '—';
         $placa  = mb_strtoupper($attrs['placa']  ?? '—');
         $color  = mb_strtoupper($attrs['color']  ?? '—');
-        $serCar = mb_strtoupper($attrs['serial_carroceria'] ?? ($attrs['serialCarroceria'] ?? '—'));
+        $serCar = mb_strtoupper(\App\Support\BienPoliza::serialCarroceria($attrs, $poliza->solicitud?->bien) ?: '—');
     }
     // Vehículo y bien genérico son EXCLUYENTES en el carnet (mismo criterio
     // que "Datos del Vehículo" del cuadro): bienes viejos sin 'tipo' se

@@ -17,6 +17,7 @@ use App\Rules\CedulaValida;
 use App\Rules\CodigoPostalValido;
 use App\Rules\NoInjectionChars;
 use App\Rules\TelefonoValido;
+use App\Support\CorreccionDatos;
 use App\Support\Documento;
 use App\Support\Moneda;
 use App\Traits\LogsActivity;
@@ -329,6 +330,7 @@ class ClienteController extends Controller
             }
         }
 
+        $antes = $persona->getAttributes();
         $persona->update($data);
 
         if (!empty($cambios)) {
@@ -337,6 +339,13 @@ class ClienteController extends Controller
                 array_keys($cambios), $cambios
             ));
             $this->logActivity('editar_cliente', "Cliente {$persona->nombre} — {$detalle}", 'persona', auth()->id());
+        }
+
+        // La corrección llega al snapshot de las pólizas VIGENTES del cliente:
+        // de ahí leen el PDF y el reporte de carga masiva (ver CorreccionDatos).
+        $propagadas = CorreccionDatos::dePersona($persona, $antes);
+        if ($propagadas > 0) {
+            $this->logActivity('editar_cliente', "Cliente {$persona->nombre} — corrección propagada a {$propagadas} póliza(s) vigente(s)", 'persona', auth()->id());
         }
 
         // Enviar notificación si hubo cambios y existe correo

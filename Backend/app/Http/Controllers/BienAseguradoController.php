@@ -8,6 +8,7 @@ use App\Models\BienPersonaRol;
 use App\Models\EmailLog;
 use App\Models\Persona;
 use App\Rules\NoInjectionChars;
+use App\Support\CorreccionDatos;
 use App\Traits\LogsActivity;
 use App\Traits\ScopesVendedor;
 use Illuminate\Http\Request;
@@ -256,6 +257,15 @@ class BienAseguradoController extends Controller
         $bien->update($data);
 
         $this->logActivity('actualizar_bien', "Bien ID {$bien->id} — " . $this->describirCambios($bien, $antes));
+
+        // La corrección llega al snapshot de las pólizas VIGENTES de este bien:
+        // de ahí leen el PDF y el reporte de carga masiva, que si no seguirían
+        // mostrando el dato viejo (ver CorreccionDatos).
+        $atributosAntes = json_decode($antes['atributos'] ?? '[]', true) ?: [];
+        $propagadas = CorreccionDatos::deBien($bien, $atributosAntes);
+        if ($propagadas > 0) {
+            $this->logActivity('actualizar_bien', "Bien ID {$bien->id} — corrección propagada a {$propagadas} póliza(s) vigente(s)");
+        }
 
         $personaBien = $bien->fresh('persona')->persona;
         if ($personaBien?->correo) {
