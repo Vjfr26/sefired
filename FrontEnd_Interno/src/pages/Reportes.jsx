@@ -2132,7 +2132,7 @@ function TabExternos() {
         ) : (
           <SchedulesManager
             title="Programación de Reportes Externos"
-            hint="Reportes masivos de pólizas que se generan y envían automáticamente por período."
+            hint="Cada envío declara las pólizas EMITIDAS ESE DÍA: se genera y manda automáticamente a la hora que fijes."
             schedules={schedules}
             setSchedules={setSchedules}
             canManage={canManage}
