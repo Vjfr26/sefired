@@ -1715,6 +1715,10 @@ function TabExternos() {
   
   const [ignoredIds, setIgnoredIds] = useState(new Set())
   const [exporting, setExporting] = useState(false)
+  // La carga masiva se declara por período: sin fechas no se exporta. Además
+  // de ser lo correcto, mantiene el archivo en un tamaño que el servidor
+  // puede construir (la cartera completa no cabe en memoria).
+  const periodoElegido = Boolean(fechaInicio && fechaFin)
   const [colSel, setColSel] = useState(() => new Set(EXT_COLS.map(([k]) => k)))  // columnas incluidas
   const [showCols, setShowCols] = useState(false)
   const [runningSchedId, setRunningSchedId] = useState(null)
@@ -1792,6 +1796,10 @@ function TabExternos() {
   }
 
   const handleExport = async () => {
+    if (!periodoElegido) {
+      showToast('Elige el período (Desde y Hasta) que vas a exportar', 'error')
+      return
+    }
     setExporting(true)
     showToast('Generando reporte externo...', 'info')
     try {
@@ -1962,7 +1970,8 @@ function TabExternos() {
             </label>
             <button
               onClick={handleExport}
-              disabled={exporting || policies.length === 0 || colSel.size === 0}
+              disabled={exporting || policies.length === 0 || colSel.size === 0 || !periodoElegido}
+              title={!periodoElegido ? 'Elige el período (Desde y Hasta) que vas a declarar' : undefined}
               className="btn-primary py-2 flex items-center justify-center gap-1.5"
             >
               {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
@@ -2017,24 +2026,34 @@ function TabExternos() {
             </div>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">Desde Emisión</label>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">
+              Desde Emisión <span className="text-rose-500" title="Obligatorio para exportar">*</span>
+            </label>
             <input
               type="date"
               value={fechaInicio}
               onChange={e => setFechaInicio(e.target.value)}
-              className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
+              className={`w-full px-3 py-2 text-sm bg-slate-50 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition ${fechaInicio ? 'border-slate-200' : 'border-amber-300'}`}
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">Hasta Emisión</label>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">
+              Hasta Emisión <span className="text-rose-500" title="Obligatorio para exportar">*</span>
+            </label>
             <input
               type="date"
               value={fechaFin}
               onChange={e => setFechaFin(e.target.value)}
-              className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
+              className={`w-full px-3 py-2 text-sm bg-slate-50 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition ${fechaFin ? 'border-slate-200' : 'border-amber-300'}`}
             />
           </div>
         </div>
+
+        {!periodoElegido && (
+          <p className="-mt-3 mb-5 text-xs text-amber-600">
+            Elige el período (Desde y Hasta) que vas a declarar: la carga masiva se exporta por períodos, no la cartera completa.
+          </p>
+        )}
 
         <div className="flex flex-wrap items-center justify-between gap-2 mb-4 text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-100">
           <div className="flex gap-2">

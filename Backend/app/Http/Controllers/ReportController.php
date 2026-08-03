@@ -296,15 +296,27 @@ class ReportController extends Controller
         ini_set('memory_limit', '1024M');
         set_time_limit(300);
 
-        $query = Poliza::with(['solicitud.persona', 'solicitud.bien', 'producto'])
-            ->orderBy('fecha_emision', 'desc');
+        // La carga masiva se declara POR PERÍODO: exigir las fechas mantiene el
+        // archivo en un tamaño manejable y evita que un descuido intente
+        // exportar la cartera entera.
+        // Mensajes explícitos: la app corre con el locale en inglés y estos los
+        // lee el usuario tal cual en el aviso de la pantalla.
+        $request->validate([
+            'fecha_inicio' => 'required|date',
+            'fecha_fin'    => 'required|date|after_or_equal:fecha_inicio',
+        ], [
+            'fecha_inicio.required' => 'Selecciona el período a exportar: falta la fecha "Desde Emisión".',
+            'fecha_fin.required'    => 'Selecciona el período a exportar: falta la fecha "Hasta Emisión".',
+            'fecha_inicio.date'     => 'La fecha "Desde Emisión" no es válida.',
+            'fecha_fin.date'        => 'La fecha "Hasta Emisión" no es válida.',
+            'fecha_fin.after_or_equal' => 'La fecha "Hasta Emisión" debe ser igual o posterior a "Desde Emisión".',
+        ]);
 
-        if ($request->filled('fecha_inicio')) {
-            $query->whereDate('fecha_emision', '>=', $request->fecha_inicio);
-        }
-        if ($request->filled('fecha_fin')) {
-            $query->whereDate('fecha_emision', '<=', $request->fecha_fin);
-        }
+        $query = Poliza::with(['solicitud.persona', 'solicitud.bien', 'producto'])
+            ->orderBy('fecha_emision', 'desc')
+            ->whereDate('fecha_emision', '>=', $request->fecha_inicio)
+            ->whereDate('fecha_emision', '<=', $request->fecha_fin);
+
         if ($request->filled('ignored_ids') && is_array($request->ignored_ids)) {
             $query->whereNotIn('id', $request->ignored_ids);
         }
