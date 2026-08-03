@@ -22,6 +22,18 @@ class ReporteGeneratorService
      */
     public function generarExterno(?array $columnas = null, string $moneda = 'USD'): array
     {
+        // Mismo tope que la descarga manual: sin él, el comando programado se
+        // quedaba sin memoria y moría con "exit code 255" en el log, sin decir
+        // por qué ni avisar a nadie.
+        $maximo = (int) config('reportes.max_polizas_export', 20000);
+        $total  = Poliza::count();
+        if ($total > $maximo) {
+            throw new \RuntimeException(
+                "El reporte externo abarca {$total} pólizas y el máximo por archivo es {$maximo}. "
+                . 'Acota la programación a un período o sube REPORTE_EXTERNO_MAX_POLIZAS junto con la memoria del proceso.'
+            );
+        }
+
         $policies = Poliza::with(['solicitud.persona', 'solicitud.bien', 'producto'])
             ->orderBy('fecha_emision', 'desc')
             ->get();

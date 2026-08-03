@@ -1815,7 +1815,9 @@ function TabExternos() {
       
       showToast('Reporte exportado correctamente', 'success')
     } catch (err) {
-      showToast('Error al exportar reporte', 'error')
+      // El mensaje viene del servidor cuando sabe qué pasó (rango demasiado
+      // grande, por ejemplo); si no, cae al genérico.
+      showToast(err?.message || 'Error al exportar reporte', 'error')
     } finally {
       setExporting(false)
     }

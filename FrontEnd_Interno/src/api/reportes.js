@@ -36,7 +36,18 @@ export async function exportExternalReport(params = {}) {
     },
     body: JSON.stringify(params)
   })
-  if (!res.ok) throw new Error('Error al exportar reporte')
+  if (!res.ok) {
+    // El servidor explica qué pasó (p. ej. rango demasiado grande); sin esto
+    // el usuario solo veía "Error al exportar reporte" y no sabía qué hacer.
+    let mensaje = 'Error al exportar reporte'
+    try {
+      if ((res.headers.get('Content-Type') || '').includes('application/json')) {
+        const data = await res.json()
+        if (data?.message) mensaje = data.message
+      }
+    } catch { /* respuesta sin JSON: se queda el mensaje genérico */ }
+    throw new Error(mensaje)
+  }
   return res.blob()
 }
 

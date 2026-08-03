@@ -309,6 +309,20 @@ class ReportController extends Controller
             $query->whereNotIn('id', $request->ignored_ids);
         }
 
+        // El Excel se arma entero en memoria: pasado cierto volumen la petición
+        // moría con un 500 mudo y el usuario solo veía "Error al exportar
+        // reporte". Se responde qué pasó y cuánto hay que acotar.
+        $maximo = (int) config('reportes.max_polizas_export', 20000);
+        $total  = $query->count();
+        if ($total > $maximo) {
+            return response()->json([
+                'message' => "El rango seleccionado tiene " . number_format($total, 0, ',', '.') . " pólizas y el máximo por archivo es "
+                    . number_format($maximo, 0, ',', '.') . ". Acota el rango de fechas y descarga la carga masiva por períodos.",
+                'total'   => $total,
+                'maximo'  => $maximo,
+            ], 422);
+        }
+
         $policies = $query->get();
         $columnas = $request->input('columnas');
         // Moneda de salida elegida por el usuario (USD|BS|EUR). Se convierte con
