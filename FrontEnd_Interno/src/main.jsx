@@ -5,7 +5,7 @@ import App from './App.jsx'
 import { getDeviceFingerprint } from './utils/fingerprint.js'
 
 // Intercepta todos los fetch hacia /api/* e inyecta el header de fingerprint.
-// Esto aplica a todos los módulos sin modificar cada archivo de API.
+// Esto aplica a todos los módulos, sin modificar cada archivo de API.
 ;(function patchFetch() {
   const _fetch = window.fetch
   window.fetch = function (input, init = {}) {
