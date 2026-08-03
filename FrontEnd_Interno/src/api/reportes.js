@@ -5,6 +5,23 @@ function getAuthHeaders() {
   return { Accept: 'application/json', Authorization: `Bearer ${token}` }
 }
 
+/**
+ * Devuelve el Excel, o lanza el mensaje que explique el servidor. Sin esto el
+ * usuario veía siempre el mismo texto genérico (p. ej. "Error al exportar
+ * reporte") aunque el backend dijera exactamente qué faltaba.
+ */
+async function blobOExplicacion(res, mensajeGenerico) {
+  if (res.ok) return res.blob()
+  let mensaje = mensajeGenerico
+  try {
+    if ((res.headers.get('Content-Type') || '').includes('application/json')) {
+      const data = await res.json()
+      if (data?.message) mensaje = data.message
+    }
+  } catch { /* respuesta sin JSON: se queda el genérico */ }
+  throw new Error(mensaje)
+}
+
 export async function fetchStats() {
   const res = await fetch(`${API_BASE_URL}/api/reports/stats`, { headers: getAuthHeaders() })
   if (!res.ok) throw new Error('Error al cargar estadísticas')
@@ -36,19 +53,7 @@ export async function exportExternalReport(params = {}) {
     },
     body: JSON.stringify(params)
   })
-  if (!res.ok) {
-    // El servidor explica qué pasó (p. ej. rango demasiado grande); sin esto
-    // el usuario solo veía "Error al exportar reporte" y no sabía qué hacer.
-    let mensaje = 'Error al exportar reporte'
-    try {
-      if ((res.headers.get('Content-Type') || '').includes('application/json')) {
-        const data = await res.json()
-        if (data?.message) mensaje = data.message
-      }
-    } catch { /* respuesta sin JSON: se queda el mensaje genérico */ }
-    throw new Error(mensaje)
-  }
-  return res.blob()
+  return blobOExplicacion(res, 'Error al exportar reporte')
 }
 
 export async function fetchExternalReportSchedules() {
@@ -165,8 +170,7 @@ export async function exportVentas(params = {}) {
     headers: { 'Content-Type': 'application/json', 'Accept': '*/*', 'Authorization': `Bearer ${token}` },
     body: JSON.stringify(params)
   })
-  if (!res.ok) throw new Error('Error al exportar ventas')
-  return res.blob()
+  return blobOExplicacion(res, 'Error al exportar ventas')
 }
 
 export async function exportOficinas(params = {}) {
@@ -176,8 +180,7 @@ export async function exportOficinas(params = {}) {
     headers: { 'Content-Type': 'application/json', 'Accept': '*/*', 'Authorization': `Bearer ${token}` },
     body: JSON.stringify(params)
   })
-  if (!res.ok) throw new Error('Error al exportar oficinas')
-  return res.blob()
+  return blobOExplicacion(res, 'Error al exportar oficinas')
 }
 
 export async function exportOficinasPagos(params = {}) {
@@ -187,8 +190,7 @@ export async function exportOficinasPagos(params = {}) {
     headers: { 'Content-Type': 'application/json', 'Accept': '*/*', 'Authorization': `Bearer ${token}` },
     body: JSON.stringify(params)
   })
-  if (!res.ok) throw new Error('Error al exportar pólizas cobradas')
-  return res.blob()
+  return blobOExplicacion(res, 'Error al exportar pólizas cobradas')
 }
 
 export async function fetchUsuariosReport(params = {}) {
@@ -205,8 +207,7 @@ export async function exportUsuariosReport(params = {}) {
     headers: { 'Content-Type': 'application/json', 'Accept': '*/*', 'Authorization': `Bearer ${token}` },
     body: JSON.stringify(params)
   })
-  if (!res.ok) throw new Error('Error al exportar métricas de personal')
-  return res.blob()
+  return blobOExplicacion(res, 'Error al exportar métricas de personal')
 }
 
 /**
@@ -258,8 +259,7 @@ export async function exportClientesReport(params = {}) {
     headers: { 'Content-Type': 'application/json', 'Accept': '*/*', 'Authorization': `Bearer ${token}` },
     body: JSON.stringify(params)
   })
-  if (!res.ok) throw new Error('Error al exportar métricas de clientes')
-  return res.blob()
+  return blobOExplicacion(res, 'Error al exportar métricas de clientes')
 }
 
 export async function fetchVehiculosReport(params = {}) {

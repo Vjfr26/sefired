@@ -101,7 +101,26 @@ const COLS_CLIENTES = [
  * para todos los reportes. Gestiona su propia selección y llama
  * onExport(columnas) donde columnas = null (todas) o array de claves elegidas.
  */
-function ExportButton({ cols, onExport, exporting, disabled = false, label = 'Exportar' }) {
+/** Motivo único del bloqueo por período, para que todos los tabs digan lo mismo. */
+const FALTA_PERIODO = 'Elige el período (Desde y Hasta) que vas a exportar'
+
+/** Aviso junto a los filtros mientras falte alguna de las dos fechas. */
+function AvisoPeriodo({ visible }) {
+  if (!visible) return null
+  return (
+    <p className="w-full text-xs text-amber-600">
+      {FALTA_PERIODO}: los reportes se exportan por rango de fechas, no sobre toda la base.
+    </p>
+  )
+}
+
+/**
+ * `motivoDeshabilitado` explica POR QUÉ no se puede exportar (aparece como
+ * tooltip): un botón apagado sin explicación deja al usuario sin saber qué
+ * hacer. Se usa para exigir el período — los reportes se exportan por rango
+ * de fechas, no sobre toda la base.
+ */
+function ExportButton({ cols, onExport, exporting, disabled = false, label = 'Exportar', motivoDeshabilitado = null }) {
   const [open, setOpen] = useState(false)
   const [sel, setSel] = useState(() => new Set(cols.map(([k]) => k)))
   const [pos, setPos] = useState(null)
@@ -149,7 +168,13 @@ function ExportButton({ cols, onExport, exporting, disabled = false, label = 'Ex
       >
         <Filter className="w-4 h-4" /> Columnas ({sel.size}/{all.length})
       </button>
-      <button type="button" onClick={doExport} disabled={exporting || disabled || sel.size === 0} className="btn-secondary shrink-0">
+      <button
+        type="button"
+        onClick={doExport}
+        disabled={exporting || disabled || sel.size === 0 || !!motivoDeshabilitado}
+        title={motivoDeshabilitado || undefined}
+        className="btn-secondary shrink-0"
+      >
         {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
         {label}
       </button>
@@ -227,6 +252,9 @@ function TabVentas() {
   const { start, today } = getInitialDates()
   const [fechaInicio, setFechaInicio] = useState(start)
   const [fechaFin, setFechaFin] = useState(today)
+  // Exportar exige período: sin las dos fechas el archivo puede abarcar
+  // toda la base (ver FALTA_PERIODO).
+  const periodoElegido = Boolean(fechaInicio && fechaFin)
   const [search, setSearch] = useState('')
   const [ventas, setVentas] = useState([])
   const [resumen, setResumen] = useState({ comision_generada: 0, comision_pagada: 0, comision_pendiente: 0, comision_generada_bs: 0, comision_pagada_bs: 0, comision_pendiente_bs: 0, pct_pagado: 0 })
@@ -257,6 +285,10 @@ function TabVentas() {
   }
 
   const handleExport = async (columnas = null) => {
+    if (!periodoElegido) {
+      showToast(FALTA_PERIODO, 'error')
+      return
+    }
     setExporting(true)
     showToast('Exportando reporte de ventas…', 'info')
     try {
@@ -381,7 +413,8 @@ function TabVentas() {
         />
         {canExport && (
           <div className="ml-auto">
-            <ExportButton cols={COLS_VENTAS} onExport={handleExport} exporting={exporting} />
+            <AvisoPeriodo visible={!periodoElegido} />
+            <ExportButton cols={COLS_VENTAS} onExport={handleExport} exporting={exporting} motivoDeshabilitado={periodoElegido ? null : FALTA_PERIODO} />
           </div>
         )}
       </div>
@@ -578,6 +611,9 @@ function TabOficinas() {
   const { start, today } = getInitialDates()
   const [fechaInicio, setFechaInicio] = useState(start)
   const [fechaFin, setFechaFin] = useState(today)
+  // Exportar exige período: sin las dos fechas el archivo puede abarcar
+  // toda la base (ver FALTA_PERIODO).
+  const periodoElegido = Boolean(fechaInicio && fechaFin)
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
@@ -634,6 +670,10 @@ function TabOficinas() {
   }
 
   const handleExport = async (columnas = null) => {
+    if (!periodoElegido) {
+      showToast(FALTA_PERIODO, 'error')
+      return
+    }
     setExporting(true)
     showToast('Exportando reporte de oficinas…', 'info')
     try {
@@ -652,6 +692,10 @@ function TabOficinas() {
   }
 
   const handleExportPagos = async (columnas = null) => {
+    if (!periodoElegido) {
+      showToast(FALTA_PERIODO, 'error')
+      return
+    }
     setPagosExporting(true)
     showToast('Exportando pólizas cobradas…', 'info')
     try {
@@ -691,7 +735,8 @@ function TabOficinas() {
         />
         {canExport && (
           <div className="ml-auto">
-            <ExportButton cols={COLS_OFICINAS} onExport={handleExport} exporting={exporting} />
+            <AvisoPeriodo visible={!periodoElegido} />
+            <ExportButton cols={COLS_OFICINAS} onExport={handleExport} exporting={exporting} motivoDeshabilitado={periodoElegido ? null : FALTA_PERIODO} />
           </div>
         )}
       </div>
@@ -743,7 +788,10 @@ function TabOficinas() {
       <div className="flex items-center justify-between mt-6 mb-3">
         <h3 className="text-sm font-semibold text-slate-700">Pólizas cobradas por forma de pago</h3>
         {canExport && (
-          <ExportButton cols={COLS_PAGOS} onExport={handleExportPagos} exporting={pagosExporting} />
+          <>
+            <AvisoPeriodo visible={!periodoElegido} />
+            <ExportButton cols={COLS_PAGOS} onExport={handleExportPagos} exporting={pagosExporting} motivoDeshabilitado={periodoElegido ? null : FALTA_PERIODO} />
+          </>
         )}
       </div>
 
@@ -2152,6 +2200,9 @@ function TabUsuariosMetrics() {
   const { start, today } = getInitialDates()
   const [fechaInicio, setFechaInicio] = useState(start)
   const [fechaFin, setFechaFin] = useState(today)
+  // Exportar exige período: sin las dos fechas el archivo puede abarcar
+  // toda la base (ver FALTA_PERIODO).
+  const periodoElegido = Boolean(fechaInicio && fechaFin)
   const [search, setSearch] = useState('')
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(false)
@@ -2222,6 +2273,10 @@ function TabUsuariosMetrics() {
   }
 
   const handleExport = async (columnas = null) => {
+    if (!periodoElegido) {
+      showToast(FALTA_PERIODO, 'error')
+      return
+    }
     setExporting(true)
     showToast('Exportando métricas de personal…', 'info')
     try {
@@ -2349,7 +2404,10 @@ function TabUsuariosMetrics() {
               className="text-xs border border-slate-200 rounded-xl px-2.5 py-1.5 bg-slate-50 text-slate-600 focus:ring-2 focus:ring-blue-500 outline-none"
             />
             {canExport && (
-              <ExportButton cols={COLS_ASESOR} onExport={handleExport} exporting={exporting} />
+              <>
+                <AvisoPeriodo visible={!periodoElegido} />
+                <ExportButton cols={COLS_ASESOR} onExport={handleExport} exporting={exporting} motivoDeshabilitado={periodoElegido ? null : FALTA_PERIODO} />
+              </>
             )}
           </div>
         </div>
@@ -2498,7 +2556,10 @@ function TabUsuariosMetrics() {
         />
         <button type="submit" className="btn-primary">Filtrar</button>
         {canExport && (
-          <ExportButton cols={COLS_METRICAS} onExport={handleExport} exporting={exporting} />
+          <>
+            <AvisoPeriodo visible={!periodoElegido} />
+            <ExportButton cols={COLS_METRICAS} onExport={handleExport} exporting={exporting} motivoDeshabilitado={periodoElegido ? null : FALTA_PERIODO} />
+          </>
         )}
       </form>
 

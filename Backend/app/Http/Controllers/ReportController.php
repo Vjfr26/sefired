@@ -211,6 +211,29 @@ class ReportController extends Controller
         ]);
     }
 
+    /**
+     * Todos los reportes se exportan POR PERÍODO: sin fechas, el archivo puede
+     * abarcar la base entera y el servidor se queda sin memoria armándolo (el
+     * usuario solo veía "Error al exportar"). La pantalla ya lo impide, pero la
+     * regla vive acá para que valga también llamando al endpoint directo.
+     *
+     * Los mensajes van en español explícito: la app corre con el locale en
+     * inglés y el usuario los lee tal cual en el aviso de la pantalla.
+     */
+    private function validarPeriodo(Request $request): void
+    {
+        $request->validate([
+            'fecha_inicio' => 'required|date',
+            'fecha_fin'    => 'required|date|after_or_equal:fecha_inicio',
+        ], [
+            'fecha_inicio.required'    => 'Selecciona el período a exportar: falta la fecha "Desde".',
+            'fecha_fin.required'       => 'Selecciona el período a exportar: falta la fecha "Hasta".',
+            'fecha_inicio.date'        => 'La fecha "Desde" no es válida.',
+            'fecha_fin.date'           => 'La fecha "Hasta" no es válida.',
+            'fecha_fin.after_or_equal' => 'La fecha "Hasta" debe ser igual o posterior a la fecha "Desde".',
+        ]);
+    }
+
     // ── REPORTE EXTERNO (SUDEASEG carga masiva) ───────────────────────────────────
 
     public function getExternalReportPolicies(Request $request)
@@ -299,18 +322,7 @@ class ReportController extends Controller
         // La carga masiva se declara POR PERÍODO: exigir las fechas mantiene el
         // archivo en un tamaño manejable y evita que un descuido intente
         // exportar la cartera entera.
-        // Mensajes explícitos: la app corre con el locale en inglés y estos los
-        // lee el usuario tal cual en el aviso de la pantalla.
-        $request->validate([
-            'fecha_inicio' => 'required|date',
-            'fecha_fin'    => 'required|date|after_or_equal:fecha_inicio',
-        ], [
-            'fecha_inicio.required' => 'Selecciona el período a exportar: falta la fecha "Desde Emisión".',
-            'fecha_fin.required'    => 'Selecciona el período a exportar: falta la fecha "Hasta Emisión".',
-            'fecha_inicio.date'     => 'La fecha "Desde Emisión" no es válida.',
-            'fecha_fin.date'        => 'La fecha "Hasta Emisión" no es válida.',
-            'fecha_fin.after_or_equal' => 'La fecha "Hasta Emisión" debe ser igual o posterior a "Desde Emisión".',
-        ]);
+        $this->validarPeriodo($request);
 
         $query = Poliza::with(['solicitud.persona', 'solicitud.bien', 'producto'])
             ->orderBy('fecha_emision', 'desc')
@@ -682,6 +694,8 @@ class ReportController extends Controller
 
     public function exportVentas(Request $request)
     {
+        $this->validarPeriodo($request);
+
         $query = Poliza::with(['vendedor', 'producto', 'comision']);
         $user = auth()->user();
         if ($user && !PermisosPorRol::tiene($user, 'reportes', 'view_ventas_todos')) {
@@ -802,6 +816,8 @@ class ReportController extends Controller
 
     public function exportOficinas(Request $request)
     {
+        $this->validarPeriodo($request);
+
         return (new OficinasExport(collect($this->oficinasReportRows($request)), $request->input('columnas')))
             ->download('reporte_oficinas_' . now()->format('Ymd_His') . '.xlsx');
     }
@@ -1041,6 +1057,8 @@ class ReportController extends Controller
 
     public function exportOficinasPagos(Request $request)
     {
+        $this->validarPeriodo($request);
+
         return (new OficinasPagosExport($this->oficinasPagosRows($request), $request->input('columnas')))
             ->download('reporte_oficinas_pagos_' . now()->format('Ymd_His') . '.xlsx');
     }
@@ -1302,6 +1320,8 @@ class ReportController extends Controller
 
     public function exportUsuariosReport(Request $request)
     {
+        $this->validarPeriodo($request);
+
         $user = auth()->user();
         if ($user && !PermisosPorRol::tiene($user, 'reportes', 'view_metrics_personal_todos')) {
             $request->merge(['usuario_id' => $user->id]);
